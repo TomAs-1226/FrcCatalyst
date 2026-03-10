@@ -8,12 +8,14 @@ import com.ctre.phoenix6.configs.Slot0Configs;
 import com.ctre.phoenix6.configs.SoftwareLimitSwitchConfigs;
 import com.ctre.phoenix6.controls.DutyCycleOut;
 import com.ctre.phoenix6.controls.Follower;
+import com.ctre.phoenix6.signals.FeedbackSensorSourceValue;
 import com.ctre.phoenix6.signals.MotorAlignmentValue;
 import com.ctre.phoenix6.controls.MotionMagicVoltage;
 import com.ctre.phoenix6.controls.NeutralOut;
 import com.ctre.phoenix6.controls.PositionVoltage;
 import com.ctre.phoenix6.controls.VelocityVoltage;
 import com.ctre.phoenix6.controls.VoltageOut;
+import com.ctre.phoenix6.hardware.CANcoder;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.signals.GravityTypeValue;
 import com.ctre.phoenix6.signals.InvertedValue;
@@ -25,6 +27,17 @@ import edu.wpi.first.networktables.NetworkTableInstance;
 /**
  * Unified TalonFX motor wrapper with builder-style configuration,
  * simplified control methods, and automatic telemetry.
+ *
+ * <p><b>Encoder Architecture:</b> By default, uses the TalonFX's built-in encoder
+ * with {@code SensorToMechanismRatio} for gear reduction. This is the simplest
+ * and most reliable feedback path — no external sensors needed.
+ *
+ * <p>For mechanisms requiring absolute positioning (e.g., swerve steering, arms
+ * that start in unknown positions), you can optionally fuse a CANcoder using
+ * {@link Builder#fusedCANcoder(int, double)} or {@link Builder#syncCANcoder(int, double)}.
+ * Fused CANcoder combines the high-resolution internal encoder with the CANcoder's
+ * absolute position on startup (requires Phoenix Pro). SyncCANcoder is the
+ * non-Pro alternative that synchronizes once on boot.
  */
 public class CatalystMotor {
 
@@ -119,8 +132,35 @@ public class CatalystMotor {
             config.ClosedLoopRamps.VoltageClosedLoopRampPeriod = builder.closedLoopRampRate;
         }
 
-        // Gear ratio for rotor-to-sensor
-        config.Feedback.SensorToMechanismRatio = builder.gearRatio;
+        // Feedback configuration
+        if (builder.fusedCancoderId >= 0) {
+            // Fused CANcoder: combines internal encoder + CANcoder absolute position.
+            // The TalonFX uses its internal encoder for high-resolution feedback
+            // but seeds/fuses with the CANcoder's absolute position on startup.
+            config.Feedback.FeedbackSensorSource = FeedbackSensorSourceValue.FusedCANcoder;
+            config.Feedback.FeedbackRemoteSensorID = builder.fusedCancoderId;
+            config.Feedback.RotorToSensorRatio = builder.rotorToSensorRatio;
+            config.Feedback.SensorToMechanismRatio = builder.sensorToMechanismRatio;
+        } else if (builder.syncCancoderId >= 0) {
+            // Sync CANcoder: non-Pro alternative. Seeds the internal encoder
+            // with the CANcoder's absolute position on boot, then uses internal only.
+            config.Feedback.FeedbackSensorSource = FeedbackSensorSourceValue.SyncCANcoder;
+            config.Feedback.FeedbackRemoteSensorID = builder.syncCancoderId;
+            config.Feedback.RotorToSensorRatio = builder.rotorToSensorRatio;
+            config.Feedback.SensorToMechanismRatio = builder.sensorToMechanismRatio;
+        } else if (builder.remoteCancoderId >= 0) {
+            // Remote CANcoder: uses CANcoder directly as feedback (lower bandwidth).
+            // Only use when the internal encoder cannot see the mechanism position
+            // (e.g., mechanism on the other side of a belt/chain with slip).
+            config.Feedback.FeedbackSensorSource = FeedbackSensorSourceValue.RemoteCANcoder;
+            config.Feedback.FeedbackRemoteSensorID = builder.remoteCancoderId;
+            config.Feedback.SensorToMechanismRatio = builder.sensorToMechanismRatio;
+        } else {
+            // Default: internal encoder only. This is the simplest and best option
+            // for most mechanisms. SensorToMechanismRatio converts rotor rotations
+            // to mechanism rotations (e.g., 10.0 means 10 motor turns = 1 mechanism turn).
+            config.Feedback.SensorToMechanismRatio = builder.gearRatio;
+        }
 
         // Apply config with retries
         for (int i = 0; i < 5; i++) {
@@ -289,6 +329,11 @@ public class CatalystMotor {
         private double reverseSoftLimit = -Double.MAX_VALUE;
         private int followerCanId = -1;
         private boolean followerOppose = false;
+        private int fusedCancoderId = -1;   // -1 = disabled
+        private int syncCancoderId = -1;    // -1 = disabled
+        private int remoteCancoderId = -1;  // -1 = disabled
+        private double rotorToSensorRatio = 1.0;
+        private double sensorToMechanismRatio = 1.0;
         private double voltageCompensation = 0; // 0 = disabled
         private double openLoopRampRate = 0; // seconds 0->full, 0 = disabled
         private double closedLoopRampRate = 0;
@@ -338,6 +383,64 @@ public class CatalystMotor {
         public Builder withFollower(int canId, boolean oppose) {
             this.followerCanId = canId;
             this.followerOppose = oppose;
+            return this;
+        }
+
+        /**
+         * Fuse a CANcoder with the internal encoder for absolute positioning.
+         * The TalonFX uses its high-resolution internal encoder for closed-loop control
+         * but fuses the CANcoder's absolute position to eliminate startup drift.
+         * <b>Requires Phoenix Pro license.</b>
+         *
+         * @param cancoderId CAN ID of the CANcoder
+         * @param rotorToSensorRatio ratio of motor rotor rotations to CANcoder rotations
+         *                           (e.g., if the CANcoder is on the mechanism output
+         *                           and the gear ratio is 10:1, this is 10.0)
+         */
+        public Builder fusedCANcoder(int cancoderId, double rotorToSensorRatio) {
+            this.fusedCancoderId = cancoderId;
+            this.rotorToSensorRatio = rotorToSensorRatio;
+            return this;
+        }
+
+        /**
+         * Sync a CANcoder with the internal encoder (non-Pro alternative).
+         * Seeds the internal encoder with the CANcoder's absolute position on boot,
+         * then uses the internal encoder exclusively. Good for mechanisms that
+         * need to know their absolute position at startup but don't need
+         * continuous absolute tracking.
+         *
+         * @param cancoderId CAN ID of the CANcoder
+         * @param rotorToSensorRatio ratio of motor rotor rotations to CANcoder rotations
+         */
+        public Builder syncCANcoder(int cancoderId, double rotorToSensorRatio) {
+            this.syncCancoderId = cancoderId;
+            this.rotorToSensorRatio = rotorToSensorRatio;
+            return this;
+        }
+
+        /**
+         * Use a remote CANcoder as the feedback sensor instead of the internal encoder.
+         * Only use this when the internal encoder cannot see the mechanism
+         * (e.g., belt/chain with slip between motor and mechanism).
+         * Lower bandwidth than internal/fused — prefer fusedCANcoder when possible.
+         *
+         * @param cancoderId CAN ID of the CANcoder
+         */
+        public Builder remoteCANcoder(int cancoderId) {
+            this.remoteCancoderId = cancoderId;
+            return this;
+        }
+
+        /**
+         * Set the sensor-to-mechanism ratio when using a CANcoder.
+         * This is the ratio from the CANcoder to the mechanism output.
+         * Only needed with fusedCANcoder/syncCANcoder/remoteCANcoder.
+         *
+         * @param ratio CANcoder rotations per mechanism rotation
+         */
+        public Builder sensorToMechanismRatio(double ratio) {
+            this.sensorToMechanismRatio = ratio;
             return this;
         }
 
