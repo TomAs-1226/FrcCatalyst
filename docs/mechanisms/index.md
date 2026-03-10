@@ -38,18 +38,18 @@ SuperstructureCoordinator superstructure = new SuperstructureCoordinator()
     .withRotational("arm", arm);
 
 superstructure.defineState("STOW")
-    .linearPosition("elevator", 0.0)
-    .rotationalPosition("arm", 0.0)
-    .build();
+    .setLinear("elevator", 0.0)
+    .setRotational("arm", 0.0)
+    .done();
 
 superstructure.defineState("SCORE_HIGH")
-    .linearPosition("elevator", 1.1)
-    .rotationalPosition("arm", 95.0)
-    .build();
+    .setLinear("elevator", 1.1)
+    .setRotational("arm", 95.0)
+    .done();
 
 // Custom transition: retract arm before raising elevator
 superstructure.addTransitionRule("STOW", "SCORE_HIGH",
-    (coordinator) -> elevator.goTo("HIGH")
+    (fromState, toState) -> elevator.goTo("HIGH")
         .alongWith(arm.goTo("STOW"))
         .andThen(arm.goTo("SCORE"))
 );
@@ -77,6 +77,45 @@ public abstract class CatalystMechanism extends SubsystemBase {
     protected void updateTelemetry();
 }
 ```
+
+## Encoder Architecture
+
+By default, FrcCatalyst uses the **TalonFX internal encoder** as the feedback source - no external encoder needed. Use `sensorToMechanismRatio()` to convert motor rotations to mechanism units.
+
+For mechanisms that need **absolute positioning** (e.g., a swerve azimuth or an arm that must know its angle on startup), you can optionally fuse a CANcoder:
+
+```java
+// Default: internal encoder only (simplest, no extra hardware)
+CatalystMotor.builder(1)
+    .sensorToMechanismRatio(10.0)   // 10 motor rotations = 1 mechanism rotation
+    .build();
+
+// FusedCANcoder (requires Phoenix Pro license)
+// Fuses CANcoder absolute position with internal encoder for best accuracy
+CatalystMotor.builder(1)
+    .fusedCANcoder(20, 1.0)         // CANcoder ID 20, 1:1 rotor-to-sensor
+    .sensorToMechanismRatio(10.0)
+    .build();
+
+// SyncCANcoder (no Pro license needed)
+// Syncs internal encoder on boot using CANcoder absolute position
+CatalystMotor.builder(1)
+    .syncCANcoder(20, 1.0)
+    .sensorToMechanismRatio(10.0)
+    .build();
+
+// RemoteCANcoder (legacy, uses CANcoder as primary feedback)
+CatalystMotor.builder(1)
+    .remoteCANcoder(20)
+    .build();
+```
+
+| Mode | Pro Required | Accuracy | Use Case |
+|------|-------------|----------|----------|
+| Internal (default) | No | Good | Elevators, flywheels, most mechanisms |
+| FusedCANcoder | Yes | Best | Swerve azimuth, precision arms |
+| SyncCANcoder | No | Good+ | Arms that need boot-up absolute position |
+| RemoteCANcoder | No | Moderate | Legacy setups |
 
 ## Motion Magic vs. WPILib ProfiledPID
 

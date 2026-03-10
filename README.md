@@ -299,6 +299,38 @@ VisionSubsystem vision = new VisionSubsystem(
 
 ---
 
+## Encoder Architecture
+
+By default, FrcCatalyst uses the **TalonFX internal encoder** — no extra hardware needed. For mechanisms requiring absolute positioning (e.g., an arm that must know its angle on startup), you can optionally fuse a CANcoder:
+
+```java
+// Default: internal encoder only (simplest, no extra hardware)
+CatalystMotor.builder(1)
+    .sensorToMechanismRatio(10.0)   // 10 motor rotations = 1 mechanism rotation
+    .build();
+
+// FusedCANcoder (requires Phoenix Pro license)
+CatalystMotor.builder(1)
+    .fusedCANcoder(20, 1.0)         // CANcoder ID 20, 1:1 rotor-to-sensor
+    .sensorToMechanismRatio(10.0)
+    .build();
+
+// SyncCANcoder (no Pro license needed)
+CatalystMotor.builder(1)
+    .syncCANcoder(20, 1.0)
+    .sensorToMechanismRatio(10.0)
+    .build();
+```
+
+| Mode | Pro Required | Accuracy | Use Case |
+|------|-------------|----------|----------|
+| Internal (default) | No | Good | Elevators, flywheels, most mechanisms |
+| FusedCANcoder | Yes | Best | Swerve azimuth, precision arms |
+| SyncCANcoder | No | Good+ | Arms that need boot-up absolute position |
+| RemoteCANcoder | No | Moderate | Legacy setups |
+
+---
+
 ## Physics Estimation
 
 FrcCatalyst can estimate feedforward gains and max speeds from your mechanism's physical specs:
@@ -314,6 +346,24 @@ var config = LinearMechanism.Config.builder()
 
 double gravityFF = config.estimateGravityFF();  // ~0.35V
 double maxSpeed = config.estimateMaxSpeed();      // ~1.9 m/s
+```
+
+---
+
+## Testing
+
+FrcCatalyst includes a comprehensive test project at [FrcCatalystTest](https://github.com/TomAs-1226/FrcCatalystTest) that validates all library components:
+
+- **68 JUnit tests** covering utilities, math helpers, hardware types, and mechanism construction
+- **Simulation tests** for all mechanism types (elevator, arm, flywheel, roller, winch)
+- **SuperstructureCoordinator** state machine integration tests
+
+```bash
+# Run unit tests (utilities, math, hardware)
+./gradlew test
+
+# Run all tests including mechanism simulation
+./gradlew testAll
 ```
 
 ---

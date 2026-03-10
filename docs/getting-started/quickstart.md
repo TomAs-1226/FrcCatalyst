@@ -107,10 +107,8 @@ For the best performance, use SysId characterization:
 ```java
 CharacterizationHelper charHelper = new CharacterizationHelper(
     "Elevator",
-    elevator,                        // subsystem
-    volts -> elevator.getMotor().setVoltage(volts),
-    () -> elevator.getPosition(),    // position
-    () -> elevator.getVelocity()     // velocity
+    elevator,                   // subsystem (extends SubsystemBase)
+    elevator.getMotor()         // CatalystMotor for voltage control
 );
 
 // Bind to buttons for SysId
