@@ -1,11 +1,23 @@
 ---
 layout: default
 title: Installation
-nav_order: 2
+nav_order: 1
 parent: Getting Started
 ---
 
 # Installation
+{: .no_toc }
+
+Add FrcCatalyst to your WPILib robot project.
+{: .fs-6 .fw-300 }
+
+## Table of contents
+{: .no_toc .text-delta }
+
+1. TOC
+{:toc}
+
+---
 
 ## Prerequisites
 
@@ -13,7 +25,7 @@ parent: Getting Started
 - **CTRE Phoenix 6** vendordep installed in your robot project
 - A **GradleRIO robot project** (created via WPILib project generator)
 
-## Add FrcCatalyst via JitPack
+## Option 1: JitPack (Recommended)
 
 Add the JitPack repository and FrcCatalyst dependency to your robot project's `build.gradle`:
 
@@ -29,9 +41,9 @@ dependencies {
 }
 ```
 
-## Add FrcCatalyst via Local Maven
+## Option 2: Local Maven (From Source)
 
-If you prefer to build from source:
+If you prefer to build from source or need to modify the library:
 
 ```bash
 # Clone FrcCatalyst
@@ -56,13 +68,13 @@ dependencies {
 
 ## Verify Installation
 
-Create a simple test in your `RobotContainer`:
+Create a simple test in your `RobotContainer` to confirm everything is working:
 
 ```java
 import frc.lib.catalyst.hardware.MotorType;
 import frc.lib.catalyst.util.CatalystMath;
 
-// In constructor:
+// In your RobotContainer constructor:
 System.out.println("Kraken X60 free speed: "
     + MotorType.KRAKEN_X60.freeSpeedRPS() + " RPS");
 System.out.println("Processed joystick: "
@@ -73,4 +85,4 @@ If it compiles and prints the values, you're good to go!
 
 ## Next Steps
 
-Head to the [Quick Start](quickstart) guide to build your first mechanism.
+Head to the [Quick Start](quickstart) guide to build your first mechanism in under 5 minutes.

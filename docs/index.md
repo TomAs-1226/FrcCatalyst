@@ -2,17 +2,27 @@
 layout: default
 title: Home
 nav_order: 1
+permalink: /
 ---
 
-# FrcCatalyst Documentation
+# FrcCatalyst
+{: .fs-9 }
+
+Pre-built, configurable mechanism building blocks for FRC robots using CTRE Phoenix 6 and WPILib 2026.
+{: .fs-6 .fw-300 }
+
+[Get Started](getting-started/installation){: .btn .btn-primary .fs-5 .mb-4 .mb-md-0 .mr-2 }
+[View on GitHub](https://github.com/TomAs-1226/FrcCatalyst){: .btn .fs-5 .mb-4 .mb-md-0 }
+
+---
 
 <p>
   <img src="https://img.shields.io/badge/WPILib-2026.2.1-green?style=flat-square" alt="WPILib"/>
   <img src="https://img.shields.io/badge/Phoenix%206-26.1.1-orange?style=flat-square" alt="Phoenix 6"/>
   <img src="https://img.shields.io/badge/Java-17-blue?style=flat-square&logo=openjdk" alt="Java 17"/>
+  <img src="https://img.shields.io/badge/PathPlanner-2026.1.2-purple?style=flat-square" alt="PathPlanner"/>
+  <img src="https://img.shields.io/badge/PhotonVision-v2026.3.1-yellow?style=flat-square" alt="PhotonVision"/>
 </p>
-
-**FrcCatalyst** is a production-ready Java library that provides pre-built, configurable mechanism building blocks for FRC robots using CTRE Phoenix 6 hardware and WPILib 2026.
 
 ## Why FrcCatalyst?
 
@@ -22,6 +32,7 @@ Writing robot code from scratch every season means re-implementing the same elev
 LinearMechanism elevator = new LinearMechanism(
     LinearMechanism.Config.builder()
         .name("Elevator").motor(13).follower(14, true)
+        .motorType(MotorType.KRAKEN_X60)
         .gearRatio(10.0).drumRadius(0.0254).mass(5.0)
         .pid(50, 0, 0.5).gravityGain(0.35)
         .motionMagic(2.0, 4.0, 20.0)
@@ -30,7 +41,52 @@ LinearMechanism elevator = new LinearMechanism(
 );
 ```
 
-You get Motion Magic control, gravity compensation, simulation, telemetry, safety limits, and command factories for free.
+You get Motion Magic control, gravity compensation, simulation, telemetry, safety limits, and command factories — all for free.
+
+| Feature | Raw WPILib/Phoenix | FrcCatalyst |
+|---------|-------------------|-------------|
+| Elevator with gravity FF | ~150 lines | **8 lines** |
+| Swerve + PathPlanner + Vision | ~400 lines | **15 lines** |
+| Mechanism with sim + telemetry | Build it yourself | **Built-in** |
+| Safe temperature cutoffs | Manual | **Automatic** |
+| Limit switch auto-zeroing | Manual wiring | **One builder call** |
+
+---
+
+## What's Included
+
+### Mechanisms
+
+Pre-built, configurable mechanism types that cover virtually every FRC subsystem.
+
+| Mechanism | Use Case | Key Features |
+|-----------|----------|--------------|
+| **LinearMechanism** | Elevators, slides | Position control, gravity FF, limit switches |
+| **RotationalMechanism** | Arms, wrists, turrets | Cosine gravity, hard stops, Motion Magic |
+| **FlywheelMechanism** | Shooters | Dual motor, velocity PID, at-speed trigger |
+| **RollerMechanism** | Intakes, conveyors | Stall detection, beam break, auto-stop |
+| **WinchMechanism** | Climbers | Extend/retract limits, position tracking |
+| **SuperstructureCoordinator** | Multi-mechanism | State machine with safe transitions |
+
+### Subsystems
+
+Complex subsystem wrappers that integrate multiple components.
+
+- **SwerveSubsystem** — CTRE Tuner X wrapper with heading lock, point-at-target, PathPlanner
+- **VisionSubsystem** — Multi-camera Kalman filter (Limelight + PhotonVision)
+- **LEDSubsystem** — Addressable LED patterns (solid, blink, rainbow, chase, breathe)
+
+### Every Mechanism Includes
+
+- Builder-pattern configuration with sensible defaults
+- Motion Magic position control (TalonFX) or ProfiledPID (roboRIO)
+- Named position presets (`goTo("STOW")`)
+- Built-in simulation with accurate motor models
+- Automatic NetworkTables telemetry
+- Temperature cutoff and limit switch safety
+- Pre-built command factories
+
+---
 
 ## Documentation
 
@@ -41,32 +97,10 @@ You get Motion Magic control, gravity compensation, simulation, telemetry, safet
 | [Mechanisms](mechanisms/) | LinearMechanism, RotationalMechanism, Flywheel, Roller, Winch |
 | [Subsystems](subsystems/) | Swerve Drive, Vision, LEDs |
 | [Utilities](utilities/) | Math, feedforward, profiles, alerts |
+| [Examples](examples/) | Complete robot examples with elevator, intake, and more |
+| [Testing](testing/) | How to test your FrcCatalyst-based code |
 
-## Feature Overview
-
-### Mechanisms
-- **LinearMechanism** - Elevators, linear slides, telescoping arms
-- **RotationalMechanism** - Arms, wrists, turrets, hoods
-- **FlywheelMechanism** - Shooters with dual-motor differential spin
-- **RollerMechanism** - Intakes with stall detection and beam break
-- **WinchMechanism** - Climbers with position limits
-- **SuperstructureCoordinator** - Multi-mechanism state machine
-
-### Subsystems
-- **SwerveSubsystem** - CTRE swerve wrapper with PathPlanner + heading lock
-- **VisionSubsystem** - Multi-camera Kalman filter pose estimation
-- **LEDSubsystem** - Addressable LED patterns
-
-### Every Mechanism Includes
-- Builder-pattern configuration with sensible defaults
-- Motion Magic position control (on TalonFX)
-- WPILib ProfiledPID alternative (on roboRIO)
-- Named position presets
-- Built-in simulation with accurate motor models
-- Automatic NetworkTables telemetry
-- Temperature cutoff safety
-- Limit switch support with auto-zeroing
-- Pre-built command factories
+---
 
 ## Compatibility
 

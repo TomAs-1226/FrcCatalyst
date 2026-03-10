@@ -1,13 +1,23 @@
 ---
 layout: default
 title: Subsystems
-nav_order: 5
+nav_order: 4
 has_children: true
 ---
 
 # Subsystems
+{: .no_toc }
 
 FrcCatalyst provides three complex subsystem wrappers that integrate multiple components.
+{: .fs-6 .fw-300 }
+
+## Table of contents
+{: .no_toc .text-delta }
+
+1. TOC
+{:toc}
+
+---
 
 ## SwerveSubsystem
 

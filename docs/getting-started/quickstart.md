@@ -1,17 +1,27 @@
 ---
 layout: default
 title: Quick Start
-nav_order: 3
+nav_order: 2
 parent: Getting Started
 ---
 
 # Quick Start Guide
+{: .no_toc }
 
-This guide walks you through building a complete elevator mechanism in under 5 minutes.
+Build a complete elevator mechanism in under 5 minutes.
+{: .fs-6 .fw-300 }
+
+## Table of contents
+{: .no_toc .text-delta }
+
+1. TOC
+{:toc}
+
+---
 
 ## Step 1: Define Your Mechanism
 
-In your `RobotContainer` (or a dedicated constants file), create the elevator config:
+In your `RobotContainer`, create an elevator with the builder:
 
 ```java
 import frc.lib.catalyst.mechanisms.LinearMechanism;
@@ -19,7 +29,6 @@ import frc.lib.catalyst.hardware.MotorType;
 
 public class RobotContainer {
 
-    // Define the elevator
     private final LinearMechanism elevator = new LinearMechanism(
         LinearMechanism.Config.builder()
             .name("Elevator")
@@ -43,6 +52,8 @@ public class RobotContainer {
 }
 ```
 
+That's it. You now have a fully functional elevator with Motion Magic control, gravity compensation, simulation support, telemetry, and safety features.
+
 ## Step 2: Set Up Commands
 
 ```java
@@ -50,7 +61,7 @@ private void configureBindings() {
     // Default command: hold current position
     elevator.setDefaultCommand(elevator.holdPosition());
 
-    // Button bindings
+    // Button bindings for named presets
     operatorController.a().onTrue(elevator.goTo("STOW"));
     operatorController.b().onTrue(elevator.goTo("INTAKE"));
     operatorController.x().onTrue(elevator.goTo("AMP"));
@@ -83,7 +94,7 @@ Open **Shuffleboard**, **AdvantageScope**, or **Elastic** to see these values li
 
 ## Step 4: Estimate Your Gains
 
-Not sure what PID gains to use? FrcCatalyst can estimate them from physics:
+Not sure what PID gains to use? FrcCatalyst can estimate them from your mechanism's physical specs:
 
 ```java
 var config = LinearMechanism.Config.builder()
@@ -93,9 +104,8 @@ var config = LinearMechanism.Config.builder()
     .mass(5.0)
     .build();
 
-// Get estimated values
 double gravityFF = config.estimateGravityFF();  // Voltage to hold against gravity
-double maxSpeed = config.estimateMaxSpeed();      // Max mechanism speed
+double maxSpeed = config.estimateMaxSpeed();     // Max mechanism speed
 System.out.println("Estimated kG: " + gravityFF);
 System.out.println("Max speed: " + maxSpeed + " m/s");
 ```
@@ -107,11 +117,11 @@ For the best performance, use SysId characterization:
 ```java
 CharacterizationHelper charHelper = new CharacterizationHelper(
     "Elevator",
-    elevator,                   // subsystem (extends SubsystemBase)
-    elevator.getMotor()         // CatalystMotor for voltage control
+    elevator,            // subsystem (extends SubsystemBase)
+    elevator.getMotor()  // CatalystMotor for voltage control
 );
 
-// Bind to buttons for SysId
+// Bind to SmartDashboard for SysId
 SmartDashboard.putData("Elevator QS Fwd", charHelper.quasistaticForward());
 SmartDashboard.putData("Elevator QS Rev", charHelper.quasistaticReverse());
 SmartDashboard.putData("Elevator Dyn Fwd", charHelper.dynamicForward());
@@ -120,7 +130,8 @@ SmartDashboard.putData("Elevator Dyn Rev", charHelper.dynamicReverse());
 
 ## What's Next?
 
-- [Mechanisms Guide](../mechanisms/) - Learn about all mechanism types
-- [Swerve Drive](../subsystems/swerve) - Set up swerve with heading lock
-- [Vision](../subsystems/vision) - Multi-camera pose estimation
-- [Utilities](../utilities/) - Math, feedforward, alerts, and more
+- [Mechanisms Guide](../mechanisms/) — Learn about all mechanism types
+- [Subsystems](../subsystems/) — Swerve drive, vision, LEDs
+- [Utilities](../utilities/) — Math helpers, feedforward, alerts
+- [Examples](../examples/) — Complete robot examples
+- [Testing](../testing/) — How to test your code

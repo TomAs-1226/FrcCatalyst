@@ -1,11 +1,20 @@
 ---
 layout: default
 title: Mechanisms
-nav_order: 4
+nav_order: 3
 has_children: true
 ---
 
 # Mechanisms
+{: .no_toc }
+
+## Table of contents
+{: .no_toc .text-delta }
+
+1. TOC
+{:toc}
+
+---
 
 FrcCatalyst provides five generic mechanism types that cover virtually every FRC subsystem. Each mechanism extends `CatalystMechanism` (which extends WPILib's `SubsystemBase`) and provides:
 
