@@ -1,0 +1,24 @@
+title: FrcCatalyst
+description: Pre-built FRC mechanisms and utilities for CTRE Phoenix 6 + WPILib 2026
+baseurl: "/FrcCatalyst"
+url: "https://tomas-1226.github.io"
+
+theme: jekyll-theme-minimal
+
+# Navigation
+header_pages:
+  - index.md
+  - getting-started/installation.md
+  - getting-started/quickstart.md
+
+plugins:
+  - jekyll-relative-links
+
+relative_links:
+  enabled: true
+  collections: true
+
+markdown: kramdown
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge

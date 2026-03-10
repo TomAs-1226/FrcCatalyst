@@ -1,0 +1,89 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+group = 'com.frccatalyst'
+version = '1.0.0'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+    withSourcesJar()
+}
+
+ext {
+    wpilibVersion = '2026.2.1'
+    phoenixVersion = '26.1.1'
+    photonVersion = 'v2026.3.1'
+}
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+
+    // Local WPILib installation
+    String publicFolder = System.getenv('PUBLIC') ?: 'C:\\Users\\Public'
+    maven {
+        name 'frcHome'
+        url new File(publicFolder, 'wpilib/2026/maven')
+    }
+
+    // WPILib remote
+    maven { url "https://frcmaven.wpi.edu/artifactory/release/" }
+
+    // CTRE Phoenix 6
+    maven { url "https://maven.ctr-electronics.com/release/" }
+
+    // PhotonVision
+    maven { url "https://maven.photonvision.org/repository/internal/" }
+    maven { url "https://maven.photonvision.org/repository/snapshots/" }
+
+    // PathPlanner
+    maven { url "https://3015rangerrobotics.github.io/pathplannerlib/repo" }
+}
+
+dependencies {
+    // WPILib core
+    api "edu.wpi.first.wpilibj:wpilibj-java:${wpilibVersion}"
+    api "edu.wpi.first.wpiutil:wpiutil-java:${wpilibVersion}"
+    api "edu.wpi.first.wpimath:wpimath-java:${wpilibVersion}"
+    api "edu.wpi.first.ntcore:ntcore-java:${wpilibVersion}"
+    api "edu.wpi.first.cscore:cscore-java:${wpilibVersion}"
+    api "edu.wpi.first.hal:hal-java:${wpilibVersion}"
+    api "edu.wpi.first.wpilibNewCommands:wpilibNewCommands-java:${wpilibVersion}"
+    api "edu.wpi.first.wpiunits:wpiunits-java:${wpilibVersion}"
+    api "edu.wpi.first.apriltag:apriltag-java:${wpilibVersion}"
+
+    // CTRE Phoenix 6
+    api "com.ctre.phoenix6:wpiapi-java:${phoenixVersion}"
+
+    // PhotonVision
+    api "org.photonvision:photonlib-java:${photonVersion}"
+    api "org.photonvision:photontargeting-java:${photonVersion}"
+
+    // PathPlanner (commonly used with swerve)
+    api "com.pathplanner.lib:PathplannerLib-java:2026.1.2"
+}
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+            from components.java
+            groupId = 'com.frccatalyst'
+            artifactId = 'FrcCatalyst'
+            version = project.version
+        }
+    }
+    repositories {
+        maven {
+            name = 'local'
+            url = layout.buildDirectory.dir('repo')
+        }
+    }
+}
+
+tasks.withType(JavaCompile) {
+    options.compilerArgs << '-Xlint:none'
+    options.encoding = 'UTF-8'
+}
