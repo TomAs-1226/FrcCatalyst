@@ -129,6 +129,9 @@ frc.lib.catalyst
     +-- MotionConstraintCalculator Physics-based motion constraints
     +-- PoseHistory              Temporal pose tracking + interpolation
     +-- DynamicAutoBuilder       Runtime PathPlanner path generation
+    +-- TunableNumber            Dashboard-editable constants (live PID tuning)
+    +-- AutoSelector             PathPlanner auto chooser with safe defaults
+    +-- GamePieceTracker         Multi-stage piece tracking with Triggers
 ```
 
 ---
@@ -308,6 +311,9 @@ VisionSubsystem vision = new VisionSubsystem(VisionConfig.builder()
 | `MotionConstraintCalculator` | Physics-based max velocity/acceleration from motor specs |
 | `PoseHistory` | Temporal pose tracking with interpolation for latency compensation |
 | `DynamicAutoBuilder` | Runtime path generation with PathPlanner |
+| `TunableNumber` | Dashboard-editable constants for live PID tuning |
+| `AutoSelector` | PathPlanner auto chooser with safe fallbacks |
+| `GamePieceTracker` | Multi-stage game piece state machine with Triggers |
 
 ---
 

@@ -87,6 +87,9 @@ Advanced control and estimation features:
 | **SignalProcessor** | EMA, median, low-pass, composite sensor filters |
 | **PoseHistory** | Temporal pose tracking with interpolation |
 | **DynamicAutoBuilder** | Runtime path generation with PathPlanner |
+| **TunableNumber** | Dashboard-editable constants for live PID tuning |
+| **AutoSelector** | PathPlanner auto chooser with safe fallbacks |
+| **GamePieceTracker** | Multi-stage game piece state machine with Triggers |
 | **Skew Correction** | Pose exponential discretization for swerve |
 | **Collision Zones** | Prevent physical mechanism collisions |
 
