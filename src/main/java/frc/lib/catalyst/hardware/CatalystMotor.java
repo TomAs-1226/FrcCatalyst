@@ -303,6 +303,40 @@ public class CatalystMotor {
         tempPub.set(getTemperature());
     }
 
+    /**
+     * Check if the motor has any faults (hardware faults from Phoenix status signals).
+     * @return true if any fault is detected
+     */
+    public boolean hasFault() {
+        return motor.getFault_Hardware().getValue()
+                || motor.getFault_DeviceTemp().getValue()
+                || motor.getFault_BootDuringEnable().getValue();
+    }
+
+    /**
+     * Check if the motor temperature is above a threshold.
+     * @param thresholdCelsius temperature threshold
+     */
+    public boolean isOverTemp(double thresholdCelsius) {
+        return getTemperature() > thresholdCelsius;
+    }
+
+    /**
+     * Calculate a temperature-based derating factor.
+     * Returns 1.0 when cool, linearly decreases to 0 as temperature approaches cutoff.
+     * Use this to scale motor output when the motor gets hot.
+     *
+     * @param warningTemp temperature where derating begins (e.g., 60C)
+     * @param cutoffTemp temperature where output should be zero (e.g., 80C)
+     * @return derating factor [0.0, 1.0]
+     */
+    public double getTemperatureDerating(double warningTemp, double cutoffTemp) {
+        double temp = getTemperature();
+        if (temp <= warningTemp) return 1.0;
+        if (temp >= cutoffTemp) return 0.0;
+        return 1.0 - (temp - warningTemp) / (cutoffTemp - warningTemp);
+    }
+
     // --- Builder ---
 
     public static Builder builder(int canId) {

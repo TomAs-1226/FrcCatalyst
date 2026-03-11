@@ -50,6 +50,15 @@ public class VisionConfig {
     final double rotDistanceScaling;
     final double singleTagRotDistanceThreshold;
 
+    // Advanced filtering
+    final double rejectDuringHighSpeedThreshold;
+    final double maxHeadingDivergenceDegrees;
+
+    // Field dimensions (configurable for different games)
+    final double fieldLengthMeters;
+    final double fieldWidthMeters;
+    final double fieldBoundsMargin;
+
     private VisionConfig(Builder b) {
         this.cameras = List.copyOf(b.cameras);
         this.driveSubsystem = b.driveSubsystem;
@@ -62,6 +71,11 @@ public class VisionConfig {
         this.xyDistanceScaling = b.xyDistanceScaling;
         this.rotDistanceScaling = b.rotDistanceScaling;
         this.singleTagRotDistanceThreshold = b.singleTagRotDistanceThreshold;
+        this.rejectDuringHighSpeedThreshold = b.rejectDuringHighSpeedThreshold;
+        this.maxHeadingDivergenceDegrees = b.maxHeadingDivergenceDegrees;
+        this.fieldLengthMeters = b.fieldLengthMeters;
+        this.fieldWidthMeters = b.fieldWidthMeters;
+        this.fieldBoundsMargin = b.fieldBoundsMargin;
     }
 
     public static Builder builder() {
@@ -84,6 +98,15 @@ public class VisionConfig {
         private double xyDistanceScaling = 1.0;    // multiplied by distance^2
         private double rotDistanceScaling = 1.5;   // rotation degrades faster with distance
         private double singleTagRotDistanceThreshold = 4.0; // meters
+
+        // Advanced filtering
+        private double rejectDuringHighSpeedThreshold = 0; // 0 = disabled, m/s
+        private double maxHeadingDivergenceDegrees = 0; // 0 = disabled
+
+        // Field dimensions
+        private double fieldLengthMeters = 16.54;
+        private double fieldWidthMeters = 8.21;
+        private double fieldBoundsMargin = 0.5;
 
         /**
          * Add a Limelight camera.
@@ -196,6 +219,49 @@ public class VisionConfig {
          */
         public Builder singleTagRotDistanceThreshold(double meters) {
             this.singleTagRotDistanceThreshold = meters;
+            return this;
+        }
+
+        // --- Advanced Filtering ---
+
+        /**
+         * Reject vision measurements when robot is moving faster than threshold.
+         * Motion blur during fast translation makes vision unreliable.
+         * @param metersPerSecond speed threshold (0 = disabled, try 3.0-4.0)
+         */
+        public Builder rejectDuringHighSpeed(double metersPerSecond) {
+            this.rejectDuringHighSpeedThreshold = metersPerSecond;
+            return this;
+        }
+
+        /**
+         * Reject single-tag poses where vision heading diverges from gyro heading.
+         * Useful for catching flipped AprilTag ambiguity.
+         * @param degrees max allowable divergence (0 = disabled, try 20-40)
+         */
+        public Builder maxHeadingDivergence(double degrees) {
+            this.maxHeadingDivergenceDegrees = degrees;
+            return this;
+        }
+
+        /**
+         * Set field dimensions for off-field rejection.
+         * Defaults to 2025+ FRC field (16.54m x 8.21m).
+         * @param lengthMeters field length (X dimension)
+         * @param widthMeters field width (Y dimension)
+         */
+        public Builder fieldDimensions(double lengthMeters, double widthMeters) {
+            this.fieldLengthMeters = lengthMeters;
+            this.fieldWidthMeters = widthMeters;
+            return this;
+        }
+
+        /**
+         * Set the margin for off-field rejection (default 0.5m).
+         * Poses within this margin outside the field are still accepted.
+         */
+        public Builder fieldBoundsMargin(double meters) {
+            this.fieldBoundsMargin = meters;
             return this;
         }
 

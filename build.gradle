@@ -22,11 +22,17 @@ repositories {
     mavenLocal()
     mavenCentral()
 
-    // Local WPILib installation
+    // Local WPILib installation (only used when available, e.g. developer machines)
+    String userHome = System.getProperty('user.home')
     String publicFolder = System.getenv('PUBLIC') ?: 'C:\\Users\\Public'
-    maven {
-        name 'frcHome'
-        url new File(publicFolder, 'wpilib/2026/maven')
+    [new File(publicFolder, 'wpilib/2026/maven'),
+     new File(userHome, 'wpilib/2026/maven')].each { dir ->
+        if (dir.exists()) {
+            maven {
+                name 'frcHome'
+                url dir
+            }
+        }
     }
 
     // WPILib remote

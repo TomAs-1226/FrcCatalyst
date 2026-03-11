@@ -219,3 +219,17 @@ boolean justCleared = stallDetector.fallingEdge(current > 30.0);
 stallDetector.reset();
 boolean state = stallDetector.get();
 ```
+
+---
+
+## Advanced Utilities
+
+FrcCatalyst also includes advanced utilities used by top FRC teams. See the [Advanced](../advanced/) section for:
+
+| Utility | Description |
+|---------|-------------|
+| **StateSpaceController** | LQR + Kalman filter for optimal mechanism control |
+| **MotionConstraintCalculator** | Physics-based max velocity/acceleration from motor specs |
+| **SignalProcessor** | EMA, median, low-pass, composite filters for sensor data |
+| **PoseHistory** | Temporal pose tracking with interpolation |
+| **DynamicAutoBuilder** | Runtime path generation with PathPlanner |

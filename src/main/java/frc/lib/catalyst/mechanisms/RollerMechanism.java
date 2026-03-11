@@ -164,6 +164,66 @@ public class RollerMechanism extends CatalystMechanism {
         }).withName(name + ".ResetDetection");
     }
 
+    /**
+     * Command to intake with speed ramping.
+     * Gradually increases speed to prevent wheel slip at initial contact.
+     * @param rampTimeSeconds time to ramp from 0 to full intake speed
+     */
+    public Command intakeWithRamp(double rampTimeSeconds) {
+        final Timer rampTimer = new Timer();
+        return run(() -> {
+            double elapsed = rampTimer.get();
+            double rampFraction = Math.min(1.0, elapsed / rampTimeSeconds);
+            motor.setPercent(config.intakeSpeed * rampFraction);
+            updateStallDetection();
+            setState("IntakeRamp " + String.format("%.0f%%", rampFraction * 100));
+        }).until(this::hasPiece)
+                .beforeStarting(rampTimer::restart)
+                .finallyDo(() -> {
+                    motor.stop();
+                    setState("Idle");
+                })
+                .withName(name + ".IntakeWithRamp");
+    }
+
+    /**
+     * Command to pulse the rollers — short bursts for unjamming.
+     * @param onTimeSeconds time rollers run per pulse
+     * @param offTimeSeconds time between pulses
+     * @param speed speed during pulse [-1, 1]
+     */
+    public Command pulse(double onTimeSeconds, double offTimeSeconds, double speed) {
+        return run(() -> {
+            double period = onTimeSeconds + offTimeSeconds;
+            double phase = Timer.getFPGATimestamp() % period;
+            if (phase < onTimeSeconds) {
+                motor.setPercent(speed);
+            } else {
+                motor.stop();
+            }
+            setState("Pulsing");
+        }).finallyDo(() -> {
+            motor.stop();
+            setState("Idle");
+        }).withName(name + ".Pulse");
+    }
+
+    /**
+     * Command to feed a game piece at a specific voltage.
+     * Better for consistent feed regardless of battery voltage.
+     *
+     * @param volts feed voltage
+     */
+    public Command feedVoltage(double volts) {
+        return run(() -> {
+            motor.setVoltage(volts);
+            setState("Feeding " + String.format("%.1fV", volts));
+        }).finallyDo(() -> {
+            motor.stop();
+            setState("Idle");
+        }).withName(name + ".Feed");
+    }
+
     // --- Stall Detection ---
 
     private void updateStallDetection() {
@@ -197,6 +257,7 @@ public class RollerMechanism extends CatalystMechanism {
         log("Speed", getSpeed());
         log("CurrentAmps", getCurrent());
         log("HasPiece", hasPiece());
+        log("MotorRotations", motor.getPosition());
     }
 
     /** Get the underlying motor for advanced use. */

@@ -24,12 +24,18 @@ FrcCatalyst provides three complex subsystem wrappers that integrate multiple co
 Wraps CTRE Tuner X generated swerve code. Teams generate their drivetrain using Tuner X, then wrap it with `SwerveSubsystem` to get:
 
 - **Field-centric and robot-centric drive** commands
-- **Heading lock** - auto-holds heading when driver isn't rotating
-- **Point-at-target** - always face a scoring target while translating
-- **Drive-with-heading** - lock to a specific heading angle
-- **PathPlanner integration** - one-line AutoBuilder configuration
-- **Vision pose estimation** - `addVisionMeasurement()` bridge
-- **Automatic telemetry** - pose, heading, speed to NetworkTables
+- **Heading lock** — auto-holds heading when driver isn't rotating
+- **Point-at-target** — always face a scoring target while translating
+- **Drive-with-heading** — lock to a specific heading angle
+- **PathPlanner integration** — one-line AutoBuilder configuration
+- **Vision pose estimation** — `addVisionMeasurement()` bridge
+- **Automatic telemetry** — pose, heading, speed to NetworkTables
+- **Skew correction** — Team 1690's pose exponential discretization
+- **Slew rate limiting** — smooth acceleration with asymmetric profiles
+- **Snap-to-angle** — auto-snap heading to predefined angles
+- **Advanced drive** — combined deadband, slew, heading lock, skew correction, snap-to-angle
+- **Slow mode** — toggleable speed multiplier for precision
+- **Auto-align** — drive while auto-rotating to a target heading
 
 ```java
 SwerveSubsystem drive = new SwerveSubsystem(
@@ -41,13 +47,20 @@ SwerveSubsystem drive = new SwerveSubsystem(
         .build()
 );
 
-// Heading lock drive (auto-holds heading)
-drive.setDefaultCommand(drive.headingLockDrive(
+// Advanced drive (recommended default command)
+// Combines deadband, slew limiting, heading lock, snap-to-angle, and skew correction
+drive.setSkewCorrectionEnabled(true);
+drive.enableSlewRateLimiting(2.0, 5.0); // accel, decel
+drive.setSnapToAngles(List.of(0.0, 90.0, 180.0, 270.0), 5.0);
+drive.setDefaultCommand(drive.advancedDrive(
     () -> -driver.getLeftY(),
     () -> -driver.getLeftX(),
     () -> -driver.getRightX(),
     0.05
 ));
+
+// Slow mode for precision alignment
+driver.leftBumper().whileTrue(drive.slowModeWhileHeld(0.3));
 
 // Point at speaker while driving
 driver.rightBumper().whileTrue(drive.pointAtTarget(
@@ -58,15 +71,23 @@ driver.rightBumper().whileTrue(drive.pointAtTarget(
 ));
 ```
 
+{: .tip }
+See the [Advanced Features](../advanced/) section for detailed documentation on skew correction, slew rate limiting, snap-to-angle, and auto-align.
+
 ## VisionSubsystem
 
 Multi-camera pose estimation with Kalman filter integration. Supports both Limelight (MegaTag2) and PhotonVision cameras simultaneously.
 
 **Features:**
-- **Distance-scaled standard deviations** - trusts close targets more
-- **Spin rejection** - ignores vision during fast rotation
-- **Latency filtering** - rejects stale measurements
-- **Per-cycle telemetry** - see which estimates are accepted/rejected
+- **Distance-scaled standard deviations** — trusts close targets more
+- **Ambiguity-scaled std devs** — higher ambiguity = less trust
+- **Spin rejection** — ignores vision during fast rotation
+- **High-speed rejection** — ignores vision while driving fast
+- **Heading divergence filtering** — rejects single-tag poses that disagree with the gyro
+- **Kalman innovation tracking** — logs innovation norms for tuning
+- **Latency filtering** — rejects stale measurements
+- **Configurable field bounds** — custom field dimensions for bounds checking
+- **Per-cycle telemetry** — see which estimates are accepted/rejected with reasons
 
 ```java
 VisionSubsystem vision = new VisionSubsystem(
@@ -81,6 +102,9 @@ VisionSubsystem vision = new VisionSubsystem(
         .xyDistanceScaling(1.0)
         .rotDistanceScaling(1.5)
         .rejectDuringSpin(2.0)
+        .rejectDuringHighSpeed(3.0)       // reject when > 3 m/s
+        .maxHeadingDivergence(15.0)       // reject if heading disagrees > 15 deg
+        .fieldDimensions(16.54, 8.21)     // custom field bounds
         .maxLatency(0.5)
         .build()
 );
@@ -88,9 +112,11 @@ VisionSubsystem vision = new VisionSubsystem(
 
 ## LEDSubsystem
 
-Addressable LED pattern controller with pre-built effects.
+Addressable LED pattern controller with 14 pre-built effects.
 
-**Built-in patterns:** solid, blink, rainbow, chase, breathe, alternating
+**Basic patterns:** solid, blink, rainbow, chase, breathe, alternating
+
+**Advanced patterns:** fire, gradient, scrolling gradient, strobe, larson scanner, dynamic progress, status indicator, alignment indicator
 
 ```java
 LEDSubsystem leds = new LEDSubsystem(
@@ -108,4 +134,16 @@ scoring.whileTrue(leds.rainbow());
 
 // Blink green when game piece acquired
 intake.hasPieceTrigger().whileTrue(leds.blink(Color.kGreen, 0.1));
+
+// Fire effect for celebration
+scoring.whileTrue(leds.fire());
+
+// Alignment indicator for driver
+aligning.whileTrue(leds.alignmentIndicator(() -> visionOffset, 2.0));
+
+// Progress bar for elevator height
+leds.dynamicProgress(Color.kGreen, () -> elevator.getPosition() / 1.2);
 ```
+
+{: .tip }
+See the [Advanced Features](../advanced/) section for details on all new LED patterns.

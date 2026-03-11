@@ -11,6 +11,7 @@ import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.networktables.StructPublisher;
 import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.lib.catalyst.subsystems.swerve.SwerveSubsystem;
@@ -133,6 +134,14 @@ public class VisionSubsystem extends SubsystemBase {
             cycleAccepted++;
             visionPosePub.set(pe.pose());
             logCamera(camera.getName(), "Accepted", pe);
+
+            // Log innovation (how much vision disagrees with current estimate)
+            double[] innovation = calculateInnovation(pe.pose(), currentPose);
+            double innovationNorm = Math.sqrt(innovation[0] * innovation[0]
+                    + innovation[1] * innovation[1]);
+            NetworkTable camTable = telemetryTable.getSubTable(camera.getName());
+            camTable.getEntry("InnovationXY").setDouble(innovationNorm);
+            camTable.getEntry("InnovationRot").setDouble(Math.toDegrees(Math.abs(innovation[2])));
         }
 
         // Overall telemetry
@@ -162,10 +171,12 @@ public class VisionSubsystem extends SubsystemBase {
             return "TooFar(" + String.format("%.1fm", distFromCurrent) + ")";
         }
 
-        // Reject if pose is off the field (sanity check)
+        // Reject if pose is off the field (configurable bounds with margin)
         double x = pe.pose().getX();
         double y = pe.pose().getY();
-        if (x < -0.5 || x > 17.0 || y < -0.5 || y > 9.0) {
+        double margin = config.fieldBoundsMargin;
+        if (x < -margin || x > config.fieldLengthMeters + margin
+                || y < -margin || y > config.fieldWidthMeters + margin) {
             return "OffField";
         }
 
@@ -180,6 +191,25 @@ public class VisionSubsystem extends SubsystemBase {
             double spinRate = Math.abs(driveSubsystem.getChassisSpeeds().omegaRadiansPerSecond);
             if (spinRate > config.rejectDuringSpinThreshold) {
                 return "Spinning(" + String.format("%.1frad/s", spinRate) + ")";
+            }
+        }
+
+        // Reject during high translational speed (configurable)
+        if (config.rejectDuringHighSpeedThreshold > 0) {
+            ChassisSpeeds speeds = driveSubsystem.getChassisSpeeds();
+            double speed = Math.hypot(speeds.vxMetersPerSecond, speeds.vyMetersPerSecond);
+            if (speed > config.rejectDuringHighSpeedThreshold) {
+                return "HighSpeed(" + String.format("%.1fm/s", speed) + ")";
+            }
+        }
+
+        // Reject based on heading consistency (vision heading vs gyro heading)
+        if (config.maxHeadingDivergenceDegrees > 0 && pe.tagCount() == 1) {
+            double headingDiff = Math.abs(
+                    currentPose.getRotation().getDegrees() - pe.pose().getRotation().getDegrees());
+            if (headingDiff > 180) headingDiff = 360 - headingDiff;
+            if (headingDiff > config.maxHeadingDivergenceDegrees) {
+                return "HeadingDivergence(" + String.format("%.0fdeg", headingDiff) + ")";
             }
         }
 
@@ -220,12 +250,38 @@ public class VisionSubsystem extends SubsystemBase {
             rotStdDev /= tagCount;
         }
 
+        // Scale by ambiguity — higher ambiguity = less trust
+        if (pe.ambiguity() > 0.05) {
+            double ambiguityScale = 1.0 + (pe.ambiguity() * 5.0);
+            xyStdDev *= ambiguityScale;
+            rotStdDev *= ambiguityScale;
+        }
+
         // Single tag at distance: rotation from a single tag is extremely noisy
         if (tagCount == 1 && distance > config.singleTagRotDistanceThreshold) {
             rotStdDev = 999.0; // effectively infinite uncertainty → Kalman filter ignores rotation
         }
 
         return VecBuilder.fill(xyStdDev, xyStdDev, rotStdDev);
+    }
+
+    /**
+     * Calculate the Kalman innovation (difference between predicted and measured pose).
+     * Large innovations indicate the vision measurement significantly disagrees with
+     * the current estimate. Useful for diagnostics and adaptive filtering.
+     *
+     * @param visionPose the vision-estimated pose
+     * @param currentPose the current Kalman filter estimate
+     * @return innovation vector [dx, dy, dtheta]
+     */
+    private double[] calculateInnovation(Pose2d visionPose, Pose2d currentPose) {
+        double dx = visionPose.getX() - currentPose.getX();
+        double dy = visionPose.getY() - currentPose.getY();
+        double dtheta = visionPose.getRotation().getRadians() - currentPose.getRotation().getRadians();
+        // Normalize theta
+        while (dtheta > Math.PI) dtheta -= 2 * Math.PI;
+        while (dtheta < -Math.PI) dtheta += 2 * Math.PI;
+        return new double[]{dx, dy, dtheta};
     }
 
     private void logCamera(String cameraName, String status, CameraSource.PoseEstimate pe) {

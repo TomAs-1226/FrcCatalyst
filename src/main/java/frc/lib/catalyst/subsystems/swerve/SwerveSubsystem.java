@@ -9,6 +9,7 @@ import com.pathplanner.lib.auto.AutoBuilder;
 import com.pathplanner.lib.config.PIDConstants;
 import com.pathplanner.lib.config.RobotConfig;
 import com.pathplanner.lib.controllers.PPHolonomicDriveController;
+import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
@@ -20,7 +21,9 @@ import edu.wpi.first.networktables.StructPublisher;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import frc.lib.catalyst.util.SlewRateLimiter;
 
+import java.util.function.BooleanSupplier;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 
@@ -58,6 +61,21 @@ public class SwerveSubsystem extends SubsystemBase {
     // Heading lock PID
     private final PIDController headingPID = new PIDController(5.0, 0, 0);
     private Rotation2d lockedHeading = null;
+
+    // Pose exponential skew correction
+    private boolean skewCorrectionEnabled = true;
+
+    // Slew rate limiters for smooth acceleration
+    private SlewRateLimiter xLimiter;
+    private SlewRateLimiter yLimiter;
+    private SlewRateLimiter rotLimiter;
+
+    // Snap-to-angle presets (e.g., 0, 90, 180, 270 for cardinal directions)
+    private double[] snapAngles = null;
+    private double snapTolerance = 15.0; // degrees
+
+    // Slow mode
+    private double speedMultiplier = 1.0;
 
     // Control requests (reused to avoid GC)
     private final SwerveRequest.FieldCentric fieldCentricRequest = new SwerveRequest.FieldCentric()
@@ -312,6 +330,215 @@ public class SwerveSubsystem extends SubsystemBase {
         headingPID.setPID(kP, kI, kD);
     }
 
+    /**
+     * Enable/disable pose exponential skew correction.
+     * When enabled, corrects for swerve skew during combined translation + rotation
+     * by rotating commanded velocities by -omega*dt/2. This is the approach used by
+     * Team 1690 and documented in the swerve skew whitepaper.
+     * Enabled by default.
+     */
+    public void setSkewCorrectionEnabled(boolean enabled) {
+        this.skewCorrectionEnabled = enabled;
+    }
+
+    /**
+     * Enable slew rate limiting for smoother acceleration.
+     * Prevents sudden speed changes that can cause wheel slip or driver discomfort.
+     *
+     * @param translationRate max translation change rate in m/s per second
+     * @param rotationRate max rotation change rate in rad/s per second
+     */
+    public void enableSlewRateLimiting(double translationRate, double rotationRate) {
+        this.xLimiter = new SlewRateLimiter(translationRate);
+        this.yLimiter = new SlewRateLimiter(translationRate);
+        this.rotLimiter = new SlewRateLimiter(rotationRate);
+    }
+
+    /**
+     * Enable asymmetric slew rate limiting.
+     * Different rates for acceleration and deceleration — useful for
+     * aggressive braking with gentle acceleration.
+     *
+     * @param accelRate acceleration rate (m/s per second)
+     * @param decelRate deceleration rate (m/s per second, should be higher for snappy stops)
+     * @param rotRate rotation rate (rad/s per second)
+     */
+    public void enableSlewRateLimiting(double accelRate, double decelRate, double rotRate) {
+        this.xLimiter = new SlewRateLimiter(accelRate, decelRate);
+        this.yLimiter = new SlewRateLimiter(accelRate, decelRate);
+        this.rotLimiter = new SlewRateLimiter(rotRate);
+    }
+
+    /**
+     * Set snap-to-angle presets for heading lock.
+     * When the driver releases rotation, the robot snaps to the nearest preset angle.
+     * Common for 254-style driving where drivers snap to cardinal directions.
+     *
+     * @param anglesDegrees angles to snap to (e.g., 0, 90, 180, 270)
+     * @param toleranceDegrees how close to a snap angle to activate (default 15)
+     */
+    public void setSnapToAngles(double[] anglesDegrees, double toleranceDegrees) {
+        this.snapAngles = anglesDegrees;
+        this.snapTolerance = toleranceDegrees;
+    }
+
+    /** Set a speed multiplier for slow/turbo mode (0.0 to 1.0). */
+    public void setSpeedMultiplier(double multiplier) {
+        this.speedMultiplier = MathUtil.clamp(multiplier, 0.0, 1.0);
+    }
+
+    /**
+     * Advanced field-centric drive with all features:
+     * - Deadband
+     * - Slew rate limiting (if enabled)
+     * - Heading lock with snap-to-angle (if configured)
+     * - Skew correction
+     * - Speed multiplier
+     *
+     * This is the recommended default drive command for competition.
+     */
+    public Command advancedDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
+                                  DoubleSupplier rotSupplier, double deadband) {
+        return run(() -> {
+            // Apply deadband and scaling
+            double rawX = applyDeadband(xSupplier.getAsDouble(), deadband);
+            double rawY = applyDeadband(ySupplier.getAsDouble(), deadband);
+            double rawRot = applyDeadband(rotSupplier.getAsDouble(), deadband);
+
+            double x = rawX * maxSpeedMPS * speedMultiplier;
+            double y = rawY * maxSpeedMPS * speedMultiplier;
+
+            // Apply slew rate limiting
+            if (xLimiter != null) {
+                x = xLimiter.calculate(x);
+                y = yLimiter.calculate(y);
+            }
+
+            double rot;
+            if (Math.abs(rawRot) > 0.0) {
+                // Driver actively rotating
+                rot = rawRot * maxAngularRate * speedMultiplier;
+                if (rotLimiter != null) rot = rotLimiter.calculate(rot);
+                lockedHeading = null;
+            } else {
+                // Auto-lock heading
+                if (lockedHeading == null) {
+                    Rotation2d currentHeading = getHeading();
+                    // Snap to nearest preset angle if configured
+                    if (snapAngles != null) {
+                        double bestAngle = currentHeading.getDegrees();
+                        double minDiff = Double.MAX_VALUE;
+                        for (double snapAngle : snapAngles) {
+                            double diff = Math.abs(normalizeAngle(currentHeading.getDegrees() - snapAngle));
+                            if (diff < minDiff && diff < snapTolerance) {
+                                minDiff = diff;
+                                bestAngle = snapAngle;
+                            }
+                        }
+                        lockedHeading = Rotation2d.fromDegrees(bestAngle);
+                    } else {
+                        lockedHeading = currentHeading;
+                    }
+                }
+                rot = headingPID.calculate(
+                        getHeading().getRadians(), lockedHeading.getRadians());
+                if (rotLimiter != null) rotLimiter.calculate(rot); // keep limiter in sync
+            }
+
+            // Skew correction via pose exponential discretization
+            if (skewCorrectionEnabled && rot != 0) {
+                double dt = 0.02; // 20ms loop
+                double halfAngle = rot * dt / 2.0;
+                double cos = Math.cos(halfAngle);
+                double sin = Math.sin(halfAngle);
+                double correctedX = x * cos - y * sin;
+                double correctedY = x * sin + y * cos;
+                x = correctedX;
+                y = correctedY;
+            }
+
+            driveFieldCentric(x, y, rot);
+        }).beforeStarting(() -> {
+            lockedHeading = null;
+            if (xLimiter != null) {
+                xLimiter.reset(0);
+                yLimiter.reset(0);
+                rotLimiter.reset(0);
+            }
+        }).withName("Swerve.AdvancedDrive");
+    }
+
+    /**
+     * Command to toggle slow mode while held.
+     * @param slowFactor speed multiplier when slow (e.g., 0.3 for 30% speed)
+     */
+    public Command slowModeWhileHeld(double slowFactor) {
+        return startEnd(
+                () -> speedMultiplier = slowFactor,
+                () -> speedMultiplier = 1.0
+        ).withName("Swerve.SlowMode");
+    }
+
+    /**
+     * Auto-align drive command. Drives normally for translation but
+     * automatically aligns rotation to face a target pose.
+     * Uses the target's rotation, not the angle toward it.
+     * Ideal for pre-aligning for scoring positions.
+     *
+     * @param xSupplier X axis input
+     * @param ySupplier Y axis input
+     * @param targetPose target pose (robot aligns to match its rotation)
+     * @param deadband input deadband
+     */
+    public Command autoAlignDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
+                                   Supplier<Pose2d> targetPose, double deadband) {
+        return run(() -> {
+            double x = applyDeadband(xSupplier.getAsDouble(), deadband) * maxSpeedMPS * speedMultiplier;
+            double y = applyDeadband(ySupplier.getAsDouble(), deadband) * maxSpeedMPS * speedMultiplier;
+            double rot = headingPID.calculate(
+                    getHeading().getRadians(), targetPose.get().getRotation().getRadians());
+            driveFieldCentric(x, y, rot);
+        }).withName("Swerve.AutoAlign");
+    }
+
+    /**
+     * Drive to a specific pose autonomously.
+     * Uses PID on X, Y, and heading simultaneously.
+     * Simple approach for short-distance precision alignment.
+     *
+     * @param targetPose the target field pose
+     * @param translationKP proportional gain for XY (try 2.0-5.0)
+     * @param toleranceMeters position tolerance for "arrived"
+     */
+    public Command driveToPose(Supplier<Pose2d> targetPose, double translationKP,
+                                double toleranceMeters) {
+        PIDController xController = new PIDController(translationKP, 0, 0);
+        PIDController yController = new PIDController(translationKP, 0, 0);
+
+        return run(() -> {
+            Pose2d target = targetPose.get();
+            Pose2d current = getPose();
+
+            double xSpeed = xController.calculate(current.getX(), target.getX());
+            double ySpeed = yController.calculate(current.getY(), target.getY());
+            double rotSpeed = headingPID.calculate(
+                    current.getRotation().getRadians(), target.getRotation().getRadians());
+
+            // Clamp speeds
+            double maxTranslation = maxSpeedMPS * 0.5;
+            xSpeed = MathUtil.clamp(xSpeed, -maxTranslation, maxTranslation);
+            ySpeed = MathUtil.clamp(ySpeed, -maxTranslation, maxTranslation);
+
+            driveFieldCentric(xSpeed, ySpeed, rotSpeed);
+        }).until(() -> {
+            Pose2d current = getPose();
+            Pose2d target = targetPose.get();
+            return current.getTranslation().getDistance(target.getTranslation()) < toleranceMeters
+                    && Math.abs(normalizeAngle(
+                    current.getRotation().getDegrees() - target.getRotation().getDegrees())) < 3.0;
+        }).withName("Swerve.DriveToPose");
+    }
+
     /** X-brake command (lock wheels). */
     public Command xBrake() {
         return runOnce(this::setBrake).withName("Swerve.XBrake");
@@ -336,8 +563,26 @@ public class SwerveSubsystem extends SubsystemBase {
         return (value - Math.copySign(deadband, value)) / (1.0 - deadband);
     }
 
+    private static double normalizeAngle(double degrees) {
+        degrees = degrees % 360;
+        if (degrees > 180) degrees -= 360;
+        if (degrees < -180) degrees += 360;
+        return degrees;
+    }
+
     public SwerveDrivetrain getDrivetrain() {
         return drivetrain;
+    }
+
+    /** Get max speed in m/s. */
+    public double getMaxSpeed() {
+        return maxSpeedMPS;
+    }
+
+    /** Get current speed magnitude in m/s. */
+    public double getCurrentSpeed() {
+        ChassisSpeeds speeds = getChassisSpeeds();
+        return Math.hypot(speeds.vxMetersPerSecond, speeds.vyMetersPerSecond);
     }
 
     @Override
@@ -346,8 +591,10 @@ public class SwerveSubsystem extends SubsystemBase {
         posePub.set(pose);
         telemetryTable.getEntry("HeadingDeg").setDouble(pose.getRotation().getDegrees());
         ChassisSpeeds speeds = getChassisSpeeds();
-        telemetryTable.getEntry("SpeedMPS").setDouble(
-                Math.hypot(speeds.vxMetersPerSecond, speeds.vyMetersPerSecond));
+        double speed = Math.hypot(speeds.vxMetersPerSecond, speeds.vyMetersPerSecond);
+        telemetryTable.getEntry("SpeedMPS").setDouble(speed);
+        telemetryTable.getEntry("OmegaRadPerSec").setDouble(speeds.omegaRadiansPerSecond);
+        telemetryTable.getEntry("SpeedMultiplier").setDouble(speedMultiplier);
     }
 
     // ===========================================

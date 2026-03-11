@@ -72,9 +72,23 @@ Pre-built, configurable mechanism types that cover virtually every FRC subsystem
 
 Complex subsystem wrappers that integrate multiple components.
 
-- **SwerveSubsystem** — CTRE Tuner X wrapper with heading lock, point-at-target, PathPlanner
-- **VisionSubsystem** — Multi-camera Kalman filter (Limelight + PhotonVision)
-- **LEDSubsystem** — Addressable LED patterns (solid, blink, rainbow, chase, breathe)
+- **SwerveSubsystem** — CTRE Tuner X wrapper with heading lock, point-at-target, skew correction, advanced drive, PathPlanner
+- **VisionSubsystem** — Multi-camera Kalman filter with innovation tracking, high-speed rejection, heading divergence filtering
+- **LEDSubsystem** — 14 addressable LED patterns including fire, gradient, larson scanner, alignment indicator
+
+### Advanced Features (New)
+
+Competition-proven algorithms used by top FRC teams:
+
+| Feature | Inspired By | Description |
+|---------|------------|-------------|
+| **StateSpaceController** | 6328, 254 | LQR + Kalman filter for optimal mechanism control |
+| **MotionConstraintCalculator** | Top teams | Physics-based max velocity/acceleration from motor specs |
+| **SignalProcessor** | 254 | EMA, median, low-pass, composite sensor filters |
+| **PoseHistory** | 6328 | Temporal pose tracking with interpolation |
+| **DynamicAutoBuilder** | 254, 3061 | Runtime path generation with PathPlanner |
+| **Skew Correction** | 1690 | Pose exponential discretization for swerve |
+| **Collision Zones** | 254 | Prevent physical mechanism collisions |
 
 ### Every Mechanism Includes
 
@@ -97,6 +111,7 @@ Complex subsystem wrappers that integrate multiple components.
 | [Mechanisms](mechanisms/) | LinearMechanism, RotationalMechanism, Flywheel, Roller, Winch |
 | [Subsystems](subsystems/) | Swerve Drive, Vision, LEDs |
 | [Utilities](utilities/) | Math, feedforward, profiles, alerts |
+| [Advanced](advanced/) | State-space control, signal processing, dynamic paths |
 | [Examples](examples/) | Complete robot examples with elevator, intake, and more |
 | [Testing](testing/) | How to test your FrcCatalyst-based code |
 

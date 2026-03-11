@@ -39,32 +39,62 @@ FrcCatalyst provides five generic mechanism types that cover virtually every FRC
 
 ## SuperstructureCoordinator
 
-The `SuperstructureCoordinator` orchestrates multiple mechanisms into a state machine with safe transitions. Define named states with positions for each mechanism, and optional custom transition rules:
+The `SuperstructureCoordinator` orchestrates multiple mechanisms into a Team 254-style state machine with safe transitions, collision zones, timeouts, entry/exit actions, and telemetry:
 
 ```java
 SuperstructureCoordinator superstructure = new SuperstructureCoordinator()
     .withLinear("elevator", elevator)
-    .withRotational("arm", arm);
+    .withRotational("arm", arm)
+    .withTimeout(3.0); // safety timeout
 
+// Define states with entry/exit actions
 superstructure.defineState("STOW")
     .setLinear("elevator", 0.0)
     .setRotational("arm", 0.0)
+    .onEntry(() -> leds.setPattern(Color.kBlue))
     .done();
 
 superstructure.defineState("SCORE_HIGH")
     .setLinear("elevator", 1.1)
     .setRotational("arm", 95.0)
+    .onEntry(() -> leds.setPattern(Color.kGreen))
+    .onExit(() -> leds.setPattern(Color.kBlue))
     .done();
+
+// Collision zone: prevent arm extension when elevator is low
+superstructure.addCollisionZone("ElevatorArmConflict",
+    () -> elevator.getPosition() < 0.3 && arm.getAngle() > 45.0
+);
 
 // Custom transition: retract arm before raising elevator
 superstructure.addTransitionRule("STOW", "SCORE_HIGH",
-    (fromState, toState) -> elevator.goTo("HIGH")
-        .alongWith(arm.goTo("STOW"))
+    (fromState, toState) -> arm.goTo("STOW")
+        .andThen(elevator.goTo("SCORE_HIGH"))
         .andThen(arm.goTo("SCORE"))
 );
 
-// Use in commands:
-operatorController.y().onTrue(superstructure.transitionTo("SCORE_HIGH"));
+// Conditional transition (only if holding a game piece)
+operatorController.y().onTrue(
+    superstructure.transitionToIf("SCORE_HIGH", () -> intake.hasGamePiece())
+);
+
+// Monitor transition progress (0.0 to 1.0) on dashboard
+double progress = superstructure.getTransitionProgress();
+```
+
+## RollerMechanism Extras
+
+In addition to the standard `intake()` and `eject()` commands, `RollerMechanism` provides advanced commands:
+
+```java
+// Gradual speed ramp to prevent wheel slip on intake
+intake.intakeWithRamp(1.5); // ramp over 1.5 seconds
+
+// Pulsed operation for unjamming
+intake.pulse(0.8, 0.15, 0.1); // speed, onTime, offTime
+
+// Voltage-based feed for battery-independent consistency
+intake.feedVoltage(6.0); // apply 6V
 ```
 
 ## Base Class: CatalystMechanism

@@ -95,7 +95,7 @@ operatorController.b().onTrue(elevator.goTo("STOW"));
 frc.lib.catalyst
 |
 +-- hardware/           Motor, encoder, gyro wrappers
-|   +-- CatalystMotor       TalonFX with builder config + telemetry
+|   +-- CatalystMotor       TalonFX with builder config + telemetry + fault detection
 |   +-- CatalystEncoder     CANcoder wrapper
 |   +-- CatalystGyro        Pigeon2 IMU wrapper
 |   +-- MotorType           Motor specs enum (Kraken, Falcon)
@@ -104,26 +104,31 @@ frc.lib.catalyst
 |   +-- LinearMechanism      Elevator, slide, telescoping arm
 |   +-- RotationalMechanism  Arm, wrist, turret, hood
 |   +-- FlywheelMechanism    Shooter, accelerator wheel
-|   +-- RollerMechanism      Intake, conveyor, indexer
+|   +-- RollerMechanism      Intake, conveyor, indexer (with ramp, pulse, voltage feed)
 |   +-- WinchMechanism       Climber, deployment
-|   +-- SuperstructureCoordinator  Multi-mechanism state machine
+|   +-- SuperstructureCoordinator  State machine + collision zones + timeouts
 |
 +-- subsystems/          Complex subsystems
-|   +-- SwerveSubsystem      Swerve drive (wraps CTRE generated code)
-|   +-- VisionSubsystem      Multi-camera pose estimation
-|   +-- LEDSubsystem         Addressable LED patterns
+|   +-- SwerveSubsystem      Swerve drive with skew correction, snap-to, advanced drive
+|   +-- VisionSubsystem      Multi-camera with innovation tracking + speed rejection
+|   +-- LEDSubsystem         14 addressable LED patterns
 |
 +-- util/                Utilities
-    +-- FeedforwardGains     kS/kV/kA/kG storage + calculators
-    +-- TrapezoidProfileHelper  Motion profile factories
-    +-- AlertManager         Centralized fault system
-    +-- MechanismVisualizer  Mechanism2d dashboard helper
-    +-- CharacterizationHelper  SysId routine wrapper
-    +-- CatalystMath         Joystick curves, geometry, physics
-    +-- InterpolatingTable   Shooter lookup tables
-    +-- SlewRateLimiter      Asymmetric rate limiting
-    +-- MovingAverage        Sliding window filter
-    +-- TimedBoolean         Debounced boolean
+    +-- FeedforwardGains         kS/kV/kA/kG storage + calculators
+    +-- TrapezoidProfileHelper   Motion profile factories
+    +-- AlertManager             Centralized fault system
+    +-- MechanismVisualizer      Mechanism2d dashboard helper
+    +-- CharacterizationHelper   SysId routine wrapper
+    +-- CatalystMath             Joystick curves, geometry, physics
+    +-- InterpolatingTable       Shooter lookup tables
+    +-- SlewRateLimiter          Asymmetric rate limiting
+    +-- MovingAverage            Sliding window filter
+    +-- TimedBoolean             Debounced boolean
+    +-- StateSpaceController     LQR + Kalman filter (optimal control)
+    +-- SignalProcessor          EMA, median, low-pass, composite filters
+    +-- MotionConstraintCalculator Physics-based motion constraints
+    +-- PoseHistory              Temporal pose tracking + interpolation
+    +-- DynamicAutoBuilder       Runtime PathPlanner path generation
 ```
 
 ---
@@ -227,7 +232,7 @@ intake.intake();
 
 ## Swerve Drive
 
-Wraps CTRE Tuner X generated swerve code with PathPlanner, vision, heading lock, and point-at-target.
+Wraps CTRE Tuner X generated swerve code with PathPlanner, vision, heading lock, point-at-target, skew correction, and advanced drive features.
 
 ```java
 SwerveSubsystem drive = new SwerveSubsystem(
@@ -239,28 +244,28 @@ SwerveSubsystem drive = new SwerveSubsystem(
         .build()
 );
 
-// Heading lock: auto-holds heading when driver isn't rotating
-drive.headingLockDrive(
+// Enable advanced features
+drive.setSkewCorrectionEnabled(true);
+drive.enableSlewRateLimiting(2.0, 5.0);
+drive.setSnapToAngles(List.of(0.0, 90.0, 180.0, 270.0), 5.0);
+
+// Advanced drive: deadband + slew + heading lock + snap + skew correction
+drive.setDefaultCommand(drive.advancedDrive(
     () -> -controller.getLeftY(),
     () -> -controller.getLeftX(),
     () -> -controller.getRightX(),
     0.05
-);
+));
 
-// Point at scoring target while driving
-drive.pointAtTarget(
-    () -> -controller.getLeftY(),
-    () -> -controller.getLeftX(),
-    () -> new Translation2d(0.0, 5.55), // speaker position
-    0.05
-);
+// Slow mode for precision
+driver.leftBumper().whileTrue(drive.slowModeWhileHeld(0.3));
 ```
 
 ---
 
 ## Vision
 
-Multi-camera pose estimation with Kalman filter tuning.
+Multi-camera pose estimation with advanced Kalman filter tuning, innovation tracking, and multi-layer filtering.
 
 ```java
 VisionSubsystem vision = new VisionSubsystem(
@@ -273,7 +278,10 @@ VisionSubsystem vision = new VisionSubsystem(
         .singleTagStdDevs(4, 8)
         .multiTagStdDevs(0.5, 1)
         .xyDistanceScaling(1.0)
-        .rejectDuringSpin(2.0) // rad/s
+        .rejectDuringSpin(2.0)
+        .rejectDuringHighSpeed(3.0)   // reject when > 3 m/s
+        .maxHeadingDivergence(15.0)   // reject if heading disagrees > 15 deg
+        .fieldDimensions(16.54, 8.21) // custom field bounds
         .maxLatency(0.5)
         .build()
 );
@@ -290,12 +298,17 @@ VisionSubsystem vision = new VisionSubsystem(
 | `AlertManager` | Centralized fault/warning system with NetworkTables publishing |
 | `MechanismVisualizer` | Mechanism2d dashboard builder (elevator + arm visualization) |
 | `CharacterizationHelper` | SysId routine wrapper for one-line characterization setup |
-| `SuperstructureCoordinator` | Multi-mechanism state machine with safe transitions |
+| `SuperstructureCoordinator` | Multi-mechanism state machine with collision zones + timeouts |
 | `InterpolatingTable` | TreeMap-based linear interpolation (shooter distance tables) |
 | `CatalystMath` | Joystick curves, angle math, geometry helpers, physics |
 | `SlewRateLimiter` | Asymmetric rate limiter (different accel/decel profiles) |
 | `MovingAverage` | Sliding window average filter |
 | `TimedBoolean` | Debounced boolean with rising/falling edge detection |
+| `StateSpaceController` | LQR + Kalman filter for optimal mechanism control |
+| `SignalProcessor` | EMA, median, low-pass, composite sensor filters |
+| `MotionConstraintCalculator` | Physics-based max velocity/acceleration from motor specs |
+| `PoseHistory` | Temporal pose tracking with interpolation for latency compensation |
+| `DynamicAutoBuilder` | Runtime path generation with PathPlanner |
 
 ---
 
