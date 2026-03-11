@@ -12,7 +12,7 @@ import java.util.Arrays;
  *   <li>{@link ExponentialMovingAverage} - Low-pass filter with configurable time constant</li>
  *   <li>{@link MedianFilter} - Removes impulse noise (spikes) while preserving edges</li>
  *   <li>{@link LowPassFilter} - First-order IIR low-pass filter with cutoff frequency</li>
- *   <li>{@link BandPassFilter} - Passes signals within a frequency range</li>
+ *   <li>{@link CompositeFilter} - Median + low-pass chain for robust filtering</li>
  *   <li>{@link RateOfChange} - Calculates derivative of a signal with smoothing</li>
  * </ul>
  */

@@ -4,12 +4,13 @@ plugins {
 }
 
 group = 'com.frccatalyst'
-version = '1.0.0'
+version = '0.2.0-beta'
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17
     withSourcesJar()
+    withJavadocJar()
 }
 
 ext {
@@ -92,4 +93,8 @@ publishing {
 tasks.withType(JavaCompile) {
     options.compilerArgs << '-Xlint:none'
     options.encoding = 'UTF-8'
+}
+
+tasks.withType(Javadoc) {
+    options.addStringOption('Xdoclint:none', '-quiet')
 }

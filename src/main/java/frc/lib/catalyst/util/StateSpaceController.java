@@ -15,14 +15,13 @@ import edu.wpi.first.math.system.plant.LinearSystemId;
  * State-space controller wrapper for FRC mechanisms using LQR + Kalman filter.
  *
  * <p>State-space control provides optimal gain calculation via LQR and
- * noise-filtered state estimation via Kalman filter. This is the approach
- * used by top teams (6328, 254) for precise mechanism control.
+ * noise-filtered state estimation via Kalman filter.
  *
  * <p>Advantages over PID:
  * <ul>
- *   <li>LQR automatically computes optimal gains given error and effort constraints</li>
- *   <li>Kalman filter provides lag-free noise rejection (vs moving average which adds lag)</li>
- *   <li>Model-based: changes in gear ratio or motor count auto-adjust gains</li>
+ *   <li>LQR computes optimal gains from error and effort constraints</li>
+ *   <li>Kalman filter gives lag-free noise rejection (unlike moving average)</li>
+ *   <li>Model-based: gear ratio or motor changes auto-adjust gains</li>
  * </ul>
  *
  * <p>Example: Flywheel with state-space control

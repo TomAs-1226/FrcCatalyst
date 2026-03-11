@@ -49,7 +49,7 @@ repositories {
 }
 
 dependencies {
-    implementation "com.github.TomAs-1226:FrcCatalyst:v1.0.0"
+    implementation "com.github.TomAs-1226:FrcCatalyst:v0.2.0-beta"
 }
 ```
 
@@ -247,7 +247,7 @@ SwerveSubsystem drive = new SwerveSubsystem(
 // Enable advanced features
 drive.setSkewCorrectionEnabled(true);
 drive.enableSlewRateLimiting(2.0, 5.0);
-drive.setSnapToAngles(List.of(0.0, 90.0, 180.0, 270.0), 5.0);
+drive.setSnapToAngles(new double[]{0.0, 90.0, 180.0, 270.0}, 5.0);
 
 // Advanced drive: deadband + slew + heading lock + snap + skew correction
 drive.setDefaultCommand(drive.advancedDrive(
@@ -268,23 +268,22 @@ driver.leftBumper().whileTrue(drive.slowModeWhileHeld(0.3));
 Multi-camera pose estimation with advanced Kalman filter tuning, innovation tracking, and multi-layer filtering.
 
 ```java
-VisionSubsystem vision = new VisionSubsystem(
-    drive::addVisionMeasurement,
-    drive::getHeading,
-    drive::getChassisSpeeds,
-    VisionConfig.builder()
-        .addLimelight("limelight-front", new Pose3d(...))
-        .addPhotonCamera("cam-rear", new Pose3d(...))
-        .singleTagStdDevs(4, 8)
-        .multiTagStdDevs(0.5, 1)
-        .xyDistanceScaling(1.0)
-        .rejectDuringSpin(2.0)
-        .rejectDuringHighSpeed(3.0)   // reject when > 3 m/s
-        .maxHeadingDivergence(15.0)   // reject if heading disagrees > 15 deg
-        .fieldDimensions(16.54, 8.21) // custom field bounds
-        .maxLatency(0.5)
-        .build()
-);
+VisionSubsystem vision = new VisionSubsystem(VisionConfig.builder()
+    .addLimelight("limelight-front",
+        new Transform3d(0.3, 0, 0.5, new Rotation3d(0, Math.toRadians(-15), 0)))
+    .addPhotonCamera("cam-back",
+        new Transform3d(-0.3, 0, 0.5, new Rotation3d(0, Math.toRadians(-20), Math.PI)),
+        fieldLayout)
+    .driveSubsystem(drive)
+    .baseXYStdDev(0.3)
+    .baseRotStdDev(0.7)
+    .xyDistanceScaling(1.0)
+    .rejectDuringSpin(2.0)
+    .rejectDuringHighSpeed(3.0)        // reject when > 3 m/s
+    .maxHeadingDivergence(15.0)        // reject if heading disagrees > 15 deg
+    .fieldDimensions(16.54, 8.21)      // custom field bounds
+    .maxLatency(0.5)
+    .build());
 ```
 
 ---

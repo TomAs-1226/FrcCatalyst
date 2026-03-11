@@ -34,6 +34,6 @@
   <text x="342" y="220" font-family="Arial, sans-serif" font-weight="300" font-size="18" fill="#8892b0">Pre-built mechanisms, hardware wrappers, and utilities</text>
   <text x="342" y="248" font-family="Arial, sans-serif" font-weight="300" font-size="18" fill="#8892b0">for CTRE Phoenix 6 + WPILib 2026</text>
   <!-- Version badge -->
-  <rect x="342" y="260" width="60" height="22" rx="4" fill="#e94560"/>
-  <text x="372" y="276" text-anchor="middle" font-family="monospace" font-size="12" fill="#fff">v1.0.0</text>
+  <rect x="342" y="260" width="92" height="22" rx="4" fill="#e94560"/>
+  <text x="388" y="276" text-anchor="middle" font-family="monospace" font-size="12" fill="#fff">v0.2.0-beta</text>
 </svg>

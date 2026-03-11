@@ -81,7 +81,7 @@ motor.setVoltage(elevatorController.getVoltage());
 
 ## MotionConstraintCalculator
 
-Physics-based motion constraint calculator that computes realistic max velocities, accelerations, and torques from motor specifications and mechanism geometry. Used by top teams to set Motion Magic constraints that respect actual motor capabilities.
+Physics-based motion constraint calculator that computes realistic max velocities, accelerations, and torques from motor specifications and mechanism geometry. Useful for setting Motion Magic constraints that match actual motor capabilities.
 
 ### Elevator Constraints
 
@@ -213,7 +213,7 @@ double headingChange = history.getHeadingChangeSince(startTimestamp);
 
 ## DynamicAutoBuilder
 
-Runtime path generation using PathPlanner's on-the-fly capabilities. Generates paths at runtime from the robot's current position to target poses — the approach used by top teams for adaptive autonomous routines.
+Runtime path generation using PathPlanner's on-the-fly capabilities. Generates paths at runtime from the robot's current position to target poses for adaptive autonomous routines.
 
 {: .note }
 Requires PathPlanner's `AutoBuilder` to be configured first (done automatically by `SwerveSubsystem`).
@@ -263,7 +263,7 @@ Pose2d redPose = DynamicAutoBuilder.mirrorForRed(bluePose);
 
 ## Enhanced Swerve Drive
 
-The `SwerveSubsystem` now includes advanced drive features used by top teams:
+The `SwerveSubsystem` includes several advanced drive features:
 
 ### Skew Correction
 
@@ -291,8 +291,8 @@ Auto-snap to predefined angles when the robot heading is within tolerance:
 
 ```java
 drive.setSnapToAngles(
-    List.of(0.0, 90.0, 180.0, 270.0), // snap angles
-    5.0                                  // tolerance (degrees)
+    new double[]{0.0, 90.0, 180.0, 270.0}, // snap angles
+    5.0                                      // tolerance (degrees)
 );
 ```
 
@@ -335,7 +335,7 @@ driver.rightBumper().whileTrue(drive.autoAlignDrive(
 
 ## Enhanced Vision
 
-The `VisionSubsystem` now includes advanced filtering used by top teams:
+The `VisionSubsystem` includes additional filtering capabilities:
 
 - **Ambiguity-scaled standard deviations** — higher ambiguity = less trust
 - **High-speed rejection** — ignores vision measurements when driving fast

@@ -78,17 +78,17 @@ Complex subsystem wrappers that integrate multiple components.
 
 ### Advanced Features (New)
 
-Competition-proven algorithms used by top FRC teams:
+Advanced control and estimation features:
 
-| Feature | Inspired By | Description |
-|---------|------------|-------------|
-| **StateSpaceController** | 6328, 254 | LQR + Kalman filter for optimal mechanism control |
-| **MotionConstraintCalculator** | Top teams | Physics-based max velocity/acceleration from motor specs |
-| **SignalProcessor** | 254 | EMA, median, low-pass, composite sensor filters |
-| **PoseHistory** | 6328 | Temporal pose tracking with interpolation |
-| **DynamicAutoBuilder** | 254, 3061 | Runtime path generation with PathPlanner |
-| **Skew Correction** | 1690 | Pose exponential discretization for swerve |
-| **Collision Zones** | 254 | Prevent physical mechanism collisions |
+| Feature | Description |
+|---------|-------------|
+| **StateSpaceController** | LQR + Kalman filter for optimal mechanism control |
+| **MotionConstraintCalculator** | Physics-based max velocity/acceleration from motor specs |
+| **SignalProcessor** | EMA, median, low-pass, composite sensor filters |
+| **PoseHistory** | Temporal pose tracking with interpolation |
+| **DynamicAutoBuilder** | Runtime path generation with PathPlanner |
+| **Skew Correction** | Pose exponential discretization for swerve |
+| **Collision Zones** | Prevent physical mechanism collisions |
 
 ### Every Mechanism Includes
 

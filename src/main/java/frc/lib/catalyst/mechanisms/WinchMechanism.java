@@ -276,7 +276,7 @@ public class WinchMechanism extends CatalystMechanism {
             public Builder secondInverted(boolean inverted) { this.secondInverted = inverted; return this; }
             public Builder gearRatio(double ratio) { this.gearRatio = ratio; return this; }
 
-            /** Spool/drum radius in meters. Used for position <-> rotation conversion. */
+            /** Spool/drum radius in meters. Used for position-to-rotation conversion. */
             public Builder spoolRadius(double meters) { this.spoolRadius = meters; return this; }
 
             /** Min and max position in meters. */

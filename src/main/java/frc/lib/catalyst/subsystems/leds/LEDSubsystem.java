@@ -165,8 +165,7 @@ public class LEDSubsystem extends SubsystemBase {
 
     /**
      * Command for a fire/flame effect.
-     * Simulates flickering fire with random heat values.
-     * Commonly used by top teams for aesthetic effects.
+     * Simulates flickering fire using heat diffusion.
      */
     public Command fire() {
         final double[] heat = new double[ledCount];

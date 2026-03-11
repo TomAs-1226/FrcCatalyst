@@ -8,8 +8,8 @@ import frc.lib.catalyst.hardware.MotorType;
  * Computes physically realistic max velocities, accelerations, and torques
  * based on motor specifications and mechanism geometry.
  *
- * <p>Used by top teams to set Motion Magic / trajectory constraints that
- * respect actual motor capabilities rather than arbitrary tuning values.
+ * <p>Useful for setting Motion Magic / trajectory constraints that
+ * match actual motor capabilities instead of arbitrary tuning values.
  *
  * <p>Example:
  * <pre>{@code

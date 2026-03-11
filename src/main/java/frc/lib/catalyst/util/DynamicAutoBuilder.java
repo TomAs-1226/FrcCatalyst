@@ -18,9 +18,9 @@ import java.util.function.Supplier;
 /**
  * Dynamic autonomous path generation using PathPlanner's on-the-fly capabilities.
  *
- * <p>Generates paths at runtime from the robot's current position to target poses.
- * This is the approach used by top teams (254, 3061) for adaptive autonomous routines
- * that respond to game conditions (e.g., piece availability, scoring position).
+ * <p>Generates paths at runtime from the robot's current position to target poses,
+ * enabling adaptive autonomous routines that respond to game conditions
+ * (e.g., piece availability, scoring position).
  *
  * <p>Key features:
  * <ul>

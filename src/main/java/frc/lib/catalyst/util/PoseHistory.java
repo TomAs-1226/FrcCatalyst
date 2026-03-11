@@ -40,7 +40,10 @@ public class PoseHistory {
     private double latestTimestamp = 0;
     private Pose2d previousPose = new Pose2d();
     private double previousTimestamp = 0;
+    private Pose2d oldPose = new Pose2d();
+    private double oldTimestamp = 0;
     private boolean hasPrevious = false;
+    private int sampleCount = 0;
 
     /**
      * @param historySeconds how far back to keep pose data (typically 1.0-2.0 seconds)
@@ -66,9 +69,12 @@ public class PoseHistory {
      * Add a pose sample at a specific timestamp.
      */
     public void addSample(Pose2d pose, double timestampSeconds) {
+        oldPose = previousPose;
+        oldTimestamp = previousTimestamp;
         previousPose = latestPose;
         previousTimestamp = latestTimestamp;
         hasPrevious = true;
+        sampleCount++;
 
         latestPose = pose;
         latestTimestamp = timestampSeconds;
@@ -132,16 +138,23 @@ public class PoseHistory {
     }
 
     /**
-     * Get the acceleration magnitude in m/s^2 (requires 3+ samples).
-     * Uses finite difference of velocity estimates.
+     * Get the acceleration magnitude in m/s^2.
+     * Uses finite difference of two consecutive velocity estimates (3 pose samples).
+     * Returns 0 if fewer than 3 samples have been recorded.
      */
     public double getAcceleration() {
-        // Simple approximation: use velocity change over last interval
-        if (!hasPrevious) return 0;
-        double dt = latestTimestamp - previousTimestamp;
-        if (dt <= 0) return 0;
-        // This is approximate — a more accurate version would keep 3 samples
-        return 0; // TODO: implement with triple-sample tracking if needed
+        if (sampleCount < 3) return 0;
+
+        double dt1 = previousTimestamp - oldTimestamp;
+        double dt2 = latestTimestamp - previousTimestamp;
+        if (dt1 <= 0 || dt2 <= 0) return 0;
+
+        double v1 = previousPose.getTranslation().getDistance(oldPose.getTranslation()) / dt1;
+        double v2 = latestPose.getTranslation().getDistance(previousPose.getTranslation()) / dt2;
+
+        double dtMid = (latestTimestamp - oldTimestamp) / 2.0;
+        if (dtMid <= 0) return 0;
+        return (v2 - v1) / dtMid;
     }
 
     /**
@@ -169,5 +182,6 @@ public class PoseHistory {
     public void clear() {
         buffer.clear();
         hasPrevious = false;
+        sampleCount = 0;
     }
 }
