@@ -48,6 +48,8 @@ repositories {
 
     // PathPlanner
     maven { url "https://3015rangerrobotics.github.io/pathplannerlib/repo" }
+
+    maven {url = uri("https://frcmaven.wpi.edu/artifactory/littletonrobotics-mvn-release")}
 }
 
 dependencies {
