@@ -20,9 +20,7 @@ import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.signals.GravityTypeValue;
 import com.ctre.phoenix6.signals.InvertedValue;
 import com.ctre.phoenix6.signals.NeutralModeValue;
-import edu.wpi.first.networktables.DoublePublisher;
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
+import org.littletonrobotics.junction.Logger;
 
 /**
  * Unified TalonFX motor wrapper with builder-style configuration,
@@ -53,13 +51,6 @@ public class CatalystMotor {
     private final VelocityVoltage velocityRequest = new VelocityVoltage(0);
     private final MotionMagicVoltage motionMagicRequest = new MotionMagicVoltage(0);
     private final NeutralOut neutralRequest = new NeutralOut();
-
-    // Telemetry publishers
-    private final DoublePublisher positionPub;
-    private final DoublePublisher velocityPub;
-    private final DoublePublisher voltagePub;
-    private final DoublePublisher currentPub;
-    private final DoublePublisher tempPub;
 
     // Config storage
     private double gearRatio = 1.0;
@@ -190,14 +181,6 @@ public class CatalystMotor {
                             : MotorAlignmentValue.Aligned));
         }
 
-        // Set up telemetry
-        NetworkTable table = NetworkTableInstance.getDefault()
-                .getTable("Catalyst").getSubTable(this.name);
-        positionPub = table.getDoubleTopic("Position").publish();
-        velocityPub = table.getDoubleTopic("Velocity").publish();
-        voltagePub = table.getDoubleTopic("Voltage").publish();
-        currentPub = table.getDoubleTopic("Current").publish();
-        tempPub = table.getDoubleTopic("Temperature").publish();
     }
 
     // --- Control Methods ---
@@ -296,11 +279,11 @@ public class CatalystMotor {
 
     /** Update telemetry. Call from subsystem periodic(). */
     public void updateTelemetry() {
-        positionPub.set(getPosition());
-        velocityPub.set(getVelocity());
-        voltagePub.set(getAppliedVoltage());
-        currentPub.set(getStatorCurrent());
-        tempPub.set(getTemperature());
+        Logger.recordOutput("Catalyst/" + name + "/Position", getPosition());
+        Logger.recordOutput("Catalyst/" + name + "/Velocity", getVelocity());
+        Logger.recordOutput("Catalyst/" + name + "/Voltage", getAppliedVoltage());
+        Logger.recordOutput("Catalyst/" + name + "/Current", getStatorCurrent());
+        Logger.recordOutput("Catalyst/" + name + "/Temperature", getTemperature());
     }
 
     /**
