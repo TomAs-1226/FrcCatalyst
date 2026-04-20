@@ -15,10 +15,8 @@ import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.networktables.StructPublisher;
 import edu.wpi.first.wpilibj.DriverStation;
+import org.littletonrobotics.junction.Logger;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.lib.catalyst.util.SlewRateLimiter;
@@ -85,9 +83,6 @@ public class SwerveSubsystem extends SubsystemBase {
     private final SwerveRequest.SwerveDriveBrake brakeRequest = new SwerveRequest.SwerveDriveBrake();
     private final SwerveRequest.Idle idleRequest = new SwerveRequest.Idle();
 
-    // Telemetry
-    private final NetworkTable telemetryTable;
-    private final StructPublisher<Pose2d> posePub;
 
     /**
      * Create a SwerveSubsystem wrapping a CTRE-generated SwerveDrivetrain.
@@ -104,10 +99,6 @@ public class SwerveSubsystem extends SubsystemBase {
 
         headingPID.enableContinuousInput(-Math.PI, Math.PI);
         headingPID.setTolerance(Math.toRadians(1.5));
-
-        telemetryTable = NetworkTableInstance.getDefault()
-                .getTable("Catalyst").getSubTable("Swerve");
-        posePub = telemetryTable.getStructTopic("Pose", Pose2d.struct).publish();
 
         if (pathPlannerConfig != null) {
             configurePathPlanner(pathPlannerConfig);
@@ -588,13 +579,13 @@ public class SwerveSubsystem extends SubsystemBase {
     @Override
     public void periodic() {
         Pose2d pose = getPose();
-        posePub.set(pose);
-        telemetryTable.getEntry("HeadingDeg").setDouble(pose.getRotation().getDegrees());
+        Logger.recordOutput("Catalyst/Swerve/Pose", pose);
+        Logger.recordOutput("Catalyst/Swerve/HeadingDeg", pose.getRotation().getDegrees());
         ChassisSpeeds speeds = getChassisSpeeds();
         double speed = Math.hypot(speeds.vxMetersPerSecond, speeds.vyMetersPerSecond);
-        telemetryTable.getEntry("SpeedMPS").setDouble(speed);
-        telemetryTable.getEntry("OmegaRadPerSec").setDouble(speeds.omegaRadiansPerSecond);
-        telemetryTable.getEntry("SpeedMultiplier").setDouble(speedMultiplier);
+        Logger.recordOutput("Catalyst/Swerve/SpeedMPS", speed);
+        Logger.recordOutput("Catalyst/Swerve/OmegaRadPerSec", speeds.omegaRadiansPerSecond);
+        Logger.recordOutput("Catalyst/Swerve/SpeedMultiplier", speedMultiplier);
     }
 
     // ===========================================

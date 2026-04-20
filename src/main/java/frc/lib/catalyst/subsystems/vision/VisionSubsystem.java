@@ -7,10 +7,8 @@ import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Transform3d;
 import edu.wpi.first.math.numbers.N1;
 import edu.wpi.first.math.numbers.N3;
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.networktables.StructPublisher;
 import edu.wpi.first.wpilibj.DriverStation;
+import org.littletonrobotics.junction.Logger;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
@@ -69,9 +67,6 @@ public class VisionSubsystem extends SubsystemBase {
     private final List<CameraSource> cameras;
     private final SwerveSubsystem driveSubsystem;
 
-    // Telemetry
-    private final NetworkTable telemetryTable;
-    private final StructPublisher<Pose2d> visionPosePub;
     private int totalAccepted = 0;
     private int totalRejected = 0;
     private int cycleAccepted = 0;
@@ -82,9 +77,6 @@ public class VisionSubsystem extends SubsystemBase {
         this.cameras = config.cameras;
         this.driveSubsystem = config.driveSubsystem;
 
-        telemetryTable = NetworkTableInstance.getDefault()
-                .getTable("Catalyst").getSubTable("Vision");
-        visionPosePub = telemetryTable.getStructTopic("LatestAcceptedPose", Pose2d.struct).publish();
     }
 
     @Override
@@ -132,24 +124,24 @@ public class VisionSubsystem extends SubsystemBase {
             driveSubsystem.addVisionMeasurement(pe.pose(), pe.timestampSeconds(), stdDevs);
             totalAccepted++;
             cycleAccepted++;
-            visionPosePub.set(pe.pose());
+            Logger.recordOutput("Catalyst/Vision/LatestAcceptedPose", pe.pose());
             logCamera(camera.getName(), "Accepted", pe);
 
             // Log innovation (how much vision disagrees with current estimate)
             double[] innovation = calculateInnovation(pe.pose(), currentPose);
             double innovationNorm = Math.sqrt(innovation[0] * innovation[0]
                     + innovation[1] * innovation[1]);
-            NetworkTable camTable = telemetryTable.getSubTable(camera.getName());
-            camTable.getEntry("InnovationXY").setDouble(innovationNorm);
-            camTable.getEntry("InnovationRot").setDouble(Math.toDegrees(Math.abs(innovation[2])));
+            Logger.recordOutput("Catalyst/Vision/" + camera.getName() + "/InnovationXY", innovationNorm);
+            Logger.recordOutput("Catalyst/Vision/" + camera.getName() + "/InnovationRot",
+                    Math.toDegrees(Math.abs(innovation[2])));
         }
 
         // Overall telemetry
-        telemetryTable.getEntry("TotalAccepted").setDouble(totalAccepted);
-        telemetryTable.getEntry("TotalRejected").setDouble(totalRejected);
-        telemetryTable.getEntry("CycleAccepted").setDouble(cycleAccepted);
-        telemetryTable.getEntry("CycleRejected").setDouble(cycleRejected);
-        telemetryTable.getEntry("CameraCount").setDouble(cameras.size());
+        Logger.recordOutput("Catalyst/Vision/TotalAccepted", (double) totalAccepted);
+        Logger.recordOutput("Catalyst/Vision/TotalRejected", (double) totalRejected);
+        Logger.recordOutput("Catalyst/Vision/CycleAccepted", (double) cycleAccepted);
+        Logger.recordOutput("Catalyst/Vision/CycleRejected", (double) cycleRejected);
+        Logger.recordOutput("Catalyst/Vision/CameraCount", (double) cameras.size());
     }
 
     /**
@@ -285,14 +277,14 @@ public class VisionSubsystem extends SubsystemBase {
     }
 
     private void logCamera(String cameraName, String status, CameraSource.PoseEstimate pe) {
-        NetworkTable camTable = telemetryTable.getSubTable(cameraName);
-        camTable.getEntry("Status").setString(status);
-        camTable.getEntry("TagCount").setDouble(pe.tagCount());
-        camTable.getEntry("AvgDistance").setDouble(pe.averageTagDistance());
-        camTable.getEntry("Ambiguity").setDouble(pe.ambiguity());
-        camTable.getEntry("X").setDouble(pe.pose().getX());
-        camTable.getEntry("Y").setDouble(pe.pose().getY());
-        camTable.getEntry("RotDeg").setDouble(pe.pose().getRotation().getDegrees());
+        String prefix = "Catalyst/Vision/" + cameraName + "/";
+        Logger.recordOutput(prefix + "Status", status);
+        Logger.recordOutput(prefix + "TagCount", (double) pe.tagCount());
+        Logger.recordOutput(prefix + "AvgDistance", pe.averageTagDistance());
+        Logger.recordOutput(prefix + "Ambiguity", pe.ambiguity());
+        Logger.recordOutput(prefix + "X", pe.pose().getX());
+        Logger.recordOutput(prefix + "Y", pe.pose().getY());
+        Logger.recordOutput(prefix + "RotDeg", pe.pose().getRotation().getDegrees());
     }
 
     /** Get the list of camera sources. */

@@ -1,9 +1,9 @@
 package frc.lib.catalyst.util;
 
 import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.wpilibj.smartdashboard.Field2d;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import org.littletonrobotics.junction.Logger;
 
 /**
  * Utility class for common telemetry operations.
@@ -30,20 +30,21 @@ public final class TelemetryUtil {
     /** Update the field widget with the robot's current pose. */
     public static void updateFieldPose(Pose2d pose) {
         getField().setRobotPose(pose);
+        Logger.recordOutput("Catalyst/Field/RobotPose", pose);
     }
 
-    /** Log a value to SmartDashboard under the Catalyst namespace. */
+    /** Log a value via AdvantageKit under the Catalyst namespace. */
     public static void log(String key, double value) {
-        SmartDashboard.putNumber("Catalyst/" + key, value);
+        Logger.recordOutput("Catalyst/" + key, value);
     }
 
-    /** Log a value to SmartDashboard under the Catalyst namespace. */
+    /** Log a value via AdvantageKit under the Catalyst namespace. */
     public static void log(String key, boolean value) {
-        SmartDashboard.putBoolean("Catalyst/" + key, value);
+        Logger.recordOutput("Catalyst/" + key, value);
     }
 
-    /** Log a value to SmartDashboard under the Catalyst namespace. */
+    /** Log a value via AdvantageKit under the Catalyst namespace. */
     public static void log(String key, String value) {
-        SmartDashboard.putString("Catalyst/" + key, value);
+        Logger.recordOutput("Catalyst/" + key, value);
     }
 }
