@@ -1,7 +1,8 @@
 package frc.lib.catalyst.mechanisms;
 
+import edu.wpi.first.networktables.NetworkTable;
+import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.wpilibj2.command.Command;
-import org.littletonrobotics.junction.Logger;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.lib.catalyst.util.AlertManager;
@@ -75,7 +76,12 @@ public class SuperstructureCoordinator {
     private boolean transitioning = false;
     private double transitionTimeoutSeconds = 5.0;
 
+    // Telemetry
+    private final NetworkTable telemetryTable;
+
     public SuperstructureCoordinator() {
+        this.telemetryTable = NetworkTableInstance.getDefault()
+                .getTable("Catalyst").getSubTable("Superstructure");
     }
 
     /** Register a linear mechanism. */
@@ -168,8 +174,8 @@ public class SuperstructureCoordinator {
                     }
                     transitioning = true;
                     this.targetState = targetStateName;
-                    Logger.recordOutput("Catalyst/Superstructure/Transitioning", true);
-                    Logger.recordOutput("Catalyst/Superstructure/TargetState", targetStateName);
+                    telemetryTable.getEntry("Transitioning").setBoolean(true);
+                    telemetryTable.getEntry("TargetState").setString(targetStateName);
                 })
                 .finallyDo(interrupted -> {
                     if (interrupted) {
@@ -178,8 +184,8 @@ public class SuperstructureCoordinator {
                     }
                     currentState = targetStateName;
                     transitioning = false;
-                    Logger.recordOutput("Catalyst/Superstructure/Transitioning", false);
-                    Logger.recordOutput("Catalyst/Superstructure/CurrentState", currentState);
+                    telemetryTable.getEntry("Transitioning").setBoolean(false);
+                    telemetryTable.getEntry("CurrentState").setString(currentState);
 
                     // Run entry action of new state
                     if (target.entryAction != null) {
@@ -252,7 +258,7 @@ public class SuperstructureCoordinator {
     public void checkCollisionZones() {
         for (var entry : collisionZones.entrySet()) {
             boolean colliding = entry.getValue().isColliding();
-            Logger.recordOutput("Catalyst/Superstructure/Collision/" + entry.getKey(), colliding);
+            telemetryTable.getEntry("Collision/" + entry.getKey()).setBoolean(colliding);
             if (colliding) {
                 AlertManager.getInstance().error("Superstructure",
                         "COLLISION ZONE ACTIVE: " + entry.getKey());

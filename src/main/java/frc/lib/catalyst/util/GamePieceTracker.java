@@ -1,7 +1,8 @@
 package frc.lib.catalyst.util;
 
+import edu.wpi.first.networktables.NetworkTable;
+import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
-import org.littletonrobotics.junction.Logger;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -43,14 +44,17 @@ public class GamePieceTracker {
     private final String name;
     private final Map<String, BooleanSupplier> stages = new LinkedHashMap<>();
     private final Map<String, Boolean> stageStates = new LinkedHashMap<>();
+    private final NetworkTable table;
 
     /**
      * Create a game piece tracker.
      *
-     * @param name tracker name (used as log key prefix, e.g. "Note", "Coral")
+     * @param name tracker name (used for NetworkTables key, e.g. "Note", "Coral")
      */
     public GamePieceTracker(String name) {
         this.name = name;
+        this.table = NetworkTableInstance.getDefault()
+                .getTable("Catalyst").getSubTable("GamePiece").getSubTable(name);
     }
 
     /**
@@ -71,15 +75,14 @@ public class GamePieceTracker {
      * Update all stage states. Call this once per periodic cycle.
      */
     public void update() {
-        String prefix = "Catalyst/GamePiece/" + name + "/";
         for (var entry : stages.entrySet()) {
             boolean state = entry.getValue().getAsBoolean();
             stageStates.put(entry.getKey(), state);
-            Logger.recordOutput(prefix + entry.getKey(), state);
+            table.getEntry(entry.getKey()).setBoolean(state);
         }
-        Logger.recordOutput(prefix + "HasPiece", hasPiece());
-        Logger.recordOutput(prefix + "PieceCount", (double) getPieceCount());
-        Logger.recordOutput(prefix + "CurrentStage", getCurrentStage());
+        table.getEntry("HasPiece").setBoolean(hasPiece());
+        table.getEntry("PieceCount").setDouble(getPieceCount());
+        table.getEntry("CurrentStage").setString(getCurrentStage());
     }
 
     /** Check if a game piece is detected at any stage. */
