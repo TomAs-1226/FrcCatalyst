@@ -48,6 +48,8 @@ repositories {
 
     // PathPlanner
     maven { url "https://3015rangerrobotics.github.io/pathplannerlib/repo" }
+
+    maven {url = uri("https://frcmaven.wpi.edu/artifactory/littletonrobotics-mvn-release")}
 }
 
 dependencies {
@@ -71,6 +73,10 @@ dependencies {
 
     // PathPlanner (commonly used with swerve)
     api "com.pathplanner.lib:PathplannerLib-java:2026.1.2"
+
+    // AdvantageKit
+    api "org.littletonrobotics.akit:akit-java:26.0.2"
+    api "us.hebi.quickbuf:quickbuf-runtime:1.4"
 }
 
 publishing {

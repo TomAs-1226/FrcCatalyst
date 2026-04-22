@@ -1,8 +1,7 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.wpilibj.DriverStation;
+import org.littletonrobotics.junction.Logger;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,14 +27,11 @@ public class AlertManager {
 
     private static AlertManager instance;
 
-    private final NetworkTable alertTable;
     private final List<String> errors = new ArrayList<>();
     private final List<String> warnings = new ArrayList<>();
     private final List<String> infos = new ArrayList<>();
 
     private AlertManager() {
-        alertTable = NetworkTableInstance.getDefault()
-                .getTable("Catalyst").getSubTable("Alerts");
     }
 
     /** Get the singleton AlertManager instance. */
@@ -137,11 +133,11 @@ public class AlertManager {
     }
 
     private void publishAlerts() {
-        alertTable.getEntry("Errors").setStringArray(errors.toArray(new String[0]));
-        alertTable.getEntry("Warnings").setStringArray(warnings.toArray(new String[0]));
-        alertTable.getEntry("Info").setStringArray(infos.toArray(new String[0]));
-        alertTable.getEntry("ErrorCount").setInteger(errors.size());
-        alertTable.getEntry("WarningCount").setInteger(warnings.size());
-        alertTable.getEntry("HasFaults").setBoolean(!errors.isEmpty());
+        Logger.recordOutput("Catalyst/Alerts/Errors", errors.toArray(new String[0]));
+        Logger.recordOutput("Catalyst/Alerts/Warnings", warnings.toArray(new String[0]));
+        Logger.recordOutput("Catalyst/Alerts/Info", infos.toArray(new String[0]));
+        Logger.recordOutput("Catalyst/Alerts/ErrorCount", (long) errors.size());
+        Logger.recordOutput("Catalyst/Alerts/WarningCount", (long) warnings.size());
+        Logger.recordOutput("Catalyst/Alerts/HasFaults", !errors.isEmpty());
     }
 }

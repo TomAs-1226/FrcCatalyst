@@ -1,11 +1,7 @@
 package frc.lib.catalyst.mechanisms;
 
-import edu.wpi.first.networktables.DoublePublisher;
-import edu.wpi.first.networktables.BooleanPublisher;
-import edu.wpi.first.networktables.StringPublisher;
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.wpilibj2.command.Command;
+import org.littletonrobotics.junction.Logger;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 
@@ -18,35 +14,30 @@ import edu.wpi.first.wpilibj2.command.SubsystemBase;
 public abstract class CatalystMechanism extends SubsystemBase {
 
     protected final String name;
-    protected final NetworkTable telemetryTable;
-    private final StringPublisher statePub;
 
     protected CatalystMechanism(String name) {
         super(name);
         this.name = name;
-        this.telemetryTable = NetworkTableInstance.getDefault()
-                .getTable("Catalyst").getSubTable(name);
-        this.statePub = telemetryTable.getStringTopic("State").publish();
     }
 
-    /** Log a double value to NetworkTables under this mechanism's table. */
+    /** Log a double value under this mechanism's namespace. */
     protected void log(String key, double value) {
-        telemetryTable.getEntry(key).setDouble(value);
+        Logger.recordOutput("Catalyst/" + name + "/" + key, value);
     }
 
-    /** Log a boolean value to NetworkTables under this mechanism's table. */
+    /** Log a boolean value under this mechanism's namespace. */
     protected void log(String key, boolean value) {
-        telemetryTable.getEntry(key).setBoolean(value);
+        Logger.recordOutput("Catalyst/" + name + "/" + key, value);
     }
 
-    /** Log a string value to NetworkTables under this mechanism's table. */
+    /** Log a string value under this mechanism's namespace. */
     protected void log(String key, String value) {
-        telemetryTable.getEntry(key).setString(value);
+        Logger.recordOutput("Catalyst/" + name + "/" + key, value);
     }
 
     /** Set the mechanism's displayed state. */
     protected void setState(String state) {
-        statePub.set(state);
+        Logger.recordOutput("Catalyst/" + name + "/State", state);
     }
 
     /** Get the mechanism name. */
