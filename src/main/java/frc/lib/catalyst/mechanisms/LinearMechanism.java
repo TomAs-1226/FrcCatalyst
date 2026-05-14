@@ -16,6 +16,7 @@ import frc.lib.catalyst.hardware.MotorType;
 import frc.lib.catalyst.io.LinearMechanismInputs;
 import frc.lib.catalyst.util.AlertManager;
 import frc.lib.catalyst.util.FeedforwardGains;
+import frc.lib.catalyst.util.TunableGains;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -77,6 +78,11 @@ public class LinearMechanism extends CatalystMechanism {
     // loops to avoid GC pressure.
     private final LinearMechanismInputs inputs = new LinearMechanismInputs();
 
+    // Live-tunable Slot 0 + Motion Magic gains. Publishes every gain under
+    // Catalyst/Tuning/<name>/... and re-applies on change. Disabled globally
+    // via TunableNumber.disableTuning() for competition builds.
+    private final TunableGains tunableGains;
+
     // Fault monitoring
     private int consecutiveHighTempCycles = 0;
 
@@ -119,6 +125,16 @@ public class LinearMechanism extends CatalystMechanism {
         }
 
         this.motor = motorBuilder.build();
+
+        // Live-tunable PID + Motion Magic. Globally disabled via
+        // TunableNumber.disableTuning() in competition robotInit().
+        this.tunableGains = new TunableGains(
+                config.name,
+                config.kP, config.kI, config.kD,
+                config.kS, config.kV, config.kA, config.kG,
+                config.motionMagicCruiseVelocity,
+                config.motionMagicAcceleration,
+                config.motionMagicJerk);
 
         // Total motor count = leader + all configured followers. Used for sim.
         int motorCount = 1 + motor.getFollowerCount();
@@ -435,6 +451,7 @@ public class LinearMechanism extends CatalystMechanism {
     @Override
     protected void updateTelemetry() {
         motor.updateTelemetry();
+        tunableGains.checkAndApply(motor);
 
         // Populate the structured inputs snapshot. This is what replay tooling
         // and the AdvantageKit bridge consume; the per-key log() calls below

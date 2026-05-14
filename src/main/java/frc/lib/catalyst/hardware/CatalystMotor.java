@@ -71,6 +71,9 @@ public class CatalystMotor {
     // Config storage
     private double gearRatio = 1.0;
     private double positionConversionFactor = 1.0; // rotations to mechanism units
+    // Retained so live-tuning helpers can rebuild Slot0Configs without losing the
+    // gravity model the mechanism was originally configured with.
+    private GravityTypeValue gravityType;
 
     private CatalystMotor(Builder builder) {
         this.canId = builder.canId;
@@ -78,6 +81,7 @@ public class CatalystMotor {
         this.motor = new TalonFX(canId, builder.canBus);
         this.gearRatio = builder.gearRatio;
         this.positionConversionFactor = builder.positionConversionFactor;
+        this.gravityType = builder.gravityType;
 
         // Apply configuration
         TalonFXConfiguration config = new TalonFXConfiguration();
@@ -342,6 +346,33 @@ public class CatalystMotor {
             temps[i] = followers.get(i).getDeviceTemp().getValueAsDouble();
         }
         return temps;
+    }
+
+    /**
+     * Hot-reload Slot 0 PID + feedforward gains on the running motor. Used by
+     * {@link frc.lib.catalyst.util.TunableGains} for live tuning; teams normally
+     * don't call this directly. Preserves the gravity model from initial config.
+     */
+    public void updateSlot0(double kP, double kI, double kD,
+                            double kS, double kV, double kA, double kG) {
+        Slot0Configs slot = new Slot0Configs();
+        slot.kP = kP; slot.kI = kI; slot.kD = kD;
+        slot.kS = kS; slot.kV = kV; slot.kA = kA; slot.kG = kG;
+        slot.GravityType = gravityType;
+        motor.getConfigurator().apply(slot);
+    }
+
+    /**
+     * Hot-reload Motion Magic profile constants (cruise velocity, acceleration,
+     * jerk) on the running motor. Used by
+     * {@link frc.lib.catalyst.util.TunableGains} for live tuning.
+     */
+    public void updateMotionMagic(double cruiseVelocity, double acceleration, double jerk) {
+        MotionMagicConfigs mm = new MotionMagicConfigs();
+        mm.MotionMagicCruiseVelocity = cruiseVelocity;
+        mm.MotionMagicAcceleration = acceleration;
+        mm.MotionMagicJerk = jerk;
+        motor.getConfigurator().apply(mm);
     }
 
     /** Update telemetry. Call from subsystem periodic(). */

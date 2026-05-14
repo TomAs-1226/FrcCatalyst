@@ -5,6 +5,7 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.lib.catalyst.hardware.CatalystMotor;
 import frc.lib.catalyst.io.DifferentialWristMechanismInputs;
+import frc.lib.catalyst.util.TunableGains;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -60,6 +61,10 @@ public class DifferentialWristMechanism extends CatalystMechanism {
 
     private final DifferentialWristMechanismInputs inputs = new DifferentialWristMechanismInputs();
 
+    // Live-tunable Slot 0 + Motion Magic shared by both motors. Disabled via
+    // TunableNumber.disableTuning() for competition.
+    private final TunableGains tunableGains;
+
     public DifferentialWristMechanism(Config config) {
         super(config.name);
         this.config = config;
@@ -93,6 +98,14 @@ public class DifferentialWristMechanism extends CatalystMechanism {
                         config.motionMagicAcceleration,
                         config.motionMagicJerk)
                 .build();
+
+        this.tunableGains = new TunableGains(
+                config.name,
+                config.kP, config.kI, config.kD,
+                config.kS, config.kV, config.kA, 0,
+                config.motionMagicCruiseVelocity,
+                config.motionMagicAcceleration,
+                config.motionMagicJerk);
     }
 
     // --- Conversions ---
@@ -221,6 +234,7 @@ public class DifferentialWristMechanism extends CatalystMechanism {
     protected void updateTelemetry() {
         leftMotor.updateTelemetry();
         rightMotor.updateTelemetry();
+        tunableGains.checkAndApply(leftMotor, rightMotor);
 
         inputs.pitchDegrees = getPitch();
         inputs.rollDegrees = getRoll();

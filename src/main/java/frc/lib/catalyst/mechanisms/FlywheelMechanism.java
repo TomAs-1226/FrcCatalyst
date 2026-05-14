@@ -9,6 +9,7 @@ import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.lib.catalyst.hardware.CatalystMotor;
 import frc.lib.catalyst.hardware.MotorType;
 import frc.lib.catalyst.io.FlywheelMechanismInputs;
+import frc.lib.catalyst.util.TunableGains;
 
 /**
  * Generic flywheel mechanism. Use for shooters, accelerator wheels,
@@ -60,6 +61,10 @@ public class FlywheelMechanism extends CatalystMechanism {
 
     private final FlywheelMechanismInputs inputs = new FlywheelMechanismInputs();
 
+    // Live-tunable Slot 0 gains. Flywheels are velocity-controlled, so no
+    // Motion Magic — just PID + kS/kV/kA. Disabled via TunableNumber.disableTuning().
+    private final TunableGains tunableGains;
+
     public FlywheelMechanism(Config config) {
         super(config.name);
         this.config = config;
@@ -93,6 +98,11 @@ public class FlywheelMechanism extends CatalystMechanism {
         } else {
             this.secondaryMotor = null;
         }
+
+        this.tunableGains = new TunableGains(
+                config.name,
+                config.kP, config.kI, config.kD,
+                config.kS, config.kV, config.kA, 0);
 
         // Simulation
         if (RobotBase.isSimulation()) {
@@ -222,6 +232,12 @@ public class FlywheelMechanism extends CatalystMechanism {
     protected void updateTelemetry() {
         primaryMotor.updateTelemetry();
         if (secondaryMotor != null) secondaryMotor.updateTelemetry();
+
+        if (secondaryMotor != null) {
+            tunableGains.checkAndApply(primaryMotor, secondaryMotor);
+        } else {
+            tunableGains.checkAndApply(primaryMotor);
+        }
 
         inputs.primaryVelocityRPS = getVelocity();
         inputs.primaryStatorCurrentAmps = primaryMotor.getStatorCurrent();

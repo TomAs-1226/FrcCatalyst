@@ -49,7 +49,7 @@ repositories {
 }
 
 dependencies {
-    implementation "com.github.TomAs-1226:FrcCatalyst:v0.3.1-beta"
+    implementation "com.github.TomAs-1226:FrcCatalyst:v0.3.2-beta"
 }
 ```
 
@@ -88,6 +88,15 @@ operatorController.b().onTrue(elevator.goTo("STOW"));
 ```
 
 ---
+
+## What's New in v0.3.2-beta
+
+- **Tunable PID + Motion Magic by default** — every closed-loop mechanism now publishes its gains under `Catalyst/Tuning/<MechanismName>/...` and applies dashboard edits live on the next robot loop. No extra robot code, no new dependencies, just deploy and tune. See [docs/advanced/tuning.md](docs/advanced/tuning.md). Lock everything for competition with one call: `TunableNumber.disableTuning()`.
+
+## What's New in v0.3.1-beta
+
+- **Fixed**: `ClawMechanism.hasPiece()` now OR-combines beam-break and stall detection (previously beam-break short-circuited the stall latch).
+- **Added**: `PneumaticMechanism.timeInState()` for sequencing with `Commands.waitUntil`.
 
 ## What's New in v0.3.0-beta
 

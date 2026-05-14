@@ -15,6 +15,7 @@ import frc.lib.catalyst.hardware.MotorType;
 import frc.lib.catalyst.io.RotationalMechanismInputs;
 import frc.lib.catalyst.util.AlertManager;
 import frc.lib.catalyst.util.FeedforwardGains;
+import frc.lib.catalyst.util.TunableGains;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -68,6 +69,10 @@ public class RotationalMechanism extends CatalystMechanism {
 
     private final RotationalMechanismInputs inputs = new RotationalMechanismInputs();
 
+    // Live-tunable Slot 0 + Motion Magic. Published under Catalyst/Tuning/<name>/...
+    // Disabled globally via TunableNumber.disableTuning() for competition builds.
+    private final TunableGains tunableGains;
+
     public RotationalMechanism(Config config) {
         super(config.name);
         this.config = config;
@@ -102,6 +107,14 @@ public class RotationalMechanism extends CatalystMechanism {
         }
 
         this.motor = motorBuilder.build();
+
+        this.tunableGains = new TunableGains(
+                config.name,
+                config.kP, config.kI, config.kD,
+                config.kS, config.kV, config.kA, config.kG,
+                config.motionMagicCruiseVelocity,
+                config.motionMagicAcceleration,
+                config.motionMagicJerk);
 
         // Set starting position
         if (config.startingAngle != 0) {
@@ -400,6 +413,7 @@ public class RotationalMechanism extends CatalystMechanism {
     @Override
     protected void updateTelemetry() {
         motor.updateTelemetry();
+        tunableGains.checkAndApply(motor);
 
         inputs.angleDegrees = getAngle();
         inputs.angularVelocityDPS = getAngularVelocity();
