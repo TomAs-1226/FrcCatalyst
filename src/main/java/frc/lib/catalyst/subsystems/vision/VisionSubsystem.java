@@ -15,6 +15,7 @@ import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.lib.catalyst.subsystems.swerve.SwerveSubsystem;
+import frc.lib.catalyst.util.AlertManager;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -85,6 +86,15 @@ public class VisionSubsystem extends SubsystemBase {
         telemetryTable = NetworkTableInstance.getDefault()
                 .getTable("Catalyst").getSubTable("Vision");
         visionPosePub = telemetryTable.getStructTopic("LatestAcceptedPose", Pose2d.struct).publish();
+
+        // Surface a loud warning if vision is constructed without a drive subsystem.
+        // Previously this silently no-op'd in periodic(), which made the issue
+        // invisible to teams expecting vision fusion to "just work."
+        if (driveSubsystem == null) {
+            AlertManager.getInstance().warning("Vision",
+                    "VisionSubsystem constructed without driveSubsystem — pose fusion is disabled. "
+                            + "Call VisionConfig.builder().driveSubsystem(...) to enable.");
+        }
     }
 
     @Override

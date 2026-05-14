@@ -6,6 +6,7 @@ import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.lib.catalyst.hardware.CatalystMotor;
+import frc.lib.catalyst.io.RollerMechanismInputs;
 
 /**
  * Generic roller mechanism. Use for intakes, conveyors, indexers,
@@ -40,6 +41,8 @@ public class RollerMechanism extends CatalystMechanism {
     private final Timer stallTimer = new Timer();
     private boolean hasPiece = false;
     private boolean stallTimerStarted = false;
+
+    private final RollerMechanismInputs inputs = new RollerMechanismInputs();
 
     public RollerMechanism(Config config) {
         super(config.name);
@@ -254,10 +257,23 @@ public class RollerMechanism extends CatalystMechanism {
     @Override
     protected void updateTelemetry() {
         motor.updateTelemetry();
-        log("Speed", getSpeed());
-        log("CurrentAmps", getCurrent());
-        log("HasPiece", hasPiece());
-        log("MotorRotations", motor.getPosition());
+
+        inputs.dutyCycle = getSpeed();
+        inputs.statorCurrentAmps = motor.getStatorCurrent();
+        inputs.supplyCurrentAmps = motor.getSupplyCurrent();
+        inputs.appliedVolts = motor.getAppliedVoltage();
+        inputs.temperatureC = motor.getTemperature();
+        inputs.motorRotations = motor.getPosition();
+        inputs.hasPiece = hasPiece();
+        inputs.beamBreakBroken = beamBreak != null && !beamBreak.get();
+        inputs.stalled = hasPiece;
+        processInputs(inputs);
+
+        // Per-key telemetry for v0.2 dashboard compatibility.
+        log("Speed", inputs.dutyCycle);
+        log("CurrentAmps", inputs.statorCurrentAmps);
+        log("HasPiece", inputs.hasPiece);
+        log("MotorRotations", inputs.motorRotations);
     }
 
     /** Get the underlying motor for advanced use. */

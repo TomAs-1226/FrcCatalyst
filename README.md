@@ -49,7 +49,7 @@ repositories {
 }
 
 dependencies {
-    implementation "com.github.TomAs-1226:FrcCatalyst:v0.2.0-beta"
+    implementation "com.github.TomAs-1226:FrcCatalyst:v0.3.0-beta"
 }
 ```
 
@@ -89,6 +89,19 @@ operatorController.b().onTrue(elevator.goTo("STOW"));
 
 ---
 
+## What's New in v0.3.0-beta
+
+- **Multi-follower support on `LinearMechanism`** — chain as many follower TalonFXs as you need. Each `withFollower(...)` call is now additive, fixing the v0.2 limitation that capped you at one.
+- **In-house logging core** (`frc.lib.catalyst.logging`) — every mechanism routes telemetry through a pluggable `LogSink`. Default sink keeps the v0.2 `/Catalyst/...` NetworkTables layout so dashboards work unchanged.
+- **AdvantageKit interop without bundling** — install a ~10-line `LogSink` to forward everything into AK, DataLog, or anything else. Catalyst itself has zero AK dependency. See [docs/advanced/logging.md](docs/advanced/logging.md).
+- **IO + Inputs contract** (`frc.lib.catalyst.io`) — every mechanism now publishes a replay-shaped `*MechanismInputs` POJO each loop. Default Phoenix 6 / sim IO swaps land in v0.4.
+- **Three new mechanisms** — `ClawMechanism`, `DifferentialWristMechanism`, `PneumaticMechanism`.
+- **Configurable tolerances** — `RotationalMechanism` and `DifferentialWristMechanism` accept `tolerance(...)` in their builder; `LinearMechanism` already supports it.
+- **Forward-limit auto-zero** on `LinearMechanism` (mirrors the existing reverse-limit support).
+- **Bug fixes** — `RotationalMechanism.atPosition(name)` no longer ignores the configured tolerance; `LinearMechanism` auto-zero now seeds to `config.minPosition` instead of 0; sim motor count tracks the real follower count.
+
+---
+
 ## Architecture
 
 ```
@@ -101,12 +114,26 @@ frc.lib.catalyst
 |   +-- MotorType           Motor specs enum (Kraken, Falcon)
 |
 +-- mechanisms/          Generic reusable mechanisms
-|   +-- LinearMechanism      Elevator, slide, telescoping arm
-|   +-- RotationalMechanism  Arm, wrist, turret, hood
-|   +-- FlywheelMechanism    Shooter, accelerator wheel
-|   +-- RollerMechanism      Intake, conveyor, indexer (with ramp, pulse, voltage feed)
-|   +-- WinchMechanism       Climber, deployment
-|   +-- SuperstructureCoordinator  State machine + collision zones + timeouts
+|   +-- LinearMechanism             Elevator, slide, telescoping arm
+|   +-- RotationalMechanism         Arm, wrist, turret, hood
+|   +-- FlywheelMechanism           Shooter, accelerator wheel
+|   +-- RollerMechanism             Intake, conveyor, indexer (with ramp, pulse, voltage feed)
+|   +-- WinchMechanism              Climber, deployment
+|   +-- ClawMechanism               Motor-driven gripper with stall-based grip detection
+|   +-- DifferentialWristMechanism  Two-motor diffy wrist (pitch + roll)
+|   +-- PneumaticMechanism          Single/double solenoid with pressure-aware safety
+|   +-- SuperstructureCoordinator   State machine + collision zones + timeouts
+|
++-- io/                  Hardware-abstraction layer (v0.3)
+|   +-- *MechanismInputs            Per-loop input snapshots (replay-friendly)
+|   +-- *MechanismIO                Hardware contracts; default Phoenix 6 impls land in v0.4
+|
++-- logging/             In-house logging core (v0.3)
+|   +-- CatalystLog                 Static facade — swap sinks at robot init
+|   +-- LogSink                     Pluggable sink interface (NT default, AK-bridgeable)
+|   +-- NetworkTablesSink           Default sink — same /Catalyst/... layout as v0.2
+|   +-- CompoundSink                Fan-out to multiple sinks simultaneously
+|   +-- CatalystInputs              Symmetric toLog/fromLog contract for Inputs POJOs
 |
 +-- subsystems/          Complex subsystems
 |   +-- SwerveSubsystem      Swerve drive with skew correction, snap-to, advanced drive
@@ -230,6 +257,89 @@ RollerMechanism intake = new RollerMechanism(
 // Auto-stops when game piece detected
 intake.intake();
 ```
+
+### ClawMechanism
+
+Motor-driven gripper. Closes onto a piece, then drops to a low passive hold
+voltage once stall-current detection trips — so the motor doesn't cook trying
+to grip harder.
+
+```java
+ClawMechanism claw = new ClawMechanism(
+    ClawMechanism.Config.builder()
+        .name("Claw")
+        .motor(30)
+        .closeVoltage(6.0).openVoltage(-4.0).holdVoltage(1.5)
+        .stallDetection(25.0, 0.2) // 25A for 0.2s => piece gripped
+        .currentLimit(40)
+        .build()
+);
+
+operator.a().onTrue(claw.closeUntilGripped());
+operator.b().onTrue(claw.open());
+```
+
+### DifferentialWristMechanism
+
+Two motors coupled through a bevel differential to give pitch + roll control
+with a single mechanism. Resolves `(pitch, roll) ↔ (leftRotations, rightRotations)`
+for you and drives both axes via Motion Magic.
+
+```java
+DifferentialWristMechanism wrist = new DifferentialWristMechanism(
+    DifferentialWristMechanism.Config.builder()
+        .name("Wrist")
+        .leftMotor(40).rightMotor(41)
+        .gearRatio(20.0)
+        .pitchRange(-90, 90).rollRange(-180, 180)
+        .pid(40, 0, 0.5)
+        .motionMagic(50, 100, 500)
+        .position("STOW", 0, 0)
+        .position("SCORE", 60, 90)
+        .build()
+);
+
+wrist.goTo("SCORE");
+```
+
+### PneumaticMechanism
+
+Single or double solenoid actuator with command factories, pressure-aware
+safety, and cycle counting. Covers climbers, hatch ejectors, shifters, kickers.
+
+```java
+PneumaticMechanism climbHook = new PneumaticMechanism(
+    PneumaticMechanism.Config.builder()
+        .name("ClimbHook")
+        .doubleSolenoid(PneumaticsModuleType.REVPH, 0, 1)
+        .compressor(PneumaticsModuleType.REVPH)
+        .requirePressureAbove(40.0) // refuse to fire below 40 psi
+        .build()
+);
+
+driver.x().onTrue(climbHook.extend());
+driver.y().onTrue(climbHook.retract());
+```
+
+---
+
+## Logging & AdvantageKit Bridge
+
+Every mechanism routes telemetry through `CatalystLog`, a static facade backed
+by a pluggable `LogSink`. By default a `NetworkTablesSink` keeps the v0.2
+`/Catalyst/<name>/...` layout. To send everything to AdvantageKit instead,
+install a thin sink at robot init:
+
+```java
+CatalystLog.setSink(new LogSink() {
+    @Override public void log(String key, double v)  { Logger.recordOutput(key, v); }
+    @Override public void log(String key, boolean v) { Logger.recordOutput(key, v); }
+    // ... wire the remaining typed overloads similarly
+});
+```
+
+Catalyst itself has **no AdvantageKit dependency** — the bridge lives in your
+code. Full details and a fan-out example in [docs/advanced/logging.md](docs/advanced/logging.md).
 
 ---
 

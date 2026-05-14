@@ -8,6 +8,7 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.lib.catalyst.hardware.CatalystMotor;
 import frc.lib.catalyst.hardware.MotorType;
+import frc.lib.catalyst.io.FlywheelMechanismInputs;
 
 /**
  * Generic flywheel mechanism. Use for shooters, accelerator wheels,
@@ -56,6 +57,8 @@ public class FlywheelMechanism extends CatalystMechanism {
     // State
     private double primarySetpointRPS = 0;
     private double secondarySetpointRPS = 0;
+
+    private final FlywheelMechanismInputs inputs = new FlywheelMechanismInputs();
 
     public FlywheelMechanism(Config config) {
         super(config.name);
@@ -218,13 +221,36 @@ public class FlywheelMechanism extends CatalystMechanism {
     @Override
     protected void updateTelemetry() {
         primaryMotor.updateTelemetry();
-        log("VelocityRPS", getVelocity());
-        log("SetpointRPS", primarySetpointRPS);
-        log("AtSpeed", atSpeed());
+        if (secondaryMotor != null) secondaryMotor.updateTelemetry();
+
+        inputs.primaryVelocityRPS = getVelocity();
+        inputs.primaryStatorCurrentAmps = primaryMotor.getStatorCurrent();
+        inputs.primaryAppliedVolts = primaryMotor.getAppliedVoltage();
+        inputs.primaryTemperatureC = primaryMotor.getTemperature();
+        inputs.primarySetpointRPS = primarySetpointRPS;
         if (secondaryMotor != null) {
-            secondaryMotor.updateTelemetry();
-            log("SecondaryVelocityRPS", getSecondaryVelocity());
-            log("SecondarySetpointRPS", secondarySetpointRPS);
+            inputs.secondaryVelocityRPS = getSecondaryVelocity();
+            inputs.secondaryStatorCurrentAmps = secondaryMotor.getStatorCurrent();
+            inputs.secondaryAppliedVolts = secondaryMotor.getAppliedVoltage();
+            inputs.secondaryTemperatureC = secondaryMotor.getTemperature();
+            inputs.secondarySetpointRPS = secondarySetpointRPS;
+        } else {
+            inputs.secondaryVelocityRPS = 0.0;
+            inputs.secondaryStatorCurrentAmps = 0.0;
+            inputs.secondaryAppliedVolts = 0.0;
+            inputs.secondaryTemperatureC = 0.0;
+            inputs.secondarySetpointRPS = 0.0;
+        }
+        inputs.atSpeed = atSpeed();
+        processInputs(inputs);
+
+        // Per-key telemetry for v0.2 dashboard compatibility.
+        log("VelocityRPS", inputs.primaryVelocityRPS);
+        log("SetpointRPS", inputs.primarySetpointRPS);
+        log("AtSpeed", inputs.atSpeed);
+        if (secondaryMotor != null) {
+            log("SecondaryVelocityRPS", inputs.secondaryVelocityRPS);
+            log("SecondarySetpointRPS", inputs.secondarySetpointRPS);
         }
     }
 

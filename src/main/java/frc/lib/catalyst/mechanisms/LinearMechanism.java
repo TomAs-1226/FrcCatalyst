@@ -13,6 +13,7 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.lib.catalyst.hardware.CatalystMotor;
 import frc.lib.catalyst.hardware.MotorType;
+import frc.lib.catalyst.io.LinearMechanismInputs;
 import frc.lib.catalyst.util.AlertManager;
 import frc.lib.catalyst.util.FeedforwardGains;
 
@@ -71,14 +72,17 @@ public class LinearMechanism extends CatalystMechanism {
     private double setpointMeters = 0;
     private boolean hasBeenZeroed = false;
 
+    // Reusable inputs snapshot — populated every periodic, forwarded to the
+    // active LogSink via CatalystMechanism.processInputs(). Reused across
+    // loops to avoid GC pressure.
+    private final LinearMechanismInputs inputs = new LinearMechanismInputs();
+
     // Fault monitoring
     private int consecutiveHighTempCycles = 0;
 
     public LinearMechanism(Config config) {
         super(config.name);
         this.config = config;
-
-        int motorCount = (config.followerCanId >= 0 ? 2 : 1) + config.additionalFollowerCanIds.length;
 
         // Build motor with appropriate configuration
         CatalystMotor.Builder motorBuilder = CatalystMotor.builder(config.motorCanId)
@@ -101,11 +105,23 @@ public class LinearMechanism extends CatalystMechanism {
         double maxRotations = metersToRotations(config.maxPosition);
         motorBuilder.softLimits(minRotations, maxRotations);
 
+        // Add primary follower (if configured)
         if (config.followerCanId >= 0) {
             motorBuilder.withFollower(config.followerCanId, config.followerOppose);
         }
+        // Add additional followers. The builder API is additive — every call appends
+        // another follower TalonFX. Previously these arrays were declared but never
+        // wired up; teams using 3+ motors per mechanism would silently lose them.
+        for (int i = 0; i < config.additionalFollowerCanIds.length; i++) {
+            motorBuilder.withFollower(
+                    config.additionalFollowerCanIds[i],
+                    config.additionalFollowerOppose[i]);
+        }
 
         this.motor = motorBuilder.build();
+
+        // Total motor count = leader + all configured followers. Used for sim.
+        int motorCount = 1 + motor.getFollowerCount();
 
         // Set starting position
         if (config.startingPosition != 0) {
@@ -188,11 +204,15 @@ public class LinearMechanism extends CatalystMechanism {
         return atPosition(setpointMeters, toleranceMeters);
     }
 
-    /** Check if at a named position within default tolerance (2 cm). */
+    /**
+     * Check if the mechanism is at a named position within the configured
+     * position tolerance (set via {@link Config.Builder#positionTolerance(double)},
+     * default 2&nbsp;cm).
+     */
     public boolean atPosition(String positionName) {
         Double target = config.namedPositions.get(positionName);
         if (target == null) return false;
-        return atPosition(target, 0.02);
+        return atPosition(target, config.positionToleranceMeters);
     }
 
     // --- Limit Switches ---
@@ -214,9 +234,9 @@ public class LinearMechanism extends CatalystMechanism {
 
     // --- Triggers ---
 
-    /** Trigger that fires when at the given position (2 cm tolerance). */
+    /** Trigger that fires when at the given position within the configured tolerance. */
     public Trigger atPositionTrigger(double meters) {
-        return atPositionTrigger(meters, 0.02);
+        return atPositionTrigger(meters, config.positionToleranceMeters);
     }
 
     /** Trigger that fires when at the given position within tolerance. */
@@ -224,7 +244,7 @@ public class LinearMechanism extends CatalystMechanism {
         return new Trigger(() -> atPosition(meters, toleranceMeters));
     }
 
-    /** Trigger that fires when at a named position (2 cm tolerance). */
+    /** Trigger that fires when at a named position within the configured tolerance. */
     public Trigger atPositionTrigger(String positionName) {
         return new Trigger(() -> atPosition(positionName));
     }
@@ -415,19 +435,48 @@ public class LinearMechanism extends CatalystMechanism {
     @Override
     protected void updateTelemetry() {
         motor.updateTelemetry();
+
+        // Populate the structured inputs snapshot. This is what replay tooling
+        // and the AdvantageKit bridge consume; the per-key log() calls below
+        // mirror the same data for backwards compatibility with v0.2 dashboards.
+        inputs.positionMeters = getPosition();
+        inputs.velocityMPS = getVelocity();
+        inputs.statorCurrentAmps = motor.getStatorCurrent();
+        inputs.supplyCurrentAmps = motor.getSupplyCurrent();
+        inputs.appliedVolts = motor.getAppliedVoltage();
+        inputs.temperatureC = motor.getTemperature();
+        inputs.followerStatorCurrentAmps = motor.getFollowerStatorCurrents();
+        inputs.followerTemperatureC = motor.getFollowerTemperatures();
+        inputs.setpointMeters = setpointMeters;
+        inputs.atSetpoint = atSetpoint(config.positionToleranceMeters);
+        inputs.hasBeenZeroed = hasBeenZeroed;
+        inputs.forwardLimitPressed = isForwardLimitPressed();
+        inputs.reverseLimitPressed = isReverseLimitPressed();
+        processInputs(inputs);
+
+        // Per-key telemetry (v0.2 compatible) — same data, different shape.
         log("PositionMeters", getPosition());
         log("VelocityMPS", getVelocity());
         log("SetpointMeters", setpointMeters);
         log("CurrentAmps", getCurrent());
-        log("AtSetpoint", atSetpoint(0.02));
+        log("AtSetpoint", atSetpoint(config.positionToleranceMeters));
         log("HasBeenZeroed", hasBeenZeroed);
         if (forwardLimitSwitch != null) log("ForwardLimit", isForwardLimitPressed());
         if (reverseLimitSwitch != null) log("ReverseLimit", isReverseLimitPressed());
 
-        // Auto-zero on reverse limit switch
+        // Auto-zero on reverse limit switch (sets encoder to min position)
         if (config.autoZeroOnReverseLimit && isReverseLimitPressed()) {
-            motor.zeroEncoder();
+            motor.setEncoderPosition(metersToRotations(config.minPosition));
             setpointMeters = config.minPosition;
+            hasBeenZeroed = true;
+        }
+
+        // Auto-zero on forward limit switch (sets encoder to max position).
+        // Useful for mechanisms whose home position is at the top of travel
+        // (e.g., spring-loaded climbers that rest extended).
+        if (config.autoZeroOnForwardLimit && isForwardLimitPressed()) {
+            motor.setEncoderPosition(metersToRotations(config.maxPosition));
+            setpointMeters = config.maxPosition;
             hasBeenZeroed = true;
         }
 
@@ -501,6 +550,7 @@ public class LinearMechanism extends CatalystMechanism {
         final int forwardLimitPort;
         final int reverseLimitPort;
         final boolean autoZeroOnReverseLimit;
+        final boolean autoZeroOnForwardLimit;
         final double maxTemperatureC;
         final double positionToleranceMeters;
 
@@ -538,6 +588,7 @@ public class LinearMechanism extends CatalystMechanism {
             this.forwardLimitPort = b.forwardLimitPort;
             this.reverseLimitPort = b.reverseLimitPort;
             this.autoZeroOnReverseLimit = b.autoZeroOnReverseLimit;
+            this.autoZeroOnForwardLimit = b.autoZeroOnForwardLimit;
             this.maxTemperatureC = b.maxTemperatureC;
             this.positionToleranceMeters = b.positionToleranceMeters;
             this.useWPILibProfile = b.useWPILibProfile;
@@ -606,6 +657,7 @@ public class LinearMechanism extends CatalystMechanism {
             private int forwardLimitPort = -1;
             private int reverseLimitPort = -1;
             private boolean autoZeroOnReverseLimit = false;
+            private boolean autoZeroOnForwardLimit = false;
             private double maxTemperatureC = 70;
             private double positionToleranceMeters = 0.02;
             private boolean useWPILibProfile = false;
@@ -687,7 +739,10 @@ public class LinearMechanism extends CatalystMechanism {
 
             /**
              * Add a forward (top) limit switch on a DIO port.
-             * The mechanism will stop moving forward when pressed.
+             * The mechanism will not auto-zero on this limit. Use
+             * {@link #forwardLimitSwitch(int, boolean)} if you want auto-zero behavior.
+             *
+             * @param dioPort roboRIO DIO channel for the switch
              */
             public Builder forwardLimitSwitch(int dioPort) {
                 this.forwardLimitPort = dioPort;
@@ -695,13 +750,58 @@ public class LinearMechanism extends CatalystMechanism {
             }
 
             /**
-             * Add a reverse (bottom) limit switch on a DIO port.
-             * Optionally auto-zeros the encoder when triggered.
+             * Add a forward (top) limit switch on a DIO port with optional auto-zero.
+             * When {@code autoZero} is true, the encoder is reset to {@link #range(double, double) max position}
+             * every cycle the switch is pressed.
+             *
+             * @param dioPort roboRIO DIO channel for the switch
+             * @param autoZero if true, seed the encoder to the max position when pressed
+             */
+            public Builder forwardLimitSwitch(int dioPort, boolean autoZero) {
+                this.forwardLimitPort = dioPort;
+                this.autoZeroOnForwardLimit = autoZero;
+                return this;
+            }
+
+            /**
+             * Add a reverse (bottom) limit switch on a DIO port with optional auto-zero.
+             * When {@code autoZero} is true, the encoder is reset to {@link #range(double, double) min position}
+             * every cycle the switch is pressed.
+             *
+             * @param dioPort roboRIO DIO channel for the switch
+             * @param autoZero if true, seed the encoder to the min position when pressed
              */
             public Builder reverseLimitSwitch(int dioPort, boolean autoZero) {
                 this.reverseLimitPort = dioPort;
                 this.autoZeroOnReverseLimit = autoZero;
                 return this;
+            }
+
+            /**
+             * Add an additional follower motor beyond the primary follower.
+             * <p>This is the fix for the long-standing limitation where Catalyst only
+             * wired up one follower per mechanism. Call this method once per follower —
+             * for a four-Kraken elevator with two followers on each side of the leader,
+             * call this three times.
+             *
+             * @param canId  follower CAN ID
+             * @param oppose if true, the follower runs opposed to the leader (mirrored)
+             */
+            public Builder additionalFollower(int canId, boolean oppose) {
+                int[] ids = new int[this.additionalFollowerCanIds.length + 1];
+                boolean[] opp = new boolean[this.additionalFollowerOppose.length + 1];
+                System.arraycopy(this.additionalFollowerCanIds, 0, ids, 0, this.additionalFollowerCanIds.length);
+                System.arraycopy(this.additionalFollowerOppose, 0, opp, 0, this.additionalFollowerOppose.length);
+                ids[ids.length - 1] = canId;
+                opp[opp.length - 1] = oppose;
+                this.additionalFollowerCanIds = ids;
+                this.additionalFollowerOppose = opp;
+                return this;
+            }
+
+            /** Shorthand for {@link #additionalFollower(int, boolean)} with {@code oppose=false}. */
+            public Builder additionalFollower(int canId) {
+                return additionalFollower(canId, false);
             }
 
             /** Set the temperature threshold for fault alerts (default 70C). */

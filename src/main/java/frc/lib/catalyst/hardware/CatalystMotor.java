@@ -24,6 +24,10 @@ import edu.wpi.first.networktables.DoublePublisher;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 /**
  * Unified TalonFX motor wrapper with builder-style configuration,
  * simplified control methods, and automatic telemetry.
@@ -41,8 +45,11 @@ import edu.wpi.first.networktables.NetworkTableInstance;
  */
 public class CatalystMotor {
 
+    /** Specification for one follower motor. */
+    public record FollowerSpec(int canId, boolean oppose) {}
+
     private final TalonFX motor;
-    private TalonFX follower;
+    private final List<TalonFX> followers = new ArrayList<>();
     private final int canId;
     private final String name;
 
@@ -168,9 +175,10 @@ public class CatalystMotor {
             if (status.isOK()) break;
         }
 
-        // Set up follower if configured
-        if (builder.followerCanId >= 0) {
-            follower = new TalonFX(builder.followerCanId, builder.canBus);
+        // Set up followers. Each one gets a fresh TalonFX, shared current/neutral
+        // config, and a Follower control request pointing at the leader.
+        for (FollowerSpec spec : builder.followerSpecs) {
+            TalonFX follower = new TalonFX(spec.canId(), builder.canBus);
             TalonFXConfiguration followerConfig = new TalonFXConfiguration();
             followerConfig.MotorOutput.NeutralMode = builder.brakeMode
                     ? NeutralModeValue.Brake
@@ -185,9 +193,10 @@ public class CatalystMotor {
                 if (status.isOK()) break;
             }
             follower.setControl(new Follower(canId,
-                    builder.followerOppose
+                    spec.oppose()
                             ? MotorAlignmentValue.Opposed
                             : MotorAlignmentValue.Aligned));
+            followers.add(follower);
         }
 
         // Set up telemetry
@@ -289,9 +298,50 @@ public class CatalystMotor {
         return motor;
     }
 
-    /** Get the follower TalonFX, if configured. */
+    /**
+     * Get the first follower TalonFX, if any are configured.
+     * Returns {@code null} when no followers exist. Prefer {@link #getFollowerTalonFXs()}
+     * when you need access to all followers.
+     */
     public TalonFX getFollowerTalonFX() {
-        return follower;
+        return followers.isEmpty() ? null : followers.get(0);
+    }
+
+    /**
+     * Get all follower TalonFX motors in the order they were added.
+     * Returns an empty list when no followers are configured.
+     */
+    public List<TalonFX> getFollowerTalonFXs() {
+        return Collections.unmodifiableList(followers);
+    }
+
+    /** Number of follower motors configured. */
+    public int getFollowerCount() {
+        return followers.size();
+    }
+
+    /**
+     * Get the stator current of every follower in configuration order.
+     * Returns an empty array when no followers are configured.
+     */
+    public double[] getFollowerStatorCurrents() {
+        double[] currents = new double[followers.size()];
+        for (int i = 0; i < followers.size(); i++) {
+            currents[i] = followers.get(i).getStatorCurrent().getValueAsDouble();
+        }
+        return currents;
+    }
+
+    /**
+     * Get the temperature of every follower in configuration order, in degrees Celsius.
+     * Returns an empty array when no followers are configured.
+     */
+    public double[] getFollowerTemperatures() {
+        double[] temps = new double[followers.size()];
+        for (int i = 0; i < followers.size(); i++) {
+            temps[i] = followers.get(i).getDeviceTemp().getValueAsDouble();
+        }
+        return temps;
     }
 
     /** Update telemetry. Call from subsystem periodic(). */
@@ -361,8 +411,7 @@ public class CatalystMotor {
         private double motionMagicJerk = 0;
         private double forwardSoftLimit = Double.MAX_VALUE;
         private double reverseSoftLimit = -Double.MAX_VALUE;
-        private int followerCanId = -1;
-        private boolean followerOppose = false;
+        private final List<FollowerSpec> followerSpecs = new ArrayList<>();
         private int fusedCancoderId = -1;   // -1 = disabled
         private int syncCancoderId = -1;    // -1 = disabled
         private int remoteCancoderId = -1;  // -1 = disabled
@@ -414,9 +463,31 @@ public class CatalystMotor {
             return this;
         }
 
+        /**
+         * Add a follower motor that mirrors this motor's output.
+         * <p>This method is <b>additive</b>: call it once per follower. Adding two
+         * followers, for example, creates two follower TalonFX instances pointed
+         * at the leader CAN ID.
+         *
+         * @param canId the follower's CAN ID
+         * @param oppose if true, the follower runs in the opposite direction (mirrored)
+         */
         public Builder withFollower(int canId, boolean oppose) {
-            this.followerCanId = canId;
-            this.followerOppose = oppose;
+            this.followerSpecs.add(new FollowerSpec(canId, oppose));
+            return this;
+        }
+
+        /** Add a follower that runs in the same direction as the leader. */
+        public Builder withFollower(int canId) {
+            return withFollower(canId, false);
+        }
+
+        /**
+         * Add multiple followers in a single call.
+         * @param specs follower specifications in any order
+         */
+        public Builder withFollowers(FollowerSpec... specs) {
+            for (FollowerSpec s : specs) this.followerSpecs.add(s);
             return this;
         }
 

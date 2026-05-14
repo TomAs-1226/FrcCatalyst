@@ -12,6 +12,7 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.lib.catalyst.hardware.CatalystMotor;
 import frc.lib.catalyst.hardware.MotorType;
+import frc.lib.catalyst.io.RotationalMechanismInputs;
 import frc.lib.catalyst.util.AlertManager;
 import frc.lib.catalyst.util.FeedforwardGains;
 
@@ -64,6 +65,8 @@ public class RotationalMechanism extends CatalystMechanism {
     private double setpointDegrees = 0;
     private boolean hasBeenZeroed = false;
     private int consecutiveHighTempCycles = 0;
+
+    private final RotationalMechanismInputs inputs = new RotationalMechanismInputs();
 
     public RotationalMechanism(Config config) {
         super(config.name);
@@ -184,18 +187,21 @@ public class RotationalMechanism extends CatalystMechanism {
         return atAngle(setpointDegrees, toleranceDegrees);
     }
 
-    /** Check if at a named position within default tolerance (2 degrees). */
+    /**
+     * Check if at a named position within the configured angular tolerance.
+     * Defaults to 2 degrees unless overridden via {@code Config.Builder.tolerance(...)}.
+     */
     public boolean atPosition(String positionName) {
         Double target = config.namedPositions.get(positionName);
         if (target == null) return false;
-        return atAngle(target, 2.0);
+        return atAngle(target, config.toleranceDegrees);
     }
 
     // --- Triggers ---
 
-    /** Trigger that fires when at the given angle (2 degree tolerance). */
+    /** Trigger that fires when at the given angle within the configured tolerance. */
     public Trigger atAngleTrigger(double degrees) {
-        return atAngleTrigger(degrees, 2.0);
+        return atAngleTrigger(degrees, config.toleranceDegrees);
     }
 
     /** Trigger that fires when at the given angle within tolerance. */
@@ -203,7 +209,7 @@ public class RotationalMechanism extends CatalystMechanism {
         return new Trigger(() -> atAngle(degrees, toleranceDegrees));
     }
 
-    /** Trigger that fires when at a named position (2 degree tolerance). */
+    /** Trigger that fires when at a named position within the configured tolerance. */
     public Trigger atPositionTrigger(String positionName) {
         return new Trigger(() -> atPosition(positionName));
     }
@@ -368,6 +374,7 @@ public class RotationalMechanism extends CatalystMechanism {
         return runOnce(() -> {
             motor.zeroEncoder();
             setpointDegrees = 0;
+            hasBeenZeroed = true;
             setState("Zeroed");
         }).withName(name + ".Zero");
     }
@@ -393,12 +400,28 @@ public class RotationalMechanism extends CatalystMechanism {
     @Override
     protected void updateTelemetry() {
         motor.updateTelemetry();
-        log("AngleDegrees", getAngle());
-        log("AngularVelocityDPS", getAngularVelocity());
-        log("SetpointDegrees", setpointDegrees);
-        log("CurrentAmps", getCurrent());
-        log("AtSetpoint", atSetpoint(2.0));
-        if (hardStop != null) log("HardStop", isHardStopPressed());
+
+        inputs.angleDegrees = getAngle();
+        inputs.angularVelocityDPS = getAngularVelocity();
+        inputs.statorCurrentAmps = motor.getStatorCurrent();
+        inputs.supplyCurrentAmps = motor.getSupplyCurrent();
+        inputs.appliedVolts = motor.getAppliedVoltage();
+        inputs.temperatureC = motor.getTemperature();
+        inputs.followerStatorCurrentAmps = motor.getFollowerStatorCurrents();
+        inputs.followerTemperatureC = motor.getFollowerTemperatures();
+        inputs.setpointDegrees = setpointDegrees;
+        inputs.atSetpoint = atSetpoint(config.toleranceDegrees);
+        inputs.hasBeenZeroed = hasBeenZeroed;
+        inputs.hardStopPressed = isHardStopPressed();
+        processInputs(inputs);
+
+        // Per-key telemetry for v0.2 dashboard compatibility.
+        log("AngleDegrees", inputs.angleDegrees);
+        log("AngularVelocityDPS", inputs.angularVelocityDPS);
+        log("SetpointDegrees", inputs.setpointDegrees);
+        log("CurrentAmps", inputs.statorCurrentAmps);
+        log("AtSetpoint", inputs.atSetpoint);
+        if (hardStop != null) log("HardStop", inputs.hardStopPressed);
 
         // Auto-zero on hard stop
         if (config.autoZeroOnHardStop && isHardStopPressed()) {
@@ -475,6 +498,7 @@ public class RotationalMechanism extends CatalystMechanism {
         final boolean autoZeroOnHardStop;
         final double hardStopAngle;
         final double maxTemperatureC;
+        final double toleranceDegrees;
 
         // WPILib ProfiledPID
         final boolean useWPILibProfile;
@@ -510,6 +534,7 @@ public class RotationalMechanism extends CatalystMechanism {
             this.autoZeroOnHardStop = b.autoZeroOnHardStop;
             this.hardStopAngle = b.hardStopAngle;
             this.maxTemperatureC = b.maxTemperatureC;
+            this.toleranceDegrees = b.toleranceDegrees;
             this.useWPILibProfile = b.useWPILibProfile;
             this.profileKP = b.profileKP;
             this.profileKI = b.profileKI;
@@ -567,6 +592,7 @@ public class RotationalMechanism extends CatalystMechanism {
             private boolean autoZeroOnHardStop = false;
             private double hardStopAngle = 0;
             private double maxTemperatureC = 70;
+            private double toleranceDegrees = 2.0;
             private boolean useWPILibProfile = false;
             private double profileKP = 0, profileKI = 0, profileKD = 0;
             private double profileMaxVelocity = 0;
@@ -664,6 +690,9 @@ public class RotationalMechanism extends CatalystMechanism {
 
             /** Set the temperature threshold for fault alerts (default 70C). */
             public Builder maxTemperature(double celsius) { this.maxTemperatureC = celsius; return this; }
+
+            /** Default angular tolerance for {@link RotationalMechanism#atPosition(String)} and at-setpoint triggers (default 2 degrees). */
+            public Builder tolerance(double degrees) { this.toleranceDegrees = degrees; return this; }
 
             /**
              * Enable WPILib ProfiledPID as an alternative to CTRE Motion Magic.

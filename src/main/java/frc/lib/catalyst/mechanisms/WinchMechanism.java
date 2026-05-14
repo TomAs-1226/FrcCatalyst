@@ -4,6 +4,7 @@ import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.lib.catalyst.hardware.CatalystMotor;
+import frc.lib.catalyst.io.WinchMechanismInputs;
 
 import java.util.function.DoubleSupplier;
 
@@ -34,6 +35,9 @@ public class WinchMechanism extends CatalystMechanism {
     private final Config config;
     private final CatalystMotor motor;
     private final CatalystMotor secondMotor;
+
+    private final WinchMechanismInputs inputs = new WinchMechanismInputs();
+    private boolean hasBeenZeroed = false;
 
     public WinchMechanism(Config config) {
         super(config.name);
@@ -169,6 +173,7 @@ public class WinchMechanism extends CatalystMechanism {
         return runOnce(() -> {
             motor.zeroEncoder();
             if (secondMotor != null) secondMotor.zeroEncoder();
+            hasBeenZeroed = true;
             setState("Zeroed");
         }).withName(name + ".Zero");
     }
@@ -196,13 +201,30 @@ public class WinchMechanism extends CatalystMechanism {
     @Override
     protected void updateTelemetry() {
         motor.updateTelemetry();
-        log("Position", getPosition());
-        log("CurrentAmps", getCurrent());
+        if (secondMotor != null) secondMotor.updateTelemetry();
+
+        double circumference = config.spoolRadius > 0 ? 2.0 * Math.PI * config.spoolRadius : 1.0;
+        inputs.extensionMeters = getPosition();
+        inputs.velocityMPS = motor.getVelocity() * circumference;
+        inputs.statorCurrentAmps = motor.getStatorCurrent();
+        inputs.supplyCurrentAmps = motor.getSupplyCurrent();
+        inputs.appliedVolts = motor.getAppliedVoltage();
+        inputs.temperatureC = motor.getTemperature();
+        if (secondMotor != null) {
+            inputs.followerStatorCurrentAmps = new double[] { secondMotor.getStatorCurrent() };
+            inputs.followerTemperatureC = new double[] { secondMotor.getTemperature() };
+        } else {
+            inputs.followerStatorCurrentAmps = new double[0];
+            inputs.followerTemperatureC = new double[0];
+        }
+        inputs.hasBeenZeroed = hasBeenZeroed;
+        processInputs(inputs);
+
+        // Per-key telemetry for v0.2 dashboard compatibility.
+        log("Position", inputs.extensionMeters);
+        log("CurrentAmps", inputs.statorCurrentAmps);
         log("FullyExtended", isFullyExtended());
         log("FullyRetracted", isFullyRetracted());
-        if (secondMotor != null) {
-            secondMotor.updateTelemetry();
-        }
     }
 
     public CatalystMotor getMotor() { return motor; }
