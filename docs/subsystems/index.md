@@ -30,7 +30,7 @@ Wraps CTRE Tuner X generated swerve code. Teams generate their drivetrain using 
 - **PathPlanner integration** — one-line AutoBuilder configuration
 - **Vision pose estimation** — `addVisionMeasurement()` bridge
 - **Automatic telemetry** — pose, heading, speed to NetworkTables
-- **Skew correction** — Team 1690's pose exponential discretization
+- **Skew correction** — pose exponential discretization
 - **Slew rate limiting** — smooth acceleration with asymmetric profiles
 - **Snap-to-angle** — auto-snap heading to predefined angles
 - **Advanced drive** — combined deadband, slew, heading lock, skew correction, snap-to-angle

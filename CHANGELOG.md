@@ -5,6 +5,32 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.5-beta] — 2026-05-18
+
+### Fixed
+- **`ClawMechanism` followers are no longer capped at one.** The Config builder now appends rather than overwriting, so calling `.follower(canId, oppose)` repeatedly attaches multiple followers as advertised. Per-follower OverCurrent / HighTemp health checks register automatically.
+- **`FlywheelMechanism` gained follower paths.** Use `.primaryFollower(canId, oppose)` for single-wheel shooters with two or more motors ganged on one shaft, and `.secondaryFollower(...)` when running independent top/bottom wheels each with their own followers. The independent `.secondMotor(...)` API is unchanged.
+- Both fixes credited to **avrahamavraham** for opening the issue on Chief Delphi.
+
+### Changed
+- **`DifferentialWristMechanism` now uses Phoenix-6 native differential control.** Internally the left motor is the master and runs `DifferentialMotionMagicVoltage`; the right motor is in `DifferentialFollower` mode and is wired via `DifferentialSensors.RemoteTalonFX_HalfDiff`. Both targets ship in one CAN frame and the firmware keeps them coordinated — replaces the previous "two independent Motion Magic loops" pattern. Thanks to **tcrvo** for the suggestion.
+  - Pitch axis tunes through the existing `.pid(...) / .feedforward(...)` builder methods (Slot 0).
+  - Roll axis can now be tuned independently via `.differentialPid(...) / .differentialFeedforward(...)` (Slot 1) — defaults to the same gains as pitch when not specified.
+  - Slot 1 gains are live-tunable under `/Catalyst/Tuning/<Name>/Diff/...` alongside the existing Slot 0 tunables.
+
+### Added
+- **`RobotSafety` watchdog** in `frc.lib.catalyst.util` — opt-in cross-mechanism trip. Configure with `RobotSafety.configure(...)`, supplies `isTripped()`, `reason()`, manual `reset()`, optional auto-reset, and `onTrip` / `onReset` callbacks. Driven each loop by `HealthMonitor.tick(errorCount, warnCount)`; when no config is installed it's a zero-cost no-op. Publishes to `/Catalyst/Safety/{Tripped,Reason,ErrorCount,WarnCount}`.
+- **Catalyst Builder UI** at `docs/tools/builder/index.html` — single-file dark-themed form that generates ready-to-paste mechanism config code (`LinearMechanism.Config.builder()...build()` snippets) for every Catalyst mechanism. Multi-follower fields, motor-type dropdown, copy-to-clipboard. Credits tcrvo / yteam3211's original [FRC Catalyst Subsystem Generator](https://yteam3211.github.io/frc-catalyst-subsystem-generator) for the design idea.
+- **More `MotorType` presets**:
+  - `KRAKEN_X44`, `KRAKEN_X44_FOC` (shipped earlier in 0.3.3 but worth restating)
+  - `NEO`, `NEO_VORTEX`, `NEO_550` — REV motors for teams running a mixed stack (sim + physics only; not Phoenix-controllable)
+  - `MINION` — the WCP Minion
+- **Hot-reload for Slot 1** — `CatalystMotor.updateSlot1(kP, kI, kD, kS, kV, kA)` for any mechanism using a differential control mode.
+
+### Docs
+- Added an **Acknowledgements** section to the README crediting outside contributors (currently tcrvo / yteam3211 and avrahamavraham). Removed scattered team-name name-drops elsewhere in the docs and source comments in favour of generic "successful teams" / "in-house" language.
+- Bumped install snippets and the AdvantageScope tab bundle versions to 0.3.5.
+
 ## [0.3.3-beta] — 2026-05-14
 
 ### Fixed — IMPORTANT, READ THIS

@@ -5,6 +5,7 @@ import com.ctre.phoenix6.configs.CurrentLimitsConfigs;
 import com.ctre.phoenix6.configs.MotionMagicConfigs;
 import com.ctre.phoenix6.configs.MotorOutputConfigs;
 import com.ctre.phoenix6.configs.Slot0Configs;
+import com.ctre.phoenix6.configs.Slot1Configs;
 import com.ctre.phoenix6.configs.SoftwareLimitSwitchConfigs;
 import com.ctre.phoenix6.controls.DutyCycleOut;
 import com.ctre.phoenix6.controls.Follower;
@@ -359,6 +360,19 @@ public class CatalystMotor {
         slot.kP = kP; slot.kI = kI; slot.kD = kD;
         slot.kS = kS; slot.kV = kV; slot.kA = kA; slot.kG = kG;
         slot.GravityType = gravityType;
+        motor.getConfigurator().apply(slot);
+    }
+
+    /**
+     * Hot-reload Slot 1 PID + feedforward gains. Slot 1 is used by Catalyst's
+     * differential mechanisms (e.g. {@link frc.lib.catalyst.mechanisms.DifferentialWristMechanism})
+     * for the differential-axis controller while Slot 0 handles the average axis.
+     */
+    public void updateSlot1(double kP, double kI, double kD,
+                            double kS, double kV, double kA) {
+        Slot1Configs slot = new Slot1Configs();
+        slot.kP = kP; slot.kI = kI; slot.kD = kD;
+        slot.kS = kS; slot.kV = kV; slot.kA = kA;
         motor.getConfigurator().apply(slot);
     }
 

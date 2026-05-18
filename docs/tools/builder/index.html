@@ -1,0 +1,748 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Catalyst Builder</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root {
+      --bg: #1a1a2e;
+      --panel: #16213e;
+      --panel2: #0f1a30;
+      --accent: #e94560;
+      --accent2: #f0648a;
+      --text: #f4f4f8;
+      --muted: #8a8aa8;
+      --good: #4caf50;
+      --warn: #ffb020;
+      --border: #2a3050;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, "SF Pro Text", Segoe UI, sans-serif;
+      min-height: 100vh;
+    }
+    header {
+      padding: 18px 28px;
+      background: linear-gradient(180deg, var(--panel) 0%, var(--bg) 100%);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+    }
+    header h1 {
+      margin: 0; font-size: 18px; font-weight: 700; letter-spacing: 0.2px;
+    }
+    header .badge {
+      display: inline-block; padding: 2px 10px; border-radius: 999px;
+      background: var(--accent); color: #fff; font-size: 11px; font-weight: 600;
+    }
+    header .hint { color: var(--muted); font-size: 13px; }
+    main {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 0;
+      min-height: calc(100vh - 60px);
+    }
+    aside {
+      background: var(--panel2);
+      border-right: 1px solid var(--border);
+      padding: 18px 14px;
+      overflow-y: auto;
+    }
+    aside h2 {
+      margin: 0 0 10px;
+      font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px;
+      color: var(--muted); font-weight: 700;
+    }
+    .mech-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 18px; }
+    .mech-btn {
+      display: block; width: 100%; text-align: left;
+      background: transparent; color: var(--text);
+      border: 1px solid transparent; border-radius: 8px;
+      padding: 9px 12px; cursor: pointer; font-size: 14px;
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .mech-btn:hover { background: rgba(255,255,255,0.04); }
+    .mech-btn.active {
+      background: rgba(233,69,96,0.12);
+      border-color: var(--accent);
+      color: var(--accent2);
+      font-weight: 600;
+    }
+    .mech-btn .mech-sub {
+      display: block; font-size: 11px; color: var(--muted); margin-top: 2px;
+    }
+    .form-area {
+      padding: 20px 24px;
+      overflow-y: auto;
+      border-right: 1px solid var(--border);
+    }
+    .field-group {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 14px;
+    }
+    .field-group h3 {
+      margin: 0 0 12px;
+      font-size: 12px; text-transform: uppercase; letter-spacing: 1px;
+      color: var(--muted); font-weight: 700;
+    }
+    .row { display: grid; grid-template-columns: 160px 1fr; gap: 12px; align-items: center; margin-bottom: 10px; }
+    .row:last-child { margin-bottom: 0; }
+    .row label { color: var(--muted); font-size: 13px; }
+    .row label .opt { font-style: italic; opacity: 0.6; font-size: 11px; }
+    .row input[type=text], .row input[type=number], .row select {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 7px 10px;
+      font-size: 13px;
+      width: 100%;
+      font-family: inherit;
+    }
+    .row input[type=text]:focus, .row input[type=number]:focus, .row select:focus {
+      border-color: var(--accent); outline: none;
+    }
+    .row input[type=checkbox] { transform: scale(1.15); }
+    .row.subrow { grid-template-columns: 160px repeat(3, 1fr); gap: 8px; }
+    .row.subrow input { padding: 6px 8px; font-size: 12px; }
+    .followers { display: flex; flex-direction: column; gap: 6px; }
+    .follower-row { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; }
+    .follower-row input { padding: 5px 8px; font-size: 12px; }
+    .btn {
+      background: var(--accent);
+      color: #fff;
+      border: none; border-radius: 6px;
+      padding: 7px 12px;
+      font-size: 12px; font-weight: 600;
+      cursor: pointer;
+    }
+    .btn:hover { background: var(--accent2); }
+    .btn.ghost {
+      background: transparent; color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn.ghost:hover { border-color: var(--accent); color: var(--accent2); }
+    .btn.danger { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+    .btn.danger:hover { background: var(--accent); color: #fff; }
+    .preview-area {
+      background: var(--panel2);
+      padding: 20px 24px;
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+    .preview-area .preview-head {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 12px;
+    }
+    .preview-area .preview-head h2 {
+      margin: 0; font-size: 12px; text-transform: uppercase;
+      letter-spacing: 1.2px; color: var(--muted); font-weight: 700;
+    }
+    .preview-area pre {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 18px;
+      font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      overflow: auto;
+      flex: 1;
+      margin: 0;
+      color: #d9e0f0;
+      white-space: pre;
+    }
+    .preview-area pre .kw { color: #ef798a; }
+    .preview-area pre .lit { color: #f4d35e; }
+    .preview-area pre .str { color: #9ee493; }
+    .preview-area pre .cmt { color: var(--muted); font-style: italic; }
+    .toast {
+      position: fixed; bottom: 20px; right: 20px;
+      background: var(--good); color: #082; padding: 10px 16px;
+      border-radius: 8px; font-weight: 600; opacity: 0;
+      transition: opacity 0.2s; pointer-events: none;
+    }
+    .toast.show { opacity: 1; }
+    .credit {
+      padding: 14px 24px; color: var(--muted); font-size: 12px;
+      border-top: 1px solid var(--border); background: var(--panel2);
+    }
+    .credit a { color: var(--accent2); text-decoration: none; }
+    .credit a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Catalyst Builder</h1>
+  <span class="badge" id="version">v0.3.5</span>
+  <span class="hint">Generate ready-to-paste mechanism config code.</span>
+</header>
+
+<main>
+  <aside>
+    <h2>Mechanism</h2>
+    <div class="mech-list" id="mechList"></div>
+
+    <h2>Quick reference</h2>
+    <div style="font-size:12px;color:var(--muted);line-height:1.6;">
+      Fill the form on the right and the Java config builder updates live.
+      Copy the snippet into your subsystem's constructor and tweak from there.
+      All field defaults match the library defaults — leave a field empty to omit the builder call.
+    </div>
+  </aside>
+
+  <div class="form-area" id="formArea"></div>
+
+  <div class="preview-area">
+    <div class="preview-head">
+      <h2>Generated config</h2>
+      <div>
+        <button class="btn ghost" id="resetBtn">Reset</button>
+        <button class="btn" id="copyBtn">Copy</button>
+      </div>
+    </div>
+    <pre id="preview"></pre>
+  </div>
+</main>
+
+<div class="credit">
+  Inspired by <a href="https://yteam3211.github.io/frc-catalyst-subsystem-generator" target="_blank" rel="noopener">tcrvo / yteam3211's FRC Catalyst Subsystem Generator</a> — thanks!
+</div>
+
+<div class="toast" id="toast">Copied</div>
+
+<script>
+  // ============================================================
+  // Mechanism schemas — single source of truth for what fields
+  // each mechanism exposes and how they map onto the Java builder.
+  // ============================================================
+  const SCHEMA = {
+    linear: {
+      label: "LinearMechanism",
+      sub: "Elevator, telescope, lift",
+      java: "LinearMechanism",
+      groups: [
+        { title: "Identity", fields: [
+          { id: "name", label: "name", type: "text", placeholder: "Elevator", required: true },
+          { id: "motor", label: "motor CAN ID", type: "int", placeholder: "20", required: true, builder: "motor" },
+          { id: "canBus", label: "canBus", type: "text", placeholder: "rio (or canivore)", builder: "canBus" },
+          { id: "motorType", label: "motorType", type: "motorType", builder: "motorType" },
+          { id: "inverted", label: "inverted", type: "bool", builder: "inverted" },
+        ]},
+        { title: "Followers", fields: [
+          { id: "followers", label: "followers", type: "followers", builder: "follower" },
+        ]},
+        { title: "Geometry", fields: [
+          { id: "gearRatio", label: "gearRatio", type: "double", placeholder: "10.0", builder: "gearRatio" },
+          { id: "drumRadius", label: "drumRadius (m)", type: "double", placeholder: "0.0254", builder: "drumRadius" },
+          { id: "minPos", label: "min position (m)", type: "double", placeholder: "0.0", builder: "range", group: "range" },
+          { id: "maxPos", label: "max position (m)", type: "double", placeholder: "1.2", builder: "range", group: "range" },
+        ]},
+        { title: "Limits", fields: [
+          { id: "currentLimit", label: "currentLimit (A)", type: "double", placeholder: "40", builder: "currentLimit" },
+          { id: "statorCurrentLimit", label: "statorCurrentLimit (A)", type: "double", placeholder: "80", builder: "statorCurrentLimit" },
+          { id: "tolerance", label: "tolerance (m)", type: "double", placeholder: "0.01", builder: "tolerance" },
+        ]},
+        { title: "Control", fields: [
+          { id: "kP", label: "kP", type: "double", builder: "pid", group: "pid" },
+          { id: "kI", label: "kI", type: "double", builder: "pid", group: "pid" },
+          { id: "kD", label: "kD", type: "double", builder: "pid", group: "pid" },
+          { id: "kS", label: "kS", type: "double", builder: "feedforward", group: "ff" },
+          { id: "kV", label: "kV", type: "double", builder: "feedforward", group: "ff" },
+          { id: "kA", label: "kA", type: "double", builder: "feedforward", group: "ff" },
+          { id: "kG", label: "kG", type: "double", builder: "gravity" },
+          { id: "mmCruise", label: "MM cruise (rps)", type: "double", builder: "motionMagic", group: "mm" },
+          { id: "mmAccel", label: "MM accel (rps²)", type: "double", builder: "motionMagic", group: "mm" },
+          { id: "mmJerk", label: "MM jerk (rps³)", type: "double", builder: "motionMagic", group: "mm" },
+        ]},
+      ],
+    },
+
+    rotational: {
+      label: "RotationalMechanism",
+      sub: "Arm, turret, pivot",
+      java: "RotationalMechanism",
+      groups: [
+        { title: "Identity", fields: [
+          { id: "name", label: "name", type: "text", placeholder: "Arm", required: true },
+          { id: "motor", label: "motor CAN ID", type: "int", placeholder: "30", required: true, builder: "motor" },
+          { id: "canBus", label: "canBus", type: "text", builder: "canBus" },
+          { id: "motorType", label: "motorType", type: "motorType", builder: "motorType" },
+          { id: "inverted", label: "inverted", type: "bool", builder: "inverted" },
+        ]},
+        { title: "Followers", fields: [
+          { id: "followers", label: "followers", type: "followers", builder: "follower" },
+        ]},
+        { title: "Geometry", fields: [
+          { id: "gearRatio", label: "gearRatio", type: "double", placeholder: "100.0", builder: "gearRatio" },
+          { id: "minPos", label: "min angle (deg)", type: "double", placeholder: "-90", builder: "range", group: "range" },
+          { id: "maxPos", label: "max angle (deg)", type: "double", placeholder: "90", builder: "range", group: "range" },
+        ]},
+        { title: "Limits", fields: [
+          { id: "currentLimit", label: "currentLimit (A)", type: "double", builder: "currentLimit" },
+          { id: "statorCurrentLimit", label: "statorCurrentLimit (A)", type: "double", builder: "statorCurrentLimit" },
+          { id: "tolerance", label: "tolerance (deg)", type: "double", placeholder: "1.0", builder: "toleranceDegrees" },
+        ]},
+        { title: "Control", fields: [
+          { id: "kP", label: "kP", type: "double", builder: "pid", group: "pid" },
+          { id: "kI", label: "kI", type: "double", builder: "pid", group: "pid" },
+          { id: "kD", label: "kD", type: "double", builder: "pid", group: "pid" },
+          { id: "kS", label: "kS", type: "double", builder: "feedforward", group: "ff" },
+          { id: "kV", label: "kV", type: "double", builder: "feedforward", group: "ff" },
+          { id: "kA", label: "kA", type: "double", builder: "feedforward", group: "ff" },
+          { id: "kG", label: "kG (gravity)", type: "double", builder: "gravity" },
+          { id: "mmCruise", label: "MM cruise (rps)", type: "double", builder: "motionMagic", group: "mm" },
+          { id: "mmAccel", label: "MM accel (rps²)", type: "double", builder: "motionMagic", group: "mm" },
+          { id: "mmJerk", label: "MM jerk (rps³)", type: "double", builder: "motionMagic", group: "mm" },
+        ]},
+      ],
+    },
+
+    flywheel: {
+      label: "FlywheelMechanism",
+      sub: "Shooter, hopper",
+      java: "FlywheelMechanism",
+      groups: [
+        { title: "Identity", fields: [
+          { id: "name", label: "name", type: "text", placeholder: "Shooter", required: true },
+          { id: "motor", label: "primary CAN ID", type: "int", placeholder: "50", required: true, builder: "motor" },
+          { id: "secondMotor", label: "secondary CAN ID (opt)", type: "int", builder: "secondMotor" },
+          { id: "canBus", label: "canBus", type: "text", builder: "canBus" },
+          { id: "motorType", label: "motorType", type: "motorType", builder: "motorType" },
+          { id: "primaryInverted", label: "primaryInverted", type: "bool", builder: "primaryInverted" },
+          { id: "secondaryInverted", label: "secondaryInverted", type: "bool", builder: "secondaryInverted" },
+        ]},
+        { title: "Followers", fields: [
+          { id: "primaryFollowers", label: "primary followers", type: "followers", builder: "primaryFollower" },
+          { id: "secondaryFollowers", label: "secondary followers", type: "followers", builder: "secondaryFollower" },
+        ]},
+        { title: "Physics", fields: [
+          { id: "gearRatio", label: "gearRatio", type: "double", placeholder: "1.0", builder: "gearRatio" },
+          { id: "moi", label: "MoI (kg·m²)", type: "double", placeholder: "0.01", builder: "moi" },
+          { id: "tolerance", label: "velocity tol (rps)", type: "double", placeholder: "3.0", builder: "velocityTolerance" },
+        ]},
+        { title: "Limits", fields: [
+          { id: "currentLimit", label: "currentLimit (A)", type: "double", builder: "currentLimit" },
+          { id: "statorCurrentLimit", label: "statorCurrentLimit (A)", type: "double", builder: "statorCurrentLimit" },
+        ]},
+        { title: "Control", fields: [
+          { id: "kP", label: "kP", type: "double", builder: "pid", group: "pid" },
+          { id: "kI", label: "kI", type: "double", builder: "pid", group: "pid" },
+          { id: "kD", label: "kD", type: "double", builder: "pid", group: "pid" },
+          { id: "kS", label: "kS", type: "double", builder: "feedforward", group: "ff" },
+          { id: "kV", label: "kV", type: "double", builder: "feedforward", group: "ff" },
+          { id: "kA", label: "kA", type: "double", builder: "feedforward", group: "ff" },
+        ]},
+      ],
+    },
+
+    roller: {
+      label: "RollerMechanism",
+      sub: "Intake, indexer",
+      java: "RollerMechanism",
+      groups: [
+        { title: "Identity", fields: [
+          { id: "name", label: "name", type: "text", placeholder: "Intake", required: true },
+          { id: "motor", label: "motor CAN ID", type: "int", placeholder: "40", required: true, builder: "motor" },
+          { id: "canBus", label: "canBus", type: "text", builder: "canBus" },
+          { id: "inverted", label: "inverted", type: "bool", builder: "inverted" },
+          { id: "brakeMode", label: "brakeMode", type: "bool", builder: "brakeMode" },
+        ]},
+        { title: "Limits", fields: [
+          { id: "currentLimit", label: "currentLimit (A)", type: "double", builder: "currentLimit" },
+          { id: "statorCurrentLimit", label: "statorCurrentLimit (A)", type: "double", builder: "statorCurrentLimit" },
+        ]},
+        { title: "Voltages", fields: [
+          { id: "intakeVoltage", label: "intake voltage", type: "double", placeholder: "6.0", builder: "intakeVoltage" },
+          { id: "outtakeVoltage", label: "outtake voltage", type: "double", placeholder: "-4.0", builder: "outtakeVoltage" },
+          { id: "holdVoltage", label: "hold voltage", type: "double", placeholder: "1.0", builder: "holdVoltage" },
+        ]},
+        { title: "Detection", fields: [
+          { id: "beamBreak", label: "beam break DIO", type: "int", builder: "beamBreak" },
+        ]},
+      ],
+    },
+
+    winch: {
+      label: "WinchMechanism",
+      sub: "Climber, deployment",
+      java: "WinchMechanism",
+      groups: [
+        { title: "Identity", fields: [
+          { id: "name", label: "name", type: "text", placeholder: "Climber", required: true },
+          { id: "motor", label: "motor CAN ID", type: "int", required: true, builder: "motor" },
+          { id: "secondMotor", label: "second motor (opt)", type: "int", builder: "secondMotor" },
+          { id: "canBus", label: "canBus", type: "text", builder: "canBus" },
+          { id: "inverted", label: "inverted", type: "bool", builder: "inverted" },
+          { id: "secondInverted", label: "secondInverted", type: "bool", builder: "secondInverted" },
+        ]},
+        { title: "Geometry", fields: [
+          { id: "gearRatio", label: "gearRatio", type: "double", placeholder: "25.0", builder: "gearRatio" },
+          { id: "spoolRadius", label: "spoolRadius (m)", type: "double", placeholder: "0.02", builder: "spoolRadius" },
+          { id: "minPos", label: "min extension (m)", type: "double", placeholder: "0.0", builder: "range", group: "range" },
+          { id: "maxPos", label: "max extension (m)", type: "double", placeholder: "0.6", builder: "range", group: "range" },
+        ]},
+        { title: "Limits / speeds", fields: [
+          { id: "currentLimit", label: "currentLimit (A)", type: "double", placeholder: "80", builder: "currentLimit" },
+          { id: "statorCurrentLimit", label: "statorCurrentLimit (A)", type: "double", placeholder: "120", builder: "statorCurrentLimit" },
+          { id: "extendSpeed", label: "extend speed", type: "double", placeholder: "0.8", builder: "extendSpeed" },
+          { id: "retractSpeed", label: "retract speed", type: "double", placeholder: "-1.0", builder: "retractSpeed" },
+        ]},
+      ],
+    },
+
+    claw: {
+      label: "ClawMechanism",
+      sub: "Motor-driven gripper",
+      java: "ClawMechanism",
+      groups: [
+        { title: "Identity", fields: [
+          { id: "name", label: "name", type: "text", placeholder: "Claw", required: true },
+          { id: "motor", label: "motor CAN ID", type: "int", required: true, builder: "motor" },
+          { id: "canBus", label: "canBus", type: "text", builder: "canBus" },
+          { id: "inverted", label: "inverted", type: "bool", builder: "inverted" },
+          { id: "brakeMode", label: "brakeMode", type: "bool", builder: "brakeMode", defaultVal: true },
+        ]},
+        { title: "Followers", fields: [
+          { id: "followers", label: "followers", type: "followers", builder: "follower" },
+        ]},
+        { title: "Limits", fields: [
+          { id: "currentLimit", label: "currentLimit (A)", type: "double", builder: "currentLimit" },
+          { id: "statorCurrentLimit", label: "statorCurrentLimit (A)", type: "double", builder: "statorCurrentLimit" },
+        ]},
+        { title: "Voltages", fields: [
+          { id: "closeVoltage", label: "close voltage", type: "double", placeholder: "6.0", builder: "closeVoltage" },
+          { id: "openVoltage", label: "open voltage", type: "double", placeholder: "-4.0", builder: "openVoltage" },
+          { id: "holdVoltage", label: "hold voltage", type: "double", placeholder: "1.5", builder: "holdVoltage" },
+        ]},
+        { title: "Detection", fields: [
+          { id: "stallAmps", label: "stall current (A)", type: "double", builder: "stallDetection", group: "stall" },
+          { id: "stallTime", label: "stall time (s)", type: "double", placeholder: "0.2", builder: "stallDetection", group: "stall" },
+          { id: "beamBreak", label: "beam break DIO", type: "int", builder: "beamBreak" },
+        ]},
+      ],
+    },
+
+    diffwrist: {
+      label: "DifferentialWristMechanism",
+      sub: "Diffy wrist (CTRE native)",
+      java: "DifferentialWristMechanism",
+      groups: [
+        { title: "Identity", fields: [
+          { id: "name", label: "name", type: "text", placeholder: "Wrist", required: true },
+          { id: "leftMotor", label: "left CAN ID (master)", type: "int", required: true, builder: "leftMotor" },
+          { id: "rightMotor", label: "right CAN ID (slave)", type: "int", required: true, builder: "rightMotor" },
+          { id: "canBus", label: "canBus", type: "text", builder: "canBus" },
+          { id: "leftInverted", label: "leftInverted", type: "bool", builder: "leftInverted" },
+          { id: "rightInverted", label: "rightInverted", type: "bool", builder: "rightInverted" },
+        ]},
+        { title: "Geometry", fields: [
+          { id: "gearRatio", label: "gearRatio", type: "double", placeholder: "20.0", builder: "gearRatio" },
+          { id: "minPitch", label: "min pitch (deg)", type: "double", placeholder: "-90", builder: "pitchRange", group: "pitch" },
+          { id: "maxPitch", label: "max pitch (deg)", type: "double", placeholder: "90", builder: "pitchRange", group: "pitch" },
+          { id: "minRoll", label: "min roll (deg)", type: "double", placeholder: "-180", builder: "rollRange", group: "roll" },
+          { id: "maxRoll", label: "max roll (deg)", type: "double", placeholder: "180", builder: "rollRange", group: "roll" },
+          { id: "tolerance", label: "tolerance (deg)", type: "double", placeholder: "2.0", builder: "tolerance" },
+        ]},
+        { title: "Limits", fields: [
+          { id: "currentLimit", label: "currentLimit (A)", type: "double", builder: "currentLimit" },
+          { id: "statorCurrentLimit", label: "statorCurrentLimit (A)", type: "double", builder: "statorCurrentLimit" },
+        ]},
+        { title: "Pitch (Slot 0)", fields: [
+          { id: "kP", label: "kP", type: "double", builder: "pid", group: "pid" },
+          { id: "kI", label: "kI", type: "double", builder: "pid", group: "pid" },
+          { id: "kD", label: "kD", type: "double", builder: "pid", group: "pid" },
+          { id: "kS", label: "kS", type: "double", builder: "feedforward", group: "ff" },
+          { id: "kV", label: "kV", type: "double", builder: "feedforward", group: "ff" },
+          { id: "kA", label: "kA", type: "double", builder: "feedforward", group: "ff" },
+        ]},
+        { title: "Roll (Slot 1 — optional)", fields: [
+          { id: "diffKP", label: "diff kP", type: "double", builder: "differentialPid", group: "diffpid" },
+          { id: "diffKI", label: "diff kI", type: "double", builder: "differentialPid", group: "diffpid" },
+          { id: "diffKD", label: "diff kD", type: "double", builder: "differentialPid", group: "diffpid" },
+        ]},
+        { title: "Motion Magic", fields: [
+          { id: "mmCruise", label: "MM cruise (rps)", type: "double", builder: "motionMagic", group: "mm" },
+          { id: "mmAccel", label: "MM accel (rps²)", type: "double", builder: "motionMagic", group: "mm" },
+          { id: "mmJerk", label: "MM jerk (rps³)", type: "double", builder: "motionMagic", group: "mm" },
+        ]},
+      ],
+    },
+
+    pneumatic: {
+      label: "PneumaticMechanism",
+      sub: "Solenoid / piston",
+      java: "PneumaticMechanism",
+      groups: [
+        { title: "Identity", fields: [
+          { id: "name", label: "name", type: "text", placeholder: "ClimbHook", required: true },
+        ]},
+        { title: "Solenoid", fields: [
+          { id: "moduleType", label: "module", type: "enum", options: ["REVPH", "CTREPCM"], defaultVal: "REVPH" },
+          { id: "isDouble", label: "double solenoid", type: "bool", defaultVal: true },
+          { id: "forwardChannel", label: "forward channel", type: "int", placeholder: "0", required: true },
+          { id: "reverseChannel", label: "reverse channel", type: "int", placeholder: "1" },
+        ]},
+        { title: "Compressor (optional)", fields: [
+          { id: "attachCompressor", label: "attach compressor", type: "bool" },
+          { id: "minPressurePSI", label: "require pressure > (psi)", type: "double", placeholder: "40", builder: "requirePressureAbove" },
+        ]},
+      ],
+    },
+  };
+
+  // ============================================================
+  // State + rendering
+  // ============================================================
+  const MOTOR_TYPES = [
+    "KRAKEN_X60", "KRAKEN_X60_FOC",
+    "KRAKEN_X44", "KRAKEN_X44_FOC",
+    "FALCON_500", "FALCON_500_FOC",
+    "NEO", "NEO_VORTEX", "NEO_550", "MINION",
+  ];
+
+  let currentMech = "linear";
+  const formState = {}; // { mechId: { fieldId: value } }
+  const FOLLOWER_STATE = {}; // { mechId: { fieldId: [{canId, oppose}] } }
+
+  function buildSidebar() {
+    const list = document.getElementById("mechList");
+    list.innerHTML = "";
+    Object.entries(SCHEMA).forEach(([id, schema]) => {
+      const btn = document.createElement("button");
+      btn.className = "mech-btn" + (id === currentMech ? " active" : "");
+      btn.innerHTML = `${schema.label}<span class="mech-sub">${schema.sub}</span>`;
+      btn.onclick = () => { currentMech = id; buildSidebar(); buildForm(); render(); };
+      list.appendChild(btn);
+    });
+  }
+
+  function buildForm() {
+    const area = document.getElementById("formArea");
+    area.innerHTML = "";
+    const schema = SCHEMA[currentMech];
+    if (!formState[currentMech]) formState[currentMech] = {};
+    if (!FOLLOWER_STATE[currentMech]) FOLLOWER_STATE[currentMech] = {};
+    const state = formState[currentMech];
+
+    schema.groups.forEach(group => {
+      const wrap = document.createElement("div");
+      wrap.className = "field-group";
+      wrap.innerHTML = `<h3>${group.title}</h3>`;
+
+      group.fields.forEach(field => {
+        if (field.type === "followers") {
+          if (!FOLLOWER_STATE[currentMech][field.id]) FOLLOWER_STATE[currentMech][field.id] = [];
+          const followers = FOLLOWER_STATE[currentMech][field.id];
+
+          const row = document.createElement("div");
+          row.className = "row";
+          row.style.gridTemplateColumns = "160px 1fr";
+          row.innerHTML = `<label>${field.label}</label>`;
+          const right = document.createElement("div");
+          right.className = "followers";
+
+          followers.forEach((f, i) => {
+            const fr = document.createElement("div");
+            fr.className = "follower-row";
+            fr.innerHTML = `
+              <input type="number" placeholder="CAN ID" value="${f.canId ?? ""}">
+              <label style="font-size:12px;color:var(--muted);"><input type="checkbox" ${f.oppose ? "checked" : ""}> oppose</label>
+              <button class="btn danger">×</button>
+            `;
+            fr.querySelector("input[type=number]").oninput = e => {
+              f.canId = e.target.value === "" ? null : parseInt(e.target.value, 10);
+              render();
+            };
+            fr.querySelector("input[type=checkbox]").onchange = e => { f.oppose = e.target.checked; render(); };
+            fr.querySelector(".btn.danger").onclick = () => {
+              followers.splice(i, 1); buildForm(); render();
+            };
+            right.appendChild(fr);
+          });
+
+          const addBtn = document.createElement("button");
+          addBtn.className = "btn ghost";
+          addBtn.textContent = "+ Add follower";
+          addBtn.style.alignSelf = "flex-start";
+          addBtn.onclick = () => {
+            followers.push({ canId: null, oppose: false });
+            buildForm(); render();
+          };
+          right.appendChild(addBtn);
+
+          row.appendChild(right);
+          wrap.appendChild(row);
+          return;
+        }
+
+        const row = document.createElement("div");
+        row.className = "row";
+        const labelEl = document.createElement("label");
+        labelEl.innerHTML = field.label + (field.required ? "" : " <span class='opt'>opt</span>");
+        row.appendChild(labelEl);
+
+        let input;
+        if (field.type === "bool") {
+          input = document.createElement("input");
+          input.type = "checkbox";
+          if (state[field.id] === undefined && field.defaultVal !== undefined) state[field.id] = field.defaultVal;
+          input.checked = !!state[field.id];
+          input.onchange = e => { state[field.id] = e.target.checked; render(); };
+        } else if (field.type === "motorType") {
+          input = document.createElement("select");
+          if (state[field.id] === undefined) state[field.id] = "";
+          input.innerHTML = `<option value="">(default — Kraken X60)</option>`
+            + MOTOR_TYPES.map(m => `<option value="${m}" ${state[field.id]===m?"selected":""}>${m}</option>`).join("");
+          input.onchange = e => { state[field.id] = e.target.value; render(); };
+        } else if (field.type === "enum") {
+          input = document.createElement("select");
+          if (state[field.id] === undefined && field.defaultVal !== undefined) state[field.id] = field.defaultVal;
+          input.innerHTML = field.options.map(o => `<option value="${o}" ${state[field.id]===o?"selected":""}>${o}</option>`).join("");
+          input.onchange = e => { state[field.id] = e.target.value; render(); };
+        } else {
+          input = document.createElement("input");
+          input.type = (field.type === "int" || field.type === "double") ? "number" : "text";
+          if (field.type === "double") input.step = "any";
+          if (field.placeholder) input.placeholder = field.placeholder;
+          input.value = state[field.id] ?? "";
+          input.oninput = e => {
+            const v = e.target.value;
+            state[field.id] = v === "" ? undefined : (field.type === "text" ? v : Number(v));
+            render();
+          };
+        }
+        row.appendChild(input);
+        wrap.appendChild(row);
+      });
+
+      area.appendChild(wrap);
+    });
+  }
+
+  // ============================================================
+  // Code generation
+  // ============================================================
+  function fmtVal(v) {
+    if (typeof v === "boolean") return v ? "true" : "false";
+    if (typeof v === "string") return JSON.stringify(v);
+    return String(v);
+  }
+
+  function generate() {
+    const schema = SCHEMA[currentMech];
+    const state = formState[currentMech] || {};
+    const followers = FOLLOWER_STATE[currentMech] || {};
+
+    // Special case: Pneumatic doesn't follow the standard motor-builder shape.
+    if (currentMech === "pneumatic") return generatePneumatic(state);
+
+    const name = state.name || schema.label;
+    const lines = [];
+    lines.push(`${schema.java} ${camel(name)} = new ${schema.java}(`);
+    lines.push(`    ${schema.java}.Config.builder()`);
+    lines.push(`        .name(${fmtVal(name)})`);
+
+    const grouped = {}; // group key → ordered values
+    schema.groups.forEach(g => g.fields.forEach(f => {
+      if (!f.builder || f.id === "name") return;
+      if (f.type === "followers") return; // handled below
+      const v = state[f.id];
+      if (v === undefined || v === null || v === "" || (typeof v === "number" && Number.isNaN(v))) return;
+      if (f.group) {
+        grouped[f.builder + "/" + f.group] = grouped[f.builder + "/" + f.group] || { name: f.builder, vals: [] };
+        grouped[f.builder + "/" + f.group].vals.push(v);
+      } else {
+        lines.push(`        .${f.builder}(${fmtVal(v)})`);
+      }
+    }));
+    Object.values(grouped).forEach(g => {
+      lines.push(`        .${g.name}(${g.vals.map(fmtVal).join(", ")})`);
+    });
+
+    // Followers
+    schema.groups.forEach(g => g.fields.forEach(f => {
+      if (f.type !== "followers") return;
+      const list = followers[f.id] || [];
+      list.forEach(spec => {
+        if (spec.canId == null) return;
+        lines.push(`        .${f.builder}(${spec.canId}, ${spec.oppose ? "true" : "false"})`);
+      });
+    }));
+
+    lines.push(`        .build());`);
+    return lines.join("\n");
+  }
+
+  function generatePneumatic(state) {
+    const name = state.name || "PneumaticMechanism";
+    const module = `PneumaticsModuleType.${state.moduleType || "REVPH"}`;
+    const lines = [];
+    lines.push(`PneumaticMechanism ${camel(name)} = new PneumaticMechanism(`);
+    lines.push(`    PneumaticMechanism.Config.builder()`);
+    lines.push(`        .name(${fmtVal(name)})`);
+    if (state.isDouble) {
+      lines.push(`        .doubleSolenoid(${module}, ${state.forwardChannel ?? 0}, ${state.reverseChannel ?? 1})`);
+    } else {
+      lines.push(`        .singleSolenoid(${module}, ${state.forwardChannel ?? 0})`);
+    }
+    if (state.attachCompressor) lines.push(`        .compressor(${module})`);
+    if (state.minPressurePSI != null) lines.push(`        .requirePressureAbove(${state.minPressurePSI})`);
+    lines.push(`        .build());`);
+    return lines.join("\n");
+  }
+
+  function camel(s) {
+    return s.replace(/[^a-zA-Z0-9]/g, " ")
+            .split(/\s+/).filter(Boolean)
+            .map((w, i) => i === 0 ? w[0].toLowerCase() + w.slice(1) : w[0].toUpperCase() + w.slice(1))
+            .join("");
+  }
+
+  function highlight(code) {
+    return code
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/(\".*?\")/g, '<span class="str">$1</span>')
+      .replace(/\b(new|true|false|null)\b/g, '<span class="kw">$1</span>')
+      .replace(/\b(-?\d+\.?\d*)\b/g, '<span class="lit">$1</span>')
+      .replace(/(\/\/[^\n]*)/g, '<span class="cmt">$1</span>');
+  }
+
+  function render() {
+    document.getElementById("preview").innerHTML = highlight(generate());
+  }
+
+  // ============================================================
+  // UI wiring
+  // ============================================================
+  document.getElementById("copyBtn").onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(generate());
+      const t = document.getElementById("toast");
+      t.classList.add("show");
+      setTimeout(() => t.classList.remove("show"), 900);
+    } catch {
+      alert("Copy failed — your browser may block clipboard from file://. Try serving over HTTP.");
+    }
+  };
+
+  document.getElementById("resetBtn").onclick = () => {
+    if (!confirm("Reset all fields for this mechanism?")) return;
+    formState[currentMech] = {};
+    FOLLOWER_STATE[currentMech] = {};
+    buildForm(); render();
+  };
+
+  buildSidebar();
+  buildForm();
+  render();
+</script>
+</body>
+</html>

@@ -89,6 +89,14 @@ operatorController.b().onTrue(elevator.goTo("STOW"));
 
 ---
 
+## What's New in v0.3.5-beta
+
+- **`DifferentialWristMechanism` now uses Phoenix-6's native differential control** — `DifferentialMotionMagicVoltage` on the master with `DifferentialFollower` on the slave. Both targets are sent in one CAN frame and stay coordinated at firmware level. Slot 0 holds the pitch (average) gains; Slot 1 holds the roll (differential) gains, tunable separately via `.differentialPid(...)`. Thanks to **tcrvo** for flagging this on Chief Delphi.
+- **Multi-follower support for Claw and Flywheel** — `ClawMechanism.Config.follower(canId, oppose)` is now additive (call it once per follower), and `FlywheelMechanism.Config.primaryFollower(...) / secondaryFollower(...)` add follower motors on each shaft. Thanks to **avrahamavraham** for catching that the single-follower limit was broken.
+- **`RobotSafety` watchdog** — an opt-in cross-mechanism trip that fires when too many ERROR-severity health checks fire simultaneously. Hooks into `HealthMonitor`, publishes to `Catalyst/Safety/`, and runs your `onTrip` callback so team code decides what "all-stop" means.
+- **Catalyst Builder UI** at `docs/tools/builder/index.html` — single-file form-driven Java code generator for every mechanism. Inspired by tcrvo / yteam3211's [FRC Catalyst Subsystem Generator](https://yteam3211.github.io/frc-catalyst-subsystem-generator).
+- **More motor presets** — `KRAKEN_X44` / `KRAKEN_X44_FOC` (added in v0.3.3) joined by `NEO`, `NEO_VORTEX`, `NEO_550`, and `MINION`. `MotorType` also exposes a public constructor for anything we don't ship.
+
 ## What's New in v0.3.3-beta
 
 > ⚠️ **Important fix — read if you used `MotorType.KRAKEN_X60_FOC` or `MotorType.FALCON_500_FOC` in earlier 0.3.x versions.** Those two presets shipped with the same stall torque as their non-FOC counterparts; Phoenix-6 FOC actually delivers ~30% more. `holdingVoltage(...)` was over-stated and sim torque under-stated by the same factor, so re-check hand-tuned `kG` values after upgrading. Details in [CHANGELOG.md](CHANGELOG.md).
@@ -529,6 +537,15 @@ FrcCatalyst includes a comprehensive test project at [FrcCatalystTest](https://g
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+---
+
+## Acknowledgements
+
+- **tcrvo / yteam3211** — feedback on the differential wrist (now uses Phoenix-6's native differential control) and inspiration for the Catalyst Builder UI. Their original [FRC Catalyst Subsystem Generator](https://yteam3211.github.io/frc-catalyst-subsystem-generator) was the seed for `docs/tools/builder/`.
+- **avrahamavraham** — caught that `ClawMechanism` only supported one follower and `FlywheelMechanism` had no follower path. Both fixed in v0.3.5-beta.
+
+The rest of the design is in-house work informed by general FRC engineering literature (whitepapers, ChiefDelphi threads, WPILib + CTRE docs) — not copied from any specific team's codebase.
 
 ---
 

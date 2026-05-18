@@ -50,6 +50,22 @@ public final class MotorType {
     /** Falcon 500 with FOC enabled (Phoenix Pro / Phoenix 6). */
     public static final MotorType FALCON_500_FOC = new MotorType("Falcon 500 FOC", 5.84, 6080, 304, 1.5);
 
+    // ---- Non-CTRE motors ----------------------------------------------------
+    // FrcCatalyst is CTRE-first, but a few presets are shipped for teams who
+    // mix in REV or use the WCP Minion on non-drive mechanisms. They do not
+    // gain Phoenix-6 features (FOC, fused CANcoder, etc.) — they're here so
+    // sim, gravity feedforward, and MotionConstraintCalculator work for teams
+    // running a mixed motor stack.
+
+    /** REV NEO Brushless v1 (legacy NEO). */
+    public static final MotorType NEO         = new MotorType("NEO",         2.6,  5676, 105, 1.8);
+    /** REV NEO Vortex (brushless successor with stiffer torque curve). */
+    public static final MotorType NEO_VORTEX  = new MotorType("NEO Vortex",  3.6,  6784, 211, 3.6);
+    /** REV NEO 550 (compact gripper / intake motor). */
+    public static final MotorType NEO_550     = new MotorType("NEO 550",     0.97, 11000, 100, 1.4);
+    /** WCP Minion (brushless, CTRE-controllable via SparkMax — drive-class torque in a smaller package). */
+    public static final MotorType MINION      = new MotorType("Minion",      3.1,  7200, 200, 1.5);
+
     /** Human-readable name, used in logs and the Catalyst Tuner UI. */
     public final String displayName;
     /** Stall torque per motor (Nm) at the spec'd nominal voltage. */

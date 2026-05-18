@@ -333,8 +333,8 @@ public class SwerveSubsystem extends SubsystemBase {
     /**
      * Enable/disable pose exponential skew correction.
      * When enabled, corrects for swerve skew during combined translation + rotation
-     * by rotating commanded velocities by -omega*dt/2. This is the approach used by
-     * Team 1690 and documented in the swerve skew whitepaper.
+     * by rotating commanded velocities by -omega*dt/2. Documented in the swerve
+     * skew whitepaper and used by most competitive in-house drives.
      * Enabled by default.
      */
     public void setSkewCorrectionEnabled(boolean enabled) {
@@ -372,7 +372,7 @@ public class SwerveSubsystem extends SubsystemBase {
     /**
      * Set snap-to-angle presets for heading lock.
      * When the driver releases rotation, the robot snaps to the nearest preset angle.
-     * Common for 254-style driving where drivers snap to cardinal directions.
+     * Common pattern for cardinal-direction driving (intake heading, scoring poses).
      *
      * @param anglesDegrees angles to snap to (e.g., 0, 90, 180, 270)
      * @param toleranceDegrees how close to a snap angle to activate (default 15)

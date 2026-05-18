@@ -5,9 +5,13 @@ import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.lib.catalyst.hardware.CatalystMotor;
+import frc.lib.catalyst.hardware.CatalystMotor.FollowerSpec;
 import frc.lib.catalyst.io.ClawMechanismInputs;
 import frc.lib.catalyst.util.HealthCheck;
 import frc.lib.catalyst.util.HealthMonitor;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Motor-driven claw / gripper mechanism.
@@ -62,8 +66,8 @@ public class ClawMechanism extends CatalystMechanism {
                 .currentLimit(config.currentLimit)
                 .statorCurrentLimit(config.statorCurrentLimit);
 
-        if (config.followerCanId >= 0) {
-            motorBuilder.withFollower(config.followerCanId, config.followerOppose);
+        for (FollowerSpec spec : config.followers) {
+            motorBuilder.withFollower(spec.canId(), spec.oppose());
         }
 
         this.motor = motorBuilder.build();
@@ -72,34 +76,37 @@ public class ClawMechanism extends CatalystMechanism {
 
         HealthMonitor.standardMotorChecks(name, motor, config.statorCurrentLimit, 70);
 
-        // Phoenix follower (no separate CatalystMotor wrapper) — register
-        // basic current/temp checks against the follower telemetry arrays.
-        if (config.followerCanId >= 0) {
-            final double warnAmps = config.statorCurrentLimit * 0.9;
-            HealthCheck.builder(name, "OverCurrentFollower")
+        // Phoenix followers (no separate CatalystMotor wrapper) — register one
+        // OverCurrent / HighTemp pair per follower so multi-motor claws each
+        // get individual fault signals.
+        final double warnAmps = config.statorCurrentLimit * 0.9;
+        for (int i = 0; i < config.followers.size(); i++) {
+            final int idx = i;
+            final int canId = config.followers.get(i).canId();
+            HealthCheck.builder(name, "OverCurrentFollower" + canId)
                     .severity(HealthCheck.Severity.WARN)
-                    .description("Follower stator current near limit")
+                    .description("Follower " + canId + " stator current near limit")
                     .when(() -> {
                         double[] cs = motor.getFollowerStatorCurrents();
-                        return cs.length > 0 && cs[0] > warnAmps;
+                        return cs.length > idx && cs[idx] > warnAmps;
                     })
                     .detail(() -> {
                         double[] cs = motor.getFollowerStatorCurrents();
-                        return cs.length > 0 ? String.format("%.1f A", cs[0]) : "";
+                        return cs.length > idx ? String.format("%.1f A", cs[idx]) : "";
                     })
                     .debounce(0.5)
                     .clearAfter(1.0)
                     .register();
-            HealthCheck.builder(name, "HighTempFollower")
+            HealthCheck.builder(name, "HighTempFollower" + canId)
                     .severity(HealthCheck.Severity.WARN)
-                    .description("Follower temperature high")
+                    .description("Follower " + canId + " temperature high")
                     .when(() -> {
                         double[] ts = motor.getFollowerTemperatures();
-                        return ts.length > 0 && ts[0] > 70;
+                        return ts.length > idx && ts[idx] > 70;
                     })
                     .detail(() -> {
                         double[] ts = motor.getFollowerTemperatures();
-                        return ts.length > 0 ? String.format("%.0f C", ts[0]) : "";
+                        return ts.length > idx ? String.format("%.0f C", ts[idx]) : "";
                     })
                     .debounce(1.0)
                     .clearAfter(5.0)
@@ -293,8 +300,7 @@ public class ClawMechanism extends CatalystMechanism {
     public static class Config {
         final String name;
         final int motorCanId;
-        final int followerCanId;
-        final boolean followerOppose;
+        final List<FollowerSpec> followers;
         final String canBus;
         final boolean inverted;
         final boolean brakeMode;
@@ -310,8 +316,7 @@ public class ClawMechanism extends CatalystMechanism {
         private Config(Builder b) {
             this.name = b.name;
             this.motorCanId = b.motorCanId;
-            this.followerCanId = b.followerCanId;
-            this.followerOppose = b.followerOppose;
+            this.followers = List.copyOf(b.followers);
             this.canBus = b.canBus;
             this.inverted = b.inverted;
             this.brakeMode = b.brakeMode;
@@ -330,8 +335,7 @@ public class ClawMechanism extends CatalystMechanism {
         public static class Builder {
             private String name = "ClawMechanism";
             private int motorCanId = 0;
-            private int followerCanId = -1;
-            private boolean followerOppose = false;
+            private final List<FollowerSpec> followers = new ArrayList<>();
             private String canBus = "";
             private boolean inverted = false;
             private boolean brakeMode = true;
@@ -347,10 +351,28 @@ public class ClawMechanism extends CatalystMechanism {
             public Builder name(String name) { this.name = name; return this; }
             public Builder motor(int canId) { this.motorCanId = canId; return this; }
 
-            /** Add a single follower motor sharing the same control output. */
+            /**
+             * Add a follower motor that shares the same control output as the
+             * primary. Call this multiple times to add several followers
+             * (claws with two or three motors per side are common).
+             *
+             * @param canId  CAN ID of the follower TalonFX
+             * @param oppose true if the follower spins the opposite direction
+             *               of the primary (mirrored mounting)
+             */
             public Builder follower(int canId, boolean oppose) {
-                this.followerCanId = canId;
-                this.followerOppose = oppose;
+                this.followers.add(new FollowerSpec(canId, oppose));
+                return this;
+            }
+
+            /** Convenience: add a follower with {@code oppose = false}. */
+            public Builder follower(int canId) {
+                return follower(canId, false);
+            }
+
+            /** Add several followers in one call. */
+            public Builder followers(FollowerSpec... specs) {
+                for (FollowerSpec s : specs) this.followers.add(s);
                 return this;
             }
 

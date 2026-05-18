@@ -37,7 +37,7 @@ repositories {
 
 dependencies {
     // ... your existing dependencies ...
-    implementation "com.github.TomAs-1226:FrcCatalyst:v0.3.3-beta"
+    implementation "com.github.TomAs-1226:FrcCatalyst:v0.3.5-beta"
 }
 ```
 
@@ -62,7 +62,7 @@ repositories {
 }
 
 dependencies {
-    implementation "com.frccatalyst:FrcCatalyst:0.3.3-beta"
+    implementation "com.frccatalyst:FrcCatalyst:0.3.5-beta"
 }
 ```
 

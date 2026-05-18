@@ -8,7 +8,7 @@ has_children: true
 # Advanced Features
 {: .no_toc }
 
-Competition-proven algorithms and utilities used by top FRC teams (254, 6328, 1678, 1690).
+Competition-tested algorithms and utilities that successful teams build in-house every season.
 {: .fs-6 .fw-300 }
 
 ## Table of contents
@@ -21,7 +21,7 @@ Competition-proven algorithms and utilities used by top FRC teams (254, 6328, 16
 
 ## StateSpaceController
 
-Optimal control using LQR (Linear Quadratic Regulator) + Kalman filter for mechanism control. This is the approach used by teams 6328 and 254 for precise mechanism control — it automatically computes optimal gains and provides lag-free noise rejection.
+Optimal control using LQR (Linear Quadratic Regulator) + Kalman filter for mechanism control. This is the in-house approach successful teams use for precise mechanism control — it automatically computes optimal gains and provides lag-free noise rejection.
 
 **Advantages over PID:**
 - LQR automatically computes optimal gains given error and effort constraints
@@ -267,7 +267,7 @@ The `SwerveSubsystem` includes several advanced drive features:
 
 ### Skew Correction
 
-Team 1690's pose exponential discretization method — corrects translation skew during combined translation and rotation:
+Pose exponential discretization — corrects translation skew during combined translation and rotation:
 
 ```java
 drive.setSkewCorrectionEnabled(true);
@@ -357,7 +357,7 @@ VisionConfig.builder()
 
 ## Enhanced SuperstructureCoordinator
 
-The state machine coordinator now supports advanced patterns used by team 254:
+The state machine coordinator now supports the advanced patterns successful teams build in-house:
 
 ### Collision Zones
 

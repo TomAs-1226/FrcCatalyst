@@ -96,6 +96,10 @@ public final class HealthMonitor {
         healthTable.getEntry("WarnCount").setInteger(warnCount);
         healthTable.getEntry("InfoCount").setInteger(infoCount);
         healthTable.getEntry("Healthy").setBoolean(errorCount == 0 && warnCount == 0);
+
+        // Forward to the optional cross-mechanism safety watchdog. Cheap no-op
+        // when teams haven't called RobotSafety.configure(...).
+        RobotSafety.tick(errorCount, warnCount);
     }
 
     /**

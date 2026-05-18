@@ -39,7 +39,7 @@ FrcCatalyst provides five generic mechanism types that cover virtually every FRC
 
 ## SuperstructureCoordinator
 
-The `SuperstructureCoordinator` orchestrates multiple mechanisms into a Team 254-style state machine with safe transitions, collision zones, timeouts, entry/exit actions, and telemetry:
+The `SuperstructureCoordinator` orchestrates multiple mechanisms into a robust state machine with safe transitions, collision zones, timeouts, entry/exit actions, and telemetry:
 
 ```java
 SuperstructureCoordinator superstructure = new SuperstructureCoordinator()

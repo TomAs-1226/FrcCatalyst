@@ -111,6 +111,43 @@ tick.
 4. **Open the Health Dashboard** during practice/test to see what's hot.
    In a match, the same data is on whatever NT dashboard your team uses.
 
+## Cross-mechanism safety: `RobotSafety` (v0.3.5+)
+
+`HealthMonitor` reports per-check state; `RobotSafety` is the higher-level
+watchdog that decides "the robot has too many simultaneous faults — stop
+doing things." It's opt-in: when not configured, it adds zero overhead.
+
+```java
+public void robotInit() {
+    RobotSafety.configure(
+        RobotSafety.Config.builder()
+            .maxConcurrentErrors(2)   // trip when 2+ ERROR checks fire at once
+            .debounce(0.25)           // ...sustained for at least 0.25 s
+            .onTrip(() -> {
+                drive.stop();
+                superstructure.stow();
+                leds.fire();
+            })
+            .build());
+}
+```
+
+Then read the signal from anywhere:
+
+```java
+new Trigger(RobotSafety::isTripped)
+    .onTrue(Commands.runOnce(drive::stop, drive));
+```
+
+The watchdog publishes to `/Catalyst/Safety/{Tripped,Reason,ErrorCount,WarnCount}`
+so the Health Dashboard and any other NT viewer light up when it fires.
+Call `RobotSafety.reset()` to manually clear once you've intervened, or
+configure `.autoReset(seconds)` to clear automatically once the underlying
+checks have stayed clear.
+
+The library never forcibly disables motors itself — the trip is advisory.
+Each team decides what "all-stop" means for their robot.
+
 ## Severity rules of thumb
 
 - **ERROR** → something is broken or about to be broken. The robot should

@@ -7,7 +7,11 @@ import edu.wpi.first.wpilibj.simulation.FlywheelSim;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.lib.catalyst.hardware.CatalystMotor;
+import frc.lib.catalyst.hardware.CatalystMotor.FollowerSpec;
 import frc.lib.catalyst.hardware.MotorType;
+
+import java.util.ArrayList;
+import java.util.List;
 import frc.lib.catalyst.io.FlywheelMechanismInputs;
 import frc.lib.catalyst.util.HealthCheck;
 import frc.lib.catalyst.util.HealthMonitor;
@@ -71,8 +75,8 @@ public class FlywheelMechanism extends CatalystMechanism {
         super(config.name);
         this.config = config;
 
-        // Primary motor
-        this.primaryMotor = CatalystMotor.builder(config.primaryMotorCanId)
+        // Primary motor — also attaches any followers ganged on the primary shaft.
+        CatalystMotor.Builder primaryBuilder = CatalystMotor.builder(config.primaryMotorCanId)
                 .name(config.name + "Primary")
                 .canBus(config.canBus)
                 .inverted(config.primaryInverted)
@@ -81,12 +85,16 @@ public class FlywheelMechanism extends CatalystMechanism {
                 .statorCurrentLimit(config.statorCurrentLimit)
                 .gearRatio(config.gearRatio)
                 .pid(config.kP, config.kI, config.kD)
-                .feedforward(config.kS, config.kV, config.kA)
-                .build();
+                .feedforward(config.kS, config.kV, config.kA);
+        for (FollowerSpec spec : config.primaryFollowers) {
+            primaryBuilder.withFollower(spec.canId(), spec.oppose());
+        }
+        this.primaryMotor = primaryBuilder.build();
 
-        // Secondary motor (independent, not a follower)
+        // Optional independently-controlled secondary motor (typical for
+        // top/bottom shooters with different target RPS per wheel).
         if (config.secondaryMotorCanId >= 0) {
-            this.secondaryMotor = CatalystMotor.builder(config.secondaryMotorCanId)
+            CatalystMotor.Builder secondaryBuilder = CatalystMotor.builder(config.secondaryMotorCanId)
                     .name(config.name + "Secondary")
                     .canBus(config.canBus)
                     .inverted(config.secondaryInverted)
@@ -95,8 +103,11 @@ public class FlywheelMechanism extends CatalystMechanism {
                     .statorCurrentLimit(config.statorCurrentLimit)
                     .gearRatio(config.gearRatio)
                     .pid(config.kP, config.kI, config.kD)
-                    .feedforward(config.kS, config.kV, config.kA)
-                    .build();
+                    .feedforward(config.kS, config.kV, config.kA);
+            for (FollowerSpec spec : config.secondaryFollowers) {
+                secondaryBuilder.withFollower(spec.canId(), spec.oppose());
+            }
+            this.secondaryMotor = secondaryBuilder.build();
         } else {
             this.secondaryMotor = null;
         }
@@ -322,6 +333,8 @@ public class FlywheelMechanism extends CatalystMechanism {
         final String name;
         final int primaryMotorCanId;
         final int secondaryMotorCanId;
+        final List<FollowerSpec> primaryFollowers;
+        final List<FollowerSpec> secondaryFollowers;
         final String canBus;
         final boolean primaryInverted;
         final boolean secondaryInverted;
@@ -338,6 +351,8 @@ public class FlywheelMechanism extends CatalystMechanism {
             this.name = b.name;
             this.primaryMotorCanId = b.primaryMotorCanId;
             this.secondaryMotorCanId = b.secondaryMotorCanId;
+            this.primaryFollowers = List.copyOf(b.primaryFollowers);
+            this.secondaryFollowers = List.copyOf(b.secondaryFollowers);
             this.canBus = b.canBus;
             this.primaryInverted = b.primaryInverted;
             this.secondaryInverted = b.secondaryInverted;
@@ -359,6 +374,8 @@ public class FlywheelMechanism extends CatalystMechanism {
             private String name = "FlywheelMechanism";
             private int primaryMotorCanId = 0;
             private int secondaryMotorCanId = -1;
+            private final List<FollowerSpec> primaryFollowers = new ArrayList<>();
+            private final List<FollowerSpec> secondaryFollowers = new ArrayList<>();
             private String canBus = "";
             private boolean primaryInverted = false;
             private boolean secondaryInverted = false;
@@ -376,6 +393,42 @@ public class FlywheelMechanism extends CatalystMechanism {
 
             /** Add a second motor for dual-flywheel setups (independent, NOT a follower). */
             public Builder secondMotor(int canId) { this.secondaryMotorCanId = canId; return this; }
+
+            /**
+             * Add a follower on the <b>primary</b> shaft. Use for single-wheel
+             * flywheels with two or more motors ganged on one shaft.
+             */
+            public Builder primaryFollower(int canId, boolean oppose) {
+                this.primaryFollowers.add(new FollowerSpec(canId, oppose));
+                return this;
+            }
+
+            /** Convenience: primary follower with {@code oppose = false}. */
+            public Builder primaryFollower(int canId) { return primaryFollower(canId, false); }
+
+            /** Add multiple followers on the primary shaft. */
+            public Builder primaryFollowers(FollowerSpec... specs) {
+                for (FollowerSpec s : specs) this.primaryFollowers.add(s);
+                return this;
+            }
+
+            /**
+             * Add a follower on the <b>secondary</b> shaft (only meaningful when
+             * {@link #secondMotor(int)} has been set).
+             */
+            public Builder secondaryFollower(int canId, boolean oppose) {
+                this.secondaryFollowers.add(new FollowerSpec(canId, oppose));
+                return this;
+            }
+
+            /** Convenience: secondary follower with {@code oppose = false}. */
+            public Builder secondaryFollower(int canId) { return secondaryFollower(canId, false); }
+
+            /** Add multiple followers on the secondary shaft. */
+            public Builder secondaryFollowers(FollowerSpec... specs) {
+                for (FollowerSpec s : specs) this.secondaryFollowers.add(s);
+                return this;
+            }
 
             public Builder canBus(String canBus) { this.canBus = canBus; return this; }
             public Builder primaryInverted(boolean inv) { this.primaryInverted = inv; return this; }
