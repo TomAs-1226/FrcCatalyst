@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import frc.lib.catalyst.io.LinearMechanismInputs;
 import frc.lib.catalyst.util.FeedforwardGains;
+import frc.lib.catalyst.util.GetTarget;
 import frc.lib.catalyst.util.HealthCheck;
 import frc.lib.catalyst.util.HealthMonitor;
 import frc.lib.catalyst.util.TunableGains;
@@ -760,6 +761,18 @@ public class LinearMechanism extends CatalystMechanism {
             /** Add a named position preset in meters. */
             public Builder position(String name, double meters) {
                 this.namedPositions.put(name, meters);
+                return this;
+            }
+
+            /**
+            * @param <E> the {@link Enum} you want to add need to implement {@link GetTarget}
+            * @param enumClass a {@link Class} object of the eunm you want to add
+            */
+            public <E extends Enum<E> & GetTarget> Builder addPositionsFromEnum(Class<E> enumClass, E eunmadd){
+                for (E addEnum : enumClass.getEnumConstants()) {
+                    this.namedPositions.put(addEnum.name(), addEnum.getTarget());
+                }
+
                 return this;
             }
 

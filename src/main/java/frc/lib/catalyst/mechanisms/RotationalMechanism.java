@@ -15,6 +15,7 @@ import frc.lib.catalyst.hardware.CatalystMotor.FollowerSpec;
 import frc.lib.catalyst.hardware.MotorType;
 import frc.lib.catalyst.io.RotationalMechanismInputs;
 import frc.lib.catalyst.util.FeedforwardGains;
+import frc.lib.catalyst.util.GetTarget;
 import frc.lib.catalyst.util.HealthCheck;
 import frc.lib.catalyst.util.HealthMonitor;
 import frc.lib.catalyst.util.TunableGains;
@@ -697,6 +698,17 @@ public class RotationalMechanism extends CatalystMechanism {
             /** Add a named position preset in degrees. */
             public Builder position(String name, double degrees) {
                 this.namedPositions.put(name, degrees);
+                return this;
+            }
+            /**
+            * @param <E> the {@link Enum} you want to add need to implement {@link GetTarget}
+            * @param enumClass a {@link Class} object of the eunm you want to add
+            */
+            public <E extends Enum<E> & GetTarget> Builder addPositionsFromEnum(Class<E> enumClass, E eunmadd){
+                for (E addEnum : enumClass.getEnumConstants()) {
+                    this.namedPositions.put(addEnum.name(), addEnum.getTarget());
+                }
+
                 return this;
             }
 
