@@ -9,6 +9,8 @@ import com.pathplanner.lib.auto.AutoBuilder;
 import com.pathplanner.lib.config.PIDConstants;
 import com.pathplanner.lib.config.RobotConfig;
 import com.pathplanner.lib.controllers.PPHolonomicDriveController;
+import com.pathplanner.lib.path.PathConstraints;
+
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.geometry.Pose2d;
@@ -19,7 +21,9 @@ import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.networktables.StructPublisher;
 import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.InstantCommand;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.lib.catalyst.util.SlewRateLimiter;
 
@@ -510,7 +514,7 @@ public class SwerveSubsystem extends SubsystemBase {
      * @param translationKP proportional gain for XY (try 2.0-5.0)
      * @param toleranceMeters position tolerance for "arrived"
      */
-    public Command driveToPose(Supplier<Pose2d> targetPose, double translationKP,
+    public Command findAlign(Supplier<Pose2d> targetPose, double translationKP,
                                 double toleranceMeters) {
         PIDController xController = new PIDController(translationKP, 0, 0);
         PIDController yController = new PIDController(translationKP, 0, 0);
@@ -537,6 +541,57 @@ public class SwerveSubsystem extends SubsystemBase {
                     && Math.abs(normalizeAngle(
                     current.getRotation().getDegrees() - target.getRotation().getDegrees())) < 3.0;
         }).withName("Swerve.DriveToPose");
+    }
+    /**
+     * Drive to a pose automatically while using PathPlanner pathfinding, 
+     * and then use a PID controller to achieve a more accurate position.
+     * @param targetPose the target field pose
+     * @param translationKP proportional gain for XY (try 2.0-5.0)
+     * @param toleranceMeters position tolerance for "arrived"
+     */
+    public Command driveToPose(Supplier<Pose2d> targetPose, double translationKP,
+                                double toleranceMeters){
+            try {
+                return AutoBuilder.pathfindToPose(targetPose.get(), PathConstraints.unlimitedConstraints(12)).andThen(findAlign(targetPose, translationKP, toleranceMeters));
+            } catch (Exception e) {
+                DriverStation.reportError(e.getMessage(), true);
+                return findAlign(targetPose, translationKP, toleranceMeters);
+            }
+    }
+    /**
+     * Drive to a pose automatically while using PathPlanner pathfinding, 
+     * and then use a PID controller to achieve a more accurate position.
+     * @param targetPose the target field pose
+     * @param translationKP proportional gain for XY (try 2.0-5.0)
+     * @param toleranceMeters position tolerance for "arrived"
+     * @param pathConstraints the path constraints for the pathfinding for the drive to pose.
+     */
+    public Command driveToPose(Supplier<Pose2d> targetPose, double translationKP,
+                                double toleranceMeters, PathConstraints pathConstraints){
+            try {
+                return AutoBuilder.pathfindToPose(targetPose.get(), pathConstraints).andThen(findAlign(targetPose, translationKP, toleranceMeters));
+                
+            } catch (Exception e) {
+                DriverStation.reportError(e.getMessage(), true);
+                return findAlign(targetPose, translationKP, toleranceMeters);
+            }
+        }
+    /**
+     * Drive to a pose automatically while using PathPlanner pathfinding, 
+     * and then use a PID controller to achieve a more accurate position.
+     * @param targetPose the target field pose
+     */
+    public Command driveToPose(Supplier<Pose2d> targetPose){
+        return driveToPose(targetPose, 4.0, 0.02);
+    }
+    /**
+     * Drive to a pose automatically while using PathPlanner pathfinding, 
+     * and then use a PID controller to achieve a more accurate position.
+     * @param targetPose the target field pose
+     * @param pathConstraints the path constraints for the pathfinding for the drive to pose.
+     */
+    public Command driveToPose(Supplier<Pose2d> targetPos,PathConstraints pathConstraints){
+        return driveToPose(targetPos, 4, 0.02, pathConstraints);
     }
 
     /** X-brake command (lock wheels). */
