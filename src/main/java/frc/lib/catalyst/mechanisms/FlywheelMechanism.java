@@ -119,11 +119,12 @@ public class FlywheelMechanism extends CatalystMechanism {
 
         // Simulation
         if (RobotBase.isSimulation()) {
-            DCMotor motorModel = config.motorType.getDCMotor(1);
+            DCMotor motorModel = config.motorType.getDCMotor(config.primaryFollowers.size()+1);
             primarySim = new FlywheelSim(
                     LinearSystemId.createFlywheelSystem(motorModel, config.moi, config.gearRatio),
                     motorModel);
             if (secondaryMotor != null) {
+                motorModel = config.motorType.getDCMotor(config.secondaryFollowers.size()+1);
                 secondarySim = new FlywheelSim(
                         LinearSystemId.createFlywheelSystem(motorModel, config.moi, config.gearRatio),
                         motorModel);
