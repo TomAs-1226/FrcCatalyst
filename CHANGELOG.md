@@ -5,6 +5,18 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.10.0-beta] — 2026-06-09
+
+### Added — reactive autonomous architecture (path + reactive blending)
+The hard part of modern FRC auto: a PathPlanner path is a time-parameterized plan, but chasing a piece or auto-aligning takes you off it. PathPlanner removed replanning in 2025, so the right approach is three deliberate tools — now first-class in Catalyst.
+- **`PathCorrection`** (`subsystems.swerve`) — bend a path toward a live target *without leaving it*, using PathPlanner 2026's feedback-override API with safe lifecycle (override set on command start, **always cleared on end** — never leaks into the next path):
+  - `facingPoint(goal, poseSupplier, follow)` / `facing(headingSupplier, follow)` — face a goal while following the path's XY (shoot-on-the-move). Clean: PathPlanner still does its own rotation feedback, toward your target.
+  - `nudgingXY(xCorr, yCorr, follow)` — bias X/Y toward a target while pathing (⚠️ replaces PP's XY feedback; documented sharp edge).
+- **`SwerveSubsystem.followPath(name)`** — follow a pre-made path exactly (segment between known waypoints).
+- **`SwerveSubsystem.pathfindThenFollowPath(name [, constraints])`** — the "rejoin the plan" primitive: pathfind from the *current* pose to the next path's start, then follow. Use this right after a reactive deviation instead of `followPath` (which assumes you start at the path's beginning).
+- **Auto Builder** gains command templates mapping one-to-one onto these (Follow path / Pathfind→rejoin / Follow+face goal / Chase piece / Pathfind→pose), plus an inline architecture note.
+- Docs: [Autonomous Architecture](https://tomas-1226.github.io/FrcCatalyst/advanced/autonomous.html) — the full plan-as-feedforward / reaction-as-feedback / pathfind-to-reconnect writeup, researched against current PathPlanner.
+
 ## [0.9.0-beta] — 2026-06-09
 
 ### Changed — BrownoutMonitor is now passive by default

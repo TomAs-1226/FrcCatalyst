@@ -1,6 +1,6 @@
 {
   "$schema": "../catalyst-tab-bundle.schema.json",
-  "catalystVersion": "0.9.0",
+  "catalystVersion": "0.10.0",
   "mechanism": "ClawMechanism",
   "description": "Claw / gripper state, piece-detection, and current dashboard.",
   "placeholders": {

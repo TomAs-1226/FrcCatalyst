@@ -652,6 +652,53 @@ public class SwerveSubsystem extends SubsystemBase {
     }
 
     /**
+     * Follow a pre-made PathPlanner path <b>exactly</b> by name — assumes the
+     * robot starts at the path's start. Use this for segments between known
+     * waypoints. Needs {@code AutoBuilder} configured. Reports + no-ops if the
+     * path can't be loaded.
+     *
+     * <p>If a prior reactive action (chase / align) left the robot off the
+     * path's start, use {@link #pathfindThenFollowPath(String, PathConstraints)}
+     * instead so it pathfinds back on first.
+     */
+    public Command followPath(String pathName) {
+        try {
+            PathPlannerPath path = PathPlannerPath.fromPathFile(pathName);
+            return AutoBuilder.followPath(path).withName("Swerve.FollowPath(" + pathName + ")");
+        } catch (Exception e) {
+            DriverStation.reportError("Failed to load path \"" + pathName + "\": " + e.getMessage(), true);
+            return runOnce(() -> {}).withName("Swerve.FollowPath(missing:" + pathName + ")");
+        }
+    }
+
+    /**
+     * Pathfind from the <b>current</b> pose to the start of a named PathPlanner
+     * path, then follow it. This is the "rejoin the plan" primitive: after a
+     * reactive action (chasing a piece, a precision align) leaves you off
+     * course, this gets you back onto the planned route from wherever you
+     * actually are — instead of assuming you start at the path's beginning.
+     *
+     * @param pathName    PathPlanner path file (no extension)
+     * @param constraints pathfinding constraints for the rejoin leg
+     */
+    public Command pathfindThenFollowPath(String pathName, PathConstraints constraints) {
+        try {
+            PathPlannerPath path = PathPlannerPath.fromPathFile(pathName);
+            return AutoBuilder.pathfindThenFollowPath(path, constraints)
+                    .withName("Swerve.PathfindThenFollow(" + pathName + ")");
+        } catch (Exception e) {
+            DriverStation.reportError(
+                    "Failed to load path \"" + pathName + "\": " + e.getMessage(), true);
+            return runOnce(() -> {}).withName("Swerve.PathfindThenFollow(missing:" + pathName + ")");
+        }
+    }
+
+    /** Pathfind-then-follow with unlimited constraints (use your own limits elsewhere). */
+    public Command pathfindThenFollowPath(String pathName) {
+        return pathfindThenFollowPath(pathName, PathConstraints.unlimitedConstraints(12.0));
+    }
+
+    /**
      * Drive toward a vision-detected game piece and stop on top of it.
      *
      * <p>The supplier returns the piece's field-relative position when your

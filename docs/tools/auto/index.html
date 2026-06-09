@@ -85,7 +85,7 @@
     <div class="row"><input type="text" id="autoName" value="ThreePiece"></div>
 
     <h2>Actions</h2>
-    <div class="note">Name each capability. The tool can scaffold an <code>Action</code> stub for each — fill the command with a PathPlanner / Choreo follow or your own command.</div>
+    <div class="note">Name each capability and pick how it drives. <b>PathPlanner paths are the plan</b> the robot follows when it can; <b>chase / align</b> deliberately bend it off-course, so the <b>next</b> path step should <b>pathfind → rejoin</b> from wherever you ended up rather than assume you're at the path start. <a href="../../advanced/autonomous.html" style="color:var(--accent2)">Architecture →</a></div>
     <div class="actions" style="margin:8px 0">
       <button class="btn ghost" id="addAction">+ Action</button>
       <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px"><input type="checkbox" id="scaffold" checked> emit Action stubs</label>
@@ -171,14 +171,32 @@
     save();
   }
 
+  // Command templates — the PathPlanner-correct patterns for each kind of move.
+  const TEMPLATES = {
+    "":               "",
+    "Follow path (exact)":      'swerve.followPath("PATH")',
+    "Pathfind → rejoin path":   'swerve.pathfindThenFollowPath("PATH")',
+    "Pathfind → pose":          'swerve.pathfindToPose(() -> Poses.TARGET)',
+    "Follow + face goal":       'PathCorrection.facingPoint(GOAL, swerve::getPose, swerve.followPath("PATH"))',
+    "Chase detected piece":     'swerve.driveToPiece(() -> vision.nearestPiecePose())',
+    "Choreo path":              'swerve.followChoreoPath("TRAJ")',
+    "Mechanism / custom":       'superstructure.scoreCommand()',
+  };
+
   function renderActions(){
     const wrap = $("actionList"); wrap.innerHTML="";
     state.actions.forEach((a,i)=>{
       const el=document.createElement("div"); el.className="step";
+      const opts = Object.keys(TEMPLATES).map(t=>`<option>${t}</option>`).join("");
       el.innerHTML = `<div class="top"><input value="${esc(a.name)}" data-k="name" placeholder="actionName">
         <button class="btn danger" data-del="${i}">×</button></div>
-        <input data-k="cmd" value="${esc(a.cmd)}" placeholder="swerve.followChoreoPath(&quot;X&quot;)">`;
+        <select data-tpl style="margin-bottom:5px"><option value="">— command template —</option>${opts}</select>
+        <input data-k="cmd" value="${esc(a.cmd)}" placeholder="swerve.followPath(&quot;X&quot;)">`;
       el.querySelectorAll("[data-k]").forEach(inp=>inp.oninput=e=>{a[e.target.dataset.k]=e.target.value; generate(); save();});
+      el.querySelector("[data-tpl]").onchange=e=>{
+        const t = TEMPLATES[e.target.value];
+        if(t){ a.cmd = t; renderActions(); generate(); save(); }
+      };
       el.querySelector("[data-del]").onclick=()=>{state.actions.splice(i,1); render();};
       wrap.appendChild(el);
     });

@@ -89,6 +89,13 @@ operatorController.b().onTrue(elevator.goTo("STOW"));
 
 ---
 
+## What's New in v0.10.0-beta
+
+- **Reactive autonomous architecture** — blend a planned PathPlanner route with reactive behavior (chasing pieces, auto-aligning) the way it's actually done in 2026:
+  - **`PathCorrection`** — bend a path toward a live target *without leaving it* via PathPlanner's feedback-override (face a goal while following the path; shoot-on-the-move). Overrides are always cleared on command end — no leaks.
+  - **`SwerveSubsystem.pathfindThenFollowPath(name)`** — rejoin the plan from wherever a deviation left you (the primitive most teams miss), plus `followPath(name)` for exact segments.
+  - **Auto Builder** command templates map onto these; full [Autonomous Architecture](https://tomas-1226.github.io/FrcCatalyst/advanced/autonomous.html) guide explains plan-as-feedforward vs reaction-as-feedback.
+
 ## What's New in v0.9.0-beta
 
 - **Auto Builder tool** — generate a behavior-framework auto (resilient `BehaviorEngine` sequence or utility `Strategist`) in the browser. Path-following stays with PathPlanner / Choreo; the tool builds the reactive strategy layer. [Open it](https://tomas-1226.github.io/FrcCatalyst/tools/auto/).
