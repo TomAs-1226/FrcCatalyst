@@ -22,12 +22,30 @@ Add FrcCatalyst to your WPILib robot project.
 ## Prerequisites
 
 - **WPILib 2026** installed ([download](https://docs.wpilib.org/en/stable/docs/zero-to-robot/step-2/wpilib-setup.html))
-- **CTRE Phoenix 6** vendordep installed in your robot project
 - A **GradleRIO robot project** (created via WPILib project generator)
+- These vendordeps installed in your project (Catalyst builds on them):
+  **CTRE Phoenix 6**, **PathPlanner**, and **PhotonVision**. Install them
+  the usual way (Manage Vendor Libraries → Install new libraries online)
+  with their official URLs.
 
-## Option 1: JitPack (Recommended)
+## Option 1: Vendordep (Recommended)
 
-Add the JitPack repository and FrcCatalyst dependency to your robot project's `build.gradle`:
+The easiest install. In WPILib VS Code, open the command palette and run
+**WPILib: Manage Vendor Libraries → Install new libraries (online)**, then
+paste:
+
+```
+https://tomas-1226.github.io/FrcCatalyst/vendordep/FrcCatalyst.json
+```
+
+That adds FrcCatalyst to your project and lets WPILib check for updates.
+Make sure the Phoenix 6, PathPlanner, and PhotonVision vendordeps are also
+installed (Catalyst depends on them).
+
+## Option 2: JitPack (build.gradle)
+
+If you'd rather add it by hand, put the JitPack repository and the
+dependency in your robot project's `build.gradle`:
 
 ```gradle
 repositories {
@@ -41,7 +59,7 @@ dependencies {
 }
 ```
 
-## Option 2: Local Maven (From Source)
+## Option 3: Local Maven (From Source)
 
 If you prefer to build from source or need to modify the library:
 

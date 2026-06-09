@@ -41,7 +41,15 @@
 
 ### 1. Add the dependency
 
-Add FrcCatalyst to your robot project's `build.gradle`:
+**Easiest:** in WPILib VS Code, run **Manage Vendor Libraries → Install new libraries (online)** and paste:
+
+```
+https://tomas-1226.github.io/FrcCatalyst/vendordep/FrcCatalyst.json
+```
+
+Make sure the **Phoenix 6**, **PathPlanner**, and **PhotonVision** vendordeps are installed too (Catalyst builds on them).
+
+<details><summary>Or add it by hand in <code>build.gradle</code></summary>
 
 ```gradle
 repositories {
@@ -49,9 +57,10 @@ repositories {
 }
 
 dependencies {
-    implementation "com.github.TomAs-1226:FrcCatalyst:v0.3.3-beta"
+    implementation "com.github.TomAs-1226:FrcCatalyst:v0.10.0-beta"
 }
 ```
+</details>
 
 ### 2. Build a mechanism in seconds
 

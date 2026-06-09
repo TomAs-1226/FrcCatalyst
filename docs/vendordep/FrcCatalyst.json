@@ -1,0 +1,20 @@
+{
+  "fileName": "FrcCatalyst.json",
+  "name": "FrcCatalyst",
+  "version": "0.10.0-beta",
+  "frcYear": "2026",
+  "uuid": "a3f5c1e8-9d24-4b7a-bf12-6e0c3d8a91f4",
+  "mavenUrls": [
+    "https://jitpack.io"
+  ],
+  "jsonUrl": "https://tomas-1226.github.io/FrcCatalyst/vendordep/FrcCatalyst.json",
+  "javaDependencies": [
+    {
+      "groupId": "com.github.TomAs-1226",
+      "artifactId": "FrcCatalyst",
+      "version": "v0.10.0-beta"
+    }
+  ],
+  "jniDependencies": [],
+  "cppDependencies": []
+}
