@@ -154,6 +154,20 @@ public class SwerveSubsystem extends SubsystemBase {
     }
 
     /**
+     * In simulation only, force the estimator pose to a physics-sim pose
+     * (e.g. maple-sim's {@code SwerveDriveSimulation} pose), so Catalyst's
+     * odometry tracks the simulated world. No-op on a real robot.
+     *
+     * <p>Call once per {@code simulationPeriodic()}. See
+     * {@code docs/advanced/simulation.md} for the maple-sim wiring.
+     */
+    public void setSimPose(Pose2d simPose) {
+        if (edu.wpi.first.wpilibj.RobotBase.isSimulation() && simPose != null) {
+            drivetrain.resetPose(simPose);
+        }
+    }
+
+    /**
      * Robot-relative chassis speeds (the convention PathPlanner's
      * {@code robotRelativeSpeedsSupplier} expects).
      */

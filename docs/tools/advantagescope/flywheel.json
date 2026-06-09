@@ -1,6 +1,6 @@
 {
   "$schema": "../catalyst-tab-bundle.schema.json",
-  "catalystVersion": "0.8.0",
+  "catalystVersion": "0.9.0",
   "mechanism": "FlywheelMechanism",
   "description": "Dual-flywheel velocity / spin-up dashboard.",
   "placeholders": {

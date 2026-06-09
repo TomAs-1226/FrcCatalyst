@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Catalyst Auto Builder</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root {
+      --bg:#0f1424; --panel:#1b2240; --panel2:#131831;
+      --accent:#e94560; --accent2:#f0648a; --text:#f4f4f8; --muted:#8a8aa8;
+      --border:rgba(255,255,255,0.08); --good:#4ade80; --blue:#60a5fa; --amber:#fbbf24;
+    }
+    * { box-sizing:border-box; }
+    html,body{margin:0;padding:0;background:
+      radial-gradient(ellipse at 100% 0%,rgba(233,69,96,0.08),transparent 60%),
+      radial-gradient(ellipse at 0% 100%,rgba(96,165,250,0.06),transparent 60%),var(--bg);
+      color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,"SF Pro Text",Segoe UI,sans-serif;min-height:100vh;}
+    header{padding:16px 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+      position:sticky;top:0;z-index:5;background:linear-gradient(180deg,rgba(27,34,64,0.85),transparent);backdrop-filter:blur(6px);}
+    header h1{margin:0;font-size:18px;font-weight:700;}
+    header .badge{padding:2px 10px;border-radius:999px;background:var(--accent);color:#fff;font-size:11px;font-weight:600;}
+    header .hint{color:var(--muted);font-size:13px;}
+    header .back{color:var(--accent2);text-decoration:none;font-size:13px;margin-left:auto;}
+    main{display:grid;grid-template-columns:420px 1fr;gap:20px;padding:22px 24px;}
+    aside{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:14px;
+      padding:20px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.25);}
+    h2{margin:0 0 10px;font-size:11px;text-transform:uppercase;letter-spacing:1.3px;color:var(--muted);font-weight:700;}
+    h2:not(:first-child){margin-top:22px;}
+    .seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;}
+    .seg button{background:rgba(255,255,255,0.03);color:var(--text);border:1px solid var(--border);border-radius:8px;
+      padding:9px;font-size:13px;cursor:pointer;transition:all .12s ease;}
+    .seg button.active{background:linear-gradient(135deg,var(--accent),#ff6b8a);border-color:transparent;box-shadow:0 4px 10px rgba(233,69,96,.35);}
+    .row{display:grid;grid-template-columns:1fr;gap:5px;margin-bottom:10px;}
+    .row label{color:var(--muted);font-size:12px;}
+    .row input,.row select,.row textarea{background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;
+      padding:7px 10px;font-size:13px;font-family:inherit;}
+    .row textarea{font-family:ui-monospace,monospace;font-size:12px;min-height:38px;resize:vertical;}
+    .row input:focus,.row select:focus,.row textarea:focus{border-color:var(--accent);outline:none;}
+    .btn{background:linear-gradient(135deg,var(--accent),#ff6b8a);color:#fff;border:0;border-radius:8px;padding:8px 12px;
+      font-size:12px;font-weight:600;cursor:pointer;box-shadow:0 4px 12px rgba(233,69,96,.3);}
+    .btn:hover{transform:translateY(-1px);}
+    .btn.ghost{background:transparent;color:var(--text);border:1px solid var(--border);box-shadow:none;}
+    .btn.ghost:hover{border-color:var(--accent);color:var(--accent2);}
+    .btn.danger{background:transparent;color:var(--accent);border:1px solid rgba(233,69,96,.3);padding:3px 9px;font-size:11px;box-shadow:none;}
+    .btn.danger:hover{background:rgba(233,69,96,.12);}
+    .steps{display:flex;flex-direction:column;gap:8px;}
+    .step{background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:10px 12px;}
+    .step .top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;}
+    .step .nm{font-weight:700;font-size:13px;color:var(--accent2);}
+    .step .grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+    .step input,.step select{background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:12px;width:100%;}
+    .actions{display:flex;gap:8px;flex-wrap:wrap;}
+    .preview-area{display:flex;flex-direction:column;}
+    .preview-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+    .preview-head h2{margin:0;}
+    pre{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:16px 18px;flex:1;margin:0;overflow:auto;
+      font-family:"JetBrains Mono",ui-monospace,Menlo,monospace;font-size:12.5px;line-height:1.55;white-space:pre;color:#d9e0f0;}
+    pre .kw{color:#ef798a;} pre .str{color:#9ee493;} pre .num{color:#f4d35e;} pre .cmt{color:var(--muted);font-style:italic;}
+    .note{font-size:12px;color:var(--muted);line-height:1.5;margin-top:8px;}
+    .toast{position:fixed;bottom:20px;right:20px;background:var(--good);color:#082;padding:10px 16px;border-radius:8px;font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;}
+    .toast.show{opacity:1;}
+    .credit{padding:12px 28px;color:var(--muted);font-size:12px;border-top:1px solid var(--border);}
+    .credit a{color:var(--accent2);text-decoration:none;}
+    @media (max-width:980px){main{grid-template-columns:1fr;}}
+  </style>
+</head>
+<body>
+<header>
+  <h1>Auto Builder</h1>
+  <span class="badge">v0.9.0</span>
+  <span class="hint">Generate a Catalyst behavior-framework auto. PathPlanner / Choreo do the driving.</span>
+  <a href="../" class="back">← Catalyst tools</a>
+</header>
+
+<main>
+  <aside>
+    <h2>Mode</h2>
+    <div class="seg" id="modeSeg">
+      <button data-mode="sequence" class="active">Sequence (resilient)</button>
+      <button data-mode="utility">Utility (Strategist)</button>
+    </div>
+    <div class="note" id="modeNote"></div>
+
+    <h2>Auto name</h2>
+    <div class="row"><input type="text" id="autoName" value="ThreePiece"></div>
+
+    <h2>Actions</h2>
+    <div class="note">Name each capability. The tool can scaffold an <code>Action</code> stub for each — fill the command with a PathPlanner / Choreo follow or your own command.</div>
+    <div class="actions" style="margin:8px 0">
+      <button class="btn ghost" id="addAction">+ Action</button>
+      <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px"><input type="checkbox" id="scaffold" checked> emit Action stubs</label>
+    </div>
+    <div class="steps" id="actionList"></div>
+
+    <h2 id="stepsHeading">Sequence steps</h2>
+    <div class="actions" style="margin-bottom:8px"><button class="btn ghost" id="addStep">+ Step</button></div>
+    <div class="steps" id="stepList"></div>
+
+    <div id="seqExtra">
+      <h2>Bail (low time / abort)</h2>
+      <div class="row"><label>deadline seconds (0 = none)</label><input type="number" id="deadline" value="14" step="0.5"></div>
+      <div class="row"><label>onBail action (optional)</label><input type="text" id="bailAction" placeholder="alignAndShoot"></div>
+    </div>
+
+    <h2>Storage</h2>
+    <div class="actions">
+      <button class="btn ghost" id="resetBtn">Reset</button>
+    </div>
+  </aside>
+
+  <div class="preview-area">
+    <div class="preview-head">
+      <h2>Generated Java</h2>
+      <div class="actions">
+        <button class="btn ghost" id="downloadBtn">Download .java</button>
+        <button class="btn" id="copyBtn">Copy</button>
+      </div>
+    </div>
+    <pre id="preview"></pre>
+  </div>
+</main>
+
+<div class="credit">
+  Generates the autonomy <em>wiring</em> (<code>BehaviorEngine</code> / <code>Strategist</code>). Path-following is left to
+  <a href="https://pathplanner.dev" target="_blank" rel="noopener">PathPlanner</a> / Choreo — reference your paths inside the action commands.
+  See the <a href="../../advanced/behavior.html">behavior framework guide</a>.
+</div>
+<div class="toast" id="toast">Copied</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const KEY = "catalyst-auto-builder-v1";
+  let state = {
+    mode: "sequence",
+    autoName: "ThreePiece",
+    scaffold: true,
+    actions: [ {name:"scorePreload", cmd:"superstructure.scoreCommand()"},
+               {name:"grabPieceA", cmd:"swerve.followChoreoPath(\"GrabA\").andThen(intake.intakeUntilPiece())"},
+               {name:"scoreIfHolding", cmd:"superstructure.scoreCommand()"} ],
+    steps: [ {action:"scorePreload", fallback:"skip", sub:""},
+             {action:"grabPieceA", fallback:"skip", sub:""},
+             {action:"scoreIfHolding", fallback:"skip", sub:""} ],
+    behaviors: [ {name:"ChasePiece", action:"grabPieceA", score:"(scored < goal && ctx.matchTimeRemaining() > 4) ? 10 : 0"},
+                 {name:"AlignShoot", action:"scoreIfHolding", score:"(scored >= goal || ctx.matchTimeRemaining() <= 4) ? 20 : 0"} ],
+    deadline: 14,
+    bailAction: "alignAndShoot",
+  };
+
+  function save(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch{} }
+  function load(){ try{ const r=localStorage.getItem(KEY); if(r) state=Object.assign(state, JSON.parse(r)); }catch{} }
+
+  const NOTES = {
+    sequence: "Runs actions in order; each precondition is checked when reached. If one can't start, it falls back (skip / substitute / abort) instead of blindly running. Best for resilient autos.",
+    utility: "Each loop, the highest-scoring eligible behavior runs, switching when another wins. Express \"chase until time runs short, then go shoot\" as crossing score curves. No state machine.",
+  };
+
+  function camel(s){ return (s||"x").replace(/[^a-zA-Z0-9]/g," ").split(/\s+/).filter(Boolean)
+    .map((w,i)=>i===0?w[0].toLowerCase()+w.slice(1):w[0].toUpperCase()+w.slice(1)).join(""); }
+
+  // ---------- rendering the form ----------
+  function render(){
+    $("autoName").value = state.autoName;
+    $("scaffold").checked = state.scaffold;
+    $("modeNote").textContent = NOTES[state.mode];
+    document.querySelectorAll("#modeSeg button").forEach(b=>b.classList.toggle("active", b.dataset.mode===state.mode));
+    $("stepsHeading").textContent = state.mode==="sequence" ? "Sequence steps" : "Behaviors";
+    $("seqExtra").style.display = state.mode==="sequence" ? "" : "none";
+    renderActions();
+    renderSteps();
+    generate();
+    save();
+  }
+
+  function renderActions(){
+    const wrap = $("actionList"); wrap.innerHTML="";
+    state.actions.forEach((a,i)=>{
+      const el=document.createElement("div"); el.className="step";
+      el.innerHTML = `<div class="top"><input value="${esc(a.name)}" data-k="name" placeholder="actionName">
+        <button class="btn danger" data-del="${i}">×</button></div>
+        <input data-k="cmd" value="${esc(a.cmd)}" placeholder="swerve.followChoreoPath(&quot;X&quot;)">`;
+      el.querySelectorAll("[data-k]").forEach(inp=>inp.oninput=e=>{a[e.target.dataset.k]=e.target.value; generate(); save();});
+      el.querySelector("[data-del]").onclick=()=>{state.actions.splice(i,1); render();};
+      wrap.appendChild(el);
+    });
+  }
+
+  function actionOptions(sel){
+    return `<option value="">—</option>` + state.actions.map(a=>`<option ${a.name===sel?"selected":""}>${esc(a.name)}</option>`).join("");
+  }
+
+  function renderSteps(){
+    const wrap=$("stepList"); wrap.innerHTML="";
+    if(state.mode==="sequence"){
+      state.steps.forEach((s,i)=>{
+        const el=document.createElement("div"); el.className="step";
+        el.innerHTML=`<div class="top"><span class="nm">Step ${i+1}</span><button class="btn danger" data-del="${i}">×</button></div>
+          <div class="grid2">
+            <select data-k="action">${actionOptions(s.action)}</select>
+            <select data-k="fallback">
+              <option value="skip" ${s.fallback==="skip"?"selected":""}>orElseSkip</option>
+              <option value="substitute" ${s.fallback==="substitute"?"selected":""}>orElse(sub)</option>
+              <option value="abort" ${s.fallback==="abort"?"selected":""}>orElseAbort</option>
+            </select>
+          </div>
+          <div class="subrow" style="margin-top:6px;${s.fallback==="substitute"?"":"display:none"}">
+            <select data-k="sub">${actionOptions(s.sub)}</select>
+          </div>`;
+        el.querySelectorAll("[data-k]").forEach(inp=>inp.onchange=e=>{s[e.target.dataset.k]=e.target.value; render();});
+        el.querySelector("[data-del]").onclick=()=>{state.steps.splice(i,1); render();};
+        wrap.appendChild(el);
+      });
+    } else {
+      state.behaviors.forEach((b,i)=>{
+        const el=document.createElement("div"); el.className="step";
+        el.innerHTML=`<div class="top"><input value="${esc(b.name)}" data-k="name" placeholder="BehaviorName"><button class="btn danger" data-del="${i}">×</button></div>
+          <div class="grid2"><select data-k="action">${actionOptions(b.action)}</select><span></span></div>
+          <textarea data-k="score" placeholder="ctx -> ... return a score">${esc(b.score)}</textarea>`;
+        el.querySelectorAll("[data-k]").forEach(inp=>inp.oninput=e=>{b[e.target.dataset.k]=e.target.value; generate(); save();});
+        el.querySelector("[data-del]").onclick=()=>{state.behaviors.splice(i,1); render();};
+        wrap.appendChild(el);
+      });
+    }
+  }
+
+  function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+  // ---------- code generation ----------
+  function generate(){
+    const name = state.autoName || "Auto";
+    const L = [];
+    if (state.scaffold && state.actions.length){
+      L.push("// --- Action definitions (fill the commands) ---");
+      state.actions.forEach(a=>{
+        L.push(`Action ${camel(a.name)} = Action.named("${a.name}")`);
+        L.push(`    .run(() -> ${a.cmd || "Commands.none()"})`);
+        L.push(`    // .when(...).until(...).requires(...)`);
+        L.push(`    .build();`);
+        L.push("");
+      });
+    }
+    if (state.mode === "sequence"){
+      L.push(`Command ${camel(name)} = BehaviorEngine.sequence("${name}")`);
+      state.steps.forEach(s=>{
+        if(!s.action) return;
+        if(s.fallback==="skip"){ L.push(`    .then(${camel(s.action)})`); }
+        else if(s.fallback==="substitute"){ L.push(`    .attempt(${camel(s.action)}).orElse(${camel(s.sub||"someOther")})`); }
+        else { L.push(`    .attempt(${camel(s.action)}).orElseAbort()`); }
+      });
+      if (Number(state.deadline) > 0) L.push(`    .deadline(${Number(state.deadline)})`);
+      if (state.bailAction) L.push(`    .onBail(${camel(state.bailAction)})`);
+      L.push(`    .build();`);
+    } else {
+      L.push(`Command ${camel(name)} = Strategist.named("${name}")`);
+      state.behaviors.forEach(b=>{
+        if(!b.action) return;
+        const sc = (b.score||"0").trim();
+        const body = sc.startsWith("ctx") ? sc : `ctx -> ${sc}`;
+        L.push(`    .add("${b.name}", ${camel(b.action)},`);
+        L.push(`         ${body})`);
+      });
+      L.push(`    .build();`);
+    }
+    $("preview").innerHTML = highlight(L.join("\n"));
+  }
+
+  function highlight(code){
+    return code.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+      .replace(/(\".*?\")/g,'<span class="str">$1</span>')
+      .replace(/\b(Command|Action|new|return)\b/g,'<span class="kw">$1</span>')
+      .replace(/\b(-?\d+\.?\d*)\b/g,'<span class="num">$1</span>')
+      .replace(/(\/\/[^\n]*)/g,'<span class="cmt">$1</span>');
+  }
+
+  function plainCode(){ return $("preview").textContent; }
+
+  // ---------- wiring ----------
+  document.querySelectorAll("#modeSeg button").forEach(b=>b.onclick=()=>{state.mode=b.dataset.mode; render();});
+  $("autoName").oninput=e=>{state.autoName=e.target.value; generate(); save();};
+  $("scaffold").onchange=e=>{state.scaffold=e.target.checked; generate(); save();};
+  $("addAction").onclick=()=>{state.actions.push({name:"newAction", cmd:"Commands.none()"}); render();};
+  $("addStep").onclick=()=>{
+    if(state.mode==="sequence") state.steps.push({action:state.actions[0]?.name||"", fallback:"skip", sub:""});
+    else state.behaviors.push({name:"NewBehavior", action:state.actions[0]?.name||"", score:"0"});
+    render();
+  };
+  $("deadline").oninput=e=>{state.deadline=e.target.value; generate(); save();};
+  $("bailAction").value=state.bailAction;
+  $("bailAction").oninput=e=>{state.bailAction=e.target.value; generate(); save();};
+  $("resetBtn").onclick=()=>{ if(confirm("Reset the auto?")){ localStorage.removeItem(KEY); location.reload(); } };
+  $("copyBtn").onclick=async()=>{ try{ await navigator.clipboard.writeText(plainCode()); const t=$("toast"); t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),900);}catch{alert("clipboard blocked");} };
+  $("downloadBtn").onclick=()=>{
+    const blob=new Blob([plainCode()],{type:"text/x-java-source"}); const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob); a.download=(state.autoName||"Auto")+".java"; document.body.appendChild(a); a.click(); a.remove();
+  };
+
+  load();
+  $("deadline").value = state.deadline;
+  render();
+</script>
+</body>
+</html>

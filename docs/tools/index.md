@@ -8,7 +8,7 @@ has_children: false
 # Tools
 {: .no_toc }
 
-Seven single-file browser tools, hosted right here. Nothing to install.
+Eight single-file browser tools, hosted right here. Nothing to install.
 {: .fs-6 .fw-300 }
 
 <style>
@@ -122,6 +122,13 @@ Seven single-file browser tools, hosted right here. Nothing to install.
   <p class="name">CAN ID Planner</p>
   <p class="desc">Add devices, catch ID collisions, export a <code>CANIds.java</code> that pre-registers everything with <code>CANRegistry</code>. Presets for swerve and shooters.</p>
   <span class="tag plan">Planner</span>
+</a>
+
+<a class="tool-card" href="auto/">
+  <div class="icon">🧭</div>
+  <p class="name">Auto Builder</p>
+  <p class="desc">Generate a behavior-framework auto — resilient <code>BehaviorEngine</code> sequences or a utility <code>Strategist</code>. Path-following stays with PathPlanner / Choreo.</p>
+  <span class="tag gen">Generator</span>
 </a>
 
 </div>

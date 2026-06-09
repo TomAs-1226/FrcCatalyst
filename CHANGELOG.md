@@ -5,6 +5,19 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.9.0-beta] — 2026-06-09
+
+### Changed — BrownoutMonitor is now passive by default
+- `BrownoutMonitor` no longer takes any action unless you opt in. `outputScale()` stays at `1.0` and nothing trips until you call `.enableThrottling()` and/or `.tripsRobotSafety(true)`. Prominent warnings added — these behaviours are aggressive (throttling cuts robot power mid-match; a too-high warn threshold can throttle a healthy robot). The passive monitor still estimates and publishes to `/Catalyst/Brownout/` so you can watch the prediction before deciding to act.
+
+### Added — Auto Builder tool
+- New [Auto Builder](https://tomas-1226.github.io/FrcCatalyst/tools/auto/) browser tool — generates a behavior-framework auto (resilient `BehaviorEngine` sequence or utility `Strategist`) as copy-paste Java. Add actions, set fallbacks / deadline / bail (sequence) or score expressions (utility), optionally scaffold `Action` stubs. **Path-following stays with PathPlanner / Choreo** — the tool generates the autonomy *wiring*, you reference your paths inside the action commands. localStorage persistence, copy, `.java` download. (PathPlanner is the general pather; this builds the reactive strategy layer on top.)
+
+### Added — maple-sim support (dependency-free)
+- `SimGamePieces` — streams simulated game-piece `Pose3d[]` to `/Catalyst/Sim/<name>` for AdvantageScope rendering. Works with any sim engine.
+- `SwerveSubsystem.setSimPose(Pose2d)` — feed a physics-sim pose (e.g. maple-sim's) into Catalyst's odometry; no-op on a real robot.
+- [Simulation guide](https://tomas-1226.github.io/FrcCatalyst/advanced/simulation.html) — wires maple-sim to the Catalyst autonomy stack. Catalyst provides the seam; you add maple-sim to your own robot project (not bundled — it's an unstable, fast-moving, sim-only package, and Catalyst is a consumed library).
+
 ## [0.8.0-beta] — 2026-06-09
 
 ### Added — Tier 2 batch (drive, power, logging)

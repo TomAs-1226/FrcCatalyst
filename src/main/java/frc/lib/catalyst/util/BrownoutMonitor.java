@@ -19,26 +19,40 @@ import java.util.function.DoubleSupplier;
  *   predicted = measuredVoltage − (additionalCurrentHeadroom × R_internal)
  * </pre>
  *
- * <p>and, more directly, watches the live margin {@code measuredVoltage −
- * floor}. When either crosses the danger threshold it can throttle a
- * supplied output scale and/or trip {@link RobotSafety}, giving the rest of
- * the robot a chance to back off before the brownout actually happens.
+ * <p>By default the monitor is <b>passive</b>: it estimates and publishes,
+ * but takes no action. {@link #outputScale()} returns {@code 1.0} and
+ * nothing trips. The two aggressive behaviours are each explicit opt-ins.
+ *
+ * <p>⚠️ <b>The aggressive behaviours are aggressive.</b> Output throttling
+ * cuts your robot's power mid-match the instant predicted voltage dips, and
+ * a preemptive {@code RobotSafety} trip can stop the robot outright. Battery
+ * internal resistance varies a lot with age and temperature, so the
+ * prediction is approximate — a too-high {@code warnVoltage} or too-low
+ * {@code R} can throttle a perfectly healthy robot during a hard
+ * acceleration. <b>Test thoroughly with realistic loads before enabling
+ * either, and tune {@code R} from your own match logs (ΔV / ΔI).</b>
  *
  * <p>Call {@link #update()} once per loop. The estimate publishes to
- * {@code /Catalyst/Brownout/...}.
+ * {@code /Catalyst/Brownout/...} whether or not you act on it — so you can
+ * watch the prediction for a few events before deciding to enable
+ * throttling.
  *
  * <pre>{@code
+ * // Passive (recommended starting point) — just watch /Catalyst/Brownout:
  * BrownoutMonitor brownout = BrownoutMonitor.builder()
- *     .totalCurrent(() -> pdh.getTotalCurrent())   // sum of all channel currents
- *     .batteryInternalResistance(0.020)            // ~20 mΩ for a healthy battery
- *     .warnVoltage(7.5)                            // start easing off here
- *     .tripVoltage(7.0)                            // trip RobotSafety here
- *     .tripsRobotSafety(true)
+ *     .totalCurrent(() -> pdh.getTotalCurrent())
+ *     .batteryInternalResistance(0.020)
  *     .build();
+ * brownout.update();   // outputScale() stays 1.0, nothing trips
  *
- * // each loop:
- * brownout.update();
- * double scale = brownout.outputScale();   // 1.0 healthy → 0 at the floor; multiply drive output by it
+ * // Opt in to the aggressive behaviours only after testing:
+ * BrownoutMonitor active = BrownoutMonitor.builder()
+ *     .totalCurrent(() -> pdh.getTotalCurrent())
+ *     .batteryInternalResistance(0.020)
+ *     .warnVoltage(7.2).tripVoltage(6.9)
+ *     .enableThrottling()      // outputScale() now ramps below warn
+ *     .tripsRobotSafety(true)  // trips RobotSafety at tripVoltage
+ *     .build();
  * }</pre>
  */
 public final class BrownoutMonitor {
@@ -47,6 +61,7 @@ public final class BrownoutMonitor {
     private final double rInternal;
     private final double warnVoltage;
     private final double tripVoltage;
+    private final boolean throttlingEnabled;
     private final boolean tripsRobotSafety;
     private final double floorVoltage;
 
@@ -61,6 +76,7 @@ public final class BrownoutMonitor {
         this.rInternal = b.rInternal;
         this.warnVoltage = b.warnVoltage;
         this.tripVoltage = b.tripVoltage;
+        this.throttlingEnabled = b.throttlingEnabled;
         this.tripsRobotSafety = b.tripsRobotSafety;
         this.floorVoltage = b.floorVoltage;
         this.nt = NetworkTableInstance.getDefault()
@@ -76,9 +92,9 @@ public final class BrownoutMonitor {
         // forward-looking margin rather than reacting only to the live dip.
         predictedVoltage = v - i * rInternal;
 
-        // Linear throttle between warn and floor: full output above warn,
-        // zero at the floor.
-        if (predictedVoltage >= warnVoltage) {
+        // Output scale stays 1.0 (no action) unless throttling is explicitly
+        // enabled. When enabled: linear throttle between warn and floor.
+        if (!throttlingEnabled || predictedVoltage >= warnVoltage) {
             outputScale = 1.0;
         } else if (predictedVoltage <= floorVoltage) {
             outputScale = 0.0;
@@ -108,9 +124,10 @@ public final class BrownoutMonitor {
     }
 
     /**
-     * Suggested output multiplier [0, 1] — 1 when healthy, ramping to 0 as the
+     * Suggested output multiplier [0, 1]. <b>Always 1.0 unless
+     * {@code enableThrottling()} was set</b> — then it ramps toward 0 as the
      * predicted voltage approaches the floor. Multiply drive / mechanism
-     * output by this to ease off proactively.
+     * output by this to ease off proactively. ⚠️ aggressive; see class docs.
      */
     public double outputScale() {
         return outputScale;
@@ -143,6 +160,7 @@ public final class BrownoutMonitor {
         private double rInternal = 0.020;   // ohms, healthy battery
         private double warnVoltage = 7.5;
         private double tripVoltage = 7.0;
+        private boolean throttlingEnabled = false;
         private boolean tripsRobotSafety = false;
         private double floorVoltage = 6.8;  // roboRIO brownout floor
 
@@ -180,7 +198,20 @@ public final class BrownoutMonitor {
             return this;
         }
 
-        /** If true, trip {@link RobotSafety} when predicted voltage hits the trip threshold. */
+        /**
+         * Opt in to output throttling — {@link #outputScale()} will ramp below
+         * 1.0 as predicted voltage approaches the floor. ⚠️ aggressive: cuts
+         * robot power mid-match. Off by default. Test before enabling.
+         */
+        public Builder enableThrottling() {
+            this.throttlingEnabled = true;
+            return this;
+        }
+
+        /**
+         * Opt in to a preemptive {@link RobotSafety} trip at {@code tripVoltage}.
+         * ⚠️ aggressive: can stop the robot. Off by default. Test before enabling.
+         */
         public Builder tripsRobotSafety(boolean trips) {
             this.tripsRobotSafety = trips;
             return this;

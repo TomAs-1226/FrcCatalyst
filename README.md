@@ -89,6 +89,12 @@ operatorController.b().onTrue(elevator.goTo("STOW"));
 
 ---
 
+## What's New in v0.9.0-beta
+
+- **Auto Builder tool** — generate a behavior-framework auto (resilient `BehaviorEngine` sequence or utility `Strategist`) in the browser. Path-following stays with PathPlanner / Choreo; the tool builds the reactive strategy layer. [Open it](https://tomas-1226.github.io/FrcCatalyst/tools/auto/).
+- **`BrownoutMonitor` is now passive by default** — no output throttling or tripping unless you explicitly `.enableThrottling()` / `.tripsRobotSafety(true)`, with warnings that those behaviours are aggressive.
+- **maple-sim support** — `SimGamePieces` (game-piece viz) + `SwerveSubsystem.setSimPose(...)` seam + a [wiring guide](https://tomas-1226.github.io/FrcCatalyst/advanced/simulation.html). Dependency-free — you add maple-sim to your own project; Catalyst provides the integration.
+
 ## What's New in v0.8.0-beta
 
 - **Choreo paths** — `swerve.followChoreoPath(name)` (via PathPlanner, no extra dep).

@@ -268,27 +268,41 @@ transition.
 
 ## BrownoutMonitor
 
-Predicts an oncoming brownout and eases off *before* the radio drops. A
-battery sags under load by `I × R_internal`; the monitor estimates the
-voltage you'd sag to and gives you a graceful output scale plus an optional
-preemptive `RobotSafety` trip.
+Predicts an oncoming brownout from `I × R_internal` so you can act *before*
+the radio drops. **Passive by default** — it estimates and publishes to
+`/Catalyst/Brownout/...` but takes no action until you opt in.
 
 ```java
+// Passive — just watch the prediction:
 BrownoutMonitor brownout = BrownoutMonitor.builder()
     .totalCurrent(() -> pdh.getTotalCurrent())
-    .batteryInternalResistance(0.020)   // ~20 mΩ healthy; estimate from match logs
-    .warnVoltage(7.5).tripVoltage(7.0)
-    .tripsRobotSafety(true)
+    .batteryInternalResistance(0.020)   // estimate from match logs (ΔV / ΔI)
     .build();
-
-// each loop:
-brownout.update();
-double scale = brownout.outputScale();   // 1.0 healthy → 0 near the floor
-drive.driveFieldCentric(vx * scale, vy * scale, omega * scale);
+brownout.update();   // outputScale() stays 1.0, nothing trips
 ```
 
-Publishes measured + predicted voltage, current, and output scale to
-`/Catalyst/Brownout/...`.
+{: .warning }
+The two aggressive behaviours — output throttling and a preemptive
+`RobotSafety` trip — are **off by default and genuinely aggressive.**
+Throttling cuts your robot's power mid-match the instant predicted voltage
+dips; a too-high `warnVoltage` or too-low `R` can throttle a healthy robot
+during a hard accel. Test thoroughly with realistic loads and tune `R` from
+your own logs before enabling either.
+
+```java
+// Opt in only after testing:
+BrownoutMonitor active = BrownoutMonitor.builder()
+    .totalCurrent(() -> pdh.getTotalCurrent())
+    .batteryInternalResistance(0.020)
+    .warnVoltage(7.2).tripVoltage(6.9)
+    .enableThrottling()       // outputScale() now ramps below warn
+    .tripsRobotSafety(true)   // trips RobotSafety at tripVoltage
+    .build();
+
+brownout.update();
+double scale = active.outputScale();   // 1.0 healthy → 0 near the floor
+drive.driveFieldCentric(vx * scale, vy * scale, omega * scale);
+```
 
 ## CAN bus optimization
 

@@ -29,7 +29,7 @@ A Java library of pre-built mechanism building blocks for FRC robots on Phoenix 
 
 ## Browser tools
 
-Seven single-file tools served from this site. Click and use — no clone, no install.
+Eight single-file tools served from this site. Click and use — no clone, no install.
 
 <style>
 .hero-tools {
@@ -89,6 +89,7 @@ Seven single-file tools served from this site. Click and use — no clone, no in
   <a class="hero-tool" href="tools/pid/"><span class="icon">🎯</span><span class="name">PID Step Response</span><span class="desc">Dial gains, watch the simulated response.</span></a>
   <a class="hero-tool" href="tools/motors/"><span class="icon">⚡</span><span class="name">MotorType Browser</span><span class="desc">Every motor preset + gear-ratio calculator.</span></a>
   <a class="hero-tool" href="tools/canids/"><span class="icon">🔌</span><span class="name">CAN ID Planner</span><span class="desc">Catch CAN ID collisions before crimping.</span></a>
+  <a class="hero-tool" href="tools/auto/"><span class="icon">🧭</span><span class="name">Auto Builder</span><span class="desc">Generate a behavior-framework auto.</span></a>
 </div>
 
 ---
@@ -199,7 +200,7 @@ HealthCheck-based fault monitoring, multi-follower support, pre-built commands,
 | [Driver](driver/) | DriverProfile, RumbleEvents, controller feel |
 | [Utilities](utilities/) | Health Kit, RobotSafety, RobotState, MotorType, CANRegistry, feedforward, profiles |
 | [Advanced](advanced/) | Behavior framework, turret + SOTF, state-space, live tuning, health, SysId |
-| [Tools](tools/) | The seven browser tools |
+| [Tools](tools/) | The eight browser tools — incl. Auto Builder |
 | [Examples](examples/) | Whole-robot examples |
 | [Testing](testing/) | Unit-testing Catalyst-based code |
 
