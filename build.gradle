@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'com.frccatalyst'
-version = '0.6.0-beta'
+version = '0.6.1-beta'
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17

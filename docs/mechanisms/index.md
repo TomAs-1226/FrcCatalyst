@@ -210,14 +210,14 @@ SuperstructureCoordinator superstructure = new SuperstructureCoordinator()
 superstructure.defineState("STOW")
     .setLinear("elevator", 0.0)
     .setRotational("arm", 0.0)
-    .onEntry(() -> leds.setPattern(Color.kBlue))
+    .onEntry(() -> leds.setSolidColor(Color.kBlue))
     .done();
 
 superstructure.defineState("SCORE_HIGH")
     .setLinear("elevator", 1.1)
     .setRotational("arm", 95.0)
-    .onEntry(() -> leds.setPattern(Color.kGreen))
-    .onExit(() -> leds.setPattern(Color.kBlue))
+    .onEntry(() -> leds.setSolidColor(Color.kGreen))
+    .onExit(() -> leds.setSolidColor(Color.kBlue))
     .done();
 
 // Collision zone: prevent arm extension when elevator is low

@@ -152,12 +152,36 @@ public class SwerveSubsystem extends SubsystemBase {
         drivetrain.resetPose(pose);
     }
 
+    /**
+     * Robot-relative chassis speeds (the convention PathPlanner's
+     * {@code robotRelativeSpeedsSupplier} expects).
+     */
     public ChassisSpeeds getChassisSpeeds() {
         return drivetrain.getState().Speeds;
     }
 
+    /**
+     * Field-relative chassis speeds — robot-relative speeds rotated by the
+     * current heading. This is what {@link frc.lib.catalyst.util.AimingSolver}
+     * needs for Shoot-On-The-Fly: the piece inherits the robot's velocity in
+     * the field frame, not the robot frame.
+     */
+    public ChassisSpeeds getFieldRelativeSpeeds() {
+        return ChassisSpeeds.fromRobotRelativeSpeeds(getChassisSpeeds(), getHeading());
+    }
+
     public Rotation2d getHeading() {
         return getPose().getRotation();
+    }
+
+    /** Max translational speed in m/s (as configured). */
+    public double getMaxSpeedMPS() {
+        return maxSpeedMPS;
+    }
+
+    /** Max angular rate in rad/s (as configured). */
+    public double getMaxAngularRate() {
+        return maxAngularRate;
     }
 
     // --- Drive Methods ---

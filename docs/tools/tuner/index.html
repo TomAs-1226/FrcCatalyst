@@ -810,7 +810,7 @@ $('exportBtn').addEventListener('click', () => {
     const s = get('kS'), v = get('kV'), a = get('kA');
     if (s && v && a) lines.push(`.feedforward(${s}, ${v}, ${a})`);
     const grav = get('kG');
-    if (grav && parseFloat(grav) !== 0) lines.push(`.gravity(${grav})`);
+    if (grav && parseFloat(grav) !== 0) lines.push(`.gravityGain(${grav})`);
     if (m.hasMM) {
       const cv = get('CruiseVelocity', true);
       const ac = get('Acceleration', true);

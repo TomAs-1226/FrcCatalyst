@@ -69,7 +69,7 @@ the next robot loop — no redeploy, no restart.
             .gearRatio(50.0)
             .pid(80, 0, 1.0)
             .feedforward(0.2, 0.12, 0.0)
-            .gravity(0.4)
+            .gravityGain(0.4)
             .motionMagic(200, 400, 2000)
             .currentLimit(30)
             .build());

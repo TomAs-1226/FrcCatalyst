@@ -89,6 +89,12 @@ operatorController.b().onTrue(elevator.goTo("STOW"));
 
 ---
 
+## What's New in v0.6.1-beta
+
+- **Cleanup pass.** Audited every doc example against the source; fixed methods that were documented but never built and two browser tools generating non-compiling code.
+- Added `SwerveSubsystem.getFieldRelativeSpeeds()` (the correct input for SOTF — robot-relative speeds would mis-aim), `getMaxSpeedMPS()`/`getMaxAngularRate()` getters, and `RobotSafety.trip(...)`/`tripCommand(...)`.
+- Confirmed + documented PathPlanner `AutoBuilder` support.
+
 ## What's New in v0.6.0-beta
 
 - **Behavior framework** (`frc.lib.catalyst.behavior`) — game-agnostic autonomous + assisted-driving orchestration:

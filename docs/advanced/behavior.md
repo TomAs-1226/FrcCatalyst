@@ -45,14 +45,19 @@ the framework is unchanged.
 
 ```java
 Action chaseNearestFuel = Action.named("ChaseNearestFuel")
-    .when(() -> vision.hasFuelTarget())              // precondition
-    .run(() -> drive.driveToDetectedPiece()
+    .when(() -> vision.hasFuelTarget())                          // precondition (team-side detection)
+    .run(() -> drive.pathfindToPose(() -> vision.nearestFuelPose())  // real Catalyst command
                     .andThen(intake.intakeUntilPiece()))
-    .until(intake::hasFuel)                           // success
+    .until(intake::hasFuel)                                      // success
     .estimatedSeconds(2.5)
-    .requires(drive, intake)                          // for the orchestrators
+    .requires(drive, intake)                                    // for the orchestrators
     .build();
 ```
+
+> `vision.hasFuelTarget()` / `vision.nearestFuelPose()` are team-side
+> methods backed by your detection coprocessor — Catalyst doesn't ship
+> object detection. `drive.pathfindToPose(...)` is the real Catalyst
+> command that drives there.
 
 - **`when`** — can it start right now? (default: always)
 - **`run`** — a `Supplier<Command>` so the action is re-runnable (WPILib

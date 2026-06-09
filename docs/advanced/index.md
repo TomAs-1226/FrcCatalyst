@@ -385,8 +385,8 @@ Run code when entering or leaving a state:
 superstructure.defineState("SCORE_HIGH")
     .setLinear("elevator", 1.1)
     .setRotational("arm", 95.0)
-    .onEntry(() -> leds.setPattern(Color.kGreen))
-    .onExit(() -> leds.setPattern(Color.kBlue))
+    .onEntry(() -> leds.setSolidColor(Color.kGreen))
+    .onExit(() -> leds.setSolidColor(Color.kBlue))
     .done();
 ```
 
@@ -418,7 +418,7 @@ Eight new pattern commands beyond the original set:
 | `larsonScanner(color, width)` | Cylon/KITT-style scanner |
 | `dynamicProgress(color, progress)` | Dynamic progress bar (0-1) |
 | `statusIndicator(good, warn, bad)` | Multi-zone status indicator |
-| `alignmentIndicator(offset, tolerance)` | Auto-alignment visual feedback |
+| `alignmentIndicator(color, progress)` | Auto-alignment visual feedback |
 
 ```java
 // Fire effect for celebration
@@ -428,5 +428,5 @@ leds.fire();
 leds.dynamicProgress(Color.kGreen, () -> elevator.getPosition() / 1.2);
 
 // Alignment feedback for driver
-leds.alignmentIndicator(() -> visionOffset, 2.0);
+leds.alignmentIndicator(Color.kGreen, () -> alignProgress);
 ```

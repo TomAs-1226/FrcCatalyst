@@ -5,6 +5,24 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.6.1-beta] — 2026-06-09
+
+### Cleanup pass — API additions + doc/tool correctness
+A full audit of every code example against the source turned up methods that were documented but never built, and two browser tools generating code that wouldn't compile. All fixed.
+
+**Source additions (real gaps the docs assumed):**
+- `SwerveSubsystem.getFieldRelativeSpeeds()` — robot-relative speeds rotated into the field frame. **This is what `AimingSolver` needs for SOTF** — the prior docs told you to pass `getChassisSpeeds()`, which is robot-relative and would mis-aim once the robot wasn't facing +X.
+- `SwerveSubsystem.getMaxSpeedMPS()` / `getMaxAngularRate()` — getters the `SwerveSetpointGenerator` examples needed.
+- `RobotSafety.trip(String)` + `RobotSafety.tripCommand(String)` — manual trip for conditions outside the health system (brownout / low-battery triggers).
+
+**Tool fixes (were generating non-compiling code):**
+- MotorType Browser emitted `.motorCount(n)` — no such builder method. Now emits a `// + n follower(s)` note.
+- Catalyst Tuner emitted `.gravity(kG)` — the method is `.gravityGain(kG)`.
+
+**Doc corrections:** fixed `leds.setPattern → setSolidColor`, `leds.greenCommand → solid(Color.kGreen)`, `alignmentIndicator` signature, `rumble.driver(...) → fire(..., Channel.DRIVER)`, the `VisionSubsystem` constructor example (real form is single-arg with `.driveSubsystem(drive)`), `.motorCount → .follower`, and added an explicit **PathPlanner support** section confirming the `AutoBuilder` wiring.
+
+**Verified:** every other documented Catalyst call now resolves against the source.
+
 ## [0.6.0-beta] — 2026-06-09
 
 ### Added — Behavior framework (`frc.lib.catalyst.behavior`)

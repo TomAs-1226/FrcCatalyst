@@ -318,7 +318,7 @@ feedforward helpers. Pre-shipped presets:
 ```java
 LinearMechanism.Config.builder()
     .motorType(MotorType.KRAKEN_X60_FOC)
-    .motorCount(2)
+    .follower(14, true)        // second motor — count is leader + followers
     // ...
     .build();
 ```
@@ -356,7 +356,7 @@ if (RobotState.matchTimeRemaining() < 10) { climber.runDefault(); }
 
 // As triggers — best for command bindings:
 RobotState.lateMatch(20).onTrue(climber.deployCommand());
-RobotState.lowBattery(11.0).onTrue(RobotSafety.tripCommand());
+RobotState.lowBattery(11.0).onTrue(RobotSafety.tripCommand("low battery"));
 RobotState.disabled().onTrue(LedSubsystem.idlePattern());
 ```
 

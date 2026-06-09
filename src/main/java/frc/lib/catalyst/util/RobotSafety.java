@@ -6,6 +6,8 @@ import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.networktables.StringPublisher;
 import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 
 /**
@@ -102,6 +104,30 @@ public final class RobotSafety {
      */
     public static String reason() {
         return lastReason;
+    }
+
+    /**
+     * Manually trip the watchdog with a reason. Use for conditions outside
+     * the health-check system — e.g. a brownout-prediction or a low-battery
+     * trigger. Runs the configured {@code onTrip} callback. No-op if already
+     * tripped.
+     */
+    public static synchronized void trip(String reason) {
+        if (tripped) return;
+        tripped = true;
+        lastReason = reason == null ? "manual trip" : reason;
+        if (trippedPub != null) {
+            trippedPub.set(true);
+            reasonPub.set(lastReason);
+        }
+        if (config != null && config.onTrip != null) {
+            try { config.onTrip.run(); } catch (Throwable ignored) {}
+        }
+    }
+
+    /** Command form of {@link #trip(String)} for use in bindings. */
+    public static Command tripCommand(String reason) {
+        return Commands.runOnce(() -> trip(reason)).ignoringDisable(true);
     }
 
     /**

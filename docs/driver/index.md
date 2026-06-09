@@ -66,7 +66,7 @@ dispatched per-loop so overlapping events don't fight.
 ```java
 RumbleEvents events = new RumbleEvents(driver.getHID(), operator.getHID());
 
-events.onTrigger(swerve.atAlignmentTarget(),  Pattern.DOUBLE_TAP, Channel.DRIVER);
+events.onTrigger(turret.atSetpointTrigger(),  Pattern.DOUBLE_TAP, Channel.DRIVER);
 events.onTrigger(claw.hasPieceTrigger(),      Pattern.SHORT,      Channel.BOTH);
 events.onTrigger(RobotSafety.trippedTrigger(),Pattern.LONG,       Channel.BOTH);
 
@@ -196,7 +196,7 @@ public class RobotContainer {
         driver.leftBumper().onFalse(Commands.runOnce(profile::disengageSlowMode));
 
         events.onTrigger(claw.hasPieceTrigger(), Pattern.SHORT, Channel.BOTH);
-        events.onTrigger(swerve.atAlignmentTarget(), Pattern.DOUBLE_TAP, Channel.DRIVER);
+        events.onTrigger(turret.atSetpointTrigger(), Pattern.DOUBLE_TAP, Channel.DRIVER);
         events.onTrigger(RobotState.lateMatch(20),   Pattern.LONG, Channel.BOTH);
     }
 }

@@ -351,7 +351,7 @@
 
     const builderLine = count === 1
         ? `.motorType(MotorType.${picked.id})`
-        : `.motorType(MotorType.${picked.id})\n.motorCount(${count})`;
+        : `.motorType(MotorType.${picked.id})\n// + ${count - 1} follower(s) via .follower(canId, oppose)`;
     $("snippet").innerHTML = highlight(builderLine);
   }
 
@@ -389,7 +389,7 @@
     const count = Math.max(1, parseInt($("count").value, 10) || 1);
     const text = count === 1
         ? `.motorType(MotorType.${picked.id})`
-        : `.motorType(MotorType.${picked.id}).motorCount(${count})`;
+        : `.motorType(MotorType.${picked.id})  // + ${count - 1} follower(s) via .follower(canId, oppose)`;
     try {
       await navigator.clipboard.writeText(text);
       $("copyBuilder").textContent = "Copied ✓";

@@ -74,6 +74,36 @@ driver.rightBumper().whileTrue(drive.pointAtTarget(
 {: .tip }
 See the [Advanced Features](../advanced/) section for detailed documentation on skew correction, slew rate limiting, snap-to-angle, and auto-align.
 
+### PathPlanner support
+
+`SwerveSubsystem` configures PathPlanner's `AutoBuilder` for you when you
+pass a `PathPlannerConfig` (as above). It wires:
+
+- `getPose` / `resetPose` — pose source + reset
+- `getChassisSpeeds` — **robot-relative** speeds (what PathPlanner expects)
+- a robot-relative `ChassisSpeeds` consumer for path output
+- a `PPHolonomicDriveController` from your translation/rotation PID
+- `RobotConfig.fromGUISettings()` — mass, MOI, module config from the
+  PathPlanner GUI
+- alliance flipping (mirrors paths for the red alliance automatically)
+
+Once configured, named autos load with one call:
+
+```java
+autonomousCommand = AutoBuilder.buildAuto("MyAuto");
+// or follow a single path:
+new PathPlannerAuto("MyAuto").schedule();
+```
+
+Both `pathfindToPose(...)` (below) and the [behavior framework](../advanced/behavior.html)
+autos build on this. If `AutoBuilder` isn't configured (you didn't pass a
+`PathPlannerConfig`), pathfinding commands fall back to PID-only and print a
+DS error rather than crashing.
+
+> **Robot- vs field-relative:** `getChassisSpeeds()` is robot-relative for
+> PathPlanner. For Shoot-On-The-Fly use `getFieldRelativeSpeeds()`, which
+> rotates it into the field frame.
+
 ### pathfindToPose (v0.3.6.1+)
 
 Pathfind to a pose with PathPlanner's `AutoBuilder.pathfindToPose`, then
@@ -125,12 +155,10 @@ Multi-camera pose estimation with Kalman filter integration. Supports both Limel
 
 ```java
 VisionSubsystem vision = new VisionSubsystem(
-    drive::addVisionMeasurement,
-    drive::getHeading,
-    drive::getChassisSpeeds,
     VisionConfig.builder()
+        .driveSubsystem(drive)                                    // wires pose fusion
         .addLimelight("limelight-front", frontCameraPose)
-        .addPhotonCamera("cam-rear", rearCameraPose)
+        .addPhotonCamera("cam-rear", rearCameraPose, fieldLayout) // Photon needs the tag layout
         .singleTagStdDevs(4, 8)
         .multiTagStdDevs(0.5, 1)
         .xyDistanceScaling(1.0)
@@ -144,6 +172,10 @@ VisionSubsystem vision = new VisionSubsystem(
 );
 ```
 
+> Pass 4+ cameras and they're fused deterministically — each is filtered
+> independently and added to the pose estimator in timestamp order with
+> quality/index tiebreaks, so the result is reproducible run-to-run.
+
 ### LimelightTriggers (v0.4.0+)
 
 Wrap a Limelight's NetworkTables keys as WPILib `Trigger`s. Point at
@@ -152,10 +184,10 @@ the table name, bind, done.
 ```java
 LimelightTriggers front = new LimelightTriggers("limelight-front");
 
-front.hasTarget().onTrue(leds.greenCommand());
+front.hasTarget().onTrue(leds.solid(Color.kGreen));
 front.tagInView(7).whileTrue(swerve.pathfindToPose(() -> SCORE_7));
 front.detectorClass("note").onTrue(intake.intakeCommand());
-front.horizontalErrorBelow(2.0).onTrue(rumble.driver(Pattern.DOUBLE_TAP));
+front.horizontalErrorBelow(2.0).onTrue(rumble.fire(Pattern.DOUBLE_TAP, Channel.DRIVER));
 front.targetWithinArea(2.0).onTrue(climber.armCommand());
 ```
 
@@ -198,8 +230,8 @@ intake.hasPieceTrigger().whileTrue(leds.blink(Color.kGreen, 0.1));
 // Fire effect for celebration
 scoring.whileTrue(leds.fire());
 
-// Alignment indicator for driver
-aligning.whileTrue(leds.alignmentIndicator(() -> visionOffset, 2.0));
+// Alignment indicator for driver (Color + 0..1 progress supplier)
+aligning.whileTrue(leds.alignmentIndicator(Color.kGreen, () -> alignProgress));
 
 // Progress bar for elevator height
 leds.dynamicProgress(Color.kGreen, () -> elevator.getPosition() / 1.2);
