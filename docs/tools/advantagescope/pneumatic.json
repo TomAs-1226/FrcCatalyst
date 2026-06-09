@@ -1,6 +1,6 @@
 {
   "$schema": "../catalyst-tab-bundle.schema.json",
-  "catalystVersion": "0.5.1",
+  "catalystVersion": "0.6.0",
   "mechanism": "PneumaticMechanism",
   "description": "Solenoid state, pressure, and transition-count dashboard.",
   "placeholders": {

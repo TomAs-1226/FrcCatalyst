@@ -18,6 +18,7 @@ import frc.lib.catalyst.subsystems.swerve.SwerveSubsystem;
 import frc.lib.catalyst.util.AlertManager;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -97,6 +98,19 @@ public class VisionSubsystem extends SubsystemBase {
         }
     }
 
+    /**
+     * One accepted measurement, held until the whole camera set has been
+     * gathered so we can fuse them in a deterministic order rather than
+     * in camera-list order. {@code cameraIndex} is the final stable
+     * tiebreak so the result is reproducible with any number of cameras.
+     */
+    private record Accepted(
+            int cameraIndex,
+            String cameraName,
+            CameraSource.PoseEstimate pe,
+            Matrix<N3, N1> stdDevs,
+            double quality) {}
+
     @Override
     public void periodic() {
         if (driveSubsystem == null) return;
@@ -104,14 +118,18 @@ public class VisionSubsystem extends SubsystemBase {
         cycleAccepted = 0;
         cycleRejected = 0;
 
-        // Update robot orientation for cameras that need it (Limelight MegaTag2)
         Pose2d currentPose = driveSubsystem.getPose();
         double yaw = currentPose.getRotation().getDegrees();
-
-        // Optionally also provide yaw rate for better MegaTag2 accuracy
         double yawRate = driveSubsystem.getChassisSpeeds().omegaRadiansPerSecond;
 
-        for (CameraSource camera : cameras) {
+        // ---- Phase 1: snapshot every camera once, filter independently ----
+        // Snapshotting up front means an async NT update mid-loop can't make
+        // two reads of the same camera disagree, and it decouples gathering
+        // from fusing so 4+ cameras fuse deterministically.
+        List<Accepted> accepted = new ArrayList<>(cameras.size());
+
+        for (int i = 0; i < cameras.size(); i++) {
+            CameraSource camera = cameras.get(i);
             camera.setRobotOrientation(yaw, Math.toDegrees(yawRate), 0, 0);
 
             Optional<CameraSource.PoseEstimate> estimate = camera.getEstimatedPose();
@@ -119,7 +137,14 @@ public class VisionSubsystem extends SubsystemBase {
 
             CameraSource.PoseEstimate pe = estimate.get();
 
-            // --- Filtering ---
+            // Guard against NaN/garbage poses before anything else touches them.
+            if (!isFinitePose(pe)) {
+                totalRejected++;
+                cycleRejected++;
+                logCamera(camera.getName(), "Rejected: NonFinite", pe);
+                continue;
+            }
+
             String rejectReason = filterEstimate(pe, currentPose);
             if (rejectReason != null) {
                 totalRejected++;
@@ -128,38 +153,60 @@ public class VisionSubsystem extends SubsystemBase {
                 continue;
             }
 
-            // --- Standard Deviation Scaling for Kalman Filter ---
-            // These std devs tell the Kalman filter how much to trust this measurement.
-            // Lower values = more trust. The filter optimally fuses vision with odometry.
             Matrix<N3, N1> stdDevs = calculateStdDevs(pe);
-
-            // --- Feed to Kalman filter pose estimator ---
-            // CTRE's SwerveDrivetrain internally uses a Kalman filter that fuses
-            // odometry (predicted state) with vision measurements (corrections).
-            // The standard deviation matrix determines the Kalman gain:
-            //   K = P * H^T * (H * P * H^T + R)^-1
-            // where R is constructed from our stdDevs.
-            driveSubsystem.addVisionMeasurement(pe.pose(), pe.timestampSeconds(), stdDevs);
-            totalAccepted++;
-            cycleAccepted++;
-            visionPosePub.set(pe.pose());
-            logCamera(camera.getName(), "Accepted", pe);
-
-            // Log innovation (how much vision disagrees with current estimate)
-            double[] innovation = calculateInnovation(pe.pose(), currentPose);
-            double innovationNorm = Math.sqrt(innovation[0] * innovation[0]
-                    + innovation[1] * innovation[1]);
-            NetworkTable camTable = telemetryTable.getSubTable(camera.getName());
-            camTable.getEntry("InnovationXY").setDouble(innovationNorm);
-            camTable.getEntry("InnovationRot").setDouble(Math.toDegrees(Math.abs(innovation[2])));
+            accepted.add(new Accepted(i, camera.getName(), pe, stdDevs, qualityScore(pe)));
         }
 
-        // Overall telemetry
+        // ---- Phase 2: fuse in a deterministic order ----
+        // Add by ascending timestamp so the Kalman filter integrates
+        // measurements chronologically (out-of-order adds cause jitter as the
+        // estimator rewinds and replays). Ties break on quality (best first),
+        // then camera index — fully reproducible regardless of camera count.
+        accepted.sort(Comparator
+                .comparingDouble((Accepted a) -> a.pe().timestampSeconds())
+                .thenComparing(Comparator.comparingDouble((Accepted a) -> a.quality()).reversed())
+                .thenComparingInt(Accepted::cameraIndex));
+
+        Accepted best = null;
+        for (Accepted a : accepted) {
+            driveSubsystem.addVisionMeasurement(a.pe().pose(), a.pe().timestampSeconds(), a.stdDevs());
+            totalAccepted++;
+            cycleAccepted++;
+            logCamera(a.cameraName(), "Accepted", a.pe());
+
+            double[] innovation = calculateInnovation(a.pe().pose(), currentPose);
+            double innovationNorm = Math.hypot(innovation[0], innovation[1]);
+            NetworkTable camTable = telemetryTable.getSubTable(a.cameraName());
+            camTable.getEntry("InnovationXY").setDouble(innovationNorm);
+            camTable.getEntry("InnovationRot").setDouble(Math.toDegrees(Math.abs(innovation[2])));
+
+            if (best == null || a.quality() > best.quality()) best = a;
+        }
+
+        // Publish the single highest-quality accepted pose (deterministic),
+        // instead of "whichever camera happened to be processed last".
+        if (best != null) visionPosePub.set(best.pe().pose());
+
         telemetryTable.getEntry("TotalAccepted").setDouble(totalAccepted);
         telemetryTable.getEntry("TotalRejected").setDouble(totalRejected);
         telemetryTable.getEntry("CycleAccepted").setDouble(cycleAccepted);
         telemetryTable.getEntry("CycleRejected").setDouble(cycleRejected);
         telemetryTable.getEntry("CameraCount").setDouble(cameras.size());
+    }
+
+    /** Higher = better. More tags and closer tags raise the score. */
+    private static double qualityScore(CameraSource.PoseEstimate pe) {
+        return pe.tagCount() / (1.0 + pe.averageTagDistance())
+                / (1.0 + 5.0 * Math.max(0, pe.ambiguity()));
+    }
+
+    /** Reject poses containing NaN/Inf before they reach the estimator. */
+    private static boolean isFinitePose(CameraSource.PoseEstimate pe) {
+        Pose2d p = pe.pose();
+        return Double.isFinite(p.getX())
+                && Double.isFinite(p.getY())
+                && Double.isFinite(p.getRotation().getRadians())
+                && Double.isFinite(pe.timestampSeconds());
     }
 
     /**

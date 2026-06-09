@@ -198,7 +198,7 @@ HealthCheck-based fault monitoring, multi-follower support, pre-built commands,
 | [Subsystems](subsystems/) | Swerve, Vision, LEDs, LimelightTriggers, SwerveSetpointGenerator |
 | [Driver](driver/) | DriverProfile, RumbleEvents, controller feel |
 | [Utilities](utilities/) | Health Kit, RobotSafety, RobotState, MotorType, CANRegistry, feedforward, profiles |
-| [Advanced](advanced/) | State-space, signal processing, live tuning, health monitoring, SysId |
+| [Advanced](advanced/) | Behavior framework, turret + SOTF, state-space, live tuning, health, SysId |
 | [Tools](tools/) | The seven browser tools |
 | [Examples](examples/) | Whole-robot examples |
 | [Testing](testing/) | Unit-testing Catalyst-based code |

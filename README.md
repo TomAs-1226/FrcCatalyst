@@ -89,6 +89,15 @@ operatorController.b().onTrue(elevator.goTo("STOW"));
 
 ---
 
+## What's New in v0.6.0-beta
+
+- **Behavior framework** (`frc.lib.catalyst.behavior`) — game-agnostic autonomous + assisted-driving orchestration:
+  - **`BehaviorEngine`** — resilient autos that fall back (or bail to a sure-thing score) when a piece isn't where you expected.
+  - **`Strategist`** — utility selector: "chase scattered pieces until the goal's met or time runs short, then go align and shoot," expressed as crossing score curves. No state machine.
+  - **`Autopilot`** — teleop cycle co-pilot: hold a button, the robot runs acquire → score → repeat, releases to you instantly.
+  - **`Action`** — the atomic building block (command + precondition + success + cost), composed from `pathfindToPose`, `AimingSolver`, mechanisms, vision. Carries forward to future games unchanged. See [the guide](https://tomas-1226.github.io/FrcCatalyst/advanced/behavior.html).
+- **Multi-camera vision hardening** — `VisionSubsystem` now fuses 4+ cameras deterministically (snapshot, NaN-guard, timestamp-ordered adds, quality/index tiebreaks) so vision-driven decisions are reproducible.
+
 ## What's New in v0.5.1-beta
 
 - **`ShotCompensation`** — live aim-bias module for when you're defended or the tables drift. Turret/distance/RPM/hood nudges (D-pad-bindable), a SOTF-aggressiveness scale, and a velocity deadband + clamp so a defender's hit can't fling the turret.

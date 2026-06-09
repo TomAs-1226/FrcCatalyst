@@ -5,6 +5,19 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.6.0-beta] — 2026-06-09
+
+### Added — Behavior framework (`frc.lib.catalyst.behavior`)
+Game-agnostic autonomous + assisted-driving orchestration. The framework sequences and reacts; your `Action`s hold the game-specific work, so it carries forward to future games unchanged.
+- **`Action`** — atomic capability: a `Supplier<Command>` plus a precondition (`when`), success test (`until`), estimated cost, and subsystem `requires`. Buggy lambdas are caught so one bad precondition can't crash a strategy.
+- **`BehaviorEngine`** — reactive sequencer for resilient autos. Checks each action's precondition *when reached* and falls back (`orElse` substitute / `orElseSkip` / `orElseAbort`). `deadline(s)` (measured from schedule time) or `bailWhen(...)` stops the sequence and runs an `onBail(...)` action — "give up chasing, go align and shoot." Publishes `Step / Action / FellBack / Bailed` to NT.
+- **`Strategist`** — utility selector. Register behaviors with score functions; the highest scorer that can start runs, switching the instant another wins. Expresses "chase scattered pieces until the goal is met or time runs short, then bail to a guaranteed score" as two crossing score curves. Publishes per-behavior scores + `Active` to NT.
+- **`Autopilot`** — teleop cycle co-pilot. Hold a button → acquire → score → repeat, releases to the driver instantly. Built from an acquire action, a score action, and a `hasPiece` supplier.
+- **`BehaviorContext`** — lightweight match-time / mode snapshot passed to scorers.
+
+### Changed — multi-camera vision robustness
+- `VisionSubsystem.periodic()` now fuses cameras deterministically for 4+ camera setups: each camera is snapshotted once and filtered independently, NaN/Inf poses are rejected up front, and accepted estimates are added to the pose estimator in **timestamp order** (out-of-order adds cause estimator jitter) with **quality → camera-index tiebreaks**. The published vision pose is now the single highest-quality accepted estimate rather than "whichever camera was processed last," so vision-driven behavior decisions are reproducible run-to-run.
+
 ## [0.5.1-beta] — 2026-06-09
 
 ### Added / Changed — SOTF hardening
