@@ -124,6 +124,13 @@ Eight single-file browser tools, hosted right here. Nothing to install.
   <span class="tag plan">Planner</span>
 </a>
 
+<a class="tool-card" href="wiring/">
+  <div class="icon">⚡</div>
+  <p class="name">Wiring Diagram</p>
+  <p class="desc">Imports your CAN ID Planner and generates a complete, optimal power tree + CAN bus diagram — breaker sizes, wire gauge, channel schedule, and termination. Printable for the build team.</p>
+  <span class="tag plan">Planner</span>
+</a>
+
 <a class="tool-card" href="auto/">
   <div class="icon">🧭</div>
   <p class="name">Auto Builder</p>
