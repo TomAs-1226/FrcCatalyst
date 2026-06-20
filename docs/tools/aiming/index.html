@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Catalyst Shoot-On-The-Fly Visualizer</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{--bg:#0f1424;--panel:#1b2240;--panel2:#131831;--accent:#e94560;--accent2:#f0648a;
+          --text:#f4f4f8;--muted:#8a8aa8;--border:rgba(255,255,255,.07);--ok:#4ade80;--blue:#60a5fa;--fuel:#f9a825;}
+    *{box-sizing:border-box}
+    html,body{margin:0;background:radial-gradient(ellipse at 100% 0%,rgba(96,165,250,.10),transparent 60%),
+      radial-gradient(ellipse at 0% 100%,rgba(233,69,96,.08),transparent 60%),var(--bg);color:var(--text);
+      font-family:ui-sans-serif,system-ui,-apple-system,"SF Pro Text",Segoe UI,sans-serif;min-height:100vh}
+    header{padding:16px 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+      position:sticky;top:0;z-index:5;background:linear-gradient(180deg,rgba(27,34,64,.85),transparent);backdrop-filter:blur(6px)}
+    header h1{margin:0;font-size:18px;font-weight:700}
+    header .badge{padding:2px 10px;border-radius:999px;background:var(--accent);color:#fff;font-size:11px;font-weight:600}
+    header .hint{color:var(--muted);font-size:13px}
+    header .back{color:var(--accent2);text-decoration:none;font-size:13px;margin-left:auto}
+    main{display:grid;grid-template-columns:340px 1fr;gap:20px;padding:22px 24px}
+    aside,.card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);
+      border-radius:14px;padding:20px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+    aside h2,.card h2{margin:0 0 12px;font-size:11px;text-transform:uppercase;letter-spacing:1.3px;color:var(--muted);font-weight:700}
+    aside h2:not(:first-child){margin-top:20px}
+    .row{display:grid;gap:4px;margin-bottom:11px}
+    .row label{color:var(--muted);font-size:12px;display:flex;justify-content:space-between}
+    .row label .v{color:var(--accent2);font-weight:600;font-family:ui-monospace,monospace}
+    input[type=range]{width:100%;accent-color:var(--accent);height:4px;appearance:none;background:rgba(255,255,255,.07);border-radius:999px}
+    input[type=range]::-webkit-slider-thumb{appearance:none;width:15px;height:15px;background:var(--accent);border-radius:50%;cursor:pointer}
+    canvas{width:100%;display:block;border-radius:10px;background:#0a1120;cursor:crosshair}
+    .out{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:4px}
+    .stat{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:9px;padding:9px 11px}
+    .stat .k{color:var(--muted);font-size:11px}
+    .stat .val{color:var(--accent2);font-family:ui-monospace,monospace;font-weight:700;font-size:15px}
+    pre.code{background:#0a0f1e;border:1px solid var(--border);border-radius:10px;padding:14px;overflow:auto;
+      font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.5;color:#9aa3c4;margin:0}
+    pre.code .fn{color:#60a5fa}.pre .num{color:#4ade80}
+    .copy{background:linear-gradient(135deg,var(--accent),#ff6b8a);color:#fff;border:0;border-radius:8px;padding:9px 13px;
+      font-size:12px;font-weight:600;cursor:pointer;margin-top:10px}
+    .legend{font-size:12px;color:var(--muted);margin-top:10px;display:flex;gap:16px;flex-wrap:wrap}
+    .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:middle}
+    @media(max-width:900px){main{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<header>
+  <h1>Shoot-On-The-Fly Visualizer</h1>
+  <span class="badge">v1.0.0-rc2</span>
+  <span class="hint">Click the field to move the robot. The virtual-goal math is exactly what <code>AimingSolver</code> runs.</span>
+  <a href="../" class="back">← Catalyst tools</a>
+</header>
+<main>
+  <aside>
+    <h2>Robot velocity (field frame)</h2>
+    <div class="row"><label>v<sub>x</sub> <span class="v" id="vxv">2.0 m/s</span></label><input type="range" id="vx" min="-5" max="5" step="0.1" value="2.0"></div>
+    <div class="row"><label>v<sub>y</sub> <span class="v" id="vyv">-1.5 m/s</span></label><input type="range" id="vy" min="-5" max="5" step="0.1" value="-1.5"></div>
+
+    <h2>Flight-time model · tof = t₀ + k·d</h2>
+    <div class="row"><label>t₀ (base) <span class="v" id="t0v">0.10 s</span></label><input type="range" id="t0" min="0" max="0.6" step="0.01" value="0.10"></div>
+    <div class="row"><label>k (per metre) <span class="v" id="tkv">0.085 s/m</span></label><input type="range" id="tk" min="0" max="0.2" step="0.005" value="0.085"></div>
+
+    <h2>Goal (blue hub)</h2>
+    <div class="row"><label>goal X <span class="v" id="gxv">1.20 m</span></label><input type="range" id="gx" min="0" max="16.54" step="0.05" value="1.20"></div>
+    <div class="row"><label>goal Y <span class="v" id="gyv">4.10 m</span></label><input type="range" id="gy" min="0" max="8.21" step="0.05" value="4.10"></div>
+  </aside>
+
+  <div style="display:flex;flex-direction:column;gap:20px;min-width:0">
+    <div class="card">
+      <h2>Field — top down</h2>
+      <canvas id="view" width="760" height="378"></canvas>
+      <div class="legend">
+        <span><i style="background:var(--ok)"></i>real goal</span>
+        <span><i style="background:var(--fuel)"></i>virtual goal (aim here)</span>
+        <span><i style="background:var(--blue)"></i>velocity</span>
+        <span><i style="background:var(--accent)"></i>turret bore</span>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Solution</h2>
+      <div class="out">
+        <div class="stat"><div class="k">distance to virtual goal</div><div class="val" id="oDist">—</div></div>
+        <div class="stat"><div class="k">time of flight</div><div class="val" id="oTof">—</div></div>
+        <div class="stat"><div class="k">turret bearing θ</div><div class="val" id="oBear">—</div></div>
+        <div class="stat"><div class="k">bearing rate θ̇ (FF)</div><div class="val" id="oRate">—</div></div>
+        <div class="stat"><div class="k">lead offset (goal − vg)</div><div class="val" id="oLead">—</div></div>
+        <div class="stat"><div class="k">|v|</div><div class="val" id="oV">—</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Wire it up</h2>
+      <pre class="code" id="code"></pre>
+      <button class="copy" onclick="copyCode()">Copy code</button>
+    </div>
+  </div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const FW=16.54, FH=8.21;
+let robot={x:9.0,y:5.5};
+const ids=['vx','vy','t0','tk','gx','gy'];
+ids.forEach(i=>$(i).addEventListener('input',render));
+const fmt=(n,d=2)=>(+n).toFixed(d);
+
+function val(id){return parseFloat($(id).value);}
+
+// The corrected fixed-point virtual-goal solve — same as AimingSolver.solve().
+function solve(){
+  const vx=val('vx'), vy=val('vy'), t0=val('t0'), tk=val('tk'), gx=val('gx'), gy=val('gy');
+  const rx=robot.x, ry=robot.y;
+  let dist=Math.hypot(gx-rx,gy-ry), tof=t0+tk*dist, vgx=gx, vgy=gy;
+  for(let i=0;i<25;i++){
+    const nx=gx-vx*tof, ny=gy-vy*tof, nd=Math.hypot(nx-rx,ny-ry), nt=t0+tk*nd;
+    const conv=Math.abs(nd-dist)<1e-12;
+    vgx=nx; vgy=ny; dist=nd; tof=nt;
+    if(conv) break;
+  }
+  // pin so an ideal shot is exact
+  vgx=gx-vx*tof; vgy=gy-vy*tof; dist=Math.hypot(vgx-rx,vgy-ry);
+  const ax=vgx-rx, ay=vgy-ry, n2=ax*ax+ay*ay;
+  const bearing=Math.atan2(ay,ax)*180/Math.PI;
+  const rate=n2>1e-9?(ay*vx-ax*vy)/n2*180/Math.PI:0;
+  return {rx,ry,vx,vy,gx,gy,vgx,vgy,dist,tof,bearing,rate,leadx:gx-vgx,leady:gy-vgy};
+}
+
+function render(){
+  ['vx','vy'].forEach(i=>$(i+'v').textContent=fmt(val(i),1)+' m/s');
+  $('t0v').textContent=fmt(val('t0'),2)+' s'; $('tkv').textContent=fmt(val('tk'),3)+' s/m';
+  $('gxv').textContent=fmt(val('gx'))+' m'; $('gyv').textContent=fmt(val('gy'))+' m';
+  const s=solve();
+  $('oDist').textContent=fmt(s.dist)+' m';
+  $('oTof').textContent=(s.tof*1000).toFixed(0)+' ms';
+  $('oBear').textContent=fmt(s.bearing,1)+'°';
+  $('oRate').textContent=fmt(s.rate,1)+'°/s';
+  $('oLead').textContent='('+fmt(s.leadx)+', '+fmt(s.leady)+')';
+  $('oV').textContent=fmt(Math.hypot(s.vx,s.vy))+' m/s';
+  draw(s); writeCode(s);
+}
+
+function fx(x){return x/FW*$('view').width;}
+function fy(y){return $('view').height-y/FH*$('view').height;}
+
+function draw(s){
+  const c=$('view'),x=c.getContext('2d'),W=c.width,H=c.height;
+  x.clearRect(0,0,W,H);
+  x.strokeStyle='rgba(255,255,255,.14)';x.lineWidth=2;x.strokeRect(2,2,W-4,H-4);
+  x.strokeStyle='rgba(255,255,255,.06)';x.beginPath();x.moveTo(W/2,0);x.lineTo(W/2,H);x.stroke();
+  const gx=fx(s.gx),gy=fy(s.gy),rx=fx(s.rx),ry=fy(s.ry),vgx=fx(s.vgx),vgy=fy(s.vgy);
+  // real goal
+  x.fillStyle='rgba(74,222,128,.18)';x.beginPath();x.arc(gx,gy,22,0,7);x.fill();
+  x.fillStyle='#4ade80';x.beginPath();x.arc(gx,gy,8,0,7);x.fill();
+  x.fillStyle='#9affc0';x.font='11px ui-monospace,monospace';x.fillText('goal',gx-12,gy-15);
+  // lead line + virtual goal
+  x.strokeStyle='rgba(249,168,37,.7)';x.setLineDash([5,5]);x.lineWidth=1.5;
+  x.beginPath();x.moveTo(gx,gy);x.lineTo(vgx,vgy);x.stroke();x.setLineDash([]);
+  x.fillStyle='#f9a825';x.beginPath();x.arc(vgx,vgy,7,0,7);x.fill();x.fillText('virtual',vgx+9,vgy+3);
+  // turret bore (robot → virtual goal)
+  x.strokeStyle='#e94560';x.lineWidth=3;x.beginPath();x.moveTo(rx,ry);x.lineTo(vgx,vgy);x.stroke();
+  // velocity arrow
+  if(Math.hypot(s.vx,s.vy)>0.05){const sc=18,ex=rx+s.vx*sc,ey=ry-s.vy*sc,a=Math.atan2(ey-ry,ex-rx);
+    x.strokeStyle='#60a5fa';x.lineWidth=2.5;x.beginPath();x.moveTo(rx,ry);x.lineTo(ex,ey);x.stroke();
+    x.fillStyle='#60a5fa';x.beginPath();x.moveTo(ex,ey);
+    x.lineTo(ex-10*Math.cos(a-.4),ey-10*Math.sin(a-.4));x.lineTo(ex-10*Math.cos(a+.4),ey-10*Math.sin(a+.4));x.closePath();x.fill();}
+  // robot
+  x.fillStyle='#26304f';x.strokeStyle='rgba(255,255,255,.3)';x.lineWidth=2;
+  x.beginPath();x.arc(rx,ry,13,0,7);x.fill();x.stroke();
+}
+
+function writeCode(s){
+  $('code').innerHTML =
+`AimingSolver solver = AimingSolver.<span class="fn">builder</span>()
+    .target(new Translation2d(${fmt(s.gx)}, ${fmt(s.gy)}))   // blue-frame; flip with AllianceFlipUtil
+    .shotTime(new InterpolatingTable()
+        .add(1.5, ${fmt(0.10+0.085*1.5,2)}).add(4.0, ${fmt(0.10+0.085*4,2)}).add(8.0, ${fmt(0.10+0.085*8,2)}))
+    .iterations(3)
+    .build();
+
+// every loop:
+var sol = solver.<span class="fn">solve</span>(drive.getPose(), drive.getFieldRelativeSpeeds());
+turret.<span class="fn">track</span>(() -> sol, () -> drive.getHeading().getDegrees(),
+             () -> Math.toDegrees(drive.getChassisSpeeds().omegaRadiansPerSecond));
+shooter.<span class="fn">track</span>(() -> sol.shooterRpm() / 60.0);
+hood.<span class="fn">track</span>(() -> sol.hoodDegrees());`;
+}
+function copyCode(){navigator.clipboard.writeText($('code').innerText);}
+
+$('view').addEventListener('click',e=>{
+  const r=$('view').getBoundingClientRect();
+  robot.x=(e.clientX-r.left)/r.width*FW;
+  robot.y=FH-(e.clientY-r.top)/r.height*FH;
+  render();
+});
+render();
+</script>
+</body>
+</html>

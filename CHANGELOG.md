@@ -5,6 +5,21 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.0-rc2] — 2026-06-19
+
+### Added — `AllianceFlipUtil`
+- Author field coordinates once in the **blue-origin** frame; call
+  `AllianceFlipUtil.apply(...)` at runtime to get the right pose/translation/
+  heading for the current alliance — no more duplicate red/blue constants.
+  Configurable field size (defaults to REBUILT) and symmetry
+  (`ROTATIONAL` / `MIRRORED`). Unit-tested both ways.
+
+### Added — Shoot-On-The-Fly browser tool
+- A new interactive [SOTF Visualizer](https://tomas-1226.github.io/FrcCatalyst/tools/aiming/):
+  drag the robot, set a velocity, and watch the **virtual goal**, lead, turret
+  bearing and feedforward rate update live — running the exact corrected
+  virtual-goal math from `AimingSolver`. Copies the `track(...)` wiring.
+
 ## [1.0.0-rc1] — 2026-06-19 — Preseason Release Candidate 1
 
 Hardening pass on the Shoot-On-The-Fly stack ahead of the season, with a real

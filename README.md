@@ -57,7 +57,7 @@ repositories {
 }
 
 dependencies {
-    implementation "com.github.TomAs-1226:FrcCatalyst:v1.0.0-rc1"
+    implementation "com.github.TomAs-1226:FrcCatalyst:v1.0.0-rc2"
 }
 ```
 </details>
@@ -97,6 +97,11 @@ operatorController.b().onTrue(elevator.goTo("STOW"));
 ```
 
 ---
+
+## What's New in v1.0.0-rc2
+
+- **`AllianceFlipUtil`** — write your field coordinates once in blue-origin, call `AllianceFlipUtil.apply(...)` for the current alliance. Configurable field size + symmetry (rotational / mirrored), unit-tested.
+- **[Shoot-On-The-Fly Visualizer](https://tomas-1226.github.io/FrcCatalyst/tools/aiming/)** — a new browser tool: drag the robot, set a velocity, see the virtual goal / lead / turret bearing / feedforward rate update live, running the exact `AimingSolver` math. Copies the `track(...)` wiring.
 
 ## What's New in v1.0.0-rc1 — Preseason Release Candidate 1
 

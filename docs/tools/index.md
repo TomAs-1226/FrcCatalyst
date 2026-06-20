@@ -131,6 +131,13 @@ Eight single-file browser tools, hosted right here. Nothing to install.
   <span class="tag gen">Generator</span>
 </a>
 
+<a class="tool-card" href="aiming/">
+  <div class="icon">🎯</div>
+  <p class="name">Shoot-On-The-Fly</p>
+  <p class="desc">Drag the robot, set a velocity, and watch the <strong>virtual goal</strong>, lead, turret bearing and feedforward rate — the exact <code>AimingSolver</code> math. Copies the <code>track(…)</code> wiring.</p>
+  <span class="tag calc">Visualizer</span>
+</a>
+
 </div>
 
 ---
