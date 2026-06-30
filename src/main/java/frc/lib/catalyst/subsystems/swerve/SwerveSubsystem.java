@@ -103,7 +103,8 @@ public class SwerveSubsystem extends SubsystemBase {
                            PathPlannerConfig pathPlannerConfig) {
         this.drivetrain = drivetrain;
         this.maxSpeedMPS = maxSpeedMPS;
-        this.maxAngularRate = maxSpeedMPS / 0.4;
+        final double RadiusRobot = drivetrain.getModuleLocations()[0].getNorm();
+        this.maxAngularRate = maxSpeedMPS / RadiusRobot;
 
         headingPID.enableContinuousInput(-Math.PI, Math.PI);
         headingPID.setTolerance(Math.toRadians(1.5));
