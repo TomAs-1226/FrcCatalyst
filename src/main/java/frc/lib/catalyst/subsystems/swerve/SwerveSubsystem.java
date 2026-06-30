@@ -21,9 +21,11 @@ import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.networktables.StructPublisher;
 import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import frc.lib.catalyst.util.RobotState;
 import frc.lib.catalyst.util.SlewRateLimiter;
 
 import java.util.function.BooleanSupplier;
@@ -60,6 +62,9 @@ public class SwerveSubsystem extends SubsystemBase {
     private final SwerveDrivetrain drivetrain;
     private final double maxSpeedMPS;
     private final double maxAngularRate;
+
+    // boolean to see if the operator perspective has been applied alredy. (need to add this to make sure the red side is working)
+    private boolean hasAppliedOperatorPerspective = false;
 
     // Heading lock PID
     private final PIDController headingPID = new PIDController(5.0, 0, 0);
@@ -826,6 +831,15 @@ public class SwerveSubsystem extends SubsystemBase {
 
     @Override
     public void periodic() {
+        //do the same as in the commandSwerveDriveTrain periodic function so no need to cast it to another type and do a .register for another periodic.
+        //do it it didnt happen alredy or if we are on disable so i dont care about the longer time for the periodic function   
+        if (!hasAppliedOperatorPerspective || RobotState.isDisabled()) {
+            RobotState.allianceOpt()
+            .ifPresent(AllianceColor -> {
+                drivetrain.setOperatorPerspectiveForward(AllianceColor == Alliance.Red ? Rotation2d.k180deg : Rotation2d.kZero);
+                hasAppliedOperatorPerspective = true;
+            });
+        }
         Pose2d pose = getPose();
         posePub.set(pose);
         telemetryTable.getEntry("HeadingDeg").setDouble(pose.getRotation().getDegrees());
