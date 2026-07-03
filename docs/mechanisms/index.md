@@ -2,7 +2,7 @@
 layout: default
 title: Mechanisms
 nav_order: 3
-has_children: true
+has_children: false
 ---
 
 # Mechanisms
@@ -16,7 +16,7 @@ has_children: true
 
 ---
 
-FrcCatalyst provides eight generic mechanism types that cover virtually every FRC subsystem. Each mechanism extends `CatalystMechanism` (which extends WPILib's `SubsystemBase`) and provides:
+FrcCatalyst provides nine generic mechanism types that cover virtually every FRC subsystem. Each mechanism extends `CatalystMechanism` (which extends WPILib's `SubsystemBase`) and provides:
 
 - **Builder-pattern configuration** with validation and sensible defaults
 - **Two control modes**: CTRE Motion Magic (on TalonFX) or WPILib ProfiledPID (on roboRIO)
@@ -33,14 +33,15 @@ FrcCatalyst provides eight generic mechanism types that cover virtually every FR
 
 | Mechanism | Use Case | Position Unit | Control |
 |-----------|----------|---------------|---------|
-| [LinearMechanism](linear) | Elevators, slides, telescoping arms | Meters | Motion Magic + Gravity FF |
-| [RotationalMechanism](rotational) | Arms, wrists, turrets, hoods | Degrees | Motion Magic + Cosine Gravity |
-| [FlywheelMechanism](flywheel) | Shooters, accelerator wheels | RPS (velocity) | Velocity PID |
-| [RollerMechanism](roller) | Intakes, conveyors, indexers | N/A (duty cycle) | Open-loop + detection |
-| [WinchMechanism](winch) | Climbers, deployments | Meters | Duty cycle + limits |
-| [ClawMechanism](claw) | Motor-driven grippers | N/A (duty cycle) | Open-loop + stall / beam-break |
-| [DifferentialWristMechanism](diffwrist) | Diffy wrists (2-motor pitch+roll) | Degrees (pitch, roll) | Phoenix-6 native differential Motion Magic |
-| [PneumaticMechanism](pneumatic) | Solenoids / pistons | FORWARD / REVERSE / OFF | DoubleSolenoid + optional pressure gate |
+| **LinearMechanism** | Elevators, slides, telescoping arms | Meters | Motion Magic + Gravity FF |
+| **RotationalMechanism** | Arms, wrists, hoods | Degrees | Motion Magic + Cosine Gravity |
+| **TurretMechanism** | Aiming turrets (continuous angle, wrap-safe) | Degrees | Motion Magic + field-relative tracking |
+| **FlywheelMechanism** | Shooters, accelerator wheels | RPS (velocity) | Velocity PID |
+| **RollerMechanism** | Intakes, conveyors, indexers | N/A (duty cycle) | Open-loop + detection |
+| **WinchMechanism** | Climbers, deployments | Meters | Duty cycle + limits |
+| **ClawMechanism** | Motor-driven grippers | N/A (duty cycle) | Open-loop + stall / beam-break |
+| **DifferentialWristMechanism** | Diffy wrists (2-motor pitch+roll) | Degrees (pitch, roll) | Phoenix-6 native differential Motion Magic |
+| **PneumaticMechanism** | Solenoids / pistons | FORWARD / REVERSE / OFF | DoubleSolenoid + optional pressure gate |
 
 ## Self-describing & simulated
 

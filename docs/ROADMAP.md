@@ -42,7 +42,7 @@ No mainstream FRC library bundles these. This is the moat:
   defense compensation, built in.
 - **Health & safety kit** — `HealthCheck` / `HealthMonitor` /
   `RobotSafety` / `HealthHistory` with a live dashboard.
-- **Unified mechanism layer** — eight mechanisms, live tuning, CAN
+- **Unified mechanism layer** — nine mechanisms, live tuning, CAN
   registry, one builder call each.
 
 The strategy below is: **close the few real gaps competitors have, then

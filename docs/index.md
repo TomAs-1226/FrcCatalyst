@@ -197,7 +197,7 @@ HealthCheck-based fault monitoring, multi-follower support, pre-built commands,
 |---|---|
 | [Installation](getting-started/installation) | Add Catalyst to your `build.gradle` |
 | [Quick Start](getting-started/quickstart) | First mechanism in five minutes |
-| [Mechanisms](mechanisms/) | All eight mechanism types |
+| [Mechanisms](mechanisms/) | All nine mechanism types |
 | [Subsystems](subsystems/) | Swerve, Vision, LEDs, LimelightTriggers, SwerveSetpointGenerator |
 | [Driver](driver/) | DriverProfile, RumbleEvents, controller feel |
 | [Utilities](utilities/) | Health Kit, RobotSafety, RobotState, MotorType, CANRegistry, feedforward, profiles |
