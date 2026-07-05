@@ -1,16 +1,21 @@
 package frc.lib.catalyst.subsystems.swerve;
 
-import static edu.wpi.first.units.Units.*;
+import static edu.wpi.first.units.Units.MetersPerSecond;
+import static edu.wpi.first.units.Units.RadiansPerSecond;
+
+import java.util.function.DoubleSupplier;
+import java.util.function.Supplier;
 
 import com.ctre.phoenix6.swerve.SwerveDrivetrain;
-import com.ctre.phoenix6.swerve.SwerveRequest;
 import com.ctre.phoenix6.swerve.SwerveModule.DriveRequestType;
+import com.ctre.phoenix6.swerve.SwerveRequest;
 import com.pathplanner.lib.auto.AutoBuilder;
 import com.pathplanner.lib.config.PIDConstants;
 import com.pathplanner.lib.config.RobotConfig;
 import com.pathplanner.lib.controllers.PPHolonomicDriveController;
 import com.pathplanner.lib.path.PathConstraints;
 import com.pathplanner.lib.path.PathPlannerPath;
+
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.geometry.Pose2d;
@@ -25,10 +30,6 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.lib.catalyst.util.SlewRateLimiter;
-
-import java.util.function.BooleanSupplier;
-import java.util.function.DoubleSupplier;
-import java.util.function.Supplier;
 
 /**
  * Swerve drive subsystem wrapper for CTRE Phoenix 6 generated swerve code.
@@ -91,6 +92,7 @@ public class SwerveSubsystem extends SubsystemBase {
     // Telemetry
     private final NetworkTable telemetryTable;
     private final StructPublisher<Pose2d> posePub;
+    private final StructPublisher<ChassisSpeeds> speedsPub;
 
     /**
      * Create a SwerveSubsystem wrapping a CTRE-generated SwerveDrivetrain.
@@ -111,6 +113,7 @@ public class SwerveSubsystem extends SubsystemBase {
         telemetryTable = NetworkTableInstance.getDefault()
                 .getTable("Catalyst").getSubTable("Swerve");
         posePub = telemetryTable.getStructTopic("Pose", Pose2d.struct).publish();
+        speedsPub = telemetryTable.getStructTopic("ChassisSpeeds", ChassisSpeeds.struct).publish();
 
         if (pathPlannerConfig != null) {
             configurePathPlanner(pathPlannerConfig);
@@ -784,6 +787,11 @@ public class SwerveSubsystem extends SubsystemBase {
                 .ignoringDisable(true)
                 .withName("Swerve.ResetHeading");
     }
+    
+    @Override
+    public Command idle() {
+        return runOnce(()-> drivetrain.setControl(idleRequest)).withName("Idle");
+    }
 
     /**
      * Reset the pose. A pure odometry op — requires no subsystem, so it won't
@@ -797,7 +805,7 @@ public class SwerveSubsystem extends SubsystemBase {
 
     // --- Internals ---
 
-    private double applyDeadband(double value, double deadband) {
+    private static double applyDeadband(double value, double deadband) {
         if (Math.abs(value) < deadband) return 0;
         return (value - Math.copySign(deadband, value)) / (1.0 - deadband);
     }
@@ -828,6 +836,7 @@ public class SwerveSubsystem extends SubsystemBase {
     public void periodic() {
         Pose2d pose = getPose();
         posePub.set(pose);
+        speedsPub.set(getChassisSpeeds());
         telemetryTable.getEntry("HeadingDeg").setDouble(pose.getRotation().getDegrees());
         ChassisSpeeds speeds = getChassisSpeeds();
         double speed = Math.hypot(speeds.vxMetersPerSecond, speeds.vyMetersPerSecond);
@@ -876,4 +885,5 @@ public class SwerveSubsystem extends SubsystemBase {
             }
         }
     }
+
 }
