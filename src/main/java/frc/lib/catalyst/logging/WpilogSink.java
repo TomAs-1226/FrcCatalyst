@@ -9,10 +9,13 @@ import edu.wpi.first.util.datalog.IntegerArrayLogEntry;
 import edu.wpi.first.util.datalog.IntegerLogEntry;
 import edu.wpi.first.util.datalog.StringArrayLogEntry;
 import edu.wpi.first.util.datalog.StringLogEntry;
+import edu.wpi.first.util.datalog.StructLogEntry;
+import edu.wpi.first.util.struct.Struct;
 import edu.wpi.first.wpilibj.DataLogManager;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * {@link LogSink} that records everything Catalyst logs to a standard WPILib
@@ -51,6 +54,7 @@ public final class WpilogSink implements LogSink {
     private final Map<String, BooleanArrayLogEntry> booleanArrays = new HashMap<>();
     private final Map<String, IntegerArrayLogEntry> longArrays = new HashMap<>();
     private final Map<String, StringArrayLogEntry> stringArrays = new HashMap<>();
+    private final Map<String, StructLogEntry<?>> structs = new HashMap<>();
 
     /**
      * Start (or reuse) {@link DataLogManager}'s log — auto-locates a USB stick
@@ -123,5 +127,11 @@ public final class WpilogSink implements LogSink {
     public void log(String key, String[] value) {
         stringArrays.computeIfAbsent(key, k -> new StringArrayLogEntry(log, k)).append(value);
         if (alsoTo != null) alsoTo.log(key, value);
+    }
+
+    @Override
+    public <T> void log(String key, Struct<T> struct, T value) {
+        ((StructLogEntry<T>) structs.computeIfAbsent(key, k -> StructLogEntry.create(log, key, struct))).append(value);
+        if (alsoTo != null) alsoTo.log(key, struct, value);
     }
 }
