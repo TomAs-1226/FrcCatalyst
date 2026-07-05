@@ -1,5 +1,7 @@
 package frc.lib.catalyst.logging;
 
+import edu.wpi.first.util.struct.Struct;
+
 /**
  * Pluggable destination for everything Catalyst logs.
  *
@@ -43,6 +45,9 @@ public interface LogSink {
 
     /** Record a {@code String[]} under {@code key}. The array should be treated as read-only. */
     void log(String key, String[] value);
+
+    /** Record a {@code String[]} under {@code key}. The array should be treated as read-only. */
+    <T> void log(String key, Struct<T> struct, T value);
 
     /**
      * Process a mechanism's input snapshot.

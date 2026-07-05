@@ -3,9 +3,12 @@ package frc.lib.catalyst.logging;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.networktables.NetworkTableInstance;
+import edu.wpi.first.networktables.StructPublisher;
+import edu.wpi.first.util.struct.Struct;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Default {@link LogSink} that publishes everything to NetworkTables under a
@@ -22,6 +25,9 @@ public final class NetworkTablesSink implements LogSink {
 
     private final NetworkTable root;
     private final Map<String, NetworkTableEntry> entryCache = new HashMap<>();
+
+    // Cache for Struct publishers
+    private final Map<String, StructPublisher<?>> structCache = new ConcurrentHashMap<>();
 
     /** Build a sink that publishes under {@code "Catalyst"} on the default NT instance. */
     public NetworkTablesSink() {
@@ -48,4 +54,13 @@ public final class NetworkTablesSink implements LogSink {
     @Override public void log(String key, boolean[] value)  { entry(key).setBooleanArray(value); }
     @Override public void log(String key, long[] value)     { entry(key).setIntegerArray(value); }
     @Override public void log(String key, String[] value)   { entry(key).setStringArray(value); }
+    @Override 
+    public <T> void log(String key, Struct<T> struct, T value) { 
+        // Cache the publisher so we don't allocate new NT publishers at 50Hz
+        StructPublisher<T> publisher = (StructPublisher<T>) structCache.computeIfAbsent(
+            key, 
+            k -> root.getStructTopic(k, struct).publish()
+        );
+        publisher.set(value); 
+    }
 }
