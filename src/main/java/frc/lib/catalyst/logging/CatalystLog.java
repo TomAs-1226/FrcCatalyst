@@ -45,7 +45,7 @@ package frc.lib.catalyst.logging;
 public final class CatalystLog {
 
     private static LogSink sink = new NetworkTablesSink();
-
+    private static boolean loggingInputs = true;
     private CatalystLog() {}
 
     /**
@@ -87,6 +87,15 @@ public final class CatalystLog {
      * directly to AK's own {@code LoggableInputs} pipeline.
      */
     public static void processInputs(String prefix, CatalystInputs inputs) {
-        sink.processInputs(prefix, inputs);
+        if (loggingInputs) {
+            sink.processInputs(prefix, inputs);        
+        }
+    }
+    /**
+     * use this to disable logging to the sink the inputs can help with loop over run as youu send less to NT
+     * @param enable if the inputs will be logged or not
+     */
+    public static void enableLoggingInputs(boolean enable){
+        loggingInputs = enable;
     }
 }
