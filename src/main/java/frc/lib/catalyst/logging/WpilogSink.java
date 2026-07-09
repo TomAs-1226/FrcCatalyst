@@ -77,6 +77,16 @@ public final class WpilogSink implements LogSink {
         this.alsoTo = alsoToNt ? new NetworkTablesSink() : null;
     }
 
+    public WpilogSink(LogSink alsoTo){
+        DataLogManager.start();
+        this.log = DataLogManager.getLog();
+        this.alsoTo = alsoTo;
+    }
+    public WpilogSink(DataLog log, LogSink alsoTo) {
+        this.log = log;
+        this.alsoTo = alsoTo; 
+    }
+
     @Override
     public void log(String key, double value) {
         doubles.computeIfAbsent(key, k -> new DoubleLogEntry(log, k)).append(value);
