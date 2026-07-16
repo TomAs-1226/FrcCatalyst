@@ -80,6 +80,21 @@ public final class CatalystLog {
     public static void log(String key, String[] value)  { sink.log(key, value); }
 
     /**
+     * Record a WPILib struct-serializable {@code value} (e.g. a {@code Pose2d}
+     * or {@code SwerveModuleState}) under {@code key} using its {@link
+     * edu.wpi.first.util.struct.Struct} descriptor, so AdvantageScope renders it
+     * as a real 2D/3D object instead of loose numbers.
+     */
+    public static <T> void log(String key, edu.wpi.first.util.struct.Struct<T> struct, T value) {
+        sink.log(key, struct, value);
+    }
+
+    /** Record an array of struct-serializable values (e.g. {@code SwerveModuleState[]}) under {@code key}. */
+    public static <T> void log(String key, edu.wpi.first.util.struct.Struct<T> struct, T[] values) {
+        sink.log(key, struct, values);
+    }
+
+    /**
      * Process a mechanism's input snapshot.
      * <p>Delegates to {@link LogSink#processInputs(String, CatalystInputs)}, which
      * by default serializes the inputs into a {@link LogTable} and writes one entry

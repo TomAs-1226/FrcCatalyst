@@ -56,6 +56,16 @@ public interface LogSink {
     default <T> void log(String key, Struct<T> struct, T value) {}
 
     /**
+     * Record an array of WPILib struct-serializable values under {@code key}
+     * (e.g. {@code SwerveModuleState[]} with {@code SwerveModuleState.struct}).
+     * The array should be treated as read-only.
+     *
+     * <p>Defaults to a no-op for the same compatibility reason as the scalar
+     * struct overload.
+     */
+    default <T> void log(String key, Struct<T> struct, T[] values) {}
+
+    /**
      * Process a mechanism's input snapshot.
      * <p>The default implementation serializes the inputs into a {@link LogTable}
      * and forwards each entry through the typed {@code log(...)} methods. Override

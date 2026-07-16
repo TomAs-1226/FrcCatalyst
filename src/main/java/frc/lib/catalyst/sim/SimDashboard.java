@@ -578,12 +578,24 @@ public final class SimDashboard {
     background:var(--txt);transition:.15s}
   .sw.on .kn{left:20px;background:#04121a}
   .empty{color:var(--dim);padding:40px;text-align:center;grid-column:1/-1}
+  .hctrls{margin-left:auto;display:flex;gap:8px;align-items:center}
+  .hbtn{background:var(--fill);color:var(--txt);border:1px solid var(--line);border-radius:7px;
+    padding:5px 11px;font:inherit;font-size:11px;cursor:pointer}
+  .hbtn:hover{border-color:var(--accent);color:#fff}
+  .hbtn.on{background:var(--warn);border-color:var(--warn);color:#04121a;font-weight:600}
+  .status{margin-left:14px}
+  canvas.spark{width:100%;height:34px;display:block;margin:2px 0;
+    background:var(--panel2);border:1px solid var(--line);border-radius:6px}
 </style>
 </head>
 <body>
 <header>
   <h1>CATALYST <span style="color:var(--accent)">SimDashboard</span></h1>
   <span class="sub" id="sub">generic mechanism cockpit</span>
+  <div class="hctrls">
+    <button class="hbtn" id="pauseBtn" onclick="togglePause()">Pause</button>
+    <button class="hbtn" onclick="exportCsv()">Export CSV</button>
+  </div>
   <div class="status"><span id="dot" class="dot"></span><span id="stat">connecting</span></div>
 </header>
 <div id="grid"><div class="empty">loading mechanisms...</div></div>
@@ -591,6 +603,10 @@ public final class SimDashboard {
 const grid = document.getElementById('grid');
 let layout = null;
 let live = false;
+let paused = false;
+let lastState = null;
+const HIST = [];          // per-mechanism ring buffer of the primary value
+const HCAP = 150;         // ~15s of history at 100ms
 
 function fmt(x){ return (x===null||x===undefined) ? '--' : (Math.round(x*100)/100).toString(); }
 
@@ -629,6 +645,7 @@ function build(){
         '<span class="sp" id="ss'+i+'"></span></div>'+
       '<div class="bar" id="bw'+i+'"><div class="fill" id="bf'+i+'"></div><div class="tick" id="bt'+i+'"></div></div>'+
       '<div class="rng" id="rg'+i+'"></div>'+
+      '<canvas class="spark" id="sp'+i+'" width="320" height="34"></canvas>'+
       '<div class="stats" id="st'+i+'"></div>'+
       ctrlBlock+
     '</div>';
@@ -667,7 +684,53 @@ function render(state){
     if(m.toggles){ m.toggles.forEach((on,j)=>{
       const el=document.getElementById('tg'+i+'_'+j); if(el) el.classList.toggle('on',!!on);
     }); }
+    if(!HIST[i]) HIST[i]=[];
+    if(m.value!==null&&m.value!==undefined&&isFinite(m.value)){
+      HIST[i].push(m.value); if(HIST[i].length>HCAP) HIST[i].shift();
+      drawSpark(i, m.setpoint);
+    }
   });
+}
+
+function drawSpark(i, setpoint){
+  const cv=document.getElementById('sp'+i); if(!cv) return;
+  const h=HIST[i]; const ctx=cv.getContext('2d'); const W=cv.width, H=cv.height;
+  ctx.clearRect(0,0,W,H);
+  if(h.length<2) return;
+  let lo=Math.min.apply(null,h), hi=Math.max.apply(null,h);
+  if(setpoint!==null&&setpoint!==undefined&&isFinite(setpoint)){ lo=Math.min(lo,setpoint); hi=Math.max(hi,setpoint); }
+  if(hi-lo<1e-9){ hi=lo+1; lo=lo-1; }
+  const pad=2, span=hi-lo;
+  const x=k=> pad + k*(W-2*pad)/(HCAP-1);
+  const y=v=> H-pad - (v-lo)/span*(H-2*pad);
+  // setpoint guide
+  if(setpoint!==null&&setpoint!==undefined&&isFinite(setpoint)){
+    ctx.strokeStyle='rgba(255,176,32,0.5)'; ctx.lineWidth=1; ctx.beginPath();
+    ctx.moveTo(0,y(setpoint)); ctx.lineTo(W,y(setpoint)); ctx.stroke();
+  }
+  // value trace
+  const start=HCAP-h.length;
+  ctx.strokeStyle='#39d0d8'; ctx.lineWidth=1.5; ctx.beginPath();
+  for(let k=0;k<h.length;k++){ const px=x(start+k), py=y(h[k]); if(k===0) ctx.moveTo(px,py); else ctx.lineTo(px,py); }
+  ctx.stroke();
+}
+
+function togglePause(){
+  paused=!paused;
+  const b=document.getElementById('pauseBtn');
+  b.textContent=paused?'Resume':'Pause'; b.classList.toggle('on',paused);
+}
+
+function exportCsv(){
+  if(!lastState) return;
+  const nl=String.fromCharCode(10);
+  const rows=[['name','kind','value','unit','setpoint','min','max','velocity','current']];
+  lastState.mechanisms.forEach(m=>rows.push([m.name,m.kind,m.value,m.unit,m.setpoint,m.min,m.max,m.velocity,m.current]));
+  const csv=rows.map(r=>r.map(c=>(c===null||c===undefined)?'':String(c)).join(',')).join(nl);
+  const blob=new Blob([csv],{type:'text/csv'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download='simdashboard.csv'; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 
 function setLive(ok){
@@ -683,11 +746,13 @@ function tog(i,j){ const el=document.getElementById('tg'+i+'_'+j); const on=!el.
   el.classList.toggle('on',on); fetch('/cmd?toggle='+i+':'+j+'&v='+(on?1:0)); }
 
 async function poll(){
-  try{
-    const r=await fetch('/state',{cache:'no-store'});
-    const s=await r.json();
-    setLive(true); render(s);
-  }catch(e){ setLive(false); }
+  if(!paused){
+    try{
+      const r=await fetch('/state',{cache:'no-store'});
+      const s=await r.json();
+      lastState=s; setLive(true); render(s);
+    }catch(e){ setLive(false); }
+  }
   setTimeout(poll,100);
 }
 

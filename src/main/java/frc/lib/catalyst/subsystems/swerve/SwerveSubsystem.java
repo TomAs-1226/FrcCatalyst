@@ -24,6 +24,8 @@ import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
+import edu.wpi.first.math.kinematics.SwerveModuleState;
+import edu.wpi.first.networktables.StructArrayPublisher;
 import edu.wpi.first.networktables.StructPublisher;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
@@ -98,6 +100,9 @@ public class SwerveSubsystem extends SubsystemBase {
     private final NetworkTable telemetryTable;
     private final StructPublisher<Pose2d> posePub;
     private final StructPublisher<ChassisSpeeds> speedsPub;
+    // Measured + commanded module states, for the AdvantageScope swerve view.
+    private final StructArrayPublisher<SwerveModuleState> moduleStatesPub;
+    private final StructArrayPublisher<SwerveModuleState> moduleTargetsPub;
 
     /**
      * Create a SwerveSubsystem wrapping a CTRE-generated SwerveDrivetrain.
@@ -120,6 +125,10 @@ public class SwerveSubsystem extends SubsystemBase {
                 .getTable("Catalyst").getSubTable("Swerve");
         posePub = telemetryTable.getStructTopic("Pose", Pose2d.struct).publish();
         speedsPub = telemetryTable.getStructTopic("ChassisSpeeds", ChassisSpeeds.struct).publish();
+        moduleStatesPub = telemetryTable
+                .getStructArrayTopic("ModuleStates", SwerveModuleState.struct).publish();
+        moduleTargetsPub = telemetryTable
+                .getStructArrayTopic("ModuleTargets", SwerveModuleState.struct).publish();
 
         if (pathPlannerConfig != null) {
             configurePathPlanner(pathPlannerConfig);
@@ -766,7 +775,7 @@ public class SwerveSubsystem extends SubsystemBase {
 
     /**
      * Per-module drive distances in metres (signed, cumulative) — used by
-     * {@link frc.lib.catalyst.util.WheelRadiusCalibration} and available for
+     * {@link WheelRadiusCalibration} and available for
      * any custom odometry diagnostics.
      */
     public double[] getModuleDistances() {
@@ -852,6 +861,9 @@ public class SwerveSubsystem extends SubsystemBase {
         Pose2d pose = getPose();
         posePub.set(pose);
         speedsPub.set(getChassisSpeeds());
+        var state = drivetrain.getState();
+        if (state.ModuleStates != null) moduleStatesPub.set(state.ModuleStates);
+        if (state.ModuleTargets != null) moduleTargetsPub.set(state.ModuleTargets);
         telemetryTable.getEntry("HeadingDeg").setDouble(pose.getRotation().getDegrees());
         ChassisSpeeds speeds = getChassisSpeeds();
         double speed = Math.hypot(speeds.vxMetersPerSecond, speeds.vyMetersPerSecond);

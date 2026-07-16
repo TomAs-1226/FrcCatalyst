@@ -9,6 +9,7 @@ import edu.wpi.first.util.datalog.IntegerArrayLogEntry;
 import edu.wpi.first.util.datalog.IntegerLogEntry;
 import edu.wpi.first.util.datalog.StringArrayLogEntry;
 import edu.wpi.first.util.datalog.StringLogEntry;
+import edu.wpi.first.util.datalog.StructArrayLogEntry;
 import edu.wpi.first.util.datalog.StructLogEntry;
 import edu.wpi.first.util.struct.Struct;
 import edu.wpi.first.wpilibj.DataLogManager;
@@ -55,6 +56,7 @@ public final class WpilogSink implements LogSink {
     private final Map<String, IntegerArrayLogEntry> longArrays = new HashMap<>();
     private final Map<String, StringArrayLogEntry> stringArrays = new HashMap<>();
     private final Map<String, StructLogEntry<?>> structs = new HashMap<>();
+    private final Map<String, StructArrayLogEntry<?>> structArrays = new HashMap<>();
 
     /**
      * Start (or reuse) {@link DataLogManager}'s log — auto-locates a USB stick
@@ -144,5 +146,12 @@ public final class WpilogSink implements LogSink {
     public <T> void log(String key, Struct<T> struct, T value) {
         ((StructLogEntry<T>) structs.computeIfAbsent(key, k -> StructLogEntry.create(log, key, struct))).append(value);
         if (alsoTo != null) alsoTo.log(key, struct, value);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> void log(String key, Struct<T> struct, T[] values) {
+        ((StructArrayLogEntry<T>) structArrays.computeIfAbsent(key, k -> StructArrayLogEntry.create(log, key, struct))).append(values);
+        if (alsoTo != null) alsoTo.log(key, struct, values);
     }
 }

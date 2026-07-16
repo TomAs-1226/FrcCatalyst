@@ -38,7 +38,9 @@ public final class CompoundSink implements LogSink {
     @Override public void log(String key, long[] value)    { for (LogSink s : sinks) s.log(key, value); }
     @Override public void log(String key, String[] value)  { for (LogSink s : sinks) s.log(key, value); }
     @Override
-    public <T> void log(String key, Struct<T> struct, T value) { for (LogSink s : sinks) s.log(key , struct , value);}
+    public <T> void log(String key, Struct<T> struct, T value) { for (LogSink s : sinks) s.log(key, struct, value); }
+    @Override
+    public <T> void log(String key, Struct<T> struct, T[] values) { for (LogSink s : sinks) s.log(key, struct, values); }
     @Override
     public void processInputs(String prefix, CatalystInputs inputs) {
         for (LogSink s : sinks) s.processInputs(prefix, inputs);
