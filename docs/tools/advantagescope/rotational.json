@@ -1,6 +1,6 @@
 {
   "$schema": "../catalyst-tab-bundle.schema.json",
-  "catalystVersion": "1.0.0-rc4",
+  "catalystVersion": "1.0.0",
   "mechanism": "RotationalMechanism",
   "description": "Angle / angular-velocity / current dashboard for any RotationalMechanism (arms, pivots, turrets).",
   "placeholders": {

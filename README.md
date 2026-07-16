@@ -58,7 +58,7 @@ repositories {
 }
 
 dependencies {
-    implementation "com.github.TomAs-1226:FrcCatalyst:v1.0.0-rc4"
+    implementation "com.github.TomAs-1226:FrcCatalyst:v1.0.0"
 }
 ```
 </details>
@@ -98,6 +98,22 @@ operatorController.b().onTrue(elevator.goTo("STOW"));
 ```
 
 ---
+
+## 🎉 v1.0.0 is here: out of beta
+
+**FrcCatalyst is 1.0.0.** After a long beta run (v0.3 through v0.10) and four
+release candidates, the library is stable, documented, and ready for the 2026
+season. Every mechanism, the swerve stack, Shoot-On-The-Fly aiming, the behavior
+framework, logging, and the generic `SimDashboard` are covered by a real unit
+test suite and proven in the simulator and on a real robot.
+
+Thank you to everyone who filed issues and PRs through the beta, especially
+**@avrahamavraham** and the teams following along on Chief Delphi. This is your
+release too.
+
+1.0.0 is the same code as rc4, promoted after the release-candidate series held
+up. Semantic versioning starts here: the public API is stable, and breaking
+changes wait for 2.0.0. Go build something awesome. 🚀
 
 ## What's New in v1.0.0-rc4: community PRs, telemetry, swerve, sim, vision
 

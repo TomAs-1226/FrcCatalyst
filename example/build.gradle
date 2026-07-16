@@ -65,7 +65,7 @@ dependencies {
     // in the library root first). PhotonVision is excluded: this example never
     // instantiates VisionSubsystem, so we don't need the photon artifacts (and
     // their maven server can be flaky).
-    implementation("com.frccatalyst:FrcCatalyst:1.0.0-rc4") {
+    implementation("com.frccatalyst:FrcCatalyst:1.0.0") {
         exclude group: 'org.photonvision'
     }
 

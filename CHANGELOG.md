@@ -5,6 +5,29 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.0] — 2026-07-15 — Out of beta 🎉
+
+**FrcCatalyst 1.0.0.** After a long beta (v0.3 through v0.10) and four release
+candidates, the library is stable and ready for the 2026 season.
+
+This is the same code as `1.0.0-rc4`, promoted after the release-candidate series
+held up. Nothing changes in the API; this release marks the milestone:
+
+- **Stable, versioned public API.** Semantic versioning starts here. Breaking
+  changes are reserved for 2.0.0.
+- **Proven.** Mechanisms, swerve, Shoot-On-The-Fly aiming, the behavior
+  framework, logging, and the generic `SimDashboard` are covered by a real unit
+  test suite (`./gradlew test`) and verified in the simulator and on a robot.
+- **Documented.** Full docs at
+  [tomas-1226.github.io/FrcCatalyst](https://tomas-1226.github.io/FrcCatalyst/),
+  plus browser tools and per-mechanism guides.
+
+Thank you to everyone who filed issues and PRs through the beta, especially
+**@avrahamavraham** and the teams on Chief Delphi. Go build something awesome.
+
+Everything shipped in the `1.0.0-rc1` through `1.0.0-rc4` candidates below is part
+of 1.0.0.
+
 ## [1.0.0-rc4] — 2026-07-15 — Community PRs + telemetry, swerve, sim, vision
 
 Seven community PRs merged, plus four additive feature areas. Backward compatible.

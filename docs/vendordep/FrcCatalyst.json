@@ -1,7 +1,7 @@
 {
   "fileName": "FrcCatalyst.json",
   "name": "FrcCatalyst",
-  "version": "1.0.0-rc4",
+  "version": "1.0.0",
   "frcYear": "2026",
   "uuid": "a3f5c1e8-9d24-4b7a-bf12-6e0c3d8a91f4",
   "mavenUrls": [
@@ -12,7 +12,7 @@
     {
       "groupId": "com.github.TomAs-1226",
       "artifactId": "FrcCatalyst",
-      "version": "v1.0.0-rc4"
+      "version": "v1.0.0"
     }
   ],
   "jniDependencies": [],
