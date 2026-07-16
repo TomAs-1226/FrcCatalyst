@@ -5,6 +5,45 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.0-rc4] — 2026-07-15 — Community PRs + telemetry, swerve, sim, vision
+
+Seven community PRs merged, plus four additive feature areas. Backward compatible.
+
+### Merged community contributions (thanks @avrahamavraham)
+- Red-alliance operator-perspective fix so field-centric drive is correct on red.
+- `maxAngularRate` now derives from the real module radius instead of a magic constant.
+- Swerve `idle()` command and a ChassisSpeeds NT publisher.
+- Struct logging on the `LogSink` chain (hardened on merge to a non-breaking default).
+- `CatalystLog.enableLoggingInputs(boolean)` to cut NT traffic under loop overrun.
+- Custom `WpilogSink(LogSink alsoTo)` destinations.
+- A cross-platform UTF-8 Javadoc build fix.
+
+### Added — struct + struct-array logging, end to end
+- `CatalystLog.log(key, Struct, value)` and `log(key, Struct, value[])` publish any
+  WPILib struct-serializable type (poses, `SwerveModuleState`, ...) as real objects
+  in AdvantageScope, through both the NetworkTables (`StructArrayPublisher`) and
+  WPILOG (`StructArrayLogEntry`) sinks, forwarded through `CompoundSink`.
+
+### Added — swerve module-state telemetry
+- Measured and target `SwerveModuleState[]` publish to `/Catalyst/Swerve/ModuleStates`
+  and `/ModuleTargets` for the AdvantageScope swerve view. Also fixes the broken
+  `WheelRadiusCalibration` javadoc link.
+
+### Added — SimDashboard v2
+- Per-mechanism **sparkline** history with a setpoint guide, a global **pause/resume**
+  toggle, and **CSV export** of the live snapshot. Frontend only.
+
+### Added — simulated vision
+- `SimCameraSource`, a `CameraSource` that emits noisy, latency-delayed pose
+  estimates from a supplied simulated pose, so the multi-camera fusion pipeline
+  runs in the WPILib simulator with no hardware.
+
+### WPILib 2027
+- New `wpilib-2027` branch with a grounded migration plan (`MIGRATION_2027.md`):
+  the dominant cost is the `edu.wpi.first` -> `org.wpilib` package rename, Catalyst
+  uses none of the removed 2027 classes, and it is blocked on 2027 vendor builds.
+  Main stays on WPILib 2026.
+
 ## [1.0.0-rc3] — 2026-06-28 — Configurable simulation
 
 The simulation is no longer tied to one robot. A new generic dashboard renders

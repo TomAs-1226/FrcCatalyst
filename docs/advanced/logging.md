@@ -64,6 +64,28 @@ You don't have to do anything. On startup, `CatalystLog` is wired to a
 mechanism publishes its per-loop state through that root. Dashboards built
 against v0.2 keep working.
 
+## Logging struct types (poses, module states)
+
+Beyond primitives and arrays, `CatalystLog` logs any WPILib struct-serializable
+type through its `Struct` descriptor, so AdvantageScope renders it as a real 2D
+or 3D object instead of loose numbers:
+
+```java
+CatalystLog.log("Drive/Pose", Pose2d.struct, drive.getPose());
+CatalystLog.log("Drive/ModuleStates", SwerveModuleState.struct, drive.getModuleStates());
+```
+
+Both a scalar (`log(key, struct, value)`) and an array
+(`log(key, struct, value[])`) overload are available. They work through every
+sink: the `NetworkTablesSink` publishes them with cached `StructPublisher` /
+`StructArrayPublisher`, the `WpilogSink` records them as `StructLogEntry` /
+`StructArrayLogEntry`, and `CompoundSink` forwards to both. `SwerveSubsystem`
+uses this internally to publish `/Catalyst/Swerve/ModuleStates` and
+`/ModuleTargets` for the AdvantageScope swerve view.
+
+To cut NetworkTables traffic under loop overrun, gate the per-mechanism input
+snapshots with `CatalystLog.enableLoggingInputs(false)` (outputs still log).
+
 ## Bridging to AdvantageKit
 
 AdvantageKit's `Logger.recordOutput(...)` is the public API for getting custom

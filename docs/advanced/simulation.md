@@ -106,6 +106,11 @@ The dashboard maps each `MechanismView` kind to a fitting widget:
 | `winch` | extension value over its range |
 | `pneumatic` | solenoid state chip |
 
+Each widget also draws a live **sparkline** of its primary value with a setpoint
+guide, so you can watch a mechanism settle. The header has a **Pause/Resume**
+toggle (freeze the view mid-motion) and an **Export CSV** button that downloads
+the current snapshot of every mechanism.
+
 ### Mechanisms now run real physics in sim
 
 Four mechanisms that used to be inert in simulation now run real WPILib
@@ -207,6 +212,22 @@ stack runs against it:
   field with `pathfindToPose` and `followChoreoPath`.
 - **Vision pursuit** feeds `driveToPiece` a supplier of the nearest simulated
   piece pose and cycles.
+- **Vision fusion** runs with no camera: add a `SimCameraSource` to your
+  `VisionConfig`, feeding it the true simulated pose. It emits noisy,
+  latency-delayed pose estimates so the whole `VisionSubsystem` pipeline (accept
+  / reject, std-dev weighting, feeding the swerve estimator) runs in the
+  simulator, letting you tune `maxAmbiguity` and the std-dev model early.
+
+```java
+VisionConfig cfg = VisionConfig.builder()
+    .driveSubsystem(drive)
+    .addCamera(SimCameraSource.builder("SimFront")
+        .truePose(() -> swerveSim.getSimulatedDriveTrainPose())
+        .translationStdDevMeters(0.03)
+        .latencySeconds(0.03)
+        .build())
+    .build();
+```
 
 ### Visualization
 

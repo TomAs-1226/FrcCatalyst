@@ -58,7 +58,7 @@ repositories {
 }
 
 dependencies {
-    implementation "com.github.TomAs-1226:FrcCatalyst:v1.0.0-rc3"
+    implementation "com.github.TomAs-1226:FrcCatalyst:v1.0.0-rc4"
 }
 ```
 </details>
@@ -98,6 +98,15 @@ operatorController.b().onTrue(elevator.goTo("STOW"));
 ```
 
 ---
+
+## What's New in v1.0.0-rc4: community PRs, telemetry, swerve, sim, vision
+
+- **Merged 7 community PRs** (thanks @avrahamavraham): red-alliance field-centric fix, wheel-radius-based max angular rate, an `idle()` command + ChassisSpeeds publisher, struct logging, a logging enable/disable toggle, and custom `WpilogSink` destinations.
+- **Struct + struct-array logging** end to end: `CatalystLog.log(key, struct, value)` and `(key, struct, array)` publish any WPILib struct type (poses, module states) as real objects in AdvantageScope, through both the NetworkTables and WPILOG sinks.
+- **Swerve module telemetry**: measured and target `SwerveModuleState[]` publish to `/Catalyst/Swerve/ModuleStates` and `/ModuleTargets` for the AdvantageScope swerve view.
+- **SimDashboard v2**: per-mechanism sparkline history, a pause/resume toggle, and CSV export of the live snapshot.
+- **`SimCameraSource`**: a vision source that emits noisy, latency-delayed pose estimates from a simulated pose, so the multi-camera fusion pipeline runs in the simulator with no hardware.
+- **WPILib 2027**: a `wpilib-2027` branch with a grounded migration plan (`MIGRATION_2027.md`). Main stays on WPILib 2026.
 
 ## What's New in v1.0.0-rc3: Configurable simulation
 

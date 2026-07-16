@@ -726,7 +726,10 @@ function exportCsv(){
   const nl=String.fromCharCode(10);
   const rows=[['name','kind','value','unit','setpoint','min','max','velocity','current']];
   lastState.mechanisms.forEach(m=>rows.push([m.name,m.kind,m.value,m.unit,m.setpoint,m.min,m.max,m.velocity,m.current]));
-  const csv=rows.map(r=>r.map(c=>(c===null||c===undefined)?'':String(c)).join(',')).join(nl);
+  // RFC-4180 quote every field so a comma/newline/quote in a mechanism name
+  // can't corrupt the CSV; guard the =,+,-,@ formula-injection prefixes too.
+  const q=c=>{ let s=(c===null||c===undefined)?'':String(c); if(/^[-=+@]/.test(s)) s="'"+s; return '"'+s.replace(/"/g,'""')+'"'; };
+  const csv=rows.map(r=>r.map(q).join(',')).join(nl);
   const blob=new Blob([csv],{type:'text/csv'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob); a.download='simdashboard.csv'; a.click();
