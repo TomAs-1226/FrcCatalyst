@@ -42,7 +42,7 @@
   <text x="420" y="161" font-family="Arial, sans-serif" font-weight="700" font-size="20" fill="#00b4ff">migration branch</text>
   <!-- Warning line -->
   <text x="252" y="205" font-family="Arial, sans-serif" font-weight="700" font-size="18" fill="#ff9800">&#9888; EXPERIMENTAL &#183; not for use &#183; the cake is a lie</text>
-  <text x="252" y="232" font-family="Arial, sans-serif" font-weight="300" font-size="16" fill="#8892b0">The stable library lives on main (WPILib 2026). See MIGRATION_2027.md.</text>
+  <text x="252" y="232" font-family="Arial, sans-serif" font-weight="300" font-size="16" fill="#8892b0">Stable lib is on main (WPILib 2026). See MIGRATION_2027.md.</text>
   <!-- Version badge -->
   <rect x="252" y="248" width="118" height="22" rx="4" fill="#ff9800"/>
   <text x="311" y="264" text-anchor="middle" font-family="monospace" font-size="12" fill="#0b0f14" font-weight="700">2027 &#183; alpha</text>
