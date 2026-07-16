@@ -55,7 +55,8 @@ public final class NetworkTablesSink implements LogSink {
     @Override public void log(String key, long[] value)     { entry(key).setIntegerArray(value); }
     @Override public void log(String key, String[] value)   { entry(key).setStringArray(value); }
     @Override 
-    public <T> void log(String key, Struct<T> struct, T value) { 
+    @SuppressWarnings("unchecked")
+    public <T> void log(String key, Struct<T> struct, T value) {
         // Cache the publisher so we don't allocate new NT publishers at 50Hz
         StructPublisher<T> publisher = (StructPublisher<T>) structCache.computeIfAbsent(
             key, 

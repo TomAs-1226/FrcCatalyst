@@ -46,8 +46,14 @@ public interface LogSink {
     /** Record a {@code String[]} under {@code key}. The array should be treated as read-only. */
     void log(String key, String[] value);
 
-    /** Record a {@code String[]} under {@code key}. The array should be treated as read-only. */
-    <T> void log(String key, Struct<T> struct, T value);
+    /**
+     * Record a WPILib struct-serializable {@code value} under {@code key} using
+     * its {@link Struct} descriptor (e.g. {@code Pose2d.struct}).
+     *
+     * <p>Defaults to a no-op so existing external {@link LogSink} implementations
+     * keep compiling; the built-in sinks override it to publish real struct data.
+     */
+    default <T> void log(String key, Struct<T> struct, T value) {}
 
     /**
      * Process a mechanism's input snapshot.

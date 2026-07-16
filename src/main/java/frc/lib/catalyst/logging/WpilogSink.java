@@ -140,6 +140,7 @@ public final class WpilogSink implements LogSink {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public <T> void log(String key, Struct<T> struct, T value) {
         ((StructLogEntry<T>) structs.computeIfAbsent(key, k -> StructLogEntry.create(log, key, struct))).append(value);
         if (alsoTo != null) alsoTo.log(key, struct, value);
