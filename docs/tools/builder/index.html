@@ -144,6 +144,15 @@
     .followers { display: flex; flex-direction: column; gap: 6px; }
     .follower-row { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; }
     .follower-row input { padding: 5px 8px; font-size: 12px; }
+    .pos-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; align-items: center; }
+    .pos-row input { padding: 5px 8px; font-size: 12px; }
+    .help-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 15px; height: 15px; margin-left: 6px; border-radius: 50%;
+      border: 1px solid var(--muted); color: var(--muted);
+      font-size: 10px; font-weight: 700; cursor: help; user-select: none; vertical-align: middle;
+    }
+    .help-badge:hover { border-color: var(--accent); color: var(--accent); }
     .btn {
       background: var(--accent);
       color: #fff;
@@ -263,9 +272,11 @@
     <h2>Tips</h2>
     <div style="font-size:12px;color:var(--muted);line-height:1.55;">
       Fill the form and the Java updates live. Empty fields are omitted from
-      the builder, so the library's own defaults apply. Click <b>Full subsystem
-      class</b> in the preview header to wrap the snippet in a
-      <code>SubsystemBase</code>.
+      the builder, so the library's own defaults apply. Hover the <b>?</b> next to
+      a field for what it does. Click <b>Full wrapper class</b> in the preview
+      header to wrap the snippet in a small holder class with a <code>get()</code>
+      accessor (the mechanism is already a subsystem, so it isn't wrapped in a
+      second <code>SubsystemBase</code>).
     </div>
   </aside>
 
@@ -276,7 +287,7 @@
       <h2>Generated <span id="modeLabel">config</span></h2>
       <div>
         <label class="mode-toggle">
-          <input type="checkbox" id="fullClassToggle"> <span>Full subsystem class</span>
+          <input type="checkbox" id="fullClassToggle"> <span>Full wrapper class</span>
         </label>
         <button class="btn ghost" id="importBtn" title="Paste an existing config snippet to populate the form">Import</button>
         <button class="btn ghost" id="downloadBtn" title="Download as .java file">Download</button>
@@ -354,6 +365,9 @@
           { id: "mmAccel", label: "MM accel (rps²)", type: "double", builder: "motionMagic", group: "mm" },
           { id: "mmJerk", label: "MM jerk (rps³)", type: "double", builder: "motionMagic", group: "mm" },
         ]},
+        { title: "Named positions", fields: [
+          { id: "positions", label: "named positions", type: "positions", builder: "position" },
+        ]},
       ],
     },
 
@@ -393,6 +407,9 @@
           { id: "mmCruise", label: "MM cruise (rps)", type: "double", builder: "motionMagic", group: "mm" },
           { id: "mmAccel", label: "MM accel (rps²)", type: "double", builder: "motionMagic", group: "mm" },
           { id: "mmJerk", label: "MM jerk (rps³)", type: "double", builder: "motionMagic", group: "mm" },
+        ]},
+        { title: "Named positions", fields: [
+          { id: "positions", label: "named positions", type: "positions", builder: "position" },
         ]},
       ],
     },
@@ -747,7 +764,42 @@
   let currentMech = "linear";
   const formState = {}; // { mechId: { fieldId: value } }
   const FOLLOWER_STATE = {}; // { mechId: { fieldId: [{canId, oppose}] } }
+  const POSITION_STATE = {}; // { mechId: { fieldId: [{name, value}] } }
   let fullClassMode = false;
+
+  // Per-field one-line explanations, shown as a "?" tooltip. Keyed by field id
+  // (ids are shared across mechanisms, so one entry covers all of them).
+  const FIELD_HELP = {
+    name: "Display name — also the NetworkTables key and the log/telemetry root.",
+    motor: "CAN ID of the lead TalonFX / Kraken.",
+    canBus: "CAN bus name. Empty or \"rio\" = the roboRIO bus; otherwise a CANivore name.",
+    motorType: "Motor model. Sets the sim gearbox and stall/free curves. Default Kraken X60.",
+    inverted: "Invert the lead motor's direction (so positive output moves the mechanism the way you expect).",
+    followers: "Extra motors ganged on the same shaft. \"oppose\" inverts a follower relative to the lead (mirrored gearboxes).",
+    primaryFollowers: "Motors ganged on the primary flywheel shaft.",
+    secondaryFollowers: "Motors ganged on the secondary flywheel shaft.",
+    secondMotor: "CAN ID of a second, independently-controlled flywheel motor.",
+    gearRatio: "Motor rotations per one mechanism rotation (reduction). e.g. a 10:1 gearbox = 10.0.",
+    drumRadius: "Winch drum / pulley radius in meters. Converts rotations to linear travel.",
+    length: "Arm length in meters, used for the gravity feedforward and the sim model.",
+    mass: "Moving mass in kg, used only by the simulation model.",
+    minPos: "Lower soft limit of the mechanism's range. The motor won't drive past it.",
+    maxPos: "Upper soft limit of the mechanism's range.",
+    currentLimit: "Supply current limit in amps (battery-side). Protects the breaker.",
+    statorCurrentLimit: "Stator current limit in amps (motor-side). Caps torque and heat.",
+    tolerance: "How close counts as \"at setpoint\", in the mechanism's units.",
+    kP: "Proportional gain: output per unit of position error.",
+    kI: "Integral gain: accumulates steady-state error. Usually 0.",
+    kD: "Derivative gain: damps overshoot by reacting to error rate.",
+    kS: "Static feedforward: volts to overcome friction (breakaway).",
+    kV: "Velocity feedforward: volts per unit of velocity.",
+    kA: "Acceleration feedforward: volts per unit of acceleration.",
+    kG: "Gravity feedforward: volts to hold against gravity.",
+    mmCruise: "Motion Magic cruise velocity — the top speed of the profile.",
+    mmAccel: "Motion Magic acceleration — how fast it ramps to cruise.",
+    mmJerk: "Motion Magic jerk — smooths the accel ramp (0 = off).",
+    positions: "Named presets you can drive to with goTo(\"NAME\"). Value is in the mechanism's units (m or deg).",
+  };
 
   // localStorage persistence — key includes a version so old saved state
   // gets cleared if the schema changes incompatibly.
@@ -756,7 +808,7 @@
   function persist() {
     try {
       const blob = {
-        currentMech, formState, FOLLOWER_STATE, fullClassMode,
+        currentMech, formState, FOLLOWER_STATE, POSITION_STATE, fullClassMode,
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(blob));
     } catch {
@@ -772,6 +824,7 @@
       if (blob.currentMech && SCHEMA[blob.currentMech]) currentMech = blob.currentMech;
       if (blob.formState) Object.assign(formState, blob.formState);
       if (blob.FOLLOWER_STATE) Object.assign(FOLLOWER_STATE, blob.FOLLOWER_STATE);
+      if (blob.POSITION_STATE) Object.assign(POSITION_STATE, blob.POSITION_STATE);
       if (typeof blob.fullClassMode === "boolean") fullClassMode = blob.fullClassMode;
     } catch {
       // corrupted blob — start fresh
@@ -782,6 +835,7 @@
     try { localStorage.removeItem(STORAGE_KEY); } catch {}
     Object.keys(formState).forEach(k => delete formState[k]);
     Object.keys(FOLLOWER_STATE).forEach(k => delete FOLLOWER_STATE[k]);
+    Object.keys(POSITION_STATE).forEach(k => delete POSITION_STATE[k]);
     fullClassMode = false;
     document.getElementById("fullClassToggle").checked = false;
     buildForm(); render();
@@ -837,12 +891,20 @@
     render();
   }
 
+  // A "?" badge carrying the field's one-line explanation as a hover tooltip.
+  function helpBadge(id) {
+    const help = FIELD_HELP[id];
+    if (!help) return "";
+    return ` <span class="help-badge" title="${help.replace(/"/g, "&quot;")}">?</span>`;
+  }
+
   function buildForm() {
     const area = document.getElementById("formArea");
     area.innerHTML = "";
     const schema = SCHEMA[currentMech];
     if (!formState[currentMech]) formState[currentMech] = {};
     if (!FOLLOWER_STATE[currentMech]) FOLLOWER_STATE[currentMech] = {};
+    if (!POSITION_STATE[currentMech]) POSITION_STATE[currentMech] = {};
     const state = formState[currentMech];
 
     schema.groups.forEach(group => {
@@ -858,7 +920,7 @@
           const row = document.createElement("div");
           row.className = "row";
           row.style.gridTemplateColumns = "160px 1fr";
-          row.innerHTML = `<label>${field.label}</label>`;
+          row.innerHTML = `<label>${field.label}${helpBadge(field.id)}</label>`;
           const right = document.createElement("div");
           right.className = "followers";
 
@@ -896,10 +958,48 @@
           return;
         }
 
+        if (field.type === "positions") {
+          if (!POSITION_STATE[currentMech][field.id]) POSITION_STATE[currentMech][field.id] = [];
+          const positions = POSITION_STATE[currentMech][field.id];
+
+          const row = document.createElement("div");
+          row.className = "row";
+          row.style.gridTemplateColumns = "160px 1fr";
+          row.innerHTML = `<label>${field.label}${helpBadge(field.id)}</label>`;
+          const right = document.createElement("div");
+          right.className = "followers";
+
+          positions.forEach((p, i) => {
+            const pr = document.createElement("div");
+            pr.className = "pos-row";
+            pr.innerHTML = `
+              <input type="text" placeholder="NAME (e.g. STOW)" value="${p.name ?? ""}">
+              <input type="number" step="any" placeholder="value" value="${p.value ?? ""}">
+              <button class="btn danger">×</button>
+            `;
+            const [nameInput, valInput] = pr.querySelectorAll("input");
+            nameInput.oninput = e => { p.name = e.target.value; render(); };
+            valInput.oninput = e => { p.value = e.target.value === "" ? null : Number(e.target.value); render(); };
+            pr.querySelector(".btn.danger").onclick = () => { positions.splice(i, 1); buildForm(); render(); };
+            right.appendChild(pr);
+          });
+
+          const addBtn = document.createElement("button");
+          addBtn.className = "btn ghost";
+          addBtn.textContent = "+ Add position";
+          addBtn.style.alignSelf = "flex-start";
+          addBtn.onclick = () => { positions.push({ name: "", value: null }); buildForm(); render(); };
+          right.appendChild(addBtn);
+
+          row.appendChild(right);
+          wrap.appendChild(row);
+          return;
+        }
+
         const row = document.createElement("div");
         row.className = "row";
         const labelEl = document.createElement("label");
-        labelEl.innerHTML = field.label + (field.required ? "" : " <span class='opt'>opt</span>");
+        labelEl.innerHTML = field.label + (field.required ? "" : " <span class='opt'>opt</span>") + helpBadge(field.id);
         row.appendChild(labelEl);
 
         let input;
@@ -953,6 +1053,7 @@
     const schema = SCHEMA[currentMech];
     const state = formState[currentMech] || {};
     const followers = FOLLOWER_STATE[currentMech] || {};
+    const positions = POSITION_STATE[currentMech] || {};
 
     // Special case: Pneumatic doesn't follow the standard motor-builder shape.
     if (currentMech === "pneumatic") return generatePneumatic(state);
@@ -966,7 +1067,7 @@
     const grouped = {}; // group key → ordered values
     schema.groups.forEach(g => g.fields.forEach(f => {
       if (!f.builder || f.id === "name") return;
-      if (f.type === "followers") return; // handled below
+      if (f.type === "followers" || f.type === "positions") return; // handled below
       const v = state[f.id];
       if (v === undefined || v === null || v === "" || (typeof v === "number" && Number.isNaN(v))) return;
       if (f.group) {
@@ -987,6 +1088,16 @@
       list.forEach(spec => {
         if (spec.canId == null) return;
         lines.push(`        .${f.builder}(${spec.canId}, ${spec.oppose ? "true" : "false"})`);
+      });
+    }));
+
+    // Named positions
+    schema.groups.forEach(g => g.fields.forEach(f => {
+      if (f.type !== "positions") return;
+      const list = positions[f.id] || [];
+      list.forEach(p => {
+        if (!p.name || p.value == null || Number.isNaN(p.value)) return;
+        lines.push(`        .${f.builder}(${fmtVal(String(p.name))}, ${fmtVal(p.value)})`);
       });
     }));
 
@@ -1028,14 +1139,15 @@
       .replace(/(\/\/[^\n]*)/g, '<span class="cmt">$1</span>');
   }
 
-  // Wraps the config snippet in a full subsystem class. The teleop /
-  // default-command pattern is the one most teams reach for first; teams
-  // can delete the bits they don't need.
+  // Wraps the config in a plain holder class with a get() accessor.
+  // Catalyst mechanisms already extend SubsystemBase and run their own
+  // periodic(), so this deliberately does NOT extend SubsystemBase — wrapping
+  // one subsystem inside another just gives you an empty, pointless periodic().
   function generateFullClass() {
     const schema = SCHEMA[currentMech];
     const state = formState[currentMech] || {};
     const rawName = state.name || schema.label;
-    const cls = pascal(rawName) + "Subsystem";
+    const cls = pascal(rawName) + "Hardware";
     const field = camel(rawName);
     const inlined = generate().split("\n");
 
@@ -1045,11 +1157,16 @@
     if (currentMech === "pneumatic") {
       lines.push(`import edu.wpi.first.wpilibj.PneumaticsModuleType;`);
     }
-    lines.push(`import edu.wpi.first.wpilibj2.command.SubsystemBase;`);
     lines.push(`import frc.lib.catalyst.mechanisms.${schema.java};`);
     lines.push(``);
-    lines.push(`/** Auto-generated by the Catalyst Builder. Tweak freely. */`);
-    lines.push(`public class ${cls} extends SubsystemBase {`);
+    lines.push(`/**`);
+    lines.push(` * Auto-generated by the Catalyst Builder. Tweak freely.`);
+    lines.push(` *`);
+    lines.push(` * <p>${schema.java} already extends SubsystemBase and runs its own`);
+    lines.push(` * periodic(), so this is a plain holder, not a second subsystem. Reach the`);
+    lines.push(` * mechanism through {@link #get()} to bind commands and triggers.`);
+    lines.push(` */`);
+    lines.push(`public class ${cls} {`);
     lines.push(``);
     lines.push(`    private final ${schema.java} ${field};`);
     lines.push(``);
@@ -1060,14 +1177,9 @@
     });
     lines.push(`    }`);
     lines.push(``);
-    lines.push(`    /** The underlying Catalyst mechanism — wire commands and triggers through this. */`);
+    lines.push(`    /** The underlying Catalyst mechanism (itself a subsystem) — bind commands and triggers through this. */`);
     lines.push(`    public ${schema.java} get() {`);
     lines.push(`        return ${field};`);
-    lines.push(`    }`);
-    lines.push(``);
-    lines.push(`    @Override`);
-    lines.push(`    public void periodic() {`);
-    lines.push(`        // Catalyst mechanisms handle their own telemetry; nothing to do here by default.`);
     lines.push(`    }`);
     lines.push(`}`);
     return lines.join("\n");
@@ -1084,7 +1196,7 @@
 
   function render() {
     document.getElementById("preview").innerHTML = highlight(currentCode());
-    document.getElementById("modeLabel").textContent = fullClassMode ? "subsystem class" : "config";
+    document.getElementById("modeLabel").textContent = fullClassMode ? "wrapper class" : "config";
     persist();
   }
 
@@ -1092,7 +1204,7 @@
     const schema = SCHEMA[currentMech];
     const rawName = (formState[currentMech] && formState[currentMech].name) || schema.label;
     return fullClassMode
-        ? pascal(rawName) + "Subsystem.java"
+        ? pascal(rawName) + "Hardware.java"
         : pascal(rawName) + "Config.java";
   }
 
