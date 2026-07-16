@@ -3,26 +3,30 @@
 </p>
 
 > [!WARNING]
-> ## 🟠🔵 You are on the `wpilib-2027` branch (EXPERIMENTAL)
+> ## You are on the `wpilib-2027` branch (EXPERIMENTAL)
 > This branch tracks the migration to **WPILib 2027 (alpha)**. It does **not**
 > build yet and is **not** for use on a robot. The stable, shipping library
 > lives on [`main`](https://github.com/TomAs-1226/FrcCatalyst/tree/main)
 > (WPILib 2026). See [`MIGRATION_2027.md`](MIGRATION_2027.md) for the plan and
 > status.
->
-> ```
->            ___________
->           |###########|
->           |###########|
->        ___|###########|___
->       (___|###########|___)     the promised 2027 release...
->           '-----------'
->
->              the cake is a lie
-> ```
-> The 2027 cake is a lie until WPILib, Phoenix 6, PathPlanner, and PhotonVision
-> ship 2027 builds. For a cake that is **not** a lie, check out `main` and its
-> `1.0.0` release. 🍰
+
+```
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣀⡀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⣠⣴⣶⣾⣿⣿⣿⣤⣤⡄⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⣤⣾⣿⣾⣿⡿⢿⣿⣿⣿⣯⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⢀⣾⣻⣿⣻⣷⣿⣿⣿⣿⣿⣿⠛⠛⠲⢢⡀⠀⠀
+⠀⠀⠀⢠⡞⠁⣿⣿⣿⣿⣾⣿⣿⣿⡿⡅⠀⠀⠀⠀⠙⢷⡄
+⠀⠀⣠⡟⠀⠀⢿⣿⣟⣛⣿⣿⠽⠟⠊⠀⠀⠀⣀⣀⢢⣼⣮
+⠀⣰⠏⠀⠀⠀⠀⠉⠉⠉⠀⢀⣐⡲⠦⠔⠒⠉⠁⠀⠀⠀⡇
+⣼⢃⠀⢠⣠⠠⠖⠓⠊⠉⠉⠀⠀⠀⠀⠀⠀⠀⠀⣀⣀⣴⡇
+⢹⡏⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣤⡠⠤⢔⣦⣿⣷⣷⣄⡇
+⢸⡇⠀⠀⢀⣀⡀⠤⣤⣴⣶⣿⣿⡿⠀⢠⣾⣿⠿⠛⠿⠛⡇
+⠸⡗⣲⣾⣿⣷⣦⠀⠈⣙⣻⠿⠽⠾⠛⠉⠉⠀⠀⠀⠀⠀⡇
+⢰⣹⣿⡿⠟⠿⠟⠁⠋⠉⠀⠀⠀⠀⠀⠀⠀⢀⣀⣤⡤⠤⠓
+⢻⡏⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⣀⡤⠴⠖⠛⠉⠉⠀⠀⠀⠀
+⢸⡇⣀⣀⣠⡤⠶⠶⠛⠋⠋⠀⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠈⠉⠉⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+```
 
 <p align="center">
   <a href="https://github.com/TomAs-1226/FrcCatalyst/actions"><img src="https://img.shields.io/github/actions/workflow/status/TomAs-1226/FrcCatalyst/build.yml?style=for-the-badge&logo=github&label=Build" alt="Build Status"/></a>
