@@ -1,39 +1,49 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" width="1200" height="300">
   <defs>
     <linearGradient id="bannerBg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#1a1a2e;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#16213e;stop-opacity:1" />
+      <stop offset="0%" style="stop-color:#0b0f14;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#141a24;stop-opacity:1" />
     </linearGradient>
-    <linearGradient id="bannerAccent" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#e94560;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#ff6b6b;stop-opacity:1" />
+    <linearGradient id="portalAccent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#00b4ff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#ff9800;stop-opacity:1" />
     </linearGradient>
+    <radialGradient id="blueGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="60%" style="stop-color:#00b4ff;stop-opacity:0" />
+      <stop offset="100%" style="stop-color:#00b4ff;stop-opacity:0.85" />
+    </radialGradient>
+    <radialGradient id="orangeGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="60%" style="stop-color:#ff9800;stop-opacity:0" />
+      <stop offset="100%" style="stop-color:#ff9800;stop-opacity:0.9" />
+    </radialGradient>
   </defs>
   <!-- Background -->
   <rect width="1200" height="300" rx="16" fill="url(#bannerBg)"/>
-  <!-- Accent line -->
-  <rect x="0" y="296" width="1200" height="4" fill="url(#bannerAccent)"/>
-  <!-- Grid pattern -->
-  <g opacity="0.03" stroke="#fff" stroke-width="1">
-    <line x1="0" y1="0" x2="0" y2="300"/><line x1="60" y1="0" x2="60" y2="300"/>
-    <line x1="120" y1="0" x2="120" y2="300"/><line x1="180" y1="0" x2="180" y2="300"/>
-    <line x1="240" y1="0" x2="240" y2="300"/><line x1="300" y1="0" x2="300" y2="300"/>
-    <line x1="0" y1="60" x2="1200" y2="60"/><line x1="0" y1="120" x2="1200" y2="120"/>
-    <line x1="0" y1="180" x2="1200" y2="180"/><line x1="0" y1="240" x2="1200" y2="240"/>
+  <!-- Accent line (blue -> orange, the two portals) -->
+  <rect x="0" y="296" width="1200" height="4" fill="url(#portalAccent)"/>
+  <!-- Hazard stripes, faint, upper-right: experimental marker -->
+  <g opacity="0.06">
+    <rect x="980" y="-40" width="26" height="420" transform="rotate(30 993 150)" fill="#ff9800"/>
+    <rect x="1040" y="-40" width="26" height="420" transform="rotate(30 1053 150)" fill="#ff9800"/>
+    <rect x="1100" y="-40" width="26" height="420" transform="rotate(30 1113 150)" fill="#ff9800"/>
   </g>
-  <!-- Lightning bolt icon -->
-  <g transform="translate(100,50) scale(0.5)">
-    <circle cx="200" cy="200" r="180" fill="none" stroke="#e94560" stroke-width="6" opacity="0.3"/>
-    <path d="M180,80 L150,210 L190,195 L165,320 L260,170 L215,185 L240,80 Z" fill="#e94560" opacity="0.9"/>
+  <!-- Portal icon: two glowing ellipses (blue + orange) -->
+  <g transform="translate(120,150)">
+    <ellipse cx="-28" cy="0" rx="34" ry="62" fill="url(#blueGlow)"/>
+    <ellipse cx="-28" cy="0" rx="34" ry="62" fill="none" stroke="#00b4ff" stroke-width="5"/>
+    <ellipse cx="34" cy="0" rx="34" ry="62" fill="url(#orangeGlow)"/>
+    <ellipse cx="34" cy="0" rx="34" ry="62" fill="none" stroke="#ff9800" stroke-width="5"/>
   </g>
   <!-- Title -->
-  <text x="340" y="130" font-family="Arial Black, sans-serif" font-weight="900" font-size="72" fill="#ffffff" letter-spacing="4">FrcCatalyst</text>
-  <!-- Subtitle -->
-  <text x="342" y="175" font-family="Arial, sans-serif" font-weight="400" font-size="24" fill="#e94560">Accelerate your FRC robot development</text>
-  <!-- Description -->
-  <text x="342" y="220" font-family="Arial, sans-serif" font-weight="300" font-size="18" fill="#8892b0">Pre-built mechanisms, hardware wrappers, and utilities</text>
-  <text x="342" y="248" font-family="Arial, sans-serif" font-weight="300" font-size="18" fill="#8892b0">for CTRE Phoenix 6 + WPILib 2026</text>
+  <text x="250" y="120" font-family="Arial Black, sans-serif" font-weight="900" font-size="66" fill="#ffffff" letter-spacing="3">FrcCatalyst</text>
+  <!-- 2027 tag -->
+  <rect x="250" y="138" width="150" height="34" rx="6" fill="none" stroke="#ff9800" stroke-width="2"/>
+  <text x="325" y="162" text-anchor="middle" font-family="Arial Black, sans-serif" font-weight="900" font-size="22" fill="#ff9800" letter-spacing="2">WPILib 2027</text>
+  <text x="420" y="161" font-family="Arial, sans-serif" font-weight="700" font-size="20" fill="#00b4ff">migration branch</text>
+  <!-- Warning line -->
+  <text x="252" y="205" font-family="Arial, sans-serif" font-weight="700" font-size="18" fill="#ff9800">&#9888; EXPERIMENTAL &#183; not for use &#183; the cake is a lie</text>
+  <text x="252" y="232" font-family="Arial, sans-serif" font-weight="300" font-size="16" fill="#8892b0">The stable library lives on main (WPILib 2026). See MIGRATION_2027.md.</text>
   <!-- Version badge -->
-  <rect x="342" y="260" width="92" height="22" rx="4" fill="#e94560"/>
-  <text x="388" y="276" text-anchor="middle" font-family="monospace" font-size="12" fill="#fff">v1.0.0-rc3</text>
+  <rect x="252" y="248" width="118" height="22" rx="4" fill="#ff9800"/>
+  <text x="311" y="264" text-anchor="middle" font-family="monospace" font-size="12" fill="#0b0f14" font-weight="700">2027 &#183; alpha</text>
 </svg>

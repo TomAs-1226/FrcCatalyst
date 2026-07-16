@@ -1,5 +1,25 @@
 # WPILib 2027 migration notes
 
+```
+                     (@)
+                      |
+                    \ | /
+                     \|/
+                     |=|
+                  ___|=|___
+              .:'''       ''':.
+             /  (@)  (@)  (@)   \
+            /___________________ \
+           |                     |
+           |                     |
+           |_____________________|
+            \                   /
+             '-._____________.-'
+
+              THE CAKE IS A LIE
+   (the 2027 release is promised, not yet real)
+```
+
 Status: **planning / blocked on the ecosystem.** WPILib 2027 is at `2027.0.0-alpha-6`
 (alpha, not beta). This branch (`wpilib-2027`) tracks what a migration will take.
 `main` stays on WPILib 2026 and remains the shipping library until 2027 stabilizes
