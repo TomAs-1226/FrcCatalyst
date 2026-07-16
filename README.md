@@ -115,6 +115,26 @@ release too.
 up. Semantic versioning starts here: the public API is stable, and breaking
 changes wait for 2.0.0. Go build something awesome. 🚀
 
+```
+                     (@)
+                      |
+                    \ | /
+                     \|/
+                     |=|
+                  ___|=|___
+              .:'''       ''':.
+             /  (@)  (@)  (@)   \
+            /___________________ \
+           |                     |
+           |                     |
+           |_____________________|
+            \                   /
+             '-._____________.-'
+
+           THE CAKE IS NOT A LIE
+    (you shipped 1.0.0 — the cake is real)
+```
+
 ## What's New in v1.0.0-rc4: community PRs, telemetry, swerve, sim, vision
 
 - **Merged 7 community PRs** (thanks @avrahamavraham): red-alliance field-centric fix, wheel-radius-based max angular rate, an `idle()` command + ChassisSpeeds publisher, struct logging, a logging enable/disable toggle, and custom `WpilogSink` destinations.
