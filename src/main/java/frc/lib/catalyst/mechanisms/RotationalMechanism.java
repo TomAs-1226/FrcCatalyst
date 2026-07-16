@@ -211,6 +211,11 @@ public class RotationalMechanism extends CatalystMechanism {
         return motor.getStatorCurrent();
     }
 
+    /** True once the mechanism has been zeroed (hard stop, or {@link #zero()}). */
+    public boolean hasBeenZeroed() {
+        return hasBeenZeroed;
+    }
+
     /** Check if at a given angle within tolerance (degrees). */
     public boolean atAngle(double degrees, double toleranceDegrees) {
         return Math.abs(getAngle() - degrees) < toleranceDegrees;
@@ -250,7 +255,15 @@ public class RotationalMechanism extends CatalystMechanism {
 
     // --- Command Factories ---
 
-    /** Command to move to an angle in degrees using Motion Magic. */
+    /**
+     * Command to move to an angle in degrees using Motion Magic.
+     *
+     * <p><b>Fire-and-forget:</b> this sets the Motion Magic target and ends after
+     * one tick, so {@code andThen(...)} off it runs immediately, before the
+     * mechanism has moved. When a superstructure transition must wait for arrival,
+     * use {@link #goToAndWait(double, double)} (or gate on
+     * {@link #atAngleTrigger(double)}) instead.
+     */
     public Command goTo(double degrees) {
         return runOnce(() -> {
             setpointDegrees = MathUtil.clamp(degrees, config.minAngle, config.maxAngle);
@@ -441,6 +454,37 @@ public class RotationalMechanism extends CatalystMechanism {
             hasBeenZeroed = true;
             setState("Zeroed");
         }).withName(name + ".Zero");
+    }
+
+    /**
+     * Home against a hard stop by current spike: drive at {@code volts} (signed,
+     * toward the stop) until the stator current reaches {@code currentThresholdAmps},
+     * then seed the encoder to {@code seedDegrees}, hold there, and mark the
+     * mechanism zeroed. Useful when there is no hard-stop limit switch. Bound it
+     * with {@code .withTimeout(...)} as a safety net.
+     */
+    public Command homeOnCurrent(double volts, double currentThresholdAmps, double seedDegrees) {
+        return run(() -> {
+            motor.setVoltage(volts);
+            setState("Homing");
+        }).until(() -> getCurrent() >= currentThresholdAmps)
+          .finallyDo(interrupted -> {
+            if (!interrupted) {
+                motor.setEncoderPosition(degreesToRotations(seedDegrees));
+                setpointDegrees = seedDegrees;
+                hasBeenZeroed = true;
+                motor.setMotionMagicPosition(degreesToRotations(seedDegrees));
+                setState("Homed");
+            } else {
+                motor.setVoltage(0);
+                setState("Idle");
+            }
+        }).withName(name + ".HomeOnCurrent");
+    }
+
+    /** Home against a hard stop by current spike, seeding the encoder to 0 degrees. */
+    public Command homeOnCurrent(double volts, double currentThresholdAmps) {
+        return homeOnCurrent(volts, currentThresholdAmps, 0.0);
     }
 
     // --- Internals ---

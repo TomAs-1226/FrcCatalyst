@@ -82,6 +82,11 @@ public class CatalystMotor {
     // Retained so live-tuning helpers can rebuild Slot0Configs without losing the
     // gravity model the mechanism was originally configured with.
     private GravityTypeValue gravityType;
+    // Retained so a runtime current-limit change re-sends the WHOLE CurrentLimits
+    // group (Phoenix's apply(CurrentLimitsConfigs) overwrites all of it), instead
+    // of silently dropping the other limit and its thermal protection.
+    private double supplyCurrentLimit;
+    private double statorCurrentLimit;
 
     private CatalystMotor(Builder builder) {
         this.canId = builder.canId;
@@ -96,6 +101,8 @@ public class CatalystMotor {
         this.gearRatio = builder.gearRatio;
         this.positionConversionFactor = builder.positionConversionFactor;
         this.gravityType = builder.gravityType;
+        this.supplyCurrentLimit = builder.currentLimit;
+        this.statorCurrentLimit = builder.statorCurrentLimit;
 
         // Apply configuration
         TalonFXConfiguration config = new TalonFXConfiguration();
@@ -404,6 +411,38 @@ public class CatalystMotor {
         slot.kS = kS; slot.kV = kV; slot.kA = kA; slot.kG = kG;
         slot.GravityType = gravityType;
         motor.getConfigurator().apply(slot);
+    }
+
+    /**
+     * Change the supply current limit at runtime (e.g. state-based power
+     * budgeting). Re-sends the whole {@link CurrentLimitsConfigs} group so the
+     * stator limit and both enables are preserved.
+     */
+    public void setSupplyCurrentLimit(double amps) {
+        this.supplyCurrentLimit = amps;
+        applyCurrentLimits();
+    }
+
+    /** Change the stator current limit at runtime. Preserves the supply limit. */
+    public void setStatorCurrentLimit(double amps) {
+        this.statorCurrentLimit = amps;
+        applyCurrentLimits();
+    }
+
+    /** Change both current limits at runtime in a single config apply. */
+    public void setCurrentLimits(double supplyAmps, double statorAmps) {
+        this.supplyCurrentLimit = supplyAmps;
+        this.statorCurrentLimit = statorAmps;
+        applyCurrentLimits();
+    }
+
+    private void applyCurrentLimits() {
+        CurrentLimitsConfigs limits = new CurrentLimitsConfigs();
+        limits.SupplyCurrentLimitEnable = true;
+        limits.SupplyCurrentLimit = supplyCurrentLimit;
+        limits.StatorCurrentLimitEnable = true;
+        limits.StatorCurrentLimit = statorCurrentLimit;
+        motor.getConfigurator().apply(limits);
     }
 
     /**

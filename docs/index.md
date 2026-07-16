@@ -159,7 +159,7 @@ Motion Magic, gravity FF, sim, telemetry, command factories, health monitoring, 
 | `GamePieceTracker` | Multi-stage piece state machine with Triggers |
 | Skew correction | Pose-exponential discretization for swerve |
 | Collision zones | Prevent physical mechanism collisions |
-| `SimDashboard` (v1.0.0+) | Generic browser sim cockpit that adapts to any mechanism via `describe()` / `MechanismView`; sim-only, dependency-free |
+| `SimDashboard` (v1.1.0+) | Generic browser sim cockpit that adapts to any mechanism via `describe()` / `MechanismView`; sim-only, dependency-free |
 
 ### Health and safety (v0.3.3+)
 
@@ -187,7 +187,7 @@ Builder config, Motion Magic or ProfiledPID, named position presets (`goTo("STOW
 WPILib sim, NetworkTables telemetry, temperature cutoff, limit-switch auto-zero,
 HealthCheck-based fault monitoring, multi-follower support, pre-built commands,
 **SysId quasistatic / dynamic routines (v0.4.0+)**,
-**a self-describing `describe()` / `MechanismView` snapshot driveable in the built-in `SimDashboard` (v1.0.0+)**.
+**a self-describing `describe()` / `MechanismView` snapshot driveable in the built-in `SimDashboard` (v1.1.0+)**.
 
 ---
 

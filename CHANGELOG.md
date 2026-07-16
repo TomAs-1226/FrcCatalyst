@@ -5,6 +5,53 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] — 2026-07-16 — Audit fixes from a full robot port
+
+Resolves the 15-finding v1.0.0 audit ([#17](https://github.com/TomAs-1226/FrcCatalyst/issues/17))
+from porting a full robot codebase (Team 5805's clone of team581's 2026 comp-bot)
+onto Catalyst. Backward compatible: bug fixes plus additive API.
+
+### Fixed
+- **Swerve now simulates.** `SwerveSubsystem` starts a 200 Hz sim thread
+  (`updateSimState`) in the constructor, so the drivetrain actually moves in the
+  simulator instead of freezing with stale signals.
+- **`CatalystGyro` no longer wipes the Pigeon 2 config.** The default constructors
+  stopped applying a blank `Pigeon2Configuration`, which was silently erasing the
+  Tuner X mount pose. A new `CatalystGyro(canId, canBus, Pigeon2Configuration)`
+  constructor opts in to Catalyst-owned config.
+- **`LinearMechanism.zero()` now sets `hasBeenZeroed`**, so the zeroed interlock
+  and the public getter stop lying after an explicit zero.
+- **`pathfindToPose()` is lazy.** It defers so the target pose is read when the
+  command is scheduled, not once at construction, so both legs track a moving target.
+- **`xBrake()` and `idle()` hold their requirement** (`run` instead of `runOnce`);
+  `idle()` again honors the `Subsystem.idle()` run-forever contract.
+- **PathPlanner path following is closed-loop and keeps its feedforwards.** The
+  drive callback now uses `ApplyRobotSpeeds` (velocity control) with the wheel
+  force feedforwards instead of dropping them onto an open-loop request.
+- **`configurePathPlanner()` fails loudly** (stack trace + a persistent
+  `AlertManager` error) instead of a quiet `reportError`.
+
+### Added
+- **Runtime current limits on `CatalystMotor`**: `setSupplyCurrentLimit`,
+  `setStatorCurrentLimit`, `setCurrentLimits` (re-send the whole group so thermal
+  protection is never dropped) — enables state-based power budgeting.
+- **Current-spike homing**: `LinearMechanism.homeOnCurrent(...)` and
+  `RotationalMechanism.homeOnCurrent(...)` drive into a hard stop until the stator
+  current spikes, then seed the encoder and mark zeroed. For robots with no limit switch.
+- **`RotationalMechanism.hasBeenZeroed()`** getter (parity with `LinearMechanism`).
+- **`SwerveSubsystem.setMaxAngularRate(double)`** for asymmetric module layouts.
+
+### Docs / packaging
+- The vendordep now lists the **PhotonVision, PathPlanner, and Phoenix maven
+  repositories**, so its transitive dependencies resolve without extra repo setup.
+- `goTo(...)` javadoc now points to `goToAndWait(...)` for waiting transitions;
+  documented that drive feature flags apply only to `advancedDrive()` and that one
+  heading PID backs every heading drive mode.
+- Corrected the advertised install coordinate (JitPack `com.github.TomAs-1226:FrcCatalyst`,
+  not `com.frccatalyst`) and the test-coverage wording (16 tests cover the aiming
+  solver, alliance flip, and turret math; mechanisms and swerve are verified in the
+  simulator, not yet unit-tested).
+
 ## [1.0.0] — 2026-07-15 — Out of beta 🎉
 
 **FrcCatalyst 1.0.0.** After a long beta (v0.3 through v0.10) and four release

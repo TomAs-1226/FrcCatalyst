@@ -3,9 +3,11 @@ package frc.lib.catalyst.subsystems.swerve;
 import static edu.wpi.first.units.Units.MetersPerSecond;
 import static edu.wpi.first.units.Units.RadiansPerSecond;
 
+import java.util.Set;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 
+import com.ctre.phoenix6.Utils;
 import com.ctre.phoenix6.swerve.SwerveDrivetrain;
 import com.ctre.phoenix6.swerve.SwerveModule.DriveRequestType;
 import com.ctre.phoenix6.swerve.SwerveRequest;
@@ -29,9 +31,13 @@ import edu.wpi.first.networktables.StructArrayPublisher;
 import edu.wpi.first.networktables.StructPublisher;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
+import edu.wpi.first.wpilibj.Notifier;
+import edu.wpi.first.wpilibj.RobotBase;
+import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import frc.lib.catalyst.util.AlertManager;
 import frc.lib.catalyst.util.RobotState;
 import frc.lib.catalyst.util.SlewRateLimiter;
 
@@ -64,7 +70,7 @@ public class SwerveSubsystem extends SubsystemBase {
 
     private final SwerveDrivetrain drivetrain;
     private final double maxSpeedMPS;
-    private final double maxAngularRate;
+    private double maxAngularRate;
 
     // boolean to see if the operator perspective has been applied alredy. (need to add this to make sure the red side is working)
     private boolean hasAppliedOperatorPerspective = false;
@@ -95,6 +101,16 @@ public class SwerveSubsystem extends SubsystemBase {
             .withDriveRequestType(DriveRequestType.OpenLoopVoltage);
     private final SwerveRequest.SwerveDriveBrake brakeRequest = new SwerveRequest.SwerveDriveBrake();
     private final SwerveRequest.Idle idleRequest = new SwerveRequest.Idle();
+    // Closed-loop request for path following: velocity control + wheel force
+    // feedforwards from PathPlanner (both are dropped by the open-loop teleop path).
+    private final SwerveRequest.ApplyRobotSpeeds pathApplyRequest =
+            new SwerveRequest.ApplyRobotSpeeds().withDriveRequestType(DriveRequestType.Velocity);
+
+    // Simulation: a high-rate thread that actually advances the Phoenix sim so the
+    // drivetrain moves in the simulator (without it, status signals stay stale).
+    private static final double SIM_LOOP_PERIOD = 0.005; // 200 Hz
+    private Notifier simNotifier = null;
+    private double lastSimTime;
 
     // Telemetry
     private final NetworkTable telemetryTable;
@@ -133,6 +149,23 @@ public class SwerveSubsystem extends SubsystemBase {
         if (pathPlannerConfig != null) {
             configurePathPlanner(pathPlannerConfig);
         }
+
+        // Advance the Phoenix physics sim on its own high-rate thread so the
+        // drivetrain actually moves in the simulator. No-op on a real robot.
+        if (RobotBase.isSimulation()) {
+            startSimThread();
+        }
+    }
+
+    private void startSimThread() {
+        lastSimTime = Utils.getCurrentTimeSeconds();
+        simNotifier = new Notifier(() -> {
+            double now = Utils.getCurrentTimeSeconds();
+            double dt = now - lastSimTime;
+            lastSimTime = now;
+            drivetrain.updateSimState(dt, RobotController.getBatteryVoltage());
+        });
+        simNotifier.startPeriodic(SIM_LOOP_PERIOD);
     }
 
     public SwerveSubsystem(SwerveDrivetrain drivetrain, double maxSpeedMPS) {
@@ -147,7 +180,12 @@ public class SwerveSubsystem extends SubsystemBase {
                     this::getPose,
                     this::resetPose,
                     this::getChassisSpeeds,
-                    (speeds, feedforwards) -> driveRobotCentric(speeds),
+                    // Closed-loop velocity control, forwarding PathPlanner's wheel
+                    // force feedforwards (both dropped by the open-loop teleop path).
+                    (speeds, feedforwards) -> drivetrain.setControl(
+                            pathApplyRequest.withSpeeds(speeds)
+                                    .withWheelForceFeedforwardsX(feedforwards.robotRelativeForcesXNewtons())
+                                    .withWheelForceFeedforwardsY(feedforwards.robotRelativeForcesYNewtons())),
                     new PPHolonomicDriveController(
                             new PIDConstants(config.translationKP, config.translationKI, config.translationKD),
                             new PIDConstants(config.rotationKP, config.rotationKI, config.rotationKD)),
@@ -158,7 +196,11 @@ public class SwerveSubsystem extends SubsystemBase {
                     },
                     this);
         } catch (Exception e) {
-            DriverStation.reportError("Failed to configure PathPlanner: " + e.getMessage(), false);
+            // Loud + persistent: AutoBuilder is left unconfigured, so autos won't
+            // path. A quiet reportError is too easy to miss until a match.
+            String msg = "PathPlanner failed to configure (autos will not path): " + e.getMessage();
+            DriverStation.reportError(msg, e.getStackTrace());
+            AlertManager.getInstance().error("Swerve", msg);
         }
     }
 
@@ -216,6 +258,15 @@ public class SwerveSubsystem extends SubsystemBase {
     /** Max angular rate in rad/s (as configured). */
     public double getMaxAngularRate() {
         return maxAngularRate;
+    }
+
+    /**
+     * Override the max angular rate (rad/s). The default is derived from the
+     * first module's radius, which is wrong for asymmetric module layouts; set
+     * it explicitly when the geometry isn't symmetric.
+     */
+    public void setMaxAngularRate(double radPerSec) {
+        this.maxAngularRate = radPerSec;
     }
 
     // --- Drive Methods ---
@@ -384,6 +435,10 @@ public class SwerveSubsystem extends SubsystemBase {
     /**
      * Set the heading lock PID gains.
      * Default is P=5.0, I=0, D=0 which works well for most robots.
+     *
+     * <p>Note: a single heading PID instance backs every heading-based drive mode
+     * ({@link #headingLockDrive}, {@link #driveWithHeading}, {@link #pointAtTarget},
+     * {@link #advancedDrive}, ...), so this retunes all of them at once.
      */
     public void setHeadingPIDGains(double kP, double kI, double kD) {
         headingPID.setPID(kP, kI, kD);
@@ -455,6 +510,12 @@ public class SwerveSubsystem extends SubsystemBase {
      * - Speed multiplier
      *
      * This is the recommended default drive command for competition.
+     *
+     * <p>Note: the drive feature flags (skew correction, slew limiting,
+     * snap-to-angle) are applied only by this command. The simpler drive modes
+     * ({@link #fieldCentricDrive}, {@link #robotCentricDrive},
+     * {@link #headingLockDrive}, {@link #driveWithHeading}, {@link #pointAtTarget})
+     * intentionally do not apply them.
      */
     public Command advancedDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
                                   DoubleSupplier rotSupplier, double deadband) {
@@ -628,16 +689,21 @@ public class SwerveSubsystem extends SubsystemBase {
      */
     public Command pathfindToPose(Supplier<Pose2d> targetPose, double translationKP,
                                   double toleranceMeters, PathConstraints constraints) {
-        try {
-            return AutoBuilder.pathfindToPose(targetPose.get(), constraints)
-                    .andThen(driveToPose(targetPose, translationKP, toleranceMeters))
-                    .withName("Swerve.PathfindToPose");
-        } catch (Exception e) {
-            DriverStation.reportError(
-                    "AutoBuilder not configured for pathfindToPose — falling back to PID align: "
-                            + e.getMessage(), true);
-            return driveToPose(targetPose, translationKP, toleranceMeters);
-        }
+        // Defer so the pose is read when the command is scheduled, not when it is
+        // constructed (usually once, at RobotContainer time). The Supplier
+        // signature promises lazy evaluation, and the driveToPose hand-off is
+        // already live, so both legs now track a moving target.
+        return Commands.defer(() -> {
+            try {
+                return AutoBuilder.pathfindToPose(targetPose.get(), constraints)
+                        .andThen(driveToPose(targetPose, translationKP, toleranceMeters));
+            } catch (Exception e) {
+                DriverStation.reportError(
+                        "AutoBuilder not configured for pathfindToPose — falling back to PID align: "
+                                + e.getMessage(), true);
+                return driveToPose(targetPose, translationKP, toleranceMeters);
+            }
+        }, Set.of(this)).withName("Swerve.PathfindToPose");
     }
 
     /**
@@ -787,9 +853,9 @@ public class SwerveSubsystem extends SubsystemBase {
         return out;
     }
 
-    /** X-brake command (lock wheels). */
+    /** X-brake command (lock wheels). Holds the brake for as long as it runs. */
     public Command xBrake() {
-        return runOnce(this::setBrake).withName("Swerve.XBrake");
+        return run(this::setBrake).withName("Swerve.XBrake");
     }
 
     /**
@@ -805,7 +871,9 @@ public class SwerveSubsystem extends SubsystemBase {
     
     @Override
     public Command idle() {
-        return runOnce(()-> drivetrain.setControl(idleRequest)).withName("Idle");
+        // WPILib's Subsystem.idle() contract is a command that runs forever to
+        // hold the requirement, so use run(...) not runOnce(...).
+        return run(() -> drivetrain.setControl(idleRequest)).withName("Idle");
     }
 
     /**

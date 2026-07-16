@@ -58,7 +58,7 @@ repositories {
 }
 
 dependencies {
-    implementation "com.github.TomAs-1226:FrcCatalyst:v1.0.0"
+    implementation "com.github.TomAs-1226:FrcCatalyst:v1.1.0"
 }
 ```
 </details>
@@ -98,6 +98,16 @@ operatorController.b().onTrue(elevator.goTo("STOW"));
 ```
 
 ---
+
+## What's New in v1.1.0: audit fixes from a full robot port
+
+Resolves the 15-finding v1.0.0 audit ([#17](https://github.com/TomAs-1226/FrcCatalyst/issues/17)) from porting Team 5805's clone of team581's 2026 comp-bot onto Catalyst. Backward compatible.
+
+- **Swerve simulates now.** `SwerveSubsystem` starts a 200 Hz sim thread, so the drivetrain actually moves in the simulator instead of freezing.
+- **`CatalystGyro` stopped wiping the Pigeon 2 mount pose** (the default config apply is gone; opt in with the new config-taking constructor).
+- **Correctness fixes**: `LinearMechanism.zero()` sets `hasBeenZeroed`; `pathfindToPose()` is lazy; `xBrake()`/`idle()` hold their requirement; PathPlanner path following is closed-loop and keeps its feedforwards; `configurePathPlanner()` fails loudly.
+- **New API**: runtime current limits (`CatalystMotor.setSupplyCurrentLimit(...)`), current-spike homing (`mechanism.homeOnCurrent(...)`), `RotationalMechanism.hasBeenZeroed()`, `SwerveSubsystem.setMaxAngularRate(...)`.
+- **Packaging**: the vendordep now lists the PhotonVision, PathPlanner, and Phoenix repos so transitives resolve; corrected the install coordinate and test-coverage wording.
 
 ## 🎉 v1.0.0 is here: out of beta
 

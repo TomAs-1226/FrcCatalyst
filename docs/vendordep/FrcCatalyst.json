@@ -1,18 +1,21 @@
 {
   "fileName": "FrcCatalyst.json",
   "name": "FrcCatalyst",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "frcYear": "2026",
   "uuid": "a3f5c1e8-9d24-4b7a-bf12-6e0c3d8a91f4",
   "mavenUrls": [
-    "https://jitpack.io"
+    "https://jitpack.io",
+    "https://maven.photonvision.org/repository/internal/",
+    "https://3015rangerrobotics.github.io/pathplannerlib/repo",
+    "https://maven.ctr-electronics.com/release/"
   ],
   "jsonUrl": "https://tomas-1226.github.io/FrcCatalyst/vendordep/FrcCatalyst.json",
   "javaDependencies": [
     {
       "groupId": "com.github.TomAs-1226",
       "artifactId": "FrcCatalyst",
-      "version": "v1.0.0"
+      "version": "v1.1.0"
     }
   ],
   "jniDependencies": [],
