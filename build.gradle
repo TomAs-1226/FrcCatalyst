@@ -14,6 +14,10 @@ java {
 }
 
 ext {
+    // WPILib 2027 migration is tracked in MIGRATION_2027.md. It is blocked on
+    // 2027 builds of WPILib / Phoenix 6 / PathPlanner / PhotonVision. When those
+    // land, bump these to the 2027 alpha (e.g. '2027.0.0-alpha-6'), point the
+    // maven repos below at wpilib/2027/maven, and run the package rename.
     wpilibVersion = '2026.2.1'
     phoenixVersion = '26.1.1'
     photonVersion = 'v2026.3.1'
