@@ -153,10 +153,14 @@ public class SwerveSubsystem extends SubsystemBase {
         }
 
         // Advance the Phoenix physics sim on its own high-rate thread so the
-        // drivetrain actually moves in the simulator. No-op on a real robot.
-        if (RobotBase.isSimulation()) {
-            startSimThread();
-        }
+        // The internal Phoenix sim (see startSimThread) is started lazily from the first
+        // periodic() call in simulation, NOT here. Starting it in the constructor gives an
+        // external physics engine no chance to opt out first: even one updateSimState()
+        // call seeds Phoenix's sim-device state (FusedCANcoder syncs an internal
+        // rotor-to-CANcoder offset on first use), and a bridge that takes over afterwards
+        // with its own conventions inherits per-module corruption that never heals. By
+        // first periodic(), anyone integrating external physics has had a full
+        // construction window to call disableInternalSim().
     }
 
     private void startSimThread() {
@@ -961,8 +965,16 @@ public class SwerveSubsystem extends SubsystemBase {
 
     @Override
     public void periodic() {
+        // Lazy-start the internal Phoenix sim on the first loop tick. See the constructor
+        // note: starting it there poisons external physics bridges that attach right after
+        // construction, because updateSimState() seeds sim-device state before they can
+        // call disableInternalSim(). startSimThread() itself is a no-op once yielded.
+        if (RobotBase.isSimulation() && simNotifier == null) {
+            startSimThread();
+        }
+
         //do the same as in the commandSwerveDriveTrain periodic function so no need to cast it to another type and do a .register for another periodic.
-        //do it it didnt happen alredy or if we are on disable so i dont care about the longer time for the periodic function   
+        //do it it didnt happen alredy or if we are on disable so i dont care about the longer time for the periodic function
         if (!hasAppliedOperatorPerspective || RobotState.isDisabled()) {
             RobotState.allianceOpt()
             .ifPresent(AllianceColor -> {
