@@ -88,7 +88,8 @@ public class FlywheelMechanism extends CatalystMechanism {
                 .statorCurrentLimit(config.statorCurrentLimit)
                 .gearRatio(config.gearRatio)
                 .pid(config.kP, config.kI, config.kD)
-                .feedforward(config.kS, config.kV, config.kA);
+                .feedforward(config.kS, config.kV, config.kA)
+                .torqueCurrentLimits(config.peakForwardTorqueCurrent, config.peakReverseTorqueCurrent);
         for (FollowerSpec spec : config.primaryFollowers) {
             primaryBuilder.withFollower(spec.canId(), spec.oppose());
         }
@@ -106,7 +107,8 @@ public class FlywheelMechanism extends CatalystMechanism {
                     .statorCurrentLimit(config.statorCurrentLimit)
                     .gearRatio(config.gearRatio)
                     .pid(config.kP, config.kI, config.kD)
-                    .feedforward(config.kS, config.kV, config.kA);
+                    .feedforward(config.kS, config.kV, config.kA)
+                    .torqueCurrentLimits(config.peakForwardTorqueCurrent, config.peakReverseTorqueCurrent);
             for (FollowerSpec spec : config.secondaryFollowers) {
                 secondaryBuilder.withFollower(spec.canId(), spec.oppose());
             }
@@ -194,14 +196,26 @@ public class FlywheelMechanism extends CatalystMechanism {
 
     // --- Command Factories ---
 
+    /**
+     * Applies a velocity setpoint through whichever control mode the config selected. Torque-current
+     * FOC carries an optional additive feedforward in amps, recomputed by callers every loop.
+     */
+    private void applyVelocity(CatalystMotor motorRef, double rps, double ffAmps) {
+        if (config.torqueCurrentFOC) {
+            motorRef.setVelocityTorqueCurrent(rps, ffAmps);
+        } else {
+            motorRef.setVelocity(rps);
+        }
+    }
+
     /** Command to spin up to a target velocity (rotations per second). */
     public Command spinUp(double velocityRPS) {
         return run(() -> {
             primarySetpointRPS = velocityRPS;
             secondarySetpointRPS = velocityRPS;
-            primaryMotor.setVelocity(velocityRPS);
+            applyVelocity(primaryMotor, velocityRPS, 0);
             if (secondaryMotor != null) {
-                secondaryMotor.setVelocity(velocityRPS);
+                applyVelocity(secondaryMotor, velocityRPS, 0);
             }
             setState("SpinUp " + String.format("%.0f", velocityRPS) + " RPS");
         }).finallyDo(() -> {
@@ -224,8 +238,8 @@ public class FlywheelMechanism extends CatalystMechanism {
         return run(() -> {
             primarySetpointRPS = primaryRPS;
             secondarySetpointRPS = secondaryRPS;
-            primaryMotor.setVelocity(primaryRPS);
-            secondaryMotor.setVelocity(secondaryRPS);
+            applyVelocity(primaryMotor, primaryRPS, 0);
+            applyVelocity(secondaryMotor, secondaryRPS, 0);
             setState("SpinUp " + String.format("%.0f/%.0f", primaryRPS, secondaryRPS) + " RPS");
         }).finallyDo(() -> {
             primaryMotor.stop();
@@ -254,9 +268,9 @@ public class FlywheelMechanism extends CatalystMechanism {
             double v = velocityRpsSupplier.getAsDouble();
             primarySetpointRPS = v;
             secondarySetpointRPS = v;
-            primaryMotor.setVelocity(v);
+            applyVelocity(primaryMotor, v, 0);
             if (secondaryMotor != null) {
-                secondaryMotor.setVelocity(v);
+                applyVelocity(secondaryMotor, v, 0);
             }
             setState("Track");
         }).finallyDo(() -> {
@@ -266,6 +280,38 @@ public class FlywheelMechanism extends CatalystMechanism {
             secondarySetpointRPS = 0;
             setState("Idle");
         }).withName(name + ".Track");
+    }
+
+    /**
+     * Track a live velocity AND a live additive feedforward in amps — the classic use is a shooter
+     * compensating for the ball being fed into it, where the feedforward is recomputed every loop
+     * from the feeder's stator current. Torque-current mode only: the feedforward is in amps and
+     * has no meaning in a voltage loop, so this throws unless the config set
+     * {@code torqueCurrentFOC(true)}. Fail at wiring time, not silently on the field.
+     */
+    public Command track(DoubleSupplier velocityRpsSupplier, DoubleSupplier feedforwardAmpsSupplier) {
+        if (!config.torqueCurrentFOC) {
+            throw new IllegalStateException(
+                    name + ": track(velocity, feedforwardAmps) requires torqueCurrentFOC(true) — "
+                            + "an amps feedforward has no meaning in a voltage velocity loop");
+        }
+        return run(() -> {
+            double v = velocityRpsSupplier.getAsDouble();
+            double ff = feedforwardAmpsSupplier.getAsDouble();
+            primarySetpointRPS = v;
+            secondarySetpointRPS = v;
+            applyVelocity(primaryMotor, v, ff);
+            if (secondaryMotor != null) {
+                applyVelocity(secondaryMotor, v, ff);
+            }
+            setState("TrackFF");
+        }).finallyDo(() -> {
+            primaryMotor.stop();
+            if (secondaryMotor != null) secondaryMotor.stop();
+            primarySetpointRPS = 0;
+            secondarySetpointRPS = 0;
+            setState("Idle");
+        }).withName(name + ".TrackFF");
     }
 
     /** Command to spin up and wait until at speed. */
@@ -406,6 +452,9 @@ public class FlywheelMechanism extends CatalystMechanism {
         final double velocityTolerance;
         final double kP, kI, kD;
         final double kS, kV, kA;
+        final boolean torqueCurrentFOC;
+        final double peakForwardTorqueCurrent;
+        final double peakReverseTorqueCurrent;
 
         private Config(Builder b) {
             this.name = b.name;
@@ -424,6 +473,9 @@ public class FlywheelMechanism extends CatalystMechanism {
             this.velocityTolerance = b.velocityTolerance;
             this.kP = b.kP; this.kI = b.kI; this.kD = b.kD;
             this.kS = b.kS; this.kV = b.kV; this.kA = b.kA;
+            this.torqueCurrentFOC = b.torqueCurrentFOC;
+            this.peakForwardTorqueCurrent = b.peakForwardTorqueCurrent;
+            this.peakReverseTorqueCurrent = b.peakReverseTorqueCurrent;
         }
 
         public static Builder builder() {
@@ -444,7 +496,10 @@ public class FlywheelMechanism extends CatalystMechanism {
             private double moi = 0.01; // kg*m^2
             private double currentLimit = 60;
             private double statorCurrentLimit = 120;
-            private double velocityTolerance = 3.0; // RPS
+            private double velocityTolerance = 3.0;
+            private boolean torqueCurrentFOC = false;
+            private double peakForwardTorqueCurrent = 800;
+            private double peakReverseTorqueCurrent = -800; // RPS
             private double kP = 0, kI = 0, kD = 0;
             private double kS = 0, kV = 0, kA = 0;
 
@@ -505,6 +560,20 @@ public class FlywheelMechanism extends CatalystMechanism {
 
             /** How close to target speed (in RPS) counts as "at speed". */
             public Builder velocityTolerance(double rps) { this.velocityTolerance = rps; return this; }
+
+            /**
+             * Run velocity closed-loop as torque-current FOC instead of voltage (requires Phoenix
+             * Pro on the device). In this mode the pid()/feedforward() gains are in AMPS — kP is
+             * A/rps of error, kS is A, kV is A/rps — and voltage gains are NOT transferable.
+             */
+            public Builder torqueCurrentFOC(boolean enabled) { this.torqueCurrentFOC = enabled; return this; }
+
+            /** Peak torque-current for the FOC request (positive forward amps, negative reverse). */
+            public Builder torqueCurrentLimits(double peakForwardAmps, double peakReverseAmps) {
+                this.peakForwardTorqueCurrent = peakForwardAmps;
+                this.peakReverseTorqueCurrent = peakReverseAmps;
+                return this;
+            }
 
             public Builder pid(double kP, double kI, double kD) {
                 this.kP = kP; this.kI = kI; this.kD = kD; return this;
