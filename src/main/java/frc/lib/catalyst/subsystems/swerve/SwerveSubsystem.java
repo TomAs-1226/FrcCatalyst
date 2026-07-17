@@ -108,9 +108,11 @@ public class SwerveSubsystem extends SubsystemBase {
 
     // Simulation: a high-rate thread that actually advances the Phoenix sim so the
     // drivetrain moves in the simulator (without it, status signals stay stale).
+    // Yields automatically to an external physics engine — see setSimPose().
     private static final double SIM_LOOP_PERIOD = 0.005; // 200 Hz
     private Notifier simNotifier = null;
     private double lastSimTime;
+    private boolean internalSimYielded = false;
 
     // Telemetry
     private final NetworkTable telemetryTable;
@@ -158,6 +160,9 @@ public class SwerveSubsystem extends SubsystemBase {
     }
 
     private void startSimThread() {
+        if (internalSimYielded) {
+            return;
+        }
         lastSimTime = Utils.getCurrentTimeSeconds();
         simNotifier = new Notifier(() -> {
             double now = Utils.getCurrentTimeSeconds();
@@ -221,11 +226,50 @@ public class SwerveSubsystem extends SubsystemBase {
      *
      * <p>Call once per {@code simulationPeriodic()}. See
      * {@code docs/advanced/simulation.md} for the maple-sim wiring.
+     *
+     * <p>The first call also stops Catalyst's internal Phoenix sim thread, by
+     * way of {@link #disableInternalSim()}. Something is clearly supplying
+     * physics, and two writers on the same module rotor states would fight:
+     * {@code updateSimState()} would overwrite maple-sim's values at 200 Hz and
+     * the physics would quietly stop reaching the robot. If you want the
+     * internal sim off before any pose arrives, call {@link
+     * #disableInternalSim()} yourself.
      */
     public void setSimPose(Pose2d simPose) {
         if (edu.wpi.first.wpilibj.RobotBase.isSimulation() && simPose != null) {
+            disableInternalSim();
             drivetrain.resetPose(simPose);
         }
+    }
+
+    /**
+     * Stop Catalyst's internal Phoenix simulation thread.
+     *
+     * <p>Only needed when an external physics engine (maple-sim, or your own)
+     * is driving the module sim states. {@link #setSimPose(Pose2d)} calls this
+     * for you, so the maple-sim wiring in {@code docs/advanced/simulation.md}
+     * needs no extra step. Idempotent, and a no-op on a real robot.
+     */
+    public void disableInternalSim() {
+        if (internalSimYielded) {
+            return;
+        }
+        internalSimYielded = true;
+
+        if (simNotifier != null) {
+            simNotifier.stop();
+            simNotifier.close();
+            simNotifier = null;
+        }
+    }
+
+    /**
+     * Whether Catalyst's own Phoenix sim thread is currently advancing the
+     * drivetrain. False on a real robot, and false once an external physics
+     * engine has taken over.
+     */
+    public boolean isInternalSimRunning() {
+        return simNotifier != null;
     }
 
     /**

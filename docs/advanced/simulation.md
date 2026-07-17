@@ -163,7 +163,8 @@ it through these.
 
 | Hook | What it's for |
 |---|---|
-| `SwerveSubsystem.setSimPose(Pose2d)` | feed maple-sim's physics pose into Catalyst's estimator (sim only; no-op on a real robot) |
+| `SwerveSubsystem.setSimPose(Pose2d)` | feed maple-sim's physics pose into Catalyst's estimator (sim only; no-op on a real robot). Also stands Catalyst's own sim thread down on first call — see below |
+| `SwerveSubsystem.disableInternalSim()` | stand the internal sim down explicitly, if you want it off before the first pose arrives |
 | `SimGamePieces` | stream simulated piece positions to NT for AdvantageScope |
 
 ### Setup
@@ -192,6 +193,23 @@ public void simulationPeriodic() {
     }
     fuel.publish();   // -> /Catalyst/Sim/Fuel
 }
+```
+
+### Catalyst's own sim thread gets out of the way
+
+Without maple-sim, `SwerveSubsystem` runs a 200 Hz thread calling Phoenix's
+`updateSimState()` so the drivetrain moves in the simulator out of the box.
+With maple-sim, that thread would be a second writer on the same module rotor
+states — and at 200 Hz it would win, quietly overwriting the physics before it
+ever reached your robot code.
+
+So the first `setSimPose()` call stops it. The wiring above needs no extra step;
+this is only worth knowing about when something looks stuck. To check, or to
+stand it down before any pose arrives:
+
+```java
+drive.disableInternalSim();          // explicit, idempotent, no-op on a real robot
+drive.isInternalSimRunning();        // false once an external engine has taken over
 ```
 
 > Method names follow maple-sim's API, which changes between releases, so
