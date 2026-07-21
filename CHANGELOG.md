@@ -5,6 +5,82 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] — 2026-07-21 — A real state machine, for the whole robot
+
+Resolves [#22](https://github.com/TomAs-1226/FrcCatalyst/issues/22). The old
+`SuperstructureCoordinator` only understood `LinearMechanism` and `RotationalMechanism`
+positions, so you could not put a whole robot in it — and it kept no log worth reading
+when something went wrong. The new `frc.lib.catalyst.statemachine` package takes every
+mechanism type, is an actual guarded state machine, and logs enough to debug a stuck
+superstructure from the driver station with no laptop attached.
+
+Backward compatible: purely additive, plus one deprecation that removes nothing.
+
+### Added — `frc.lib.catalyst.statemachine`
+
+- **`Superstructure<S>`** — the entry point. Enum-typed states, a builder in the Catalyst
+  house style, and `Command`/`Trigger` factories: `goTo`, `goToAndHold`, `requestOnly`,
+  `waitUntilSettled`, `onlyIfSettled`, `seed`, `abort`, `clearFault`; `in`, `settledIn`,
+  `arrivedAt`, `transitioning`, `faulted`, `rejected`, `overridden`.
+- **Every mechanism type, plus yours.** `Mechanisms` binds all nine Catalyst mechanisms
+  — linear, rotational, differential wrist, flywheel, turret, claw, roller, winch,
+  pneumatic — each with a typed goal record so the compiler catches sending an elevator
+  to 90 degrees. Any other subsystem plugs in through four escape hatches: `instant` for
+  fire-and-forget output, `custom` for plain method calls with an arrival test, `commands`
+  for a subsystem that exposes `Command` factories, and `build` for full control. The nine
+  built-in bindings are ordinary implementations of the same public interface — nothing is
+  reserved for library mechanisms.
+- **A legal-transition graph.** `allow`, `allowBoth`, `hub`, `edge`, `via`. An edge you did
+  not declare is a hard `NO_EDGE` refusal, so the graph is a real safety constraint rather
+  than a hint. `Routing.SHORTEST_PATH` opts into automatic multi-hop routing, off by default.
+- **Guards, entry guards and interlocks**, each carrying a reason string that appears in the
+  log when it blocks something — so a button that "does nothing" says why.
+- **Staged actuation per edge.** `.stage(elevator).stage(arm, wrist)` raises the elevator
+  before the arm swings out, declaratively, instead of in a hand-built command group whose
+  sequencing nothing can inspect.
+- **Arrival is proven, not assumed.** `current()` is only ever a state whose every gating
+  mechanism was measured at its goal. Deadlines are per-edge, per-state or global, and always
+  finite. `FaultPolicy` decides what a blown deadline does — the default holds position and
+  reports rather than cutting anything.
+- **The log.** A full schema under `/Catalyst/<prefix>/`, routed through `CatalystLog` so it
+  reaches every sink: state and phase timelines, `StateConfirmed`, a `Blocker` string naming
+  which mechanism is holding things up, a 5 Hz-throttled `BlockerDetail` with the actual
+  numbers, `WaitingOn`, `LegalTargets`, per-binding goal/measured/error/tolerance/owned, a
+  50-entry `Transition/History` with outcomes and per-mechanism arrival times, counters, and a
+  heartbeat. Plus one-shot Driver Station warnings and a `Sendable` pit widget, both of which
+  work with no dashboard configured at all.
+- **Build-time validation.** `validate()` returns every problem at once — undeclared states,
+  unreachable states, out-of-range setpoints, unknown named-position presets, a roller that
+  can never detect a piece — with no hardware involved. A pit deploy cycle costs the better
+  part of a minute; six typos in one message beats six crashes.
+- **Unit-testable without a roboRIO.** The engine imports nothing from WPILib, so a test fakes
+  a mechanism in ten lines. 46 new tests ship with it, covering the graph and validation, the
+  truth invariants, transitions and staging, log cadence, and robustness (throwing guards, recovery
+  after a timeout). Suite is now 62 tests.
+
+### Added — elsewhere
+
+- `LinearMechanism.getNamedPositions()` / `getPositionTolerance()` and
+  `RotationalMechanism.getNamedPositions()` / `getTolerance()`, so a named-position preset can
+  be resolved and range-checked at build time instead of throwing from inside a command factory
+  during a match.
+- `GoalDirector.Builder.superstructure(SuperstructureLike)` — point an existing goal layer at
+  either the new state machine or the old coordinator. `coordinator(...)` is unchanged.
+
+### Changed
+
+- `CatalystLog`'s sink is now created lazily. Previously the eager field initialiser meant that
+  merely touching the class constructed a `NetworkTablesSink`, which throws with no HAL present
+  and made even `setSink(fake)` unusable from a unit test.
+
+### Deprecated
+
+- **`SuperstructureCoordinator`** — superseded by `statemachine.robot.Superstructure`. Not
+  scheduled for removal, and its behaviour is deliberately **frozen**: four known defects are
+  documented in its javadoc rather than fixed, because changing them would silently alter what a
+  robot already built on it physically does, mid-season. Existing code keeps working unchanged.
+  It now also implements `SuperstructureLike`, which is a source- and binary-compatible addition.
+
 ## [1.1.0] — 2026-07-16 — Audit fixes from a full robot port
 
 Resolves the 15-finding v1.0.0 audit ([#17](https://github.com/TomAs-1226/FrcCatalyst/issues/17))

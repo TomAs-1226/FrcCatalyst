@@ -62,8 +62,32 @@ import java.util.Map;
  *             .andThen(to.goToRotational("arm"));
  *     });
  * }</pre>
+ *
+ * @deprecated As of v1.2.0, superseded by
+ *     {@link frc.lib.catalyst.statemachine.robot.Superstructure}, which accepts all nine Catalyst
+ *     mechanism types plus arbitrary user subsystems, enforces a legal-transition graph, proves
+ *     arrival from sensors instead of assuming it, and publishes a full structured log.
+ *
+ *     <p><b>This class is not scheduled for removal and its behaviour is frozen</b> — robot code
+ *     built on it keeps working unchanged. Note that several known defects are deliberately
+ *     <em>not</em> fixed here, because changing them would silently alter what a robot already
+ *     built on this class physically does:
+ *     <ul>
+ *       <li>{@link #transitionTo(String)} selects its transition rule at command <em>construction</em>
+ *           time rather than at schedule time, so a command stored in a field and re-bound each
+ *           match keeps using the rule that applied when it was created.</li>
+ *       <li>The default parallel transition completes after a single scheduler tick regardless of
+ *           whether any mechanism actually moved.</li>
+ *       <li>{@link #getCurrentState()} is set to the target even when a transition is interrupted
+ *           or times out, so the next transition plans from a state the robot is not in.</li>
+ *       <li>{@link #isAtState(String)} returns {@code true} for mechanism keys that were never
+ *           registered.</li>
+ *     </ul>
+ *     All four are fixed by construction in the new package. See the migration guide in
+ *     {@code docs/advanced/statemachine.md}.
  */
-public class SuperstructureCoordinator {
+@Deprecated(since = "1.2.0", forRemoval = false)
+public class SuperstructureCoordinator implements frc.lib.catalyst.statemachine.robot.SuperstructureLike {
 
     private final Map<String, LinearMechanism> linearMechanisms = new HashMap<>();
     private final Map<String, RotationalMechanism> rotationalMechanisms = new HashMap<>();

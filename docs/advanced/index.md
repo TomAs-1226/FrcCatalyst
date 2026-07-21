@@ -357,6 +357,15 @@ VisionConfig.builder()
 
 ## Enhanced SuperstructureCoordinator
 
+{: .note }
+**Start with [the state machine guide](statemachine.html) instead.** As of v1.2.0 the
+`frc.lib.catalyst.statemachine` package supersedes everything in this section: it accepts all nine
+Catalyst mechanism types plus your own subsystems, enforces a legal-transition graph, and logs
+every decision it makes. The features below are the coordinator's versions of the same ideas —
+collision zones become interlocks, transition rules become per-edge staging — and the section is
+kept because `SuperstructureCoordinator` is deprecated but frozen, so code written against it
+still works.
+
 The state machine coordinator now supports the advanced patterns successful teams build in-house:
 
 ### Collision Zones

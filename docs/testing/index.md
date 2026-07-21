@@ -131,35 +131,77 @@ class UtilityTests {
 }
 ```
 
-### Testing with HAL (Timer-Dependent)
+### Timer-dependent code: `HAL.initialize` does not work here
 
-`SlewRateLimiter` and `TimedBoolean` use WPILib's `Timer` and require HAL initialization:
+`SlewRateLimiter` and `TimedBoolean` call WPILib's `Timer`, which needs the HAL. Older versions of
+this page suggested reaching for it directly:
 
 ```java
-import edu.wpi.first.hal.HAL;
-import org.junit.jupiter.api.BeforeAll;
-
-class HALDependentTests {
-
-    @BeforeAll
-    static void initHAL() {
-        HAL.initialize(500, 0);
-    }
-
-    @Test
-    void testSlewRateLimiter() {
-        SlewRateLimiter limiter = new SlewRateLimiter(10.0);
-        double result = limiter.calculate(100.0);
-        assertTrue(result < 100.0); // rate limited
-    }
-
-    @Test
-    void testTimedBoolean() {
-        TimedBoolean tb = new TimedBoolean(0.5);
-        assertFalse(tb.update(true)); // not sustained long enough
-    }
+// This does NOT work in the FrcCatalyst `test` task.
+@BeforeAll
+static void initHAL() {
+    HAL.initialize(500, 0);   // UnsatisfiedLinkError: no wpiHaljni in java.library.path
 }
 ```
+
+The reason is worth understanding, because it is the same reason in your own robot project.
+`HAL.initialize` is a Java method that calls straight into `wpiHaljni`, a native library. The
+`edu.wpi.first.hal:hal-java` artifact contains only the Java side of that binding; the `.dll` /
+`.so` comes from a separate platform-specific artifact that the GradleRIO plugin puts on the
+classpath and extracts for you. FrcCatalyst's `build.gradle` applies plain `java-library` and lists
+exactly three test dependencies — JUnit, the JUnit launcher, and `quickbuf-runtime` for wpimath's
+geometry classes. No GradleRIO, so no natives, so the class loads and the first native call fails.
+Adding a `@BeforeAll` block does not fix that; it just moves the failure earlier.
+
+**What this means in practice.** Anything that touches the HAL — `Timer`, motor controllers,
+`DriverStation`, NetworkTables-backed telemetry, the command scheduler — belongs in a simulation
+run (`./gradlew simulateJava`), not in a JUnit test. Anything that is pure Java can and should be
+unit-tested, and the useful move is to *design* for that boundary rather than to fight it.
+
+### Designing for testability: how the state machine engine does it
+
+`StateMachineCore` is the clearest example in the library, and it is worth copying. The engine
+takes **no WPILib imports at all**. Two decisions bought that:
+
+1. **Time is injected, not read.** The engine takes a `DoubleSupplier clock`. On a robot,
+   `Superstructure.Builder` defaults it to `Timer::getFPGATimestamp`; in a test it is a mutable
+   field the test advances by hand. Nothing anywhere calls `Timer` directly, so a test can jump
+   four seconds forward to check a deadline without waiting four seconds — or ever loading the HAL.
+2. **Mechanisms are behind an interface.** The engine knows only `Binding<G>`, an interface of
+   plain-Java methods (`atGoal`, `measured`, `zeroed`, `label`). The WPILib-flavoured
+   `Actuator<G>` — which hands out `Command` objects and owns `Subsystem`s — sits one layer up in
+   `frc.lib.catalyst.statemachine.robot`. A test implements `Binding` directly with a fake whose
+   position walks toward its goal a step at a time, and which can be jammed on demand to reproduce
+   a stuck mechanism.
+
+That is enough to test the parts that actually contain the bugs: whether an undeclared edge is
+refused, whether a timeout leaves `current()` where the robot really is, whether the blocker string
+names the right mechanism.
+
+```java
+// From the FrcCatalyst suite: no HAL, no scheduler, no NetworkTables.
+enum St { STOW, MID, HIGH, INTAKE, CLIMB }
+
+FakeClock clock = new FakeClock();          // a DoubleSupplier the test advances
+FakeBinding elevator = new FakeBinding("elevator");
+
+StateMachineCore.Builder<St> b =
+    StateMachineCore.builder(St.class, "Graph").clock(clock);
+Handle<Double> h = b.bind("elevator", elevator);
+
+b.initialState(St.STOW)
+ .state(St.STOW, s -> s.set(h, 0.0))
+ .state(St.HIGH, s -> s.set(h, 1.0))
+ .hub(St.STOW);
+
+// validate() checks the configuration without building or touching hardware,
+// and reports every problem at once rather than only the first.
+ValidationReport report = b.validate();
+assertFalse(report.ok());
+```
+
+`validate()` is the hook to reach for even if you write no other tests. It is the difference
+between finding an undeclared state on a laptop and finding it in a queue line.
 
 ### Testing Mechanisms
 
@@ -240,14 +282,31 @@ System.out.println("Max speed: " + config.estimateMaxSpeed() + " m/s");
 
 ## Test Project
 
-For a complete test project with 68+ JUnit tests covering every FrcCatalyst component, see the [FrcCatalystTest](https://github.com/TomAs-1226/FrcCatalystTest) repository.
+### The in-repo suite
 
-It includes tests for:
-- All utility classes (CatalystMath, InterpolatingTable, MovingAverage, etc.)
-- Hardware types (MotorType specs, DCMotor creation)
-- FeedforwardGains calculations
-- All mechanism types (construction, commands, triggers)
-- SuperstructureCoordinator state machine
+`./gradlew test` on FrcCatalyst itself runs **62 JUnit tests**. They all run on a laptop with no
+HAL, no NetworkTables and no command scheduler, for the reasons described above.
+
+**46 of the 62 cover the state machine engine**, split across five files:
+
+| Area | Tests | What it pins down |
+|---|---|---|
+| Graph and validation | 11 | Undeclared states and unreachable states fail the build; every problem is reported, not just the first; an undeclared edge is refused rather than attempted |
+| Truth invariants | 10 | `current()` is only ever a proven state; a timeout leaves the machine where the robot actually is; `isAt` stays a live measurement rather than a latch |
+| Transitions and staging | 11 | Stage N waits for stage N-1; guards, entry guards and interlocks block with the right reason; abort and override behaviour |
+| Telemetry cadence | 9 | The log schema is written at the right rate, and edge-detected keys do not churn |
+| Robustness | 5 | A throwing guard fails closed instead of crashing the loop; after a timeout the machine can be commanded back to its proven state; diagnostics track the goals actually being pursued |
+
+The remaining 16 cover `AimingSolver` (8), `AllianceFlipUtil` (4) and turret math (4) — the other
+pure-Java corners of the library. Mechanism classes are not in this count: they need the CTRE
+Phoenix simulation runtime and are exercised through `simulateJava` instead.
+
+### The example robot project
+
+For a larger worked project that exercises mechanisms end to end, see the
+[FrcCatalystTest](https://github.com/TomAs-1226/FrcCatalystTest) repository. It covers utility
+classes, hardware types, `FeedforwardGains`, and all mechanism types (construction, commands,
+triggers), and it runs under simulation because those parts need the HAL.
 
 ```bash
 # Clone and run

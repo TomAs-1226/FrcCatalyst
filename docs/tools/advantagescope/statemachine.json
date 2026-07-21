@@ -1,0 +1,168 @@
+{
+  "$schema": "../catalyst-tab-bundle.schema.json",
+  "catalystVersion": "1.2.0",
+  "mechanism": "Superstructure",
+  "description": "Full state-machine dashboard: confirmed state and phase over time, per-binding arrival error against tolerance, the transition history table, and the Blocker/Summary strings that name which mechanism is holding the robot up.",
+  "placeholders": {
+    "SM": "Replace with the log prefix from Superstructure.builder(...) — defaults to the machine name you passed, e.g. Superstructure.",
+    "BINDING": "Replace with a binding key from b.bind(\"<key>\", ...) — e.g. elevator, arm, wrist, claw. Duplicate the per-binding tab once per mechanism you want to watch."
+  },
+  "tabs": [
+    {
+      "title": "{SM} — State timeline",
+      "type": "Console",
+      "notes": "The headline view. In AdvantageScope drop these on a Timeline / Discrete Fields tab in exactly this order — State, StateConfirmed, Phase, Target, Blocker — and the shape of a transition reads left to right: State holds, StateConfirmed drops false, Phase walks through the transition, Target shows where it is going, and Blocker names the one mechanism everything is waiting on. StateConfirmed is the field worth watching hardest: State is only ever a state whose arrival was proven by every gating mechanism reporting at-goal, so a long false stretch means the robot is genuinely between states, not that the log is stale.",
+      "fields": [
+        { "key": "/Catalyst/{SM}/State" },
+        { "key": "/Catalyst/{SM}/StateConfirmed" },
+        { "key": "/Catalyst/{SM}/Phase" },
+        { "key": "/Catalyst/{SM}/Target" },
+        { "key": "/Catalyst/{SM}/Blocker" }
+      ]
+    },
+    {
+      "title": "{SM} — Diagnosis strings",
+      "type": "Console",
+      "notes": "Summary is the one-line human-readable account of what the machine is doing right now; BlockerDetail expands Blocker with the measured number and the tolerance it missed. Rejected/Last carries the most recent refusal with its RejectReason, which is what you read when a button press did nothing at all. WaitingOn lists every gating binding not yet at goal, so you can tell 'one slow mechanism' from 'nothing has moved'.",
+      "fields": [
+        { "key": "/Catalyst/{SM}/Summary" },
+        { "key": "/Catalyst/{SM}/BlockerDetail" },
+        { "key": "/Catalyst/{SM}/WaitingOn" },
+        { "key": "/Catalyst/{SM}/Rejected/Last" },
+        { "key": "/Catalyst/{SM}/FaultReason" }
+      ]
+    },
+    {
+      "title": "{SM} — Progress & deadline",
+      "type": "LineGraph",
+      "notes": "Progress is the fraction of the current transition completed. Plot it against ElapsedSeconds and TimeoutSeconds on the right axis: when Elapsed climbs toward Timeout while Progress has flattened, you are watching a transition that is about to time out, and the Blocker field on the timeline tab tells you which mechanism caused it.",
+      "axes": {
+        "left": {
+          "unit": "fraction",
+          "fields": [
+            { "key": "/Catalyst/{SM}/Progress", "color": "#e94560" }
+          ]
+        },
+        "right": {
+          "unit": "seconds",
+          "fields": [
+            { "key": "/Catalyst/{SM}/ElapsedSeconds", "color": "#60a5fa" },
+            { "key": "/Catalyst/{SM}/TimeoutSeconds", "color": "#93c5fd", "style": "dashed" }
+          ]
+        }
+      }
+    },
+    {
+      "title": "{SM} — {BINDING} error vs tolerance",
+      "type": "LineGraph",
+      "notes": "Copy this tab once per binding, substituting {BINDING} each time. Error is in whatever unit that mechanism's goal uses (meters for a LinearGoal, degrees for a RotationalGoal, RPM for a FlywheelGoal), so keep one binding per tab rather than mixing units on one axis. Tolerance is drawn dashed as the reference line: the binding reports AtGoal once Error is inside it. If AtGoal never goes true while Error sits just above Tolerance, the tolerance is too tight, and that is the single most common cause of a transition timing out.",
+      "axes": {
+        "left": {
+          "unit": "goal units",
+          "fields": [
+            { "key": "/Catalyst/{SM}/Bindings/{BINDING}/Error", "color": "#e94560" },
+            { "key": "/Catalyst/{SM}/Bindings/{BINDING}/Tolerance", "color": "#ff6b6b", "style": "dashed" },
+            { "key": "/Catalyst/{SM}/Bindings/{BINDING}/Measured", "color": "#60a5fa" }
+          ]
+        },
+        "right": {
+          "unit": "boolean",
+          "fields": [
+            { "key": "/Catalyst/{SM}/Bindings/{BINDING}/AtGoal", "color": "#4ade80" },
+            { "key": "/Catalyst/{SM}/Bindings/{BINDING}/Gating", "color": "#fbbf24" }
+          ]
+        }
+      }
+    },
+    {
+      "title": "{SM} — {BINDING} status",
+      "type": "Console",
+      "notes": "The string side of one binding. Goal and GoalDetail say what was asked of the mechanism in this state; ArrivalSeconds is the seconds from goal application to arrival, which is the number you use to set a per-edge deadline that is realistic rather than guessed. The other two fields carry most of the diagnostic weight. Owned goes false the moment another command takes the subsystem, which is how a driver override stops looking like a broken state machine. Observable goes false when AtGoal is really a settle timer rather than a sensor reading — so nobody reads this log and believes a claw was measured shut when in fact 0.3 seconds simply elapsed.",
+      "fields": [
+        { "key": "/Catalyst/{SM}/Bindings/{BINDING}/Goal" },
+        { "key": "/Catalyst/{SM}/Bindings/{BINDING}/GoalDetail" },
+        { "key": "/Catalyst/{SM}/Bindings/{BINDING}/ArrivalSeconds" },
+        { "key": "/Catalyst/{SM}/Bindings/{BINDING}/Owned" },
+        { "key": "/Catalyst/{SM}/Bindings/{BINDING}/Observable" },
+        { "key": "/Catalyst/{SM}/Bindings/{BINDING}/Note" }
+      ]
+    },
+    {
+      "title": "{SM} — Transition history",
+      "type": "Table",
+      "notes": "Transition/History is the rolling log, newest first, one pre-serialized string per transition — this is the field to open first after a match. It holds 50 entries unless you changed the history capacity on the builder. The Transition/* fields below it describe only the most recent transition, in separate typed keys, which is what you want when you are stepping through a log frame by frame. Outcome tells you whether it completed, was rejected, timed out, or faulted; Reason carries the RejectReason; Arrivals gives the per-mechanism arrival times for that one transition.",
+      "fields": [
+        "/Catalyst/{SM}/Transition/History",
+        "/Catalyst/{SM}/Transition/Seq",
+        "/Catalyst/{SM}/Transition/From",
+        "/Catalyst/{SM}/Transition/To",
+        "/Catalyst/{SM}/Transition/Route",
+        "/Catalyst/{SM}/Transition/Trigger",
+        "/Catalyst/{SM}/Transition/Outcome",
+        "/Catalyst/{SM}/Transition/Reason",
+        "/Catalyst/{SM}/Transition/Detail",
+        "/Catalyst/{SM}/Transition/DurationSeconds",
+        "/Catalyst/{SM}/Transition/Arrivals"
+      ]
+    },
+    {
+      "title": "{SM} — Routing & legality",
+      "type": "Table",
+      "notes": "LegalTargets is every state you may request right now. If a button seems dead, look here first: an undeclared edge is a hard refusal, not a slow transition. Route and NextHop are populated when routing is multi-hop, so you can see the intermediate state the machine chose to pass through.",
+      "fields": [
+        "/Catalyst/{SM}/LegalTargets",
+        "/Catalyst/{SM}/Route",
+        "/Catalyst/{SM}/NextHop",
+        "/Catalyst/{SM}/Trigger",
+        "/Catalyst/{SM}/Stage",
+        "/Catalyst/{SM}/Transitioning"
+      ]
+    },
+    {
+      "title": "{SM} — Counters & health",
+      "type": "Table",
+      "notes": "Match-long totals plus the liveness fields. A rising Rejections count with no driver complaint usually means a button is bound to a transition the graph does not allow. Ticks and UptimeSeconds prove the machine is still being periodic()-ed at all, which is worth ruling out before debugging anything else.",
+      "fields": [
+        "/Catalyst/{SM}/Counters/Transitions",
+        "/Catalyst/{SM}/Counters/Rejections",
+        "/Catalyst/{SM}/Counters/Timeouts",
+        "/Catalyst/{SM}/Counters/Aborts",
+        "/Catalyst/{SM}/Counters/Yields",
+        "/Catalyst/{SM}/Faulted",
+        "/Catalyst/{SM}/Enabled",
+        "/Catalyst/{SM}/Ticks",
+        "/Catalyst/{SM}/UptimeSeconds",
+        "/Catalyst/{SM}/Rejected/LastTimestamp"
+      ]
+    },
+    {
+      "title": "{SM} — Ordinals (numeric plotting)",
+      "type": "LineGraph",
+      "notes": "The same State and Phase as the timeline tab, published as integers so they can be plotted on a numeric axis and lined up against a mechanism's position graph. Use the timeline tab for reading and this one for correlating — the ordinals follow enum declaration order, so they are only meaningful next to the enum in your code. StateOrdinal is -1 when the machine has no current state at all, which is not the same thing as an unconfirmed one — for that, read StateConfirmed.",
+      "axes": {
+        "left": {
+          "unit": "ordinal",
+          "fields": [
+            { "key": "/Catalyst/{SM}/StateOrdinal", "color": "#e94560" },
+            { "key": "/Catalyst/{SM}/PhaseOrdinal", "color": "#fbbf24" },
+            { "key": "/Catalyst/{SM}/Transition/OutcomeOrdinal", "color": "#60a5fa", "style": "dotted" }
+          ]
+        }
+      }
+    },
+    {
+      "title": "{SM} — Graph structure",
+      "type": "Documentation",
+      "notes": "Published once at construction, not every loop. Graph/Dot is the whole state graph in Graphviz DOT — paste it into any DOT viewer and you get a picture of exactly which transitions your robot will accept, which is the fastest way to spot an edge you meant to declare and did not. Graph/Warnings is also printed to the Driver Station at startup, so an unreachable state tells you about itself without a dashboard.",
+      "fields": [
+        "/Catalyst/{SM}/Graph/Machine",
+        "/Catalyst/{SM}/Graph/States",
+        "/Catalyst/{SM}/Graph/Edges",
+        "/Catalyst/{SM}/Graph/Bindings",
+        "/Catalyst/{SM}/Graph/Routes",
+        "/Catalyst/{SM}/Graph/Dot",
+        "/Catalyst/{SM}/Graph/Warnings"
+      ]
+    }
+  ]
+}
