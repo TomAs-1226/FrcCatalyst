@@ -596,6 +596,31 @@ public class LinearMechanism extends CatalystMechanism {
         return motor;
     }
 
+    /**
+     * The named position presets configured on this mechanism, as an immutable map.
+     *
+     * <p>Added in 1.2.0 so tooling outside this package — notably
+     * {@link frc.lib.catalyst.statemachine.mech.LinearBinding} — can resolve a preset name to
+     * metres <em>at build time</em> and report an unknown name as a configuration error, rather
+     * than throwing from inside a command factory during a match.
+     *
+     * @return preset name to position in metres; empty when none were configured
+     * @since 1.2.0
+     */
+    public java.util.Map<String, Double> getNamedPositions() {
+        return config.namedPositions;
+    }
+
+    /**
+     * The configured position tolerance in metres — the band used by
+     * {@link #atPosition(String)} and the default for state-machine arrival tests.
+     *
+     * @since 1.2.0
+     */
+    public double getPositionTolerance() {
+        return config.positionToleranceMeters;
+    }
+
     @Override
     protected CatalystMotor primaryMotorForSysId() {
         return motor;

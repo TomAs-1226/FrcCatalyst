@@ -235,6 +235,85 @@ superstructure.addTransitionRule("STOW", "SCORE_HIGH",
 );
 ```
 
+### The same robot with `Superstructure` (v1.2.0+)
+
+`SuperstructureCoordinator` is deprecated as of v1.2.0. The version above still compiles and still
+runs, but it can only place the elevator and the arm — the intake and the shooter are left out of
+the states entirely, because the coordinator has no way to hold a roller or a flywheel goal. Here
+is the same four-mechanism robot written against
+`frc.lib.catalyst.statemachine.robot.Superstructure`, which does.
+
+Three things are different in kind, not just in spelling. States are enum constants rather than
+strings, so a typo is a compile error instead of a rejected request at a regional. The transitions
+you declare are the *only* transitions the robot will make — an edge you did not write is refused,
+with a reason, and logged. And `current()` is only ever a state the robot was measured to have
+reached, so a transition that times out leaves the machine where the robot actually is.
+
+```java
+import frc.lib.catalyst.statemachine.Handle;
+import frc.lib.catalyst.statemachine.goals.FlywheelGoal;
+import frc.lib.catalyst.statemachine.goals.LinearGoal;
+import frc.lib.catalyst.statemachine.goals.RollerGoal;
+import frc.lib.catalyst.statemachine.goals.RotationalGoal;
+import frc.lib.catalyst.statemachine.mech.Mechanisms;
+import frc.lib.catalyst.statemachine.robot.Superstructure;
+
+public enum SuperState { STOW, INTAKE, SCORE_HIGH }
+
+private final Superstructure<SuperState> superstructure;
+
+public RobotContainer() {
+    var b = Superstructure.builder(SuperState.class, "Superstructure");
+
+    // bind() hands back a typed handle. Passing a RotationalGoal to the elevator
+    // handle below would not compile.
+    Handle<LinearGoal>     elev  = b.bind("elevator", Mechanisms.linear("elevator", elevator));
+    Handle<RotationalGoal> pivot = b.bind("arm",      Mechanisms.rotational("arm", arm));
+    Handle<RollerGoal>     roll  = b.bind("intake",   Mechanisms.roller("intake", intake));
+    Handle<FlywheelGoal>   fly   = b.bind("shooter",  Mechanisms.flywheel("shooter", shooter));
+
+    superstructure = b
+        // The safe posture, stated once. Every state inherits it unless it says
+        // otherwise, so the mechanism you forget in one state does not stay wherever
+        // the previous state parked it.
+        .defaults(s -> s
+            .set(roll, RollerGoal.idle())
+            .set(fly,  FlywheelGoal.idle()))
+
+        .state(SuperState.STOW, s -> s
+            .set(elev,  LinearGoal.meters(0.0))
+            .set(pivot, RotationalGoal.degrees(0.0)))
+
+        .state(SuperState.INTAKE, s -> s
+            .set(elev,  LinearGoal.meters(0.15))
+            .set(pivot, RotationalGoal.degrees(15.0))
+            .set(roll,  RollerGoal.intakeUntilPiece(3.0)))
+
+        .state(SuperState.SCORE_HIGH, s -> s
+            .set(elev,  LinearGoal.meters(1.1))
+            .set(pivot, RotationalGoal.degrees(100.0))
+            .set(fly,   FlywheelGoal.rps(70.0))
+            .entryGuard(intake::hasPiece, "no piece"))
+
+        .hub(SuperState.STOW)                        // STOW connects to and from everything
+        .allow(SuperState.INTAKE, SuperState.SCORE_HIGH)
+
+        // The declarative replacement for addTransitionRule(...). Stage 1 starts only
+        // once every gating mechanism in stage 0 reports at-goal, so the elevator is up
+        // before the arm swings out and the arm never meets the chassis. Unlike a
+        // hand-built command group, the machine can log what it is about to do.
+        .edge(SuperState.STOW, SuperState.SCORE_HIGH, e -> e
+            .stage(elev)
+            .stage(pivot))
+
+        .build();
+
+    // Tell the machine where the robot is physically built. Without this it only
+    // assumes a starting state; seeding makes the first transition plan from the truth.
+    superstructure.engine().seed(SuperState.STOW);
+}
+```
+
 ### Command Bindings
 
 ```java
@@ -249,6 +328,43 @@ operator.leftTrigger(0.3).whileTrue(
     shooter.spinUp(70)
         .alongWith(Commands.waitUntil(shooter::atSpeed)
             .andThen(intake.eject()))
+);
+```
+
+With `Superstructure`, the same bindings are typed, and there is somewhere useful to put the
+failure cases:
+
+```java
+// The string argument is recorded in the transition history, so the log says who asked.
+operator.a().onTrue(superstructure.goTo(SuperState.STOW,       "op.a"));
+operator.b().onTrue(superstructure.goTo(SuperState.INTAKE,     "op.b"));
+operator.y().onTrue(superstructure.goTo(SuperState.SCORE_HIGH, "op.y"));
+
+// A refused request ends immediately, so the button visibly does nothing. Rumble on
+// rejected() so the operator feels the refusal instead of pressing harder.
+superstructure.rejected().onTrue(
+    Commands.startEnd(
+        () -> operator.getHID().setRumble(RumbleType.kBothRumble, 0.5),
+        () -> operator.getHID().setRumble(RumbleType.kBothRumble, 0.0)
+    ).withTimeout(0.25)
+);
+
+// arrivedAt fires only on *proven* arrival — never when a transition merely timed out.
+superstructure.arrivedAt(SuperState.SCORE_HIGH).onTrue(leds.solid(Color.kGreen));
+
+// One drag onto Elastic or Shuffleboard gives a working pit display: state, phase,
+// blocker, summary, progress.
+superstructure.addToDashboard("Pit");
+```
+
+In autonomous, do not write `goTo(SCORE_HIGH).andThen(shoot())` — a self-detected fault cannot make
+a command end "interrupted", so `shoot()` would run anyway, into the floor. Use `onlyIfSettled`,
+which checks that the machine really is where it was asked to be:
+
+```java
+Commands.sequence(
+    superstructure.goTo(SuperState.SCORE_HIGH, "auto"),
+    superstructure.onlyIfSettled(SuperState.SCORE_HIGH, shootCommand())
 );
 ```
 

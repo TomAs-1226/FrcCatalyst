@@ -1,6 +1,6 @@
 {
   "$schema": "../catalyst-tab-bundle.schema.json",
-  "catalystVersion": "1.1.0",
+  "catalystVersion": "1.2.0",
   "mechanism": "RollerMechanism",
   "description": "Roller / intake duty-cycle and stall-detection dashboard.",
   "placeholders": {

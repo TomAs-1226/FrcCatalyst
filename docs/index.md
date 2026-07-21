@@ -137,7 +137,7 @@ Motion Magic, gravity FF, sim, telemetry, command factories, health monitoring, 
 | **ClawMechanism** | Motor-driven grippers | Stall detection, beam break, multi-follower, passive-hold |
 | **DifferentialWristMechanism** | Diffy wrists (pitch + roll) | **Phoenix-6 native differential control**, separate Slot 0 / Slot 1 tuning |
 | **PneumaticMechanism** | Solenoids / pistons | Double or single solenoid, optional pressure-gating, pulse / toggle commands |
-| **SuperstructureCoordinator** | Multi-mechanism | State machine with safe transitions |
+| **Superstructure** (v1.2.0+) | Whole-robot coordination | Real state machine over **all nine mechanism types plus your own subsystems** — legal-transition graph, guards, interlocks, staged actuation, proven arrival, full logging. Replaces the now-deprecated `SuperstructureCoordinator` (linear + rotational only), which still works and is not being removed |
 
 ### Subsystems
 
@@ -157,6 +157,7 @@ Motion Magic, gravity FF, sim, telemetry, command factories, health monitoring, 
 | `TunableNumber` | Dashboard-editable constants for live PID tuning |
 | `AutoSelector` | PathPlanner auto chooser with safe fallbacks |
 | `GamePieceTracker` | Multi-stage piece state machine with Triggers |
+| `Superstructure` / `StateMachineCore` (v1.2.0+) | Enum-typed whole-robot state machine: undeclared edges are refused, arrival is measured rather than assumed, and every decision is logged |
 | Skew correction | Pose-exponential discretization for swerve |
 | Collision zones | Prevent physical mechanism collisions |
 | `SimDashboard` (v1.1.0+) | Generic browser sim cockpit that adapts to any mechanism via `describe()` / `MechanismView`; sim-only, dependency-free |

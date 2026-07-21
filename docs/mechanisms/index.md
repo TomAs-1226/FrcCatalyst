@@ -265,6 +265,23 @@ on the primary.
 
 ## SuperstructureCoordinator
 
+{: .note }
+**Superseded in v1.2.0 by `frc.lib.catalyst.statemachine.robot.Superstructure`.** The coordinator
+only ever understood `LinearMechanism` and `RotationalMechanism` positions, so a robot with a claw,
+a shooter, a turret or a climber could not put those mechanisms into its states at all. The new
+`Superstructure` takes all nine Catalyst mechanism types and any subsystem you wrote yourself, and
+it is a real state machine: a legal-transition graph, guards and interlocks, staged actuation, and
+a full log under `/Catalyst/<prefix>/`. See
+[the state machine guide](../advanced/statemachine.html).
+<br><br>
+`SuperstructureCoordinator` is marked `@Deprecated(since = "1.2.0", forRemoval = false)`. It is
+frozen, not removed — it still compiles, still runs, and existing robot code keeps working
+unchanged. The one thing to know if you stay on it is the bug that motivated the replacement: when
+a transition timed out or was interrupted, the coordinator still set the current state to the
+target, so the *next* transition planned its route from a state the robot was not actually in. The
+new engine never does that — `current()` is only ever a state whose arrival every gating mechanism
+was measured to have reached.
+
 The `SuperstructureCoordinator` orchestrates multiple mechanisms into a robust state machine with safe transitions, collision zones, timeouts, entry/exit actions, and telemetry:
 
 ```java

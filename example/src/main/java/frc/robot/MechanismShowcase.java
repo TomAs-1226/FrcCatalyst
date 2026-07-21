@@ -34,6 +34,14 @@ import frc.lib.catalyst.sim.SimDashboard;
  * <p>The mechanisms are {@code SubsystemBase}s, so simply constructing them
  * registers their {@code simulationPeriodic()} with the {@code CommandScheduler}
  * — the physics run automatically whenever the robot is enabled.
+ *
+ * <p>This lab drives each mechanism <em>individually</em>. For the other half —
+ * all nine bound into one guarded, logged state machine so you ask for a whole-robot
+ * state instead of moving mechanisms one at a time — see
+ * {@link ShowcaseSuperstructure}, which builds a {@link
+ * frc.lib.catalyst.statemachine.robot.Superstructure} over exactly these mechanism
+ * kinds. It is kept separate from this lab on purpose: the state machine installs a
+ * holding default command on each mechanism, which would fight the manual sliders here.
  */
 public final class MechanismShowcase {
 
