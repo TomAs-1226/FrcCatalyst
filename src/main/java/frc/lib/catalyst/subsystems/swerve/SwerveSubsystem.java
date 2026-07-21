@@ -23,6 +23,7 @@ import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
+import edu.wpi.first.math.geometry.struct.Pose2dStruct;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableInstance;
@@ -37,6 +38,7 @@ import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import frc.lib.catalyst.logging.CatalystLog;
 import frc.lib.catalyst.util.AlertManager;
 import frc.lib.catalyst.util.RobotState;
 import frc.lib.catalyst.util.SlewRateLimiter;
@@ -113,12 +115,7 @@ public class SwerveSubsystem extends SubsystemBase {
     private double lastSimTime;
 
     // Telemetry
-    private final NetworkTable telemetryTable;
-    private final StructPublisher<Pose2d> posePub;
-    private final StructPublisher<ChassisSpeeds> speedsPub;
-    // Measured + commanded module states, for the AdvantageScope swerve view.
-    private final StructArrayPublisher<SwerveModuleState> moduleStatesPub;
-    private final StructArrayPublisher<SwerveModuleState> moduleTargetsPub;
+    private final String SwerveFolder = "Swerve/";
 
     /**
      * Create a SwerveSubsystem wrapping a CTRE-generated SwerveDrivetrain.
@@ -136,15 +133,6 @@ public class SwerveSubsystem extends SubsystemBase {
 
         headingPID.enableContinuousInput(-Math.PI, Math.PI);
         headingPID.setTolerance(Math.toRadians(1.5));
-
-        telemetryTable = NetworkTableInstance.getDefault()
-                .getTable("Catalyst").getSubTable("Swerve");
-        posePub = telemetryTable.getStructTopic("Pose", Pose2d.struct).publish();
-        speedsPub = telemetryTable.getStructTopic("ChassisSpeeds", ChassisSpeeds.struct).publish();
-        moduleStatesPub = telemetryTable
-                .getStructArrayTopic("ModuleStates", SwerveModuleState.struct).publish();
-        moduleTargetsPub = telemetryTable
-                .getStructArrayTopic("ModuleTargets", SwerveModuleState.struct).publish();
 
         if (pathPlannerConfig != null) {
             configurePathPlanner(pathPlannerConfig);
@@ -927,17 +915,17 @@ public class SwerveSubsystem extends SubsystemBase {
             });
         }
         Pose2d pose = getPose();
-        posePub.set(pose);
-        speedsPub.set(getChassisSpeeds());
+        CatalystLog.log(SwerveFolder + "Pose", Pose2d.struct ,pose);
+        CatalystLog.log(SwerveFolder + "ChasisSpeeds",ChassisSpeeds.struct, getChassisSpeeds());
+        CatalystLog.log(SwerveFolder + "FiledRlitveSpeeds",ChassisSpeeds.struct, ChassisSpeeds.fromRobotRelativeSpeeds(getFieldRelativeSpeeds(), pose.getRotation()));
         var state = drivetrain.getState();
-        if (state.ModuleStates != null) moduleStatesPub.set(state.ModuleStates);
-        if (state.ModuleTargets != null) moduleTargetsPub.set(state.ModuleTargets);
-        telemetryTable.getEntry("HeadingDeg").setDouble(pose.getRotation().getDegrees());
+        if (state.ModuleStates != null) CatalystLog.log(SwerveFolder + "ModuleStates", SwerveModuleState.struct, state.ModuleStates);
+        if (state.ModuleTargets != null) CatalystLog.log(SwerveFolder + "ModuleTargets", SwerveModuleState.struct, state.ModuleTargets);
+        CatalystLog.log(SwerveFolder + "HeadingDeg", Rotation2d.struct , getHeading());
         ChassisSpeeds speeds = getChassisSpeeds();
         double speed = Math.hypot(speeds.vxMetersPerSecond, speeds.vyMetersPerSecond);
-        telemetryTable.getEntry("SpeedMPS").setDouble(speed);
-        telemetryTable.getEntry("OmegaRadPerSec").setDouble(speeds.omegaRadiansPerSecond);
-        telemetryTable.getEntry("SpeedMultiplier").setDouble(speedMultiplier);
+        CatalystLog.log(SwerveFolder + "SpeedMPS", speed);
+        CatalystLog.log(SwerveFolder + "SpeedMultiplier", speedMultiplier);
     }
 
     // ===========================================
