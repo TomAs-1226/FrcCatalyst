@@ -58,6 +58,14 @@
     }
     .mech-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 18px; }
 
+    /* Right column content container */
+    .content-wrapper {
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      max-height: calc(100vh - 60px);
+    }
+
     /* ---------- Quick-start presets ---------- */
     .preset-list {
       display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
@@ -106,8 +114,7 @@
     }
     .form-area {
       padding: 20px 24px;
-      overflow-y: auto;
-      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
     }
     .field-group {
       background: var(--panel);
@@ -173,7 +180,7 @@
       background: var(--panel2);
       padding: 20px 24px;
       display: flex; flex-direction: column;
-      overflow: hidden;
+      min-height: 400px;
     }
     .preview-area .preview-head {
       display: flex; justify-content: space-between; align-items: center;
@@ -280,23 +287,26 @@
     </div>
   </aside>
 
-  <div class="form-area" id="formArea"></div>
+  <!-- Right side container wrapping form + generated code preview -->
+  <div class="content-wrapper">
+    <div class="form-area" id="formArea"></div>
 
-  <div class="preview-area">
-    <div class="preview-head">
-      <h2>Generated <span id="modeLabel">config</span></h2>
-      <div>
-        <label class="mode-toggle">
-          <input type="checkbox" id="fullClassToggle"> <span>Full wrapper class</span>
-        </label>
-        <button class="btn ghost" id="importBtn" title="Paste an existing config snippet to populate the form">Import</button>
-        <button class="btn ghost" id="downloadBtn" title="Download as .java file">Download</button>
-        <button class="btn ghost" id="resetBtn">Reset</button>
-        <button class="btn" id="copyBtn">Copy</button>
+    <div class="preview-area">
+      <div class="preview-head">
+        <h2>Generated <span id="modeLabel">config</span></h2>
+        <div>
+          <label class="mode-toggle">
+            <input type="checkbox" id="fullClassToggle"> <span>Full wrapper class</span>
+          </label>
+          <button class="btn ghost" id="importBtn" title="Paste an existing config snippet to populate the form">Import</button>
+          <button class="btn ghost" id="downloadBtn" title="Download as .java file">Download</button>
+          <button class="btn ghost" id="resetBtn">Reset</button>
+          <button class="btn" id="copyBtn">Copy</button>
+        </div>
       </div>
+      <pre id="preview"></pre>
+      <div class="persist-note" id="persistNote">Auto-saved to this browser • <a href="#" id="clearAllBtn">clear all saved data</a></div>
     </div>
-    <pre id="preview"></pre>
-    <div class="persist-note" id="persistNote">Auto-saved to this browser • <a href="#" id="clearAllBtn">clear all saved data</a></div>
   </div>
 </main>
 
@@ -621,16 +631,6 @@
     "NEO", "NEO_VORTEX", "NEO_550", "MINION",
   ];
 
-  // ============================================================
-  // One-click subsystem presets
-  //
-  // Each preset is a fully-filled-in configuration for a common FRC
-  // pattern. Clicking a preset switches to the right mechanism type
-  // and populates every field with the recommended starting value
-  // matching the corresponding section in docs/mechanisms/.
-  //
-  // Add new presets here — schema is { label, sub, mech, state, followers }.
-  // ============================================================
   const PRESETS = {
     "elevator": {
       label: "Elevator", sub: "Linear · 2 motor",
@@ -762,13 +762,11 @@
   };
 
   let currentMech = "linear";
-  const formState = {}; // { mechId: { fieldId: value } }
-  const FOLLOWER_STATE = {}; // { mechId: { fieldId: [{canId, oppose}] } }
-  const POSITION_STATE = {}; // { mechId: { fieldId: [{name, value}] } }
+  const formState = {}; 
+  const FOLLOWER_STATE = {}; 
+  const POSITION_STATE = {}; 
   let fullClassMode = false;
 
-  // Per-field one-line explanations, shown as a "?" tooltip. Keyed by field id
-  // (ids are shared across mechanisms, so one entry covers all of them).
   const FIELD_HELP = {
     name: "Display name — also the NetworkTables key and the log/telemetry root.",
     motor: "CAN ID of the lead TalonFX / Kraken.",
@@ -801,8 +799,6 @@
     positions: "Named presets you can drive to with goTo(\"NAME\"). Value is in the mechanism's units (m or deg).",
   };
 
-  // localStorage persistence — key includes a version so old saved state
-  // gets cleared if the schema changes incompatibly.
   const STORAGE_KEY = "catalyst-builder-v1";
 
   function persist() {
@@ -872,7 +868,6 @@
   function applyPreset(presetId) {
     const preset = PRESETS[presetId];
     if (!preset) return;
-    // Confirm overwrite if the user has typed anything into that mechanism.
     const target = preset.mech;
     const existing = formState[target];
     if (existing && Object.keys(existing).length > 0) {
@@ -891,7 +886,6 @@
     render();
   }
 
-  // A "?" badge carrying the field's one-line explanation as a hover tooltip.
   function helpBadge(id) {
     const help = FIELD_HELP[id];
     if (!help) return "";
@@ -1055,19 +1049,18 @@
     const followers = FOLLOWER_STATE[currentMech] || {};
     const positions = POSITION_STATE[currentMech] || {};
 
-    // Special case: Pneumatic doesn't follow the standard motor-builder shape.
     if (currentMech === "pneumatic") return generatePneumatic(state);
 
     const name = state.name || schema.label;
     const lines = [];
-    lines.push(`${schema.java} ${camel(name)} = new ${schema.java}(`);
+    lines.push(` = new ${schema.java}(`);
     lines.push(`    ${schema.java}.Config.builder()`);
     lines.push(`        .name(${fmtVal(name)})`);
 
-    const grouped = {}; // group key → ordered values
+    const grouped = {}; 
     schema.groups.forEach(g => g.fields.forEach(f => {
       if (!f.builder || f.id === "name") return;
-      if (f.type === "followers" || f.type === "positions") return; // handled below
+      if (f.type === "followers" || f.type === "positions") return; 
       const v = state[f.id];
       if (v === undefined || v === null || v === "" || (typeof v === "number" && Number.isNaN(v))) return;
       if (f.group) {
@@ -1139,10 +1132,6 @@
       .replace(/(\/\/[^\n]*)/g, '<span class="cmt">$1</span>');
   }
 
-  // Wraps the config in a plain holder class with a get() accessor.
-  // Catalyst mechanisms already extend SubsystemBase and run their own
-  // periodic(), so this deliberately does NOT extend SubsystemBase — wrapping
-  // one subsystem inside another just gives you an empty, pointless periodic().
   function generateFullClass() {
     const schema = SCHEMA[currentMech];
     const state = formState[currentMech] || {};
@@ -1168,17 +1157,13 @@
     lines.push(` */`);
     lines.push(`public class ${cls} {`);
     lines.push(``);
-    lines.push(`    private final ${schema.java} ${field};`);
-    lines.push(``);
-    lines.push(`    public ${cls}() {`);
-    // Re-emit config with the right indentation
+    lines.push(`    private static final ${schema.java} ${field}`);
     inlined.forEach(line => {
       lines.push(`        ${line.replace(new RegExp(`^${schema.java} ${camel(rawName)} = `), `this.${field} = `)}`);
     });
-    lines.push(`    }`);
     lines.push(``);
     lines.push(`    /** The underlying Catalyst mechanism (itself a subsystem) — bind commands and triggers through this. */`);
-    lines.push(`    public ${schema.java} get() {`);
+    lines.push(`    public static ${schema.java} get() {`);
     lines.push(`        return ${field};`);
     lines.push(`    }`);
     lines.push(`}`);
@@ -1219,13 +1204,7 @@
     setTimeout(() => URL.revokeObjectURL(url), 250);
   }
 
-  // ============================================================
-  // Import: parse a pasted .Config.builder()...build() snippet and try
-  // to populate the form. Best-effort — anything we don't recognize is
-  // silently skipped rather than throwing.
-  // ============================================================
   function tryImport(text) {
-    // Detect mechanism
     const m = /(\w+Mechanism)\.Config\.builder\(\)/.exec(text);
     if (!m) {
       alert("Couldn't find a Foo.Config.builder() call in the pasted snippet.");
@@ -1244,7 +1223,6 @@
     const state = formState[mechId];
     const followers = FOLLOWER_STATE[mechId];
 
-    // Build a lookup of builderName → field schema entry
     const schema = SCHEMA[mechId];
     const byBuilder = {};
     const followerFields = {};
@@ -1254,7 +1232,6 @@
       (byBuilder[f.builder] = byBuilder[f.builder] || []).push(f);
     }));
 
-    // Match every .foo(args) invocation
     const callRe = /\.(\w+)\s*\(([^)]*)\)/g;
     let match;
     while ((match = callRe.exec(text)) !== null) {
@@ -1264,7 +1241,6 @@
 
       const args = splitArgs(argsRaw);
 
-      // Followers
       if (followerFields[fnName]) {
         const canId = parseInt(args[0], 10);
         const oppose = args[1] && args[1].trim() === "true";
@@ -1275,7 +1251,6 @@
         continue;
       }
 
-      // Pneumatic special cases
       if (mechId === "pneumatic") {
         if (fnName === "doubleSolenoid") {
           state.moduleType = (args[0] || "PneumaticsModuleType.REVPH").split(".").pop();
@@ -1294,13 +1269,11 @@
         if (fnName === "requirePressureAbove") { state.minPressurePSI = parseFloat(args[0]); continue; }
       }
 
-      // Regular builders
       const targets = byBuilder[fnName];
       if (!targets) continue;
       if (targets.length === 1 && !targets[0].group) {
         state[targets[0].id] = coerce(args[0], targets[0]);
       } else {
-        // Grouped multi-arg builder (pid, feedforward, range, motionMagic, …)
         targets.forEach((f, i) => {
           if (args[i] !== undefined) state[f.id] = coerce(args[i], f);
         });
@@ -1313,7 +1286,6 @@
   }
 
   function splitArgs(s) {
-    // Naïve but good-enough comma splitter that respects strings.
     const out = [];
     let depth = 0, inStr = false, start = 0;
     for (let i = 0; i < s.length; i++) {
@@ -1348,16 +1320,13 @@
     if (field.type === "text") return stripQuotes(v);
     if (field.type === "bool") return v === "true";
     if (field.type === "motorType" || field.type === "enum") {
-      // Accept either "MotorType.KRAKEN_X60" or "KRAKEN_X60"
       return v.split(".").pop().replace(/[^A-Z0-9_]/gi, "");
     }
     const n = Number(v);
     return isNaN(n) ? undefined : n;
   }
 
-  // ============================================================
   // UI wiring
-  // ============================================================
   document.getElementById("copyBtn").onclick = async () => {
     try {
       await navigator.clipboard.writeText(currentCode());
