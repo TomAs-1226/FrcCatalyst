@@ -15,6 +15,7 @@ import com.ctre.phoenix6.signals.MotorAlignmentValue;
 import com.ctre.phoenix6.controls.MotionMagicVoltage;
 import com.ctre.phoenix6.controls.NeutralOut;
 import com.ctre.phoenix6.controls.PositionVoltage;
+import com.ctre.phoenix6.controls.VelocityTorqueCurrentFOC;
 import com.ctre.phoenix6.controls.VelocityVoltage;
 import com.ctre.phoenix6.controls.VoltageOut;
 import com.ctre.phoenix6.hardware.CANcoder;
@@ -66,6 +67,7 @@ public class CatalystMotor {
     private final VoltageOut voltageRequest = new VoltageOut(0);
     private final PositionVoltage positionRequest = new PositionVoltage(0);
     private final VelocityVoltage velocityRequest = new VelocityVoltage(0);
+    private final VelocityTorqueCurrentFOC velocityTorqueRequest = new VelocityTorqueCurrentFOC(0);
     private final MotionMagicVoltage motionMagicRequest = new MotionMagicVoltage(0);
     private final NeutralOut neutralRequest = new NeutralOut();
 
@@ -120,6 +122,10 @@ public class CatalystMotor {
         config.CurrentLimits.SupplyCurrentLimit = builder.currentLimit;
         config.CurrentLimits.StatorCurrentLimitEnable = true;
         config.CurrentLimits.StatorCurrentLimit = builder.statorCurrentLimit;
+
+        // Torque-current peaks (only meaningful for *TorqueCurrentFOC requests; harmless otherwise)
+        config.TorqueCurrent.PeakForwardTorqueCurrent = builder.peakForwardTorqueCurrent;
+        config.TorqueCurrent.PeakReverseTorqueCurrent = builder.peakReverseTorqueCurrent;
 
         // PID (Slot 0)
         config.Slot0.kP = builder.kP;
@@ -223,6 +229,8 @@ public class CatalystMotor {
             followerConfig.CurrentLimits.SupplyCurrentLimit = builder.currentLimit;
             followerConfig.CurrentLimits.StatorCurrentLimitEnable = true;
             followerConfig.CurrentLimits.StatorCurrentLimit = builder.statorCurrentLimit;
+            followerConfig.TorqueCurrent.PeakForwardTorqueCurrent = builder.peakForwardTorqueCurrent;
+            followerConfig.TorqueCurrent.PeakReverseTorqueCurrent = builder.peakReverseTorqueCurrent;
 
             for (int i = 0; i < 5; i++) {
                 var status = follower.getConfigurator().apply(followerConfig);
@@ -297,6 +305,28 @@ public class CatalystMotor {
     }
 
     /** Set closed-loop velocity target in mechanism rotations per second. */
+    /**
+     * Closed-loop velocity via torque-current FOC (requires a Phoenix Pro license on the device).
+     *
+     * <p>In this mode the Slot 0 gains are in <b>amps</b>, not volts: kP is A per rps of error, kS
+     * is A, kV is A per rps. Voltage-mode gains are not transferable — running them through this
+     * request will be violent. Configure {@code Builder.torqueCurrentLimits(...)} so the request
+     * has headroom (Phoenix defaults the peaks conservatively).
+     *
+     * @param velocityRPS target velocity in rotations per second
+     * @param feedforwardAmps additive feedforward in amps, recomputable every loop (the classic use
+     *     is compensating a shooter for the ball being fed into it)
+     */
+    public void setVelocityTorqueCurrent(double velocityRPS, double feedforwardAmps) {
+        motor.setControl(
+                velocityTorqueRequest.withVelocity(velocityRPS).withFeedForward(feedforwardAmps));
+    }
+
+    /** Closed-loop torque-current velocity with no additive feedforward. */
+    public void setVelocityTorqueCurrent(double velocityRPS) {
+        setVelocityTorqueCurrent(velocityRPS, 0.0);
+    }
+
     public void setVelocity(double velocityRPS) {
         motor.setControl(velocityRequest.withVelocity(velocityRPS));
     }
@@ -575,6 +605,10 @@ public class CatalystMotor {
         private double canUpdateHz = 50.0;
         private double currentLimit = 40;
         private double statorCurrentLimit = 80;
+        // Phoenix's own defaults (+/-800 A are the config maximums; Phoenix ships narrower).
+        // Kept at Phoenix defaults unless torqueCurrentLimits() is called.
+        private double peakForwardTorqueCurrent = 800;
+        private double peakReverseTorqueCurrent = -800;
         private double gearRatio = 1.0;
         private double positionConversionFactor = 1.0;
         private double kP = 0, kI = 0, kD = 0;
@@ -624,6 +658,20 @@ public class CatalystMotor {
         public Builder optimizeCanBus() { return optimizeCanBus(50.0); }
         public Builder currentLimit(double amps) { this.currentLimit = amps; return this; }
         public Builder statorCurrentLimit(double amps) { this.statorCurrentLimit = amps; return this; }
+
+        /**
+         * Peak torque-current for *TorqueCurrentFOC requests (Pro-licensed devices). Phoenix's own
+         * default is the full +/-800 A range; shooters commonly want something like +200/-200 so a
+         * ball being fed in cannot command an unbounded correction.
+         *
+         * @param peakForwardAmps positive amps
+         * @param peakReverseAmps negative amps
+         */
+        public Builder torqueCurrentLimits(double peakForwardAmps, double peakReverseAmps) {
+            this.peakForwardTorqueCurrent = peakForwardAmps;
+            this.peakReverseTorqueCurrent = peakReverseAmps;
+            return this;
+        }
         public Builder gearRatio(double ratio) { this.gearRatio = ratio; return this; }
         public Builder positionConversionFactor(double factor) { this.positionConversionFactor = factor; return this; }
 
