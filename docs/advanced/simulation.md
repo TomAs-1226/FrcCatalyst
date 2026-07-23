@@ -216,6 +216,39 @@ drive.isInternalSimRunning();        // false once an external engine has taken 
 > check their current docs. The Catalyst side (`setSimPose`, `SimGamePieces`)
 > is stable.
 
+### Bridge at the mechanism level, not the device level
+
+There are two ways to connect an external physics engine to a CTRE swerve, and the choice matters
+more than it looks.
+
+- **Device-level** — write each `TalonFX`/`CANcoder` simulation state yourself. This is the seam it
+  is tempting to reach for, but getting a swerve right this way means reproducing every per-module
+  magnet offset, every per-module inversion, the module orientation enums, and the `FusedCANcoder`
+  rotor-to-CANcoder sync *exactly*. Get any of it subtly wrong and you get a **marginally stable steer
+  loop** whose symptoms look like drive problems, brownouts, or drifting odometry — never like the
+  steer feedback that is actually wrong. It is a genuinely hard thing to debug.
+- **Mechanism-level (recommended)** — hand maple-sim the module setpoints Catalyst already computed and
+  let it own the physics. About forty lines, deterministic, and there is no device state to corrupt.
+
+The seam for the second approach is {@code SwerveSubsystem.getModuleTargets()} (added in 1.2.1) — the
+commanded module states, so you never reach through the raw drivetrain:
+
+```java
+// In simulationPeriodic(), instead of writing TalonFX sim states by hand:
+SwerveModuleState[] targets = drive.getModuleTargets();   // what Catalyst just commanded
+if (targets != null) {
+    selfControlledSim.runSwerveStates(targets);           // maple-sim owns the physics
+}
+drive.setSimPose(selfControlledSim.getActualPoseInSimulationWorld());
+```
+
+where `selfControlledSim` is maple-sim's
+`SelfControlledSwerveDriveSimulation`.
+
+> One caveat under mechanism-level bridging: because no device sim states are written,
+> `/Catalyst/Swerve/ModuleStates` (the *measured* states) reads zeros — `getModuleTargets()` /
+> `/Catalyst/Swerve/ModuleTargets` is the observable that reflects what the robot is doing.
+
 ### What you can test in sim
 
 Because Catalyst's odometry now tracks the physics world, the whole autonomy

@@ -1,14 +1,13 @@
 package frc.lib.catalyst.util;
 
 import edu.wpi.first.math.geometry.Pose3d;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.networktables.StructArrayPublisher;
+import frc.lib.catalyst.logging.CatalystLog;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Publishes simulated game-piece positions to NetworkTables so you can see
+ * Publishes simulated game-piece positions through CatalystLog so you can see
  * them on the field in AdvantageScope — the visualization half of physics
  * simulation, with no dependency on any particular sim engine.
  *
@@ -36,15 +35,13 @@ import java.util.Map;
 public final class SimGamePieces {
 
     private final Map<Object, Pose3d> pieces = new LinkedHashMap<>();
-    private final StructArrayPublisher<Pose3d> pub;
+    private final String name;
 
     /**
      * @param name NT subtable name under {@code /Catalyst/Sim/} (e.g. "Fuel", "Coral")
      */
     public SimGamePieces(String name) {
-        this.pub = NetworkTableInstance.getDefault()
-                .getTable("Catalyst").getSubTable("Sim")
-                .getStructArrayTopic(name, Pose3d.struct).publish();
+        this.name = name;
     }
 
     /** Set (or update) one piece by id. */
@@ -67,8 +64,8 @@ public final class SimGamePieces {
         return pieces.size();
     }
 
-    /** Push the current set to NetworkTables. Call once per sim loop. */
+    /** Push the current set through CatalystLog. Call once per sim loop. */
     public void publish() {
-        pub.set(pieces.values().toArray(new Pose3d[0]));
+        CatalystLog.log("Sim/" + name, Pose3d.struct, pieces.values().toArray(new Pose3d[0]));
     }
 }

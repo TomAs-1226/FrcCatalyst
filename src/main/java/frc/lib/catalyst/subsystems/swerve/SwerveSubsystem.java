@@ -24,11 +24,7 @@ import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
-import edu.wpi.first.networktables.StructArrayPublisher;
-import edu.wpi.first.networktables.StructPublisher;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj.Notifier;
@@ -37,6 +33,7 @@ import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import frc.lib.catalyst.logging.CatalystLog;
 import frc.lib.catalyst.util.AlertManager;
 import frc.lib.catalyst.util.RobotState;
 import frc.lib.catalyst.util.SlewRateLimiter;
@@ -114,13 +111,10 @@ public class SwerveSubsystem extends SubsystemBase {
     private double lastSimTime;
     private boolean internalSimYielded = false;
 
-    // Telemetry
-    private final NetworkTable telemetryTable;
-    private final StructPublisher<Pose2d> posePub;
-    private final StructPublisher<ChassisSpeeds> speedsPub;
-    // Measured + commanded module states, for the AdvantageScope swerve view.
-    private final StructArrayPublisher<SwerveModuleState> moduleStatesPub;
-    private final StructArrayPublisher<SwerveModuleState> moduleTargetsPub;
+    // Telemetry. Everything is published through CatalystLog under "Swerve/" (root
+    // "Catalyst/"), so a team that swaps the sink once — for WPILOG or a 2027 backend —
+    // gets the drivetrain telemetry along with everything else. See issue #24.
+    private static final String SWERVE = "Swerve/";
 
     /**
      * Create a SwerveSubsystem wrapping a CTRE-generated SwerveDrivetrain.
@@ -138,15 +132,6 @@ public class SwerveSubsystem extends SubsystemBase {
 
         headingPID.enableContinuousInput(-Math.PI, Math.PI);
         headingPID.setTolerance(Math.toRadians(1.5));
-
-        telemetryTable = NetworkTableInstance.getDefault()
-                .getTable("Catalyst").getSubTable("Swerve");
-        posePub = telemetryTable.getStructTopic("Pose", Pose2d.struct).publish();
-        speedsPub = telemetryTable.getStructTopic("ChassisSpeeds", ChassisSpeeds.struct).publish();
-        moduleStatesPub = telemetryTable
-                .getStructArrayTopic("ModuleStates", SwerveModuleState.struct).publish();
-        moduleTargetsPub = telemetryTable
-                .getStructArrayTopic("ModuleTargets", SwerveModuleState.struct).publish();
 
         if (pathPlannerConfig != null) {
             configurePathPlanner(pathPlannerConfig);
@@ -282,6 +267,33 @@ public class SwerveSubsystem extends SubsystemBase {
      */
     public ChassisSpeeds getChassisSpeeds() {
         return drivetrain.getState().Speeds;
+    }
+
+    /**
+     * The module setpoints the drivetrain most recently commanded (angle + speed per module).
+     *
+     * <p>This is the clean "speeds-out" seam for bridging an external physics engine such as
+     * maple-sim: feed these targets to {@code SelfControlledSwerveDriveSimulation.runSwerveStates(...)}
+     * and push the resulting pose back with {@link #setSimPose(Pose2d)}, instead of reaching through
+     * the raw CTRE drivetrain and reproducing every per-module magnet offset and FusedCANcoder sync
+     * by hand. See {@code docs/advanced/simulation.md}. May be {@code null} before the first control
+     * request.
+     *
+     * @return the commanded module states, or {@code null} if none have been issued yet
+     * @since 1.2.1
+     */
+    public SwerveModuleState[] getModuleTargets() {
+        return drivetrain.getState().ModuleTargets;
+    }
+
+    /**
+     * The measured module states (angle + speed per module), from the drivetrain's own encoders.
+     *
+     * @return the measured module states, or {@code null} if unavailable
+     * @since 1.2.1
+     */
+    public SwerveModuleState[] getModuleStates() {
+        return drivetrain.getState().ModuleStates;
     }
 
     /**
@@ -983,17 +995,21 @@ public class SwerveSubsystem extends SubsystemBase {
             });
         }
         Pose2d pose = getPose();
-        posePub.set(pose);
-        speedsPub.set(getChassisSpeeds());
+        CatalystLog.log(SWERVE + "Pose", Pose2d.struct, pose);
+        CatalystLog.log(SWERVE + "ChassisSpeeds", ChassisSpeeds.struct, getChassisSpeeds());
         var state = drivetrain.getState();
-        if (state.ModuleStates != null) moduleStatesPub.set(state.ModuleStates);
-        if (state.ModuleTargets != null) moduleTargetsPub.set(state.ModuleTargets);
-        telemetryTable.getEntry("HeadingDeg").setDouble(pose.getRotation().getDegrees());
+        if (state.ModuleStates != null) {
+            CatalystLog.log(SWERVE + "ModuleStates", SwerveModuleState.struct, state.ModuleStates);
+        }
+        if (state.ModuleTargets != null) {
+            CatalystLog.log(SWERVE + "ModuleTargets", SwerveModuleState.struct, state.ModuleTargets);
+        }
+        CatalystLog.log(SWERVE + "HeadingDeg", pose.getRotation().getDegrees());
         ChassisSpeeds speeds = getChassisSpeeds();
         double speed = Math.hypot(speeds.vxMetersPerSecond, speeds.vyMetersPerSecond);
-        telemetryTable.getEntry("SpeedMPS").setDouble(speed);
-        telemetryTable.getEntry("OmegaRadPerSec").setDouble(speeds.omegaRadiansPerSecond);
-        telemetryTable.getEntry("SpeedMultiplier").setDouble(speedMultiplier);
+        CatalystLog.log(SWERVE + "SpeedMPS", speed);
+        CatalystLog.log(SWERVE + "OmegaRadPerSec", speeds.omegaRadiansPerSecond);
+        CatalystLog.log(SWERVE + "SpeedMultiplier", speedMultiplier);
     }
 
     // ===========================================

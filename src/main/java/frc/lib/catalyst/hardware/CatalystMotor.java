@@ -29,9 +29,7 @@ import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
 import static edu.wpi.first.units.Units.Volts;
 import com.ctre.phoenix6.signals.NeutralModeValue;
-import edu.wpi.first.networktables.DoublePublisher;
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
+import frc.lib.catalyst.logging.CatalystLog;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -70,13 +68,6 @@ public class CatalystMotor {
     private final VelocityTorqueCurrentFOC velocityTorqueRequest = new VelocityTorqueCurrentFOC(0);
     private final MotionMagicVoltage motionMagicRequest = new MotionMagicVoltage(0);
     private final NeutralOut neutralRequest = new NeutralOut();
-
-    // Telemetry publishers
-    private final DoublePublisher positionPub;
-    private final DoublePublisher velocityPub;
-    private final DoublePublisher voltagePub;
-    private final DoublePublisher currentPub;
-    private final DoublePublisher tempPub;
 
     // Config storage
     private double gearRatio = 1.0;
@@ -261,15 +252,6 @@ public class CatalystMotor {
                 f.optimizeBusUtilization();
             }
         }
-
-        // Set up telemetry
-        NetworkTable table = NetworkTableInstance.getDefault()
-                .getTable("Catalyst").getSubTable(this.name);
-        positionPub = table.getDoubleTopic("Position").publish();
-        velocityPub = table.getDoubleTopic("Velocity").publish();
-        voltagePub = table.getDoubleTopic("Voltage").publish();
-        currentPub = table.getDoubleTopic("Current").publish();
-        tempPub = table.getDoubleTopic("Temperature").publish();
     }
 
     // --- Control Methods ---
@@ -501,13 +483,13 @@ public class CatalystMotor {
         motor.getConfigurator().apply(mm);
     }
 
-    /** Update telemetry. Call from subsystem periodic(). */
+    /** Update telemetry. Call from subsystem periodic(). Publishes through CatalystLog. */
     public void updateTelemetry() {
-        positionPub.set(getPosition());
-        velocityPub.set(getVelocity());
-        voltagePub.set(getAppliedVoltage());
-        currentPub.set(getStatorCurrent());
-        tempPub.set(getTemperature());
+        CatalystLog.log(name + "/Position", getPosition());
+        CatalystLog.log(name + "/Velocity", getVelocity());
+        CatalystLog.log(name + "/Voltage", getAppliedVoltage());
+        CatalystLog.log(name + "/Current", getStatorCurrent());
+        CatalystLog.log(name + "/Temperature", getTemperature());
     }
 
     /**

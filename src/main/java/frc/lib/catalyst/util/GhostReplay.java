@@ -3,12 +3,11 @@ package frc.lib.catalyst.util;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.networktables.StructPublisher;
 import edu.wpi.first.wpilibj.Filesystem;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
+import frc.lib.catalyst.logging.CatalystLog;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -58,7 +57,6 @@ public final class GhostReplay {
     private static final String EXT = ".csv";
 
     private final Supplier<Pose2d> liveSource;
-    private final StructPublisher<Pose2d> pub;
 
     private final List<Sample> recordBuffer = new ArrayList<>();
     private boolean recording = false;
@@ -76,9 +74,6 @@ public final class GhostReplay {
      */
     public GhostReplay(Supplier<Pose2d> liveSource) {
         this.liveSource = liveSource;
-        this.pub = NetworkTableInstance.getDefault()
-                .getTable("Catalyst").getSubTable("Ghost")
-                .getStructTopic("Pose", Pose2d.struct).publish();
     }
 
     // ----- Recording -----
@@ -162,7 +157,7 @@ public final class GhostReplay {
     /**
      * Call once per loop from {@code Robot.robotPeriodic()} (after the
      * scheduler runs). Captures a sample when recording, advances the
-     * replay clock, and publishes the ghost pose to NT.
+     * replay clock, and publishes the ghost pose through CatalystLog.
      */
     public void update() {
         double now = Timer.getFPGATimestamp();
@@ -178,7 +173,7 @@ public final class GhostReplay {
                 replaying = false;
             }
         }
-        pub.set(lastGhost);
+        CatalystLog.log("Ghost/Pose", Pose2d.struct, lastGhost);
     }
 
     // ----- Internals -----

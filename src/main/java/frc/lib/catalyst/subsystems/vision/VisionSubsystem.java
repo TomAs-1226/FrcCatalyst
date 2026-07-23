@@ -7,13 +7,11 @@ import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Transform3d;
 import edu.wpi.first.math.numbers.N1;
 import edu.wpi.first.math.numbers.N3;
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.networktables.StructPublisher;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import frc.lib.catalyst.logging.CatalystLog;
 import frc.lib.catalyst.subsystems.swerve.SwerveSubsystem;
 import frc.lib.catalyst.util.AlertManager;
 
@@ -72,8 +70,6 @@ public class VisionSubsystem extends SubsystemBase {
     private final SwerveSubsystem driveSubsystem;
 
     // Telemetry
-    private final NetworkTable telemetryTable;
-    private final StructPublisher<Pose2d> visionPosePub;
     private int totalAccepted = 0;
     private int totalRejected = 0;
     private int cycleAccepted = 0;
@@ -83,10 +79,6 @@ public class VisionSubsystem extends SubsystemBase {
         this.config = config;
         this.cameras = config.cameras;
         this.driveSubsystem = config.driveSubsystem;
-
-        telemetryTable = NetworkTableInstance.getDefault()
-                .getTable("Catalyst").getSubTable("Vision");
-        visionPosePub = telemetryTable.getStructTopic("LatestAcceptedPose", Pose2d.struct).publish();
 
         // Surface a loud warning if vision is constructed without a drive subsystem.
         // Previously this silently no-op'd in periodic(), which made the issue
@@ -176,22 +168,21 @@ public class VisionSubsystem extends SubsystemBase {
 
             double[] innovation = calculateInnovation(a.pe().pose(), currentPose);
             double innovationNorm = Math.hypot(innovation[0], innovation[1]);
-            NetworkTable camTable = telemetryTable.getSubTable(a.cameraName());
-            camTable.getEntry("InnovationXY").setDouble(innovationNorm);
-            camTable.getEntry("InnovationRot").setDouble(Math.toDegrees(Math.abs(innovation[2])));
+            CatalystLog.log("Vision/" + a.cameraName() + "/InnovationXY", innovationNorm);
+            CatalystLog.log("Vision/" + a.cameraName() + "/InnovationRot", Math.toDegrees(Math.abs(innovation[2])));
 
             if (best == null || a.quality() > best.quality()) best = a;
         }
 
         // Publish the single highest-quality accepted pose (deterministic),
         // instead of "whichever camera happened to be processed last".
-        if (best != null) visionPosePub.set(best.pe().pose());
+        if (best != null) CatalystLog.log("Vision/LatestAcceptedPose", Pose2d.struct, best.pe().pose());
 
-        telemetryTable.getEntry("TotalAccepted").setDouble(totalAccepted);
-        telemetryTable.getEntry("TotalRejected").setDouble(totalRejected);
-        telemetryTable.getEntry("CycleAccepted").setDouble(cycleAccepted);
-        telemetryTable.getEntry("CycleRejected").setDouble(cycleRejected);
-        telemetryTable.getEntry("CameraCount").setDouble(cameras.size());
+        CatalystLog.log("Vision/TotalAccepted", (double) totalAccepted);
+        CatalystLog.log("Vision/TotalRejected", (double) totalRejected);
+        CatalystLog.log("Vision/CycleAccepted", (double) cycleAccepted);
+        CatalystLog.log("Vision/CycleRejected", (double) cycleRejected);
+        CatalystLog.log("Vision/CameraCount", (double) cameras.size());
     }
 
     /** Higher = better. More tags and closer tags raise the score. */
@@ -342,14 +333,13 @@ public class VisionSubsystem extends SubsystemBase {
     }
 
     private void logCamera(String cameraName, String status, CameraSource.PoseEstimate pe) {
-        NetworkTable camTable = telemetryTable.getSubTable(cameraName);
-        camTable.getEntry("Status").setString(status);
-        camTable.getEntry("TagCount").setDouble(pe.tagCount());
-        camTable.getEntry("AvgDistance").setDouble(pe.averageTagDistance());
-        camTable.getEntry("Ambiguity").setDouble(pe.ambiguity());
-        camTable.getEntry("X").setDouble(pe.pose().getX());
-        camTable.getEntry("Y").setDouble(pe.pose().getY());
-        camTable.getEntry("RotDeg").setDouble(pe.pose().getRotation().getDegrees());
+        CatalystLog.log("Vision/" + cameraName + "/Status", status);
+        CatalystLog.log("Vision/" + cameraName + "/TagCount", (double) pe.tagCount());
+        CatalystLog.log("Vision/" + cameraName + "/AvgDistance", pe.averageTagDistance());
+        CatalystLog.log("Vision/" + cameraName + "/Ambiguity", pe.ambiguity());
+        CatalystLog.log("Vision/" + cameraName + "/X", pe.pose().getX());
+        CatalystLog.log("Vision/" + cameraName + "/Y", pe.pose().getY());
+        CatalystLog.log("Vision/" + cameraName + "/RotDeg", pe.pose().getRotation().getDegrees());
     }
 
     /** Get the list of camera sources. */
