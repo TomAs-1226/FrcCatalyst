@@ -8,7 +8,7 @@ import frc.lib.catalyst.mechanisms.MechanismView;
 import frc.lib.catalyst.mechanisms.TurretMechanism;
 import frc.lib.catalyst.statemachine.goals.TurretGoal;
 import frc.lib.catalyst.statemachine.robot.Actuator;
-import frc.lib.catalyst.util.AimingSolver;
+import frc.lib.catalyst.util.AimingSolverTOF;
 
 import java.util.Map;
 import java.util.Set;
@@ -503,7 +503,7 @@ public final class TurretBinding implements Actuator<TurretGoal> {
                 if (s.solution() == null || heading == null) {
                     return goal.label() + " (unconfigured)";
                 }
-                AimingSolver.Solution solution = s.solution().get();
+                AimingSolverTOF.Solution solution = s.solution().get();
                 if (solution == null) {
                     return String.format("%s: no solve, at %.1f deg", goal.label(), current);
                 }
@@ -564,7 +564,7 @@ public final class TurretBinding implements Actuator<TurretGoal> {
                 if (heading == null) {
                     return "no robot heading supplier";
                 }
-                AimingSolver.Solution solution = s.solution().get();
+                AimingSolverTOF.Solution solution = s.solution().get();
                 if (solution == null) {
                     return "solver returned no solution; turret holding";
                 }

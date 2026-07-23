@@ -2,7 +2,7 @@ package frc.lib.catalyst.statemachine.goals;
 
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Translation2d;
-import frc.lib.catalyst.util.AimingSolver;
+import frc.lib.catalyst.util.AimingSolverTOF;
 
 import java.util.function.BooleanSupplier;
 import java.util.function.DoubleSupplier;
@@ -202,7 +202,7 @@ public sealed interface TurretGoal
     }
 
     /**
-     * Track an {@link AimingSolver.Solution} — the shoot-on-the-fly path.
+     * Track an {@link AimingSolverTOF.Solution} — the shoot-on-the-fly path.
      *
      * <p>Maps to the three-argument {@code track}, which leads a moving virtual goal using the
      * solver's analytic field-bearing rate converted into the robot frame by subtracting the
@@ -227,7 +227,7 @@ public sealed interface TurretGoal
      * @param toleranceDegrees arrival band in degrees
      * @param label            stable name for this goal, e.g. {@code "TrackGoal"}
      */
-    record Solved(Supplier<AimingSolver.Solution> solution, DoubleSupplier headingDegrees,
+    record Solved(Supplier<AimingSolverTOF.Solution> solution, DoubleSupplier headingDegrees,
                   DoubleSupplier yawRateDps, double toleranceDegrees, String label)
             implements TurretGoal {
 
@@ -424,7 +424,7 @@ public sealed interface TurretGoal
      * @param label          stable low-cardinality name for this goal
      * @return a shoot-on-the-fly tracking goal
      */
-    static TurretGoal solved(Supplier<AimingSolver.Solution> solution, DoubleSupplier headingDegrees,
+    static TurretGoal solved(Supplier<AimingSolverTOF.Solution> solution, DoubleSupplier headingDegrees,
                              String label) {
         return new Solved(solution, headingDegrees, ZERO_YAW_RATE, DEFAULT_TOLERANCE_DEGREES, label);
     }
@@ -439,7 +439,7 @@ public sealed interface TurretGoal
      * @param label            stable low-cardinality name for this goal
      * @return a shoot-on-the-fly tracking goal
      */
-    static TurretGoal solved(Supplier<AimingSolver.Solution> solution, DoubleSupplier headingDegrees,
+    static TurretGoal solved(Supplier<AimingSolverTOF.Solution> solution, DoubleSupplier headingDegrees,
                              DoubleSupplier yawRateDps, double toleranceDegrees, String label) {
         return new Solved(solution, headingDegrees, yawRateDps, toleranceDegrees, label);
     }

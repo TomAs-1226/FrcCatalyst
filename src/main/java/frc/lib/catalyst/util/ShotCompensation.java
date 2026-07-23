@@ -9,7 +9,7 @@ import edu.wpi.first.networktables.NetworkTableInstance;
  * element has drifted, or a defender is bumping you and you want to dial
  * the shoot-on-the-fly aggressiveness down.
  *
- * <p>An {@link AimingSolver} optionally consumes one of these and applies
+ * <p>An {@link AimingSolverTOF} optionally consumes one of these and applies
  * it on top of its computed solution:
  * <ul>
  *   <li><b>turret bias</b> — degrees added to the final aim bearing</li>

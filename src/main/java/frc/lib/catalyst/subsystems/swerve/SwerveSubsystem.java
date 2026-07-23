@@ -238,7 +238,7 @@ public class SwerveSubsystem extends SubsystemBase {
 
     /**
      * Field-relative chassis speeds — robot-relative speeds rotated by the
-     * current heading. This is what {@link frc.lib.catalyst.util.AimingSolver}
+     * current heading. This is what {@link frc.lib.catalyst.util.AimingSolverTOF}
      * needs for Shoot-On-The-Fly: the piece inherits the robot's velocity in
      * the field frame, not the robot frame.
      */
