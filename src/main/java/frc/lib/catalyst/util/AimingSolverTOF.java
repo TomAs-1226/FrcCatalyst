@@ -53,7 +53,7 @@ import edu.wpi.first.math.kinematics.ChassisSpeeds;
  * boolean readyToShoot = turret.atSetpoint() && shooter.atSpeed() && s.feasible();
  * }</pre>
  */
-public final class AimingSolver {
+public final class AimingSolverTOF {
 
     /**
      * The result of an aiming solve.
@@ -96,7 +96,7 @@ public final class AimingSolver {
 
     private volatile Translation2d target;
 
-    private AimingSolver(Builder b) {
+    private AimingSolverTOF(Builder b) {
         this.shotTime = b.shotTime;
         this.shooterRpm = b.shooterRpm;
         this.hoodAngle = b.hoodAngle;
@@ -311,8 +311,8 @@ public final class AimingSolver {
             return this;
         }
 
-        public AimingSolver build() {
-            return new AimingSolver(this);
+        public AimingSolverTOF build() {
+            return new AimingSolverTOF(this);
         }
     }
 }

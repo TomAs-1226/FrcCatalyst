@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Airtight verification of the Shoot-On-The-Fly aiming math.
  */
-class AimingSolverTest {
+class AimingSolverSOTMTest {
 
     private static InterpolatingTable shotTimeTable() {
         return new InterpolatingTable()
@@ -21,8 +21,8 @@ class AimingSolverTest {
                 .add(9.0, 0.88).add(13.0, 1.20);
     }
 
-    private static AimingSolver solver(Translation2d goal) {
-        return AimingSolver.builder().target(goal).shotTime(shotTimeTable()).iterations(5).build();
+    private static AimingSolverTOF solver(Translation2d goal) {
+        return AimingSolverTOF.builder().target(goal).shotTime(shotTimeTable()).iterations(5).build();
     }
 
     /**
@@ -33,7 +33,7 @@ class AimingSolverTest {
     @Test
     void idealShotAlwaysLandsOnGoal() {
         Translation2d goal = new Translation2d(0.6, 4.10);
-        AimingSolver solver = solver(goal);
+        AimingSolverTOF solver = solver(goal);
 
         double[] vs = {0.0, 1.0, 2.5, 4.0, -2.5, -4.0, 3.5};
         double maxErr = 0.0;
@@ -43,7 +43,7 @@ class AimingSolverTest {
             for (double py = 1.0; py <= 7.0; py += 1.0) {
                 for (double vx : vs) {
                     for (double vy : vs) {
-                        AimingSolver.Solution s = solver.solve(
+                        AimingSolverTOF.Solution s = solver.solve(
                                 new Pose2d(px, py, new Rotation2d()), new ChassisSpeeds(vx, vy, 0));
                         if (!s.feasible() || s.shotTimeSeconds() <= 0) continue;
 
@@ -67,7 +67,7 @@ class AimingSolverTest {
     @Test
     void solutionIsSelfConsistent() {
         Translation2d goal = new Translation2d(0.6, 4.10);
-        AimingSolver solver = solver(goal);
+        AimingSolverTOF solver = solver(goal);
         InterpolatingTable tbl = shotTimeTable();
         double maxTofErr = 0, maxPinErr = 0;
 
@@ -75,7 +75,7 @@ class AimingSolverTest {
             for (double py = 1; py <= 7; py += 1.3) {
                 for (double v : new double[]{-4, -1.5, 0, 2, 4}) {
                     Translation2d r = new Translation2d(px, py);
-                    AimingSolver.Solution s = solver.solve(
+                    AimingSolverTOF.Solution s = solver.solve(
                             new Pose2d(px, py, new Rotation2d()), new ChassisSpeeds(v, v * 0.5, 0));
                     if (!s.feasible()) continue;
                     double dVirt = s.virtualGoal().getDistance(r);
@@ -95,7 +95,7 @@ class AimingSolverTest {
     @Test
     void stationaryAimsStraightAtGoal() {
         Translation2d goal = new Translation2d(0.0, 0.0);
-        AimingSolver.Solution s = solver(goal).solve(
+        AimingSolverTOF.Solution s = solver(goal).solve(
                 new Pose2d(3.0, 0.0, new Rotation2d()), new ChassisSpeeds());
         assertEquals(180.0, Math.abs(s.turretFieldAngleDeg()), 1e-9);
         assertEquals(0.0, s.virtualGoal().getDistance(goal), 1e-9);
@@ -106,10 +106,10 @@ class AimingSolverTest {
     @Test
     void radialMotionPreservesBearing() {
         Translation2d goal = new Translation2d(0.0, 0.0);
-        AimingSolver solver = solver(goal);
+        AimingSolverTOF solver = solver(goal);
         Pose2d pose = new Pose2d(5.0, 0.0, new Rotation2d());
         double stationary = solver.solve(pose, new ChassisSpeeds()).turretFieldAngleDeg();
-        AimingSolver.Solution moving = solver.solve(pose, new ChassisSpeeds(-3.0, 0.0, 0)); // toward goal
+        AimingSolverTOF.Solution moving = solver.solve(pose, new ChassisSpeeds(-3.0, 0.0, 0)); // toward goal
         assertEquals(stationary, moving.turretFieldAngleDeg(), 1e-9);
         assertEquals(0.0, moving.turretFieldRateDps(), 1e-9);
     }
@@ -118,9 +118,9 @@ class AimingSolverTest {
     @Test
     void tangentialMotionLeadsCorrectly() {
         Translation2d goal = new Translation2d(0.0, 0.0);
-        AimingSolver solver = solver(goal);
+        AimingSolverTOF solver = solver(goal);
         Pose2d pose = new Pose2d(0.0, 5.0, new Rotation2d()); // straight above the goal
-        AimingSolver.Solution s = solver.solve(pose, new ChassisSpeeds(2.0, 0.0, 0)); // +x tangential
+        AimingSolverTOF.Solution s = solver.solve(pose, new ChassisSpeeds(2.0, 0.0, 0)); // +x tangential
         double d = 5.0;
         double expected = Math.toDegrees(-2.0 / d); // moving +x above goal -> bearing decreases
         assertTrue(s.turretFieldRateDps() < 0, "rate should be negative; got " + s.turretFieldRateDps());
@@ -132,10 +132,10 @@ class AimingSolverTest {
     @Test
     void nonFiniteVelocityFallsBackToStationary() {
         Translation2d goal = new Translation2d(1.0, 2.0);
-        AimingSolver solver = solver(goal);
+        AimingSolverTOF solver = solver(goal);
         Pose2d pose = new Pose2d(5.0, 6.0, new Rotation2d());
-        AimingSolver.Solution stat = solver.solve(pose, new ChassisSpeeds());
-        AimingSolver.Solution nan = solver.solve(pose,
+        AimingSolverTOF.Solution stat = solver.solve(pose, new ChassisSpeeds());
+        AimingSolverTOF.Solution nan = solver.solve(pose,
                 new ChassisSpeeds(Double.NaN, Double.POSITIVE_INFINITY, 0));
         assertEquals(stat.turretFieldAngleDeg(), nan.turretFieldAngleDeg(), 1e-9);
         assertTrue(Double.isFinite(nan.turretFieldAngleDeg()));
@@ -145,7 +145,7 @@ class AimingSolverTest {
     @Test
     void beyondMaxRangeIsInfeasible() {
         Translation2d goal = new Translation2d(0.0, 0.0);
-        AimingSolver solver = AimingSolver.builder()
+        AimingSolverTOF solver = AimingSolverTOF.builder()
                 .target(goal).shotTime(shotTimeTable()).maxRange(5.0).build();
         assertFalse(solver.solve(new Pose2d(10.0, 0.0, new Rotation2d()), new ChassisSpeeds()).feasible());
         assertTrue(solver.solve(new Pose2d(3.0, 0.0, new Rotation2d()), new ChassisSpeeds()).feasible());
@@ -154,7 +154,7 @@ class AimingSolverTest {
     @Test
     void robotOnTargetIsInfeasibleNotNaN() {
         Translation2d goal = new Translation2d(2.0, 2.0);
-        AimingSolver.Solution s = solver(goal).solve(
+        AimingSolverTOF.Solution s = solver(goal).solve(
                 new Pose2d(2.0, 2.0, new Rotation2d()), new ChassisSpeeds());
         assertFalse(s.feasible());
         assertEquals(0.0, s.turretFieldAngleDeg(), 1e-9);

@@ -12,7 +12,7 @@ import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.lib.catalyst.hardware.CatalystMotor;
 import frc.lib.catalyst.hardware.MotorType;
 import frc.lib.catalyst.io.TurretMechanismInputs;
-import frc.lib.catalyst.util.AimingSolver;
+import frc.lib.catalyst.util.AimingSolverTOF;
 import frc.lib.catalyst.util.HealthCheck;
 import frc.lib.catalyst.util.HealthMonitor;
 import frc.lib.catalyst.util.TunableGains;
@@ -307,7 +307,7 @@ public class TurretMechanism extends CatalystMechanism {
      * @param solution        the latest solve
      * @param robotHeadingDeg current robot heading (degrees)
      */
-    public double aimErrorDeg(AimingSolver.Solution solution, double robotHeadingDeg) {
+    public double aimErrorDeg(AimingSolverTOF.Solution solution, double robotHeadingDeg) {
         if (solution == null) return Double.NaN;
         double targetRobotRel = solution.turretFieldAngleDeg() - robotHeadingDeg;
         return MathUtil.inputModulus(targetRobotRel - getAngle(), -180.0, 180.0);
@@ -318,7 +318,7 @@ public class TurretMechanism extends CatalystMechanism {
      * the "is the barrel on target" half of a shoot-while-moving readiness check
      * (pair with {@code shooter.atSpeed()} and {@code solution.feasible()}).
      */
-    public boolean isOnTarget(AimingSolver.Solution solution, double robotHeadingDeg, double toleranceDeg) {
+    public boolean isOnTarget(AimingSolverTOF.Solution solution, double robotHeadingDeg, double toleranceDeg) {
         return solution != null && solution.feasible()
                 && Math.abs(aimErrorDeg(solution, robotHeadingDeg)) <= toleranceDeg;
     }
@@ -401,7 +401,7 @@ public class TurretMechanism extends CatalystMechanism {
      * @param solution        supplier of the latest solve (call the solver in the lambda)
      * @param robotHeadingDeg robot heading supplier (degrees)
      */
-    public Command track(Supplier<AimingSolver.Solution> solution, DoubleSupplier robotHeadingDeg) {
+    public Command track(Supplier<AimingSolverTOF.Solution> solution, DoubleSupplier robotHeadingDeg) {
         return track(solution, robotHeadingDeg, () -> 0.0);
     }
 
@@ -417,11 +417,11 @@ public class TurretMechanism extends CatalystMechanism {
      * @param robotHeadingDeg  robot heading supplier (degrees)
      * @param robotYawRateDps  robot yaw rate supplier (degrees/second)
      */
-    public Command track(Supplier<AimingSolver.Solution> solution,
+    public Command track(Supplier<AimingSolverTOF.Solution> solution,
                          DoubleSupplier robotHeadingDeg,
                          DoubleSupplier robotYawRateDps) {
         return run(() -> {
-            AimingSolver.Solution s = solution.get();
+            AimingSolverTOF.Solution s = solution.get();
             if (s == null || !s.feasible()) {
                 aimFieldAngleDegrees = Double.NaN;
                 motor.setMotionMagicPosition(setpointDegrees / 360.0); // hold
