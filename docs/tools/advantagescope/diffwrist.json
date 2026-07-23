@@ -1,6 +1,6 @@
 {
   "$schema": "../catalyst-tab-bundle.schema.json",
-  "catalystVersion": "1.2.0",
+  "catalystVersion": "1.2.1",
   "mechanism": "DifferentialWristMechanism",
   "description": "Differential (diffy) wrist pitch + roll dashboard.",
   "placeholders": {

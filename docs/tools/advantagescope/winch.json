@@ -1,6 +1,6 @@
 {
   "$schema": "../catalyst-tab-bundle.schema.json",
-  "catalystVersion": "1.2.0",
+  "catalystVersion": "1.2.1",
   "mechanism": "WinchMechanism",
   "description": "Winch position / current / limit dashboard (climbers, line-pullers).",
   "placeholders": {

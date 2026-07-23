@@ -59,7 +59,7 @@ repositories {
 }
 
 dependencies {
-    implementation "com.github.TomAs-1226:FrcCatalyst:v1.2.0"
+    implementation "com.github.TomAs-1226:FrcCatalyst:v1.2.1"
 }
 ```
 </details>
@@ -99,6 +99,23 @@ operatorController.b().onTrue(elevator.goTo("STOW"));
 ```
 
 ---
+
+## What's New in v1.2.1: shooter, sim, and logging plumbing
+
+A maintenance release that clears the issue backlog and the ready PRs. All additive.
+
+- **Torque-current FOC velocity control** for shooters ([#20](https://github.com/TomAs-1226/FrcCatalyst/pull/20)) —
+  `FlywheelMechanism` torque-current mode with a per-loop amps-feedforward `track(...)`, closing the
+  last [#17](https://github.com/TomAs-1226/FrcCatalyst/issues/17) gap.
+- **Swerve sim opt-out** ([#19](https://github.com/TomAs-1226/FrcCatalyst/pull/19)) — the internal
+  sim thread stands down when maple-sim takes over, plus `getModuleTargets()` as the clean
+  mechanism-level bridge seam.
+- **`AimingSolverVector`** ([#27](https://github.com/TomAs-1226/FrcCatalyst/pull/27)) — a second,
+  vector-adding shoot-on-the-fly solver alongside the time-of-flight `AimingSolver`.
+- **All telemetry routes through `CatalystLog`** ([#24](https://github.com/TomAs-1226/FrcCatalyst/issues/24)) —
+  swap the sink once and every stream follows; existing NT keys unchanged.
+
+Full notes: [CHANGELOG.md](CHANGELOG.md).
 
 ## What's New in v1.2.0: a real state machine for the whole robot
 
@@ -794,7 +811,7 @@ double maxSpeed = config.estimateMaxSpeed();      // ~1.9 m/s
 
 ## Testing
 
-FrcCatalyst ships **62 JUnit tests** in `src/test`, run with `./gradlew test`:
+FrcCatalyst ships **70 JUnit tests** in `src/test`, run with `./gradlew test`:
 
 - **46 tests covering the state machine engine** — graph validation and refused transitions
   (`StateMachineGraphTest`), transition sequencing, staging and deadlines
@@ -802,6 +819,7 @@ FrcCatalyst ships **62 JUnit tests** in `src/test`, run with `./gradlew test`:
   logging schema (`StateMachineTelemetryTest`), and robustness against throwing guards and
   post-timeout recovery (`StateMachineRobustnessTest`).
 - **Aiming and field math** — the Shoot-On-The-Fly solver closed-loop proof (`AimingSolverTest`),
+  the vector-adding SOTF solver (`AimingSolverVectorTest`),
   turret continuous-wrap (`TurretMathTest`), and alliance flipping (`AllianceFlipUtilTest`).
 
 ```bash

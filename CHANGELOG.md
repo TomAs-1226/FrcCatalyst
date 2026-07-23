@@ -5,6 +5,60 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.1] — 2026-07-23 — Logging plumbing, shooter + sim seams, second SOTF solver
+
+A maintenance release folding in the open issue backlog and the ready pull requests.
+Backward compatible: additive, plus one internal telemetry-routing change that preserves
+every existing NetworkTables key and type.
+
+### Added
+
+- **Torque-current FOC velocity control** ([#20](https://github.com/TomAs-1226/FrcCatalyst/pull/20),
+  closes the last [#17](https://github.com/TomAs-1226/FrcCatalyst/issues/17) gap).
+  `CatalystMotor.setVelocityTorqueCurrent(rps[, ffAmps])` +
+  `Builder.torqueCurrentLimits(...)`; `FlywheelMechanism` gains a torque-current mode and a
+  per-loop amps-feedforward `track(velocity, feedforwardAmps)` overload for shooters that
+  compensate for the piece being fed in. Slot 0 gains are **amps** in this mode (documented);
+  `track(vel, ffAmps)` throws at wiring time if torque-current wasn't enabled. Requires Phoenix
+  Pro. Defaults preserve voltage-mode behaviour.
+- **Swerve internal-sim opt-out** ([#19](https://github.com/TomAs-1226/FrcCatalyst/pull/19),
+  fixes [#18](https://github.com/TomAs-1226/FrcCatalyst/issues/18)). The 200 Hz `updateSimState()`
+  thread now stands down the first time `setSimPose()` is called, so an external physics engine
+  (maple-sim) is no longer silently overwritten. Explicit `disableInternalSim()` /
+  `isInternalSimRunning()` controls. Adds the first swerve tests.
+- **`SwerveSubsystem.getModuleTargets()` / `getModuleStates()`** — the clean "speeds-out" seam for
+  bridging maple-sim at the **mechanism level** (hand it the commanded module states) instead of
+  reproducing device sim state by hand. `docs/advanced/simulation.md` now recommends this path with
+  a worked example.
+- **`AimingSolverVector`** ([#27](https://github.com/TomAs-1226/FrcCatalyst/pull/27)) — a second,
+  hardware-independent shoot-on-the-fly solver alongside the time-of-flight `AimingSolver`. It solves
+  the shot as a 3D velocity vector and returns hood pitch, yaw *and* flywheel RPS. Pure math; unit
+  tested. (The existing `AimingSolver` is unchanged — the contributed rename to `AimingSolverTOF` was
+  intentionally not taken, as it would break existing code.)
+
+### Changed
+
+- **All remaining raw NetworkTables telemetry now routes through `CatalystLog`**
+  ([#24](https://github.com/TomAs-1226/FrcCatalyst/issues/24)): `CatalystMotor`, `CANRegistry`,
+  `GhostReplay`, `HealthHistory`, `RobotSafety`, `SimGamePieces`, `VisionSubsystem`, and
+  `SwerveSubsystem`. Every published key path and NT type is unchanged — dashboards and
+  AdvantageScope layouts keep working — but a team can now swap the sink once (WPILOG, AdvantageKit,
+  a 2027 backend) and every telemetry stream follows. NT *inputs* (Limelight reads, `TunableNumber`,
+  camera orientation) are untouched.
+
+### Fixed
+
+- **The v1.2.0 GitHub Release was missing** ([#28](https://github.com/TomAs-1226/FrcCatalyst/issues/28),
+  [#25](https://github.com/TomAs-1226/FrcCatalyst/issues/25)) — the tag and docs referenced v1.2.0 but
+  no Release object existed, so the Releases page lagged at v1.1.0. The v1.2.0 release is now
+  published, and v1.2.0/v1.2.1 build cleanly on JitPack (v1.1.0 remains uninstallable there after a
+  transient DNS failure at build time cached a 404 — use v1.2.1).
+
+### Credits
+
+Thanks to [@avrahamavraham](https://github.com/avrahamavraham) for issue #24 and the ideas behind
+PRs #21 (swerve logging) and #27 (vector SOTF solver).
+
 ## [1.2.0] — 2026-07-21 — A real state machine, for the whole robot
 
 Resolves [#22](https://github.com/TomAs-1226/FrcCatalyst/issues/22). The old

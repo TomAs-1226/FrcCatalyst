@@ -1,6 +1,6 @@
 {
   "$schema": "../catalyst-tab-bundle.schema.json",
-  "catalystVersion": "1.2.0",
+  "catalystVersion": "1.2.1",
   "mechanism": "Superstructure",
   "description": "Full state-machine dashboard: confirmed state and phase over time, per-binding arrival error against tolerance, the transition history table, and the Blocker/Summary strings that name which mechanism is holding the robot up.",
   "placeholders": {

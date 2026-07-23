@@ -284,7 +284,7 @@ System.out.println("Max speed: " + config.estimateMaxSpeed() + " m/s");
 
 ### The in-repo suite
 
-`./gradlew test` on FrcCatalyst itself runs **62 JUnit tests**. They all run on a laptop with no
+`./gradlew test` on FrcCatalyst itself runs **70 JUnit tests**. They all run on a laptop with no
 HAL, no NetworkTables and no command scheduler, for the reasons described above.
 
 **46 of the 62 cover the state machine engine**, split across five files:
