@@ -108,9 +108,11 @@ public class SwerveSubsystem extends SubsystemBase {
 
     // Simulation: a high-rate thread that actually advances the Phoenix sim so the
     // drivetrain moves in the simulator (without it, status signals stay stale).
+    // Yields automatically to an external physics engine — see setSimPose().
     private static final double SIM_LOOP_PERIOD = 0.005; // 200 Hz
     private Notifier simNotifier = null;
     private double lastSimTime;
+    private boolean internalSimYielded = false;
 
     // Telemetry
     private final NetworkTable telemetryTable;
@@ -151,13 +153,20 @@ public class SwerveSubsystem extends SubsystemBase {
         }
 
         // Advance the Phoenix physics sim on its own high-rate thread so the
-        // drivetrain actually moves in the simulator. No-op on a real robot.
-        if (RobotBase.isSimulation()) {
-            startSimThread();
-        }
+        // The internal Phoenix sim (see startSimThread) is started lazily from the first
+        // periodic() call in simulation, NOT here. Starting it in the constructor gives an
+        // external physics engine no chance to opt out first: even one updateSimState()
+        // call seeds Phoenix's sim-device state (FusedCANcoder syncs an internal
+        // rotor-to-CANcoder offset on first use), and a bridge that takes over afterwards
+        // with its own conventions inherits per-module corruption that never heals. By
+        // first periodic(), anyone integrating external physics has had a full
+        // construction window to call disableInternalSim().
     }
 
     private void startSimThread() {
+        if (internalSimYielded) {
+            return;
+        }
         lastSimTime = Utils.getCurrentTimeSeconds();
         simNotifier = new Notifier(() -> {
             double now = Utils.getCurrentTimeSeconds();
@@ -221,11 +230,50 @@ public class SwerveSubsystem extends SubsystemBase {
      *
      * <p>Call once per {@code simulationPeriodic()}. See
      * {@code docs/advanced/simulation.md} for the maple-sim wiring.
+     *
+     * <p>The first call also stops Catalyst's internal Phoenix sim thread, by
+     * way of {@link #disableInternalSim()}. Something is clearly supplying
+     * physics, and two writers on the same module rotor states would fight:
+     * {@code updateSimState()} would overwrite maple-sim's values at 200 Hz and
+     * the physics would quietly stop reaching the robot. If you want the
+     * internal sim off before any pose arrives, call {@link
+     * #disableInternalSim()} yourself.
      */
     public void setSimPose(Pose2d simPose) {
         if (edu.wpi.first.wpilibj.RobotBase.isSimulation() && simPose != null) {
+            disableInternalSim();
             drivetrain.resetPose(simPose);
         }
+    }
+
+    /**
+     * Stop Catalyst's internal Phoenix simulation thread.
+     *
+     * <p>Only needed when an external physics engine (maple-sim, or your own)
+     * is driving the module sim states. {@link #setSimPose(Pose2d)} calls this
+     * for you, so the maple-sim wiring in {@code docs/advanced/simulation.md}
+     * needs no extra step. Idempotent, and a no-op on a real robot.
+     */
+    public void disableInternalSim() {
+        if (internalSimYielded) {
+            return;
+        }
+        internalSimYielded = true;
+
+        if (simNotifier != null) {
+            simNotifier.stop();
+            simNotifier.close();
+            simNotifier = null;
+        }
+    }
+
+    /**
+     * Whether Catalyst's own Phoenix sim thread is currently advancing the
+     * drivetrain. False on a real robot, and false once an external physics
+     * engine has taken over.
+     */
+    public boolean isInternalSimRunning() {
+        return simNotifier != null;
     }
 
     /**
@@ -917,8 +965,16 @@ public class SwerveSubsystem extends SubsystemBase {
 
     @Override
     public void periodic() {
+        // Lazy-start the internal Phoenix sim on the first loop tick. See the constructor
+        // note: starting it there poisons external physics bridges that attach right after
+        // construction, because updateSimState() seeds sim-device state before they can
+        // call disableInternalSim(). startSimThread() itself is a no-op once yielded.
+        if (RobotBase.isSimulation() && simNotifier == null) {
+            startSimThread();
+        }
+
         //do the same as in the commandSwerveDriveTrain periodic function so no need to cast it to another type and do a .register for another periodic.
-        //do it it didnt happen alredy or if we are on disable so i dont care about the longer time for the periodic function   
+        //do it it didnt happen alredy or if we are on disable so i dont care about the longer time for the periodic function
         if (!hasAppliedOperatorPerspective || RobotState.isDisabled()) {
             RobotState.allianceOpt()
             .ifPresent(AllianceColor -> {
