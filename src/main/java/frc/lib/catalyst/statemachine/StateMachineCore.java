@@ -783,6 +783,103 @@ public final class StateMachineCore<S extends Enum<S>> {
         return null;
     }
 
+    /**
+     * A plain-language dump of the whole machine — what you built and what it is doing right now — as
+     * a multi-line String.
+     *
+     * <p>This is the "just tell me what is going on" button. It answers the two questions that are
+     * otherwise hard to see across forty files: <em>did I wire this the way I think I did</em> (the
+     * states, the legal edges and their guards, the bound mechanisms), and <em>why is it doing that
+     * right now</em> (the live state, phase, what it is waiting on, and the last few transitions).
+     * Print it from a button binding, a unit test, or a breakpoint. It allocates and is not meant for
+     * the 50 Hz loop.
+     *
+     * <p>Example output:
+     * <pre>
+     * Superstructure  [SuperState, 6 states, 9 edges, 9 bindings]
+     *   NOW: HOLDING at AIM (confirmed)   legal -> [SCORE, CARRY, STOW]
+     *   waiting on: (settled)
+     *   States:
+     *     STOW      -> INTAKE, CARRY, AIM, CLIMB
+     *     AIM       -> SCORE, CARRY, STOW            [guard on STOW->CLIMB: endgame]
+     *     ...
+     *   Bindings: elevator(linear) arm(rotational) claw(claw) ...
+     *   Recent: [ 42.1s] CARRY-&gt;AIM ARRIVED 1.42s | [ 40.0s] STOW-&gt;CARRY ARRIVED 0.9s
+     * </pre>
+     */
+    public String explain() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(machineName).append("  [").append(stateType.getSimpleName())
+          .append(", ").append(constants.length).append(" states, ")
+          .append(graph.edgeCount()).append(" edges, ")
+          .append(bindings.size()).append(" bindings]\n");
+
+        // Live status — the "why is it doing that" half.
+        sb.append("  NOW: ").append(phase);
+        sb.append(' ').append(isTransitioning() ? "-> " + nextHop().name() : "at " + safeName(current));
+        sb.append(stateConfirmed ? " (confirmed)" : " (UNCONFIRMED)");
+        if (faulted) sb.append("  FAULT: ").append(faultReason);
+        sb.append("   legal -> ").append(legalTargets()).append('\n');
+        List<String> waiting = waitingOn();
+        sb.append("  waiting on: ").append(waiting.isEmpty() ? "(settled)" : String.join(", ", waiting)).append('\n');
+        String detail = blockerDetail();
+        if (!detail.isEmpty()) sb.append("  detail: ").append(detail).append('\n');
+
+        // The graph — the "did I wire it right" half. One row per state, its outgoing edges.
+        sb.append("  States (").append(constants.length).append("):\n");
+        for (S s : constants) {
+            sb.append("    ").append(pad(s.name(), 12)).append("-> ");
+            EnumSet<S> succ = graph.successors(s);
+            sb.append(succ.isEmpty() ? "(dead end)" : String.join(", ", succ.stream().map(Enum::name).toList()));
+            if (s == current) sb.append("   <== current");
+            sb.append('\n');
+        }
+        // Guards and staged edges, if any.
+        List<String> guarded = new ArrayList<>();
+        for (Map.Entry<String, EdgeSpec<S>> e : edgeSpecs.entrySet()) {
+            if (e.getValue().guard != null && !e.getValue().guardReason.isEmpty()) {
+                guarded.add(e.getKey() + " [" + e.getValue().guardReason + "]");
+            }
+            if (!e.getValue().stages.isEmpty()) {
+                guarded.add(e.getKey() + " staged x" + e.getValue().stages.size());
+            }
+        }
+        if (!guarded.isEmpty()) {
+            sb.append("  Guards/stages: ").append(String.join("; ", guarded)).append('\n');
+        }
+        if (!interlocks.isEmpty()) {
+            List<String> names = new ArrayList<>();
+            for (Interlock<S> lock : interlocks) names.add(lock.name);
+            sb.append("  Interlocks: ").append(String.join(", ", names)).append('\n');
+        }
+
+        // Bindings — what actually moves.
+        sb.append("  Bindings: ");
+        for (Bound b : bindings) {
+            sb.append(b.key).append('(').append(b.binding.kind()).append(b.advisory ? ",advisory" : "").append(") ");
+        }
+        sb.append('\n');
+
+        // The last few transitions — the "how did I get here" half.
+        List<TransitionRecord<S>> recent = history.snapshot();
+        if (!recent.isEmpty()) {
+            sb.append("  Recent:\n");
+            for (int i = 0; i < Math.min(5, recent.size()); i++) {
+                sb.append("    ").append(recent.get(i)).append('\n');
+            }
+        }
+        return sb.toString();
+    }
+
+    private String safeName(S s) {
+        return s == null ? "?" : s.name();
+    }
+
+    private static String pad(String s, int width) {
+        if (s.length() >= width) return s + " ";
+        return s + " ".repeat(width - s.length());
+    }
+
     /** Completed transitions. */
     public long transitionCount() { return transitionCount; }
     /** Refused requests. */

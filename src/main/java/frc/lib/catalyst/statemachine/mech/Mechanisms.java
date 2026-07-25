@@ -11,6 +11,7 @@ import frc.lib.catalyst.mechanisms.LinearMechanism;
 import frc.lib.catalyst.mechanisms.PneumaticMechanism;
 import frc.lib.catalyst.mechanisms.RollerMechanism;
 import frc.lib.catalyst.mechanisms.RotationalMechanism;
+import frc.lib.catalyst.mechanisms.ServoMechanism;
 import frc.lib.catalyst.mechanisms.TurretMechanism;
 import frc.lib.catalyst.mechanisms.WinchMechanism;
 import frc.lib.catalyst.statemachine.Binding;
@@ -20,6 +21,7 @@ import frc.lib.catalyst.statemachine.goals.LinearGoal;
 import frc.lib.catalyst.statemachine.goals.PneumaticGoal;
 import frc.lib.catalyst.statemachine.goals.RollerGoal;
 import frc.lib.catalyst.statemachine.goals.RotationalGoal;
+import frc.lib.catalyst.statemachine.goals.ServoGoal;
 import frc.lib.catalyst.statemachine.goals.TurretGoal;
 import frc.lib.catalyst.statemachine.goals.WinchGoal;
 import frc.lib.catalyst.statemachine.goals.WristGoal;
@@ -585,6 +587,32 @@ public final class Mechanisms {
      */
     public static Actuator<PneumaticGoal> pneumatic(PneumaticMechanism mechanism) {
         return pneumatic(nameOf(mechanism), mechanism);
+    }
+
+    /**
+     * Wraps a {@link ServoMechanism} — a PWM servo (hood, ratchet release, funnel flapper).
+     *
+     * <p>Open-loop: arrival is a settle timer, not a sensor read, so the binding reports itself
+     * non-observable and a state carrying a {@link ServoGoal} settles after the goal's settle window.
+     *
+     * @param key       stable, unique, log-safe telemetry key
+     * @param mechanism the servo to drive
+     * @return a {@link ServoBinding} over {@code mechanism}
+     * @throws IllegalArgumentException if either argument is {@code null}/blank
+     */
+    public static Actuator<ServoGoal> servo(String key, ServoMechanism mechanism) {
+        return new ServoBinding(mechanism, key);
+    }
+
+    /**
+     * Wraps a {@link ServoMechanism}, keyed by its own mechanism name.
+     *
+     * @param mechanism the servo to drive
+     * @return a {@link ServoBinding} over {@code mechanism}
+     * @throws IllegalArgumentException if {@code mechanism} is {@code null}
+     */
+    public static Actuator<ServoGoal> servo(ServoMechanism mechanism) {
+        return servo(nameOf(mechanism), mechanism);
     }
 
     // ==================================================================

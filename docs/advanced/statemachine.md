@@ -16,6 +16,12 @@ nav_order: 3
 
 ---
 
+{: .note }
+> This page is how to **use** the state machine. For how it **works under the hood** — one scheduler
+> loop start to finish, and a "where do I look when X is broken" debug map — see
+> [State Machine Internals]({% link docs/advanced/statemachine-internals.md %}). And at runtime,
+> `superstructure.explain()` prints a plain-language dump of what you built and why it is stuck.
+
 ## Why this exists
 
 Catalyst has had a superstructure coordinator since early versions, and it only ever

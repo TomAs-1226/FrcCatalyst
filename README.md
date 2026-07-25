@@ -59,7 +59,7 @@ repositories {
 }
 
 dependencies {
-    implementation "com.github.TomAs-1226:FrcCatalyst:v1.2.1"
+    implementation "com.github.TomAs-1226:FrcCatalyst:v1.3.0"
 }
 ```
 </details>
@@ -99,6 +99,24 @@ operatorController.b().onTrue(elevator.goTo("STOW"));
 ```
 
 ---
+
+## What's New in v1.3.0: an understandable state machine, servos, live debugging
+
+Built around making the state machine easy to read and debug ([#29](https://github.com/TomAs-1226/FrcCatalyst/issues/29)),
+plus a couple of lean components. All additive.
+
+- **`explain()`** — `superstructure.explain()` prints a plain-language dump of what you built and why
+  it's stuck. The one-call "just tell me what's going on" button.
+- **State Machine Internals page** — a "how it works under the hood" guide with a symptom → log-key
+  debug map. See [docs/advanced/statemachine-internals.md](docs/advanced/statemachine-internals.md).
+- **Browser state-graph tool** — paste your machine's graph from the log and *see* it: states, edges,
+  guards, and flagged dead-ends/unreachable states.
+- **`ServoMechanism`** — a lean PWM-servo mechanism (hoods, ratchets, funnel flappers), a first-class
+  state-machine member too.
+- **`SimDashboard.statusPanel(...)`** — a live text card in the sim cockpit; the example wires a servo
+  to a tiny state machine and shows its `explain()` output live.
+
+Full notes: [CHANGELOG.md](CHANGELOG.md).
 
 ## What's New in v1.2.1: shooter, sim, and logging plumbing
 
@@ -811,7 +829,7 @@ double maxSpeed = config.estimateMaxSpeed();      // ~1.9 m/s
 
 ## Testing
 
-FrcCatalyst ships **70 JUnit tests** in `src/test`, run with `./gradlew test`:
+FrcCatalyst ships **76 JUnit tests** in `src/test`, run with `./gradlew test`:
 
 - **46 tests covering the state machine engine** — graph validation and refused transitions
   (`StateMachineGraphTest`), transition sequencing, staging and deadlines

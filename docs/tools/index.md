@@ -8,7 +8,7 @@ has_children: false
 # Tools
 {: .no_toc }
 
-Eight single-file browser tools, hosted right here. Nothing to install.
+Eleven single-file browser tools, hosted right here. Nothing to install.
 {: .fs-6 .fw-300 }
 
 <style>
@@ -142,6 +142,13 @@ Eight single-file browser tools, hosted right here. Nothing to install.
   <div class="icon">🎯</div>
   <p class="name">Shoot-On-The-Fly</p>
   <p class="desc">Drag the robot, set a velocity, and watch the <strong>virtual goal</strong>, lead, turret bearing and feedforward rate — the exact <code>AimingSolver</code> math. Copies the <code>track(…)</code> wiring.</p>
+  <span class="tag calc">Visualizer</span>
+</a>
+
+<a class="tool-card" href="statemachine/">
+  <div class="icon">🔀</div>
+  <p class="name">State Machine Visualizer</p>
+  <p class="desc">Paste the <code>Graph/Dot</code> string — or the <code>Graph/States</code> and <code>Graph/Edges</code> arrays — your <code>Superstructure</code> logs, and see the legal-transition graph drawn. Guards are dashed; dead-ends and unreachable states are flagged so a missing edge is obvious.</p>
   <span class="tag calc">Visualizer</span>
 </a>
 

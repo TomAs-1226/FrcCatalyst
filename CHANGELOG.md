@@ -5,6 +5,43 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] — 2026-07-24 — Understandable state machine, servos, and live debugging
+
+Focused on making the state machine easy to read and debug (issue
+[#29](https://github.com/TomAs-1226/FrcCatalyst/issues/29)) and adding a few lean, self-contained
+components. Additive and backward compatible.
+
+### Added — understandability & debugging (issue #29)
+
+- **`docs/advanced/statemachine-internals.md`** — a "how it works under the hood" page: why the
+  package is 44 files across four layers (only `StateMachineCore` holds real logic), one 20 ms
+  scheduler tick walked end to end with diagrams, the proven-arrival invariant, and a
+  **symptom → log-key debug map** ("a button does nothing" → read `Blocker`/`Rejected/Last`, etc.).
+- **`Superstructure.explain()` / `StateMachineCore.explain()`** — a one-call, plain-language dump of
+  what you built (states, legal edges, guards, bindings) and why it is stuck right now. Print it from
+  a button, a test, or a breakpoint. The direct answer to "it's impossible to debug".
+- **Browser state-graph tool** (`docs/tools/statemachine/`, the 11th tool) — paste the machine's
+  `Graph/Dot` or `Graph/States`+`Graph/Edges` from the log and see the graph drawn: states, legal
+  edges, guards, and — flagged — dead-end and unreachable states, so "what's missing" is obvious.
+  Single-file, offline, no dependencies.
+- **`package-info.java` for all four state-machine subpackages** — each package now shows a short map
+  of its types in Javadoc and IDE package views.
+
+### Added — components
+
+- **`ServoMechanism`** — a lean PWM-servo mechanism (hoods, ratchet releases, funnel flappers). Open-
+  loop with the usual Catalyst ergonomics: builder with validation, named positions
+  (`goTo("FAR")`), angle clamping, telemetry, and a `describe()` view. Plus a first-class state-
+  machine binding (`ServoGoal` + `Mechanisms.servo(...)`), so a servo is a full superstructure member.
+- **`SimDashboard.statusPanel(title, lines)`** — a live text card in the browser sim cockpit,
+  decoupled from mechanisms. Feed it anything: `dash.statusPanel("Superstructure", () ->
+  List.of(sm.explain().split("\n")))` shows the running state machine live in sim.
+
+### Docs
+
+- The `SimDashboard` example now drives a servo with a tiny state machine and shows its `explain()`
+  output live, exercising all of the above under `./gradlew simulateJava`.
+
 ## [1.2.1] — 2026-07-23 — Logging plumbing, shooter + sim seams, second SOTF solver
 
 A maintenance release folding in the open issue backlog and the ready pull requests.

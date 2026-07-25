@@ -375,6 +375,12 @@ public final class Superstructure<S extends Enum<S>> extends SubsystemBase imple
     public Snapshot<S> snapshot() { return engine.snapshot(); }
     /** The legal-transition graph. */
     public StateGraph<S> graph() { return engine.graph(); }
+    /**
+     * A plain-language dump of what you built and what it is doing right now — the "just tell me
+     * what is going on" button for debugging. Print it from a button, a test, or a breakpoint.
+     * See {@link StateMachineCore#explain()}.
+     */
+    public String explain() { return engine.explain(); }
 
     // ==================================================================
     // SuperstructureLike — the GoalDirector seam

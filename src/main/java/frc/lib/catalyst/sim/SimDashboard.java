@@ -80,6 +80,7 @@ public final class SimDashboard {
 
     private final int port;
     private final List<Entry> entries = new ArrayList<>();
+    private final List<Panel> panels = new ArrayList<>();
     private final ConcurrentLinkedQueue<Runnable> commands = new ConcurrentLinkedQueue<>();
 
     private volatile String stateJson = "{\"mechanisms\":[]}";
@@ -112,6 +113,22 @@ public final class SimDashboard {
         Entry e = new Entry(mechanism);
         entries.add(e);
         return new Handle(e);
+    }
+
+    /**
+     * Register a live text panel — a titled card of lines refreshed every {@link #update()}.
+     *
+     * <p>Decoupled from mechanisms on purpose: feed it anything that can describe itself as a few
+     * lines of text. The obvious use is a state machine —
+     * {@code dash.statusPanel("Superstructure", () -> List.of(sm.explain().split("\n")))} — but match
+     * time, a scoring FSM, or any status works. Returns {@code this} for chaining.
+     *
+     * @param title the card heading
+     * @param lines supplier of the lines to show; called once per {@link #update()}
+     */
+    public SimDashboard statusPanel(String title, Supplier<List<String>> lines) {
+        panels.add(new Panel(title, lines));
+        return this;
     }
 
     /**
@@ -278,6 +295,9 @@ public final class SimDashboard {
         }
     }
 
+    /** A live text card — a title plus lines refreshed every {@link #update()}. */
+    private record Panel(String title, Supplier<List<String>> lines) {}
+
     // ------------------------------------------------------------------ HTTP plumbing
 
     private void handleCmd(HttpExchange ex) throws IOException {
@@ -421,6 +441,11 @@ public final class SimDashboard {
             }
             sb.append("]}");
         }
+        sb.append("],\"panels\":[");
+        for (int i = 0; i < panels.size(); i++) {
+            if (i > 0) sb.append(',');
+            sb.append("{\"title\":").append(jsonStr(panels.get(i).title())).append('}');
+        }
         sb.append("]}");
         return sb.toString();
     }
@@ -463,8 +488,28 @@ public final class SimDashboard {
             }
             sb.append("]}");
         }
+        sb.append("],\"panels\":[");
+        for (int i = 0; i < panels.size(); i++) {
+            if (i > 0) sb.append(',');
+            sb.append("{\"lines\":[");
+            List<String> lines = safePanelLines(panels.get(i));
+            for (int j = 0; j < lines.size(); j++) {
+                if (j > 0) sb.append(',');
+                sb.append(jsonStr(lines.get(j)));
+            }
+            sb.append("]}");
+        }
         sb.append("]}");
         return sb.toString();
+    }
+
+    private static List<String> safePanelLines(Panel p) {
+        try {
+            List<String> l = p.lines().get();
+            return l != null ? l : List.of();
+        } catch (RuntimeException ex) {
+            return List.of("(panel error: " + ex.getClass().getSimpleName() + ")");
+        }
     }
 
     private static MechanismView safeDescribe(CatalystMechanism m) {
@@ -617,8 +662,9 @@ function pct(v,min,max){
 }
 
 function build(){
-  if(!layout.mechanisms.length){ grid.innerHTML='<div class="empty">no mechanisms registered</div>'; return; }
-  document.getElementById('sub').textContent = layout.mechanisms.length+' mechanisms';
+  const nPanels=(layout.panels||[]).length;
+  if(!layout.mechanisms.length && !nPanels){ grid.innerHTML='<div class="empty">no mechanisms registered</div>'; return; }
+  document.getElementById('sub').textContent = layout.mechanisms.length+' mechanisms'+(nPanels?(' + '+nPanels+' panel'+(nPanels>1?'s':'')):'');
   document.title = layout.title || 'Catalyst SimDashboard';
   grid.innerHTML = layout.mechanisms.map((m,i)=>{
     let ctrl = '';
@@ -650,6 +696,13 @@ function build(){
       ctrlBlock+
     '</div>';
   }).join('');
+  // Live text panels (e.g. a state machine's explain() dump) render as their own cards.
+  const panels = layout.panels || [];
+  grid.innerHTML += panels.map((p,i)=>
+    '<div class="card"><div class="chead"><span class="nm">'+esc(p.title)+'</span></div>'+
+    '<pre class="panel" id="pnl'+i+'" style="margin:0;white-space:pre-wrap;font-size:12px;'+
+    'line-height:1.45;color:var(--muted,#8a8aa8);max-height:340px;overflow:auto">--</pre></div>'
+  ).join('');
 }
 
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -690,6 +743,9 @@ function render(state){
       drawSpark(i, m.setpoint);
     }
   });
+  if(state.panels){ state.panels.forEach((p,i)=>{
+    const el=document.getElementById('pnl'+i); if(el) el.textContent=(p.lines||[]).join('\\n')||'--';
+  }); }
 }
 
 function drawSpark(i, setpoint){

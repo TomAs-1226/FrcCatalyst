@@ -1,0 +1,848 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Catalyst State Machine Visualizer</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0f1424;
+      --panel: #1b2240;
+      --panel2: #131831;
+      --accent: #e94560;
+      --accent2: #f0648a;
+      --text: #f4f4f8;
+      --muted: #8a8aa8;
+      --border: rgba(255,255,255,0.07);
+      --good: #4ade80;
+      --warn: #fbbf24;
+      --err:  #f87171;
+      --info: #60a5fa;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      background:
+        radial-gradient(ellipse at 0% 0%, rgba(96,165,250,0.06), transparent 60%),
+        radial-gradient(ellipse at 100% 100%, rgba(233,69,96,0.08), transparent 60%),
+        var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, "SF Pro Text", Segoe UI, sans-serif;
+      min-height: 100vh;
+    }
+    header {
+      padding: 16px 28px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+      backdrop-filter: blur(6px);
+      position: sticky; top: 0; z-index: 5;
+      background: linear-gradient(180deg, rgba(27,34,64,0.85) 0%, transparent 100%);
+    }
+    header h1 { margin: 0; font-size: 18px; font-weight: 700; }
+    header .badge { padding: 2px 10px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 600; }
+    header .hint { color: var(--muted); font-size: 13px; }
+    header .back { color: var(--accent2); text-decoration: none; font-size: 13px; margin-left: auto; }
+
+    main {
+      display: grid; grid-template-columns: 320px 1fr 288px;
+      gap: 20px; padding: 22px 24px;
+    }
+    .left, .center, .right {
+      background: linear-gradient(180deg, var(--panel) 0%, var(--panel2) 100%);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    }
+    .center { padding: 14px; display: flex; flex-direction: column; min-width: 0; }
+    h2 { margin: 0 0 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 1.4px; color: var(--muted); font-weight: 700; }
+    h2:not(:first-child) { margin-top: 22px; }
+
+    label { color: var(--muted); font-size: 12px; display: block; margin-bottom: 5px; }
+    textarea {
+      width: 100%;
+      background: var(--bg); color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 9px 11px; font-size: 12px;
+      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      resize: vertical; line-height: 1.5;
+    }
+    textarea:focus { border-color: var(--accent); outline: none; }
+
+    .seg-mode {
+      display: inline-flex; gap: 0;
+      border: 1px solid var(--border); border-radius: 8px;
+      overflow: hidden; margin-bottom: 12px; width: 100%;
+    }
+    .seg-btn {
+      background: transparent; color: var(--muted);
+      border: 0; padding: 7px 10px; font-size: 12px;
+      cursor: pointer; font-family: inherit; flex: 1;
+      transition: all 0.12s ease;
+    }
+    .seg-btn + .seg-btn { border-left: 1px solid var(--border); }
+    .seg-btn:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+    .seg-btn.active { background: var(--accent); color: #fff; }
+
+    .btn {
+      background: linear-gradient(135deg, var(--accent), #ff6b8a);
+      color: #fff; border: 0; border-radius: 8px;
+      padding: 9px 14px; font-size: 13px; font-weight: 600;
+      cursor: pointer; box-shadow: 0 4px 12px rgba(233,69,96,0.35);
+      transition: transform 0.12s ease;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn.ghost {
+      background: transparent; color: var(--text);
+      border: 1px solid var(--border); box-shadow: none;
+    }
+    .btn.ghost:hover { border-color: var(--accent); color: var(--accent2); }
+    .actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+    .actions .btn { flex: 1; }
+
+    .field { margin-bottom: 12px; }
+    .field.hidden { display: none; }
+
+    .parse-msg {
+      margin-top: 12px; padding: 9px 12px;
+      border-radius: 8px; font-size: 12px; line-height: 1.5;
+      border: 1px solid var(--border);
+    }
+    .parse-msg.ok   { border-color: rgba(74,222,128,0.3);  color: var(--good); background: rgba(74,222,128,0.06); }
+    .parse-msg.err  { border-color: rgba(248,113,113,0.3); color: var(--err);  background: rgba(248,113,113,0.06); }
+
+    /* ---- diagram ---- */
+    .diagram-toolbar {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;
+    }
+    .diagram-toolbar .spacer { margin-left: auto; }
+    .diagram-toolbar .legend { display: flex; gap: 14px; font-size: 11px; color: var(--muted); flex-wrap: wrap; }
+    .legend .lg { display: inline-flex; align-items: center; gap: 5px; }
+    .legend .swatch { width: 22px; height: 0; border-top: 2px solid var(--muted); }
+    .legend .swatch.guard { border-top: 2px dashed var(--accent2); }
+    .legend .swatch.node  { width: 12px; height: 12px; border: 1px solid var(--info); border-radius: 3px; border-top-width: 1px; background: rgba(96,165,250,0.14); }
+    .legend .swatch.issue { width: 12px; height: 12px; border: 1px dashed var(--warn); border-radius: 3px; border-top-width: 1px; }
+
+    .svg-wrap {
+      flex: 1; min-height: 460px;
+      background:
+        radial-gradient(circle at 50% 40%, rgba(255,255,255,0.02), transparent 70%),
+        var(--bg);
+      border: 1px solid var(--border); border-radius: 12px;
+      overflow: hidden; position: relative;
+    }
+    svg { display: block; width: 100%; height: 100%; }
+    .svg-empty {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      text-align: center; padding: 40px;
+      color: var(--muted); font-size: 13px; line-height: 1.6;
+    }
+
+    .node rect {
+      fill: rgba(96,165,250,0.10);
+      stroke: var(--info); stroke-width: 1.4;
+      transition: fill 0.12s ease, stroke 0.12s ease;
+      cursor: pointer;
+    }
+    .node text { fill: var(--text); font-size: 13px; font-weight: 600; pointer-events: none; font-family: ui-monospace, monospace; }
+    .node:hover rect { fill: rgba(96,165,250,0.22); }
+    .node.selected rect { fill: rgba(233,69,96,0.20); stroke: var(--accent); stroke-width: 2; }
+    .node.target rect { stroke: var(--good); }
+    .node.deadend rect { stroke: var(--warn); stroke-dasharray: 4 3; }
+    .node.orphan rect  { stroke: var(--err);  stroke-dasharray: 4 3; }
+    .node.dim { opacity: 0.35; }
+
+    .edge { fill: none; stroke: var(--muted); stroke-width: 1.6; }
+    .edge.guard { stroke: var(--accent2); stroke-dasharray: 6 4; }
+    .edge.hi   { stroke: var(--accent); stroke-width: 2.4; }
+    .edge.dim  { opacity: 0.14; }
+    .edge-label { fill: var(--accent2); font-size: 10px; font-family: ui-monospace, monospace; pointer-events: none; }
+    .edge-label-bg { fill: var(--bg); opacity: 0.85; }
+    .edge-label.dim, .edge-label-bg.dim { opacity: 0.12; }
+
+    /* ---- right panel ---- */
+    .summary { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px; }
+    .summary .card {
+      padding: 11px 12px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 10px; text-align: center;
+    }
+    .summary .label { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+    .summary .val { font-size: 22px; font-weight: 700; color: var(--info); margin-top: 3px; }
+    .summary .card.warn .val { color: var(--warn); }
+    .summary .card.issue .val { color: var(--good); }
+    .summary .card.issue.has .val { color: var(--err); }
+
+    .state-list { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow: auto; }
+    .state-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 10px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 8px; cursor: pointer;
+      transition: border-color 0.12s ease, background 0.12s ease;
+    }
+    .state-row:hover { border-color: var(--accent); }
+    .state-row.selected { border-color: var(--accent); background: rgba(233,69,96,0.08); }
+    .state-row .sname { font-family: ui-monospace, monospace; font-size: 13px; font-weight: 600; flex: 1; }
+    .state-row .out { font-size: 11px; color: var(--muted); font-family: ui-monospace, monospace; }
+    .flag {
+      font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+      padding: 2px 6px; border-radius: 999px;
+    }
+    .flag.deadend { background: rgba(251,191,36,0.16); color: var(--warn); }
+    .flag.orphan  { background: rgba(248,113,113,0.16); color: var(--err); }
+
+    .detail {
+      margin-top: 14px; padding: 14px;
+      background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+      font-size: 13px;
+    }
+    .detail .dtitle { font-family: ui-monospace, monospace; font-weight: 700; font-size: 15px; color: var(--accent2); margin-bottom: 4px; }
+    .detail .dsub { color: var(--muted); font-size: 11px; margin-bottom: 12px; }
+    .target-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 0; border-top: 1px solid rgba(255,255,255,0.05);
+      font-family: ui-monospace, monospace; font-size: 12px;
+    }
+    .target-row .arrow { color: var(--muted); }
+    .target-row .tname { color: var(--good); }
+    .guard-chip {
+      margin-left: auto;
+      font-size: 10px; padding: 2px 8px; border-radius: 999px;
+      background: rgba(240,100,138,0.16); color: var(--accent2);
+      font-family: ui-monospace, monospace;
+    }
+    .detail .none { color: var(--warn); font-size: 12px; padding-top: 6px; }
+    .detail .incoming { margin-top: 12px; font-size: 11px; color: var(--muted); }
+
+    .empty {
+      text-align: center; padding: 28px 14px;
+      color: var(--muted); font-size: 12px;
+      border: 1px dashed var(--border); border-radius: 10px;
+    }
+
+    .credit { padding: 14px 28px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); line-height: 1.6; }
+    .credit code { color: var(--accent2); }
+    .credit a { color: var(--accent2); text-decoration: none; }
+    .credit a:hover { text-decoration: underline; }
+
+    @media (max-width: 1100px) { main { grid-template-columns: 1fr; padding: 14px; } .svg-wrap { min-height: 420px; } }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>State Machine Visualizer</h1>
+  <span class="badge">v1.3.0</span>
+  <span class="hint">See your superstructure — states, legal edges, guards — without a laptop-side debugger.</span>
+  <a href="../" class="back">← Catalyst tools</a>
+</header>
+
+<main>
+  <!-- ------------------------------------------------ INPUT -->
+  <div class="left">
+    <h2>Paste the logged graph</h2>
+    <div class="seg-mode">
+      <button class="seg-btn active" data-mode="dot">DOT string</button>
+      <button class="seg-btn" data-mode="arrays">States + Edges</button>
+    </div>
+
+    <div class="field" id="dotField">
+      <label>Value of <code style="color:var(--accent2)">/Catalyst/&lt;prefix&gt;/Graph/Dot</code></label>
+      <textarea id="dotInput" rows="14" spellcheck="false" placeholder="digraph Superstructure {&#10;  rankdir=LR;&#10;  STOW;&#10;  STOW -> INTAKE;&#10;  ...&#10;}"></textarea>
+    </div>
+
+    <div class="field hidden" id="arraysField">
+      <label>Value of <code style="color:var(--accent2)">Graph/States</code> — one name per line</label>
+      <textarea id="statesInput" rows="6" spellcheck="false" placeholder="STOW&#10;INTAKE&#10;AIM"></textarea>
+      <label style="margin-top:10px">Value of <code style="color:var(--accent2)">Graph/Edges</code> — one per line</label>
+      <textarea id="edgesInput" rows="8" spellcheck="false" placeholder="STOW->INTAKE|cost=1.0&#10;AIM->SHOOT|cost=1.0|guard=hasNote"></textarea>
+    </div>
+
+    <div class="actions">
+      <button class="btn" id="renderBtn">Render</button>
+      <button class="btn ghost" id="exampleBtn">Load example</button>
+      <button class="btn ghost" id="clearBtn">Clear</button>
+    </div>
+    <div id="parseMsg"></div>
+  </div>
+
+  <!-- ------------------------------------------------ DIAGRAM -->
+  <div class="center">
+    <div class="diagram-toolbar">
+      <div class="seg-mode" style="width:auto;margin:0">
+        <button class="seg-btn active" data-layout="force">Force layout</button>
+        <button class="seg-btn" data-layout="circle">Circular</button>
+      </div>
+      <div class="spacer"></div>
+      <div class="legend">
+        <span class="lg"><span class="swatch"></span>edge</span>
+        <span class="lg"><span class="swatch guard"></span>guarded</span>
+        <span class="lg"><span class="swatch node"></span>state</span>
+        <span class="lg"><span class="swatch issue"></span>dead-end / no way in</span>
+      </div>
+    </div>
+    <div class="svg-wrap" id="svgWrap">
+      <svg id="svg" viewBox="0 0 900 620" preserveAspectRatio="xMidYMid meet"></svg>
+      <div class="svg-empty" id="svgEmpty" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- ------------------------------------------------ STATE LIST -->
+  <div class="right">
+    <h2>Overview</h2>
+    <div class="summary">
+      <div class="card"><div class="label">States</div><div class="val" id="sumStates">0</div></div>
+      <div class="card"><div class="label">Edges</div><div class="val" id="sumEdges">0</div></div>
+      <div class="card warn"><div class="label">Guarded</div><div class="val" id="sumGuarded">0</div></div>
+      <div class="card issue" id="issueCard"><div class="label">Issues</div><div class="val" id="sumIssues">0</div></div>
+    </div>
+
+    <h2>States</h2>
+    <div class="state-list" id="stateList"></div>
+    <div class="empty" id="stateEmpty">Nothing parsed yet.</div>
+
+    <div class="detail" id="detail" style="display:none"></div>
+  </div>
+</main>
+
+<div class="credit">
+  Reads what a running robot already logs — the <code>Graph/Dot</code> string, or the <code>Graph/States</code> and
+  <code>Graph/Edges</code> arrays under <code>/Catalyst/&lt;prefix&gt;/</code>. Edge format is
+  <code>STOW-&gt;AIM|cost=1.0|guard=endgame</code>, exactly as <code>StateGraph.describeEdges()</code> emits it.
+  A state with no way out is a <span style="color:var(--warn)">dead-end</span>; a state nothing transitions into has
+  <span style="color:var(--err)">no way in</span> — both are usually a missing edge you meant to declare.
+  Runs entirely in your browser; nothing is uploaded.
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+
+  // ---------------------------------------------------------------
+  // Built-in example — a small superstructure. Shipped as DOT so the
+  // tool is useful the moment you open it with nothing pasted.
+  // ---------------------------------------------------------------
+  const EXAMPLE_DOT =
+`digraph Superstructure {
+  rankdir=LR;
+  node [shape=box, style=rounded];
+  STOW;
+  INTAKE;
+  HANDOFF;
+  AIM;
+  SHOOT;
+  CLIMB_READY;
+  CLIMB;
+  STOW -> INTAKE;
+  INTAKE -> STOW;
+  INTAKE -> HANDOFF;
+  HANDOFF -> STOW;
+  HANDOFF -> AIM;
+  AIM -> SHOOT [label="hasNote"];
+  SHOOT -> AIM;
+  AIM -> STOW;
+  STOW -> CLIMB_READY [label="endgame"];
+  CLIMB_READY -> CLIMB [label="aligned"];
+  CLIMB -> CLIMB_READY;
+}`;
+
+  const EXAMPLE_STATES = "STOW\nINTAKE\nHANDOFF\nAIM\nSHOOT\nCLIMB_READY\nCLIMB";
+  const EXAMPLE_EDGES =
+`STOW->INTAKE|cost=1.0
+INTAKE->STOW|cost=1.0
+INTAKE->HANDOFF|cost=1.0
+HANDOFF->STOW|cost=1.0
+HANDOFF->AIM|cost=1.0
+AIM->SHOOT|cost=1.0|guard=hasNote
+SHOOT->AIM|cost=1.0
+AIM->STOW|cost=1.0
+STOW->CLIMB_READY|cost=2.0|guard=endgame
+CLIMB_READY->CLIMB|cost=1.0|guard=aligned
+CLIMB->CLIMB_READY|cost=1.0`;
+
+  // ---------------------------------------------------------------
+  // State
+  // ---------------------------------------------------------------
+  let inputMode = "dot";        // "dot" | "arrays"
+  let layoutMode = "force";     // "force" | "circle"
+  let model = { states: [], edges: [] };   // edges: {from,to,guard,cost}
+  let positions = {};           // stateName -> {x,y}
+  let dims = {};                // stateName -> {w,h}
+  let selected = null;
+
+  const escapeHtml = s => String(s).replace(/[&<>"']/g,
+    c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+
+  // ---------------------------------------------------------------
+  // Parsing
+  // ---------------------------------------------------------------
+  function isDot(text) { return /^\s*(strict\s+)?digraph\b/i.test(text); }
+
+  // Parse the Graphviz DOT that StateGraph.toDot() produces.
+  function parseDot(text) {
+    const states = [];
+    const stateSet = new Set();
+    const edges = [];
+    const addState = n => { if (n && !stateSet.has(n)) { stateSet.add(n); states.push(n); } };
+
+    // Strip the "digraph NAME {" wrapper and trailing "}".
+    let body = text.replace(/^[\s\S]*?\{/, "").replace(/\}\s*$/, "");
+    // Split into statements on ';' and newlines.
+    const stmts = body.split(/[;\n]/).map(s => s.trim()).filter(Boolean);
+    const edgeRe = /^([A-Za-z_][A-Za-z0-9_]*)\s*->\s*([A-Za-z_][A-Za-z0-9_]*)\s*(\[(.*)\])?$/;
+    const nodeRe = /^([A-Za-z_][A-Za-z0-9_]*)\s*(\[(.*)\])?$/;
+
+    for (const s of stmts) {
+      // Skip graph-level attribute statements.
+      if (/^(rankdir|node|edge|graph)\b/i.test(s)) continue;
+      let m = s.match(edgeRe);
+      if (m) {
+        const from = m[1], to = m[2];
+        addState(from); addState(to);
+        let guard = "";
+        if (m[4]) {
+          const lm = m[4].match(/label\s*=\s*"([^"]*)"/);
+          if (lm) guard = lm[1];
+        }
+        edges.push({ from, to, guard, cost: null });
+        continue;
+      }
+      m = s.match(nodeRe);
+      if (m) { addState(m[1]); continue; }
+    }
+    return { states, edges };
+  }
+
+  // Parse the two String[] arrays the engine logs.
+  function parseArrays(statesText, edgesText) {
+    const states = [];
+    const stateSet = new Set();
+    const addState = n => { if (n && !stateSet.has(n)) { stateSet.add(n); states.push(n); } };
+
+    statesText.split(/\n/).map(l => l.trim()).filter(Boolean).forEach(addState);
+
+    const edges = [];
+    const lines = edgesText.split(/\n/).map(l => l.trim()).filter(Boolean);
+    for (const line of lines) {
+      const parts = line.split("|");
+      const ends = parts[0].match(/^([A-Za-z_][A-Za-z0-9_]*)\s*->\s*([A-Za-z_][A-Za-z0-9_]*)$/);
+      if (!ends) continue;
+      const from = ends[1], to = ends[2];
+      addState(from); addState(to);
+      let guard = "", cost = null;
+      for (let i = 1; i < parts.length; i++) {
+        const kv = parts[i].split("=");
+        const k = kv[0].trim().toLowerCase();
+        const v = (kv[1] || "").trim();
+        if (k === "guard") guard = v;
+        else if (k === "cost") cost = parseFloat(v);
+      }
+      edges.push({ from, to, guard, cost });
+    }
+    return { states, edges };
+  }
+
+  function setMsg(kind, html) {
+    const el = $("parseMsg");
+    if (!kind) { el.innerHTML = ""; el.className = ""; return; }
+    el.className = "parse-msg " + kind;
+    el.innerHTML = html;
+  }
+
+  function doParse() {
+    try {
+      let parsed;
+      if (inputMode === "dot") {
+        const text = $("dotInput").value;
+        if (!text.trim()) { showEmpty("Paste the <code>Graph/Dot</code> string on the left, or click <b>Load example</b>."); return; }
+        if (!isDot(text)) {
+          // Be forgiving: if it looks like edge lines, parse them as edges.
+          if (/->/.test(text)) {
+            parsed = parseArrays("", text);
+            setMsg("ok", "No <code>digraph</code> header found — parsed the lines as edges instead.");
+          } else {
+            showEmpty("That does not look like a DOT graph. A <code>Graph/Dot</code> value starts with <code>digraph</code>.");
+            setMsg("err", "Could not detect a <code>digraph</code>. Switch to <b>States + Edges</b> if you pasted the arrays.");
+            return;
+          }
+        } else {
+          parsed = parseDot(text);
+          setMsg(null);
+        }
+      } else {
+        const st = $("statesInput").value, ed = $("edgesInput").value;
+        if (!st.trim() && !ed.trim()) { showEmpty("Paste <code>Graph/States</code> and <code>Graph/Edges</code>, or click <b>Load example</b>."); return; }
+        parsed = parseArrays(st, ed);
+        setMsg(null);
+      }
+
+      if (!parsed || parsed.states.length === 0) {
+        showEmpty("Parsed successfully, but found no states. Check that you pasted the right key.");
+        setMsg("err", "No states found in that input.");
+        model = { states: [], edges: [] };
+        renderSidebar();
+        return;
+      }
+
+      model = parsed;
+      selected = null;
+      computeLayout();
+      renderAll();
+      const g = model.edges.filter(e => e.guard).length;
+      setMsg("ok", `Parsed <b>${model.states.length}</b> state${model.states.length===1?"":"s"} and <b>${model.edges.length}</b> edge${model.edges.length===1?"":"s"}${g?` (${g} guarded)`:""}.`);
+    } catch (err) {
+      showEmpty("Something went wrong parsing that input.");
+      setMsg("err", "Parse error: " + escapeHtml(err.message));
+    }
+  }
+
+  function showEmpty(html) {
+    $("svg").innerHTML = "";
+    $("svgEmpty").style.display = "flex";
+    $("svgEmpty").innerHTML = html;
+  }
+
+  // ---------------------------------------------------------------
+  // Layout — deterministic. Circular seed, optional force relaxation.
+  // ---------------------------------------------------------------
+  const W = 900, H = 620;
+
+  function nodeDims(name) {
+    const w = Math.max(72, name.length * 8.4 + 22);
+    return { w, h: 34 };
+  }
+
+  function computeLayout() {
+    dims = {};
+    model.states.forEach(s => dims[s] = nodeDims(s));
+
+    const n = model.states.length;
+    const cx = W / 2, cy = H / 2;
+    const R = Math.max(120, Math.min(W, H) / 2 - 90);
+    const pos = {};
+    model.states.forEach((s, i) => {
+      const a = -Math.PI / 2 + i * 2 * Math.PI / Math.max(1, n);
+      pos[s] = { x: cx + R * Math.cos(a), y: cy + R * Math.sin(a) };
+    });
+
+    if (layoutMode === "force" && n > 1) {
+      const idx = model.states;
+      const k = R * 1.5;
+      const ITER = 320;
+      for (let it = 0; it < ITER; it++) {
+        const disp = {};
+        idx.forEach(s => disp[s] = { x: 0, y: 0 });
+        // Repulsion between every pair.
+        for (let i = 0; i < n; i++) {
+          for (let j = i + 1; j < n; j++) {
+            const a = idx[i], b = idx[j];
+            let dx = pos[a].x - pos[b].x, dy = pos[a].y - pos[b].y;
+            let d = Math.hypot(dx, dy) || 0.01;
+            const rep = (k * k) / d / 6;
+            dx /= d; dy /= d;
+            disp[a].x += dx * rep; disp[a].y += dy * rep;
+            disp[b].x -= dx * rep; disp[b].y -= dy * rep;
+          }
+        }
+        // Attraction along edges.
+        for (const e of model.edges) {
+          if (e.from === e.to || !pos[e.from] || !pos[e.to]) continue;
+          let dx = pos[e.from].x - pos[e.to].x, dy = pos[e.from].y - pos[e.to].y;
+          let d = Math.hypot(dx, dy) || 0.01;
+          const att = (d * d) / k / 13;
+          dx /= d; dy /= d;
+          disp[e.from].x -= dx * att; disp[e.from].y -= dy * att;
+          disp[e.to].x   += dx * att; disp[e.to].y   += dy * att;
+        }
+        const temp = 9 * (1 - it / ITER) + 0.4;
+        for (const s of idx) {
+          let dx = disp[s].x, dy = disp[s].y;
+          let d = Math.hypot(dx, dy) || 0.01;
+          pos[s].x += dx / d * Math.min(d, temp);
+          pos[s].y += dy / d * Math.min(d, temp);
+          pos[s].x = Math.max(70, Math.min(W - 70, pos[s].x));
+          pos[s].y = Math.max(46, Math.min(H - 46, pos[s].y));
+        }
+      }
+      // Re-center the relaxed cloud.
+      let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
+      idx.forEach(s => {
+        minx = Math.min(minx, pos[s].x); maxx = Math.max(maxx, pos[s].x);
+        miny = Math.min(miny, pos[s].y); maxy = Math.max(maxy, pos[s].y);
+      });
+      const ox = (W - (minx + maxx)) / 2, oy = (H - (miny + maxy)) / 2;
+      idx.forEach(s => { pos[s].x += ox; pos[s].y += oy; });
+    }
+    positions = pos;
+  }
+
+  // Clip the segment from rect-center c out toward point p to the rect border.
+  function clipRect(c, w, h, p) {
+    const dx = p.x - c.x, dy = p.y - c.y;
+    if (dx === 0 && dy === 0) return { x: c.x, y: c.y };
+    const hw = w / 2 + 2, hh = h / 2 + 2;
+    const sx = dx === 0 ? Infinity : hw / Math.abs(dx);
+    const sy = dy === 0 ? Infinity : hh / Math.abs(dy);
+    const s = Math.min(sx, sy);
+    return { x: c.x + dx * s, y: c.y + dy * s };
+  }
+
+  // ---------------------------------------------------------------
+  // Graph analysis — what is missing
+  // ---------------------------------------------------------------
+  function analysis() {
+    const out = {}, inn = {};
+    model.states.forEach(s => { out[s] = []; inn[s] = []; });
+    for (const e of model.edges) {
+      if (out[e.from]) out[e.from].push(e);
+      if (inn[e.to]) inn[e.to].push(e);
+    }
+    const deadend = new Set(), orphan = new Set();
+    model.states.forEach(s => {
+      // A self-loop is not a real way out, so ignore it for dead-end detection.
+      if (out[s].filter(e => e.to !== s).length === 0) deadend.add(s);
+      if (inn[s].filter(e => e.from !== s).length === 0) orphan.add(s);
+    });
+    return { out, inn, deadend, orphan };
+  }
+
+  // ---------------------------------------------------------------
+  // Rendering
+  // ---------------------------------------------------------------
+  function renderAll() { renderDiagram(); renderSidebar(); renderDetail(); }
+
+  function renderDiagram() {
+    const svg = $("svg");
+    if (model.states.length === 0) { showEmpty("Nothing to draw yet."); return; }
+    $("svgEmpty").style.display = "none";
+
+    const { deadend, orphan } = analysis();
+    // Detect bidirectional pairs so we can bow them apart.
+    const pairSet = new Set(model.edges.map(e => e.from + " " + e.to));
+    const NS = "http://www.w3.org/2000/svg";
+
+    let defs = `<defs>
+      <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#8a8aa8"/></marker>
+      <marker id="arrowGuard" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#f0648a"/></marker>
+      <marker id="arrowHi" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#e94560"/></marker>
+    </defs>`;
+
+    let edgeSvg = "", labelSvg = "";
+    model.edges.forEach((e, i) => {
+      const a = positions[e.from], b = positions[e.to];
+      if (!a || !b) return;
+      const da = dims[e.from], db = dims[e.to];
+      const cls = ["edge"];
+      if (e.guard) cls.push("guard");
+      let marker = e.guard ? "arrowGuard" : "arrow";
+
+      let d, lx, ly;
+      if (e.from === e.to) {
+        // Self-loop above the node.
+        const cx = a.x, top = a.y - da.h / 2;
+        const s = { x: cx - 16, y: top }, t = { x: cx + 16, y: top };
+        d = `M ${s.x} ${s.y} C ${cx - 40} ${top - 60}, ${cx + 40} ${top - 60}, ${t.x} ${t.y}`;
+        lx = cx; ly = top - 52;
+      } else {
+        const start = clipRect(a, da.w, da.h, b);
+        const end = clipRect(b, db.w, db.h, a);
+        const mx = (start.x + end.x) / 2, my = (start.y + end.y) / 2;
+        // Bow curve if the reverse edge also exists.
+        const hasReverse = pairSet.has(e.to + " " + e.from);
+        let ctrlX = mx, ctrlY = my;
+        if (hasReverse) {
+          const dx = end.x - start.x, dy = end.y - start.y;
+          const len = Math.hypot(dx, dy) || 1;
+          const nx = -dy / len, ny = dx / len;
+          // Consistent side per ordered pair so the two arcs separate.
+          const sign = e.from < e.to ? 1 : -1;
+          const off = 26 * sign;
+          ctrlX = mx + nx * off; ctrlY = my + ny * off;
+        }
+        d = `M ${start.x} ${start.y} Q ${ctrlX} ${ctrlY} ${end.x} ${end.y}`;
+        lx = (start.x + 2 * ctrlX + end.x) / 4;
+        ly = (start.y + 2 * ctrlY + end.y) / 4;
+      }
+
+      edgeSvg += `<path class="${cls.join(" ")}" data-i="${i}" data-from="${escapeHtml(e.from)}" d="${d}" marker-end="url(#${marker})" data-marker="${marker}"></path>`;
+
+      if (e.guard) {
+        const w = e.guard.length * 6 + 8;
+        labelSvg += `<g data-lbl="${i}">
+          <rect class="edge-label-bg" x="${lx - w/2}" y="${ly - 8}" width="${w}" height="14" rx="3"></rect>
+          <text class="edge-label" x="${lx}" y="${ly + 3}" text-anchor="middle">${escapeHtml(e.guard)}</text></g>`;
+      }
+    });
+
+    let nodeSvg = "";
+    model.states.forEach(s => {
+      const p = positions[s], dm = dims[s];
+      const cls = ["node"];
+      if (deadend.has(s)) cls.push("deadend");
+      if (orphan.has(s)) cls.push("orphan");
+      nodeSvg += `<g class="${cls.join(" ")}" data-state="${escapeHtml(s)}">
+        <rect x="${p.x - dm.w/2}" y="${p.y - dm.h/2}" width="${dm.w}" height="${dm.h}" rx="8"></rect>
+        <text x="${p.x}" y="${p.y + 4.5}" text-anchor="middle">${escapeHtml(s)}</text></g>`;
+    });
+
+    svg.innerHTML = defs + edgeSvg + labelSvg + nodeSvg;
+
+    // Wire node clicks.
+    svg.querySelectorAll(".node").forEach(g => {
+      g.addEventListener("click", ev => {
+        ev.stopPropagation();
+        const s = g.getAttribute("data-state");
+        selectState(selected === s ? null : s);
+      });
+    });
+    applyHighlight();
+  }
+
+  function applyHighlight() {
+    const svg = $("svg");
+    const { out } = analysis();
+    const targets = selected ? new Set(out[selected].map(e => e.to)) : new Set();
+
+    svg.querySelectorAll(".node").forEach(g => {
+      const s = g.getAttribute("data-state");
+      g.classList.toggle("selected", selected === s);
+      g.classList.toggle("target", !!selected && targets.has(s) && s !== selected);
+      g.classList.toggle("dim", !!selected && s !== selected && !targets.has(s));
+    });
+    svg.querySelectorAll(".edge").forEach(p => {
+      const from = p.getAttribute("data-from");
+      const baseMarker = p.getAttribute("data-marker");
+      const hi = selected && from === selected;
+      const dim = selected && from !== selected;
+      p.classList.toggle("hi", !!hi);
+      p.classList.toggle("dim", !!dim);
+      p.setAttribute("marker-end", `url(#${hi ? "arrowHi" : baseMarker})`);
+    });
+    svg.querySelectorAll("[data-lbl]").forEach(g => {
+      const i = +g.getAttribute("data-lbl");
+      const e = model.edges[i];
+      const dim = selected && e.from !== selected;
+      g.querySelector(".edge-label").classList.toggle("dim", !!dim);
+      g.querySelector(".edge-label-bg").classList.toggle("dim", !!dim);
+    });
+  }
+
+  function selectState(s) {
+    selected = s;
+    applyHighlight();
+    renderSidebar();
+    renderDetail();
+  }
+
+  function renderSidebar() {
+    const { out, deadend, orphan } = model.states.length ? analysis() : { out: {}, deadend: new Set(), orphan: new Set() };
+    $("sumStates").textContent = model.states.length;
+    $("sumEdges").textContent = model.edges.length;
+    $("sumGuarded").textContent = model.edges.filter(e => e.guard).length;
+    const issues = new Set([...deadend, ...orphan]).size;
+    $("sumIssues").textContent = issues;
+    $("issueCard").classList.toggle("has", issues > 0);
+
+    const list = $("stateList");
+    if (model.states.length === 0) {
+      list.innerHTML = "";
+      $("stateEmpty").style.display = "";
+      return;
+    }
+    $("stateEmpty").style.display = "none";
+    list.innerHTML = model.states.map(s => {
+      const outCount = out[s].filter(e => e.to !== s).length;
+      const flags = [];
+      if (deadend.has(s)) flags.push('<span class="flag deadend">dead-end</span>');
+      if (orphan.has(s)) flags.push('<span class="flag orphan">no way in</span>');
+      return `<div class="state-row ${selected === s ? "selected" : ""}" data-state="${escapeHtml(s)}">
+        <span class="sname">${escapeHtml(s)}</span>
+        ${flags.join("")}
+        <span class="out">${outCount}→</span>
+      </div>`;
+    }).join("");
+    list.querySelectorAll(".state-row").forEach(r => {
+      r.addEventListener("click", () => {
+        const s = r.getAttribute("data-state");
+        selectState(selected === s ? null : s);
+      });
+    });
+  }
+
+  function renderDetail() {
+    const el = $("detail");
+    if (!selected || model.states.length === 0) { el.style.display = "none"; return; }
+    const { out, inn, deadend } = analysis();
+    el.style.display = "";
+    const outs = out[selected];
+    const ins = inn[selected];
+    let body = `<div class="dtitle">${escapeHtml(selected)}</div>
+      <div class="dsub">${outs.length} legal target${outs.length===1?"":"s"} · ${ins.length} incoming</div>`;
+    if (outs.filter(e => e.to !== selected).length === 0) {
+      body += `<div class="none">⚠ Dead-end — no declared way out. If the robot can enter this state it can never leave it. Did you forget an edge?</div>`;
+    }
+    body += outs.map(e => `<div class="target-row">
+        <span class="arrow">→</span>
+        <span class="tname">${escapeHtml(e.to)}${e.to === selected ? " (self)" : ""}</span>
+        ${e.guard ? `<span class="guard-chip">guard: ${escapeHtml(e.guard)}</span>` : (e.cost != null ? `<span class="guard-chip" style="background:rgba(96,165,250,0.14);color:var(--info)">cost ${e.cost}</span>` : "")}
+      </div>`).join("");
+    const inNames = ins.map(e => e.from).filter(f => f !== selected);
+    body += `<div class="incoming">${inNames.length ? "Reached from: " + inNames.map(escapeHtml).join(", ") : "Nothing transitions into this state — no way in."}</div>`;
+    el.innerHTML = body;
+  }
+
+  // ---------------------------------------------------------------
+  // UI wiring
+  // ---------------------------------------------------------------
+  document.querySelectorAll("[data-mode]").forEach(b => {
+    b.addEventListener("click", () => {
+      document.querySelectorAll("[data-mode]").forEach(x => x.classList.remove("active"));
+      b.classList.add("active");
+      inputMode = b.dataset.mode;
+      $("dotField").classList.toggle("hidden", inputMode !== "dot");
+      $("arraysField").classList.toggle("hidden", inputMode !== "arrays");
+    });
+  });
+
+  document.querySelectorAll("[data-layout]").forEach(b => {
+    b.addEventListener("click", () => {
+      document.querySelectorAll("[data-layout]").forEach(x => x.classList.remove("active"));
+      b.classList.add("active");
+      layoutMode = b.dataset.layout;
+      if (model.states.length) { computeLayout(); renderDiagram(); applyHighlight(); }
+    });
+  });
+
+  $("renderBtn").addEventListener("click", doParse);
+  $("svgWrap").addEventListener("click", ev => { if (ev.target.id === "svg" || ev.target.classList.contains("svg-wrap")) selectState(null); });
+
+  $("exampleBtn").addEventListener("click", () => {
+    $("dotInput").value = EXAMPLE_DOT;
+    $("statesInput").value = EXAMPLE_STATES;
+    $("edgesInput").value = EXAMPLE_EDGES;
+    doParse();
+  });
+
+  $("clearBtn").addEventListener("click", () => {
+    $("dotInput").value = ""; $("statesInput").value = ""; $("edgesInput").value = "";
+    model = { states: [], edges: [] }; selected = null;
+    renderSidebar(); renderDetail();
+    showEmpty("Cleared. Paste a graph on the left, or click <b>Load example</b>.");
+    setMsg(null);
+  });
+
+  // Boot with the example so the tool is useful on first open.
+  $("dotInput").value = EXAMPLE_DOT;
+  $("statesInput").value = EXAMPLE_STATES;
+  $("edgesInput").value = EXAMPLE_EDGES;
+  doParse();
+</script>
+</body>
+</html>

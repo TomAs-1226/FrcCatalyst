@@ -12,9 +12,16 @@ import frc.lib.catalyst.mechanisms.LinearMechanism;
 import frc.lib.catalyst.mechanisms.PneumaticMechanism;
 import frc.lib.catalyst.mechanisms.RollerMechanism;
 import frc.lib.catalyst.mechanisms.RotationalMechanism;
+import frc.lib.catalyst.mechanisms.ServoMechanism;
 import frc.lib.catalyst.mechanisms.TurretMechanism;
 import frc.lib.catalyst.mechanisms.WinchMechanism;
 import frc.lib.catalyst.sim.SimDashboard;
+import frc.lib.catalyst.statemachine.Handle;
+import frc.lib.catalyst.statemachine.goals.ServoGoal;
+import frc.lib.catalyst.statemachine.mech.Mechanisms;
+import frc.lib.catalyst.statemachine.robot.Superstructure;
+
+import java.util.List;
 
 /**
  * A self-contained demonstration of the <b>generic</b> {@link SimDashboard}.
@@ -155,6 +162,27 @@ public final class MechanismShowcase {
                     .doubleSolenoid(PneumaticsModuleType.REVPH, 6, 7)
                     .build());
 
+    // A PWM servo (new in 1.3.0). Here it is a shooter hood — no slider of its own, because a tiny
+    // state machine below OWNS it, which lets the same panel show off both the ServoMechanism and the
+    // live state-machine dashboard panel at once.
+    private final ServoMechanism hood = new ServoMechanism(
+            ServoMechanism.Config.builder()
+                    .name("Hood")
+                    .channel(0)
+                    .angleRange(15, 55)
+                    .position("CLOSE", 15)
+                    .position("MID", 35)
+                    .position("FAR", 55)
+                    .build());
+
+    /** The three hood positions the demo state machine can be in. */
+    private enum HoodState { CLOSE, MID, FAR }
+
+    // A minimal, self-contained Superstructure over the single servo. It shows the state machine
+    // working (routing, guarding, arriving) and feeds the live explain() panel — without fighting
+    // any of the mechanism sliders, since the servo is the only thing it owns.
+    private final Superstructure<HoodState> hoodMachine;
+
     public MechanismShowcase() {
         dash.add(elevator)
                 .slider("Height (m)", 0.0, 0.60, v -> sched(elevator.goTo(v)))
@@ -205,6 +233,32 @@ public final class MechanismShowcase {
                 .command("Retract", solenoid::retract)
                 .command("Off", solenoid::off)
                 .command("Toggle", solenoid::toggle);
+
+        // --- New in 1.3.0: a servo, and a tiny state machine that drives it, shown live. ---
+        // The state machine OWNS the hood servo (its GoalRunner is the servo's default command), so
+        // clicking a state button requests that state and the machine drives the servo there — while
+        // the "Hood State Machine" panel below shows exactly what the engine is thinking, which is the
+        // answer to "how do I debug this thing" (issue #29).
+        Superstructure.Builder<HoodState> b = Superstructure.builder(HoodState.class, "Hood");
+        Handle<ServoGoal> h = b.bind("hood", Mechanisms.servo(hood));
+        Superstructure<HoodState> sm = b
+                .state(HoodState.CLOSE, s -> s.set(h, ServoGoal.preset("CLOSE")))
+                .state(HoodState.MID, s -> s.set(h, ServoGoal.preset("MID")))
+                .state(HoodState.FAR, s -> s.set(h, ServoGoal.preset("FAR")))
+                .hub(HoodState.MID)                 // MID connects to CLOSE and FAR both ways
+                .allowBoth(HoodState.CLOSE, HoodState.FAR)
+                .build();
+        sm.engine().seed(HoodState.CLOSE);
+        this.hoodMachine = sm;
+
+        dash.add(hood)
+                .command("-> CLOSE", () -> hoodMachine.goTo(HoodState.CLOSE))
+                .command("-> MID", () -> hoodMachine.goTo(HoodState.MID))
+                .command("-> FAR", () -> hoodMachine.goTo(HoodState.FAR));
+
+        // The live state-machine panel: the engine.explain() dump, refreshed every loop.
+        dash.statusPanel("Hood State Machine",
+                () -> java.util.Arrays.asList(hoodMachine.explain().split("\n")));
 
         dash.start();
     }

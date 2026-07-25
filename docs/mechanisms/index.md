@@ -16,7 +16,7 @@ has_children: false
 
 ---
 
-FrcCatalyst provides nine generic mechanism types that cover virtually every FRC subsystem. Each mechanism extends `CatalystMechanism` (which extends WPILib's `SubsystemBase`) and provides:
+FrcCatalyst provides ten generic mechanism types that cover virtually every FRC subsystem. Each mechanism extends `CatalystMechanism` (which extends WPILib's `SubsystemBase`) and provides:
 
 - **Builder-pattern configuration** with validation and sensible defaults
 - **Two control modes**: CTRE Motion Magic (on TalonFX) or WPILib ProfiledPID (on roboRIO)
@@ -42,6 +42,7 @@ FrcCatalyst provides nine generic mechanism types that cover virtually every FRC
 | **ClawMechanism** | Motor-driven grippers | N/A (duty cycle) | Open-loop + stall / beam-break |
 | **DifferentialWristMechanism** | Diffy wrists (2-motor pitch+roll) | Degrees (pitch, roll) | Phoenix-6 native differential Motion Magic |
 | **PneumaticMechanism** | Solenoids / pistons | FORWARD / REVERSE / OFF | DoubleSolenoid + optional pressure gate |
+| **ServoMechanism** | PWM servos (hoods, ratchet releases, funnel flappers) | Degrees | Open-loop PWM + named positions |
 
 ## Self-describing & simulated
 

@@ -201,4 +201,26 @@ class StateMachineGraphTest {
         endgame[0] = true;
         assertTrue(sm.legalTargets().contains(St.CLIMB));
     }
+
+    @Test
+    void explainDumpsTheStructureAndLiveStatus() {
+        FakeClock clock = new FakeClock();
+        FakeBinding fake = new FakeBinding("elevator");
+        StateMachineCore<St> sm = fullyDeclared(clock, fake)
+                .hub(St.STOW)
+                .edge(St.STOW, St.CLIMB, e -> e.guard(() -> false, "endgame"))
+                .build();
+        sm.seed(St.STOW);
+        String text = sm.explain();
+
+        // The wiring half: names the machine, every state, and the guard.
+        assertTrue(text.contains("Graph"), "explain() should name the machine: " + text);
+        for (St s : St.values()) {
+            assertTrue(text.contains(s.name()), "explain() should list state " + s);
+        }
+        assertTrue(text.contains("endgame"), "explain() should surface guard reasons");
+        assertTrue(text.contains("elevator"), "explain() should list the bindings");
+        // The live half: names the current state.
+        assertTrue(text.contains("STOW"), "explain() should show the current state");
+    }
 }
