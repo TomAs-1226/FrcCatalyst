@@ -291,7 +291,17 @@ public final class FlywheelBinding implements Actuator<FlywheelGoal> {
      * @return {@code true} when the flywheel is chasing {@code goal}'s primary speed
      */
     private boolean pursuingSetpointOf(FlywheelGoal goal) {
-        return Math.abs(mechanism.getSetpoint() - goal.primaryRPS()) <= SETPOINT_MATCH_EPSILON_RPS;
+        if (Math.abs(mechanism.getSetpoint() - goal.primaryRPS()) > SETPOINT_MATCH_EPSILON_RPS) {
+            return false;
+        }
+        // When a two-wheel goal asks for a distinct secondary speed (backspin/topspin), corroborate
+        // the secondary setpoint too. Without this, two goals that share a primary but differ in spin
+        // are indistinguishable to atGoal, so isAt(otherState) would read true while the flywheel is
+        // actually on this state's spin — the same contamination avoided in the wrist/turret bindings.
+        if (goal.secondaryRPS() != goal.primaryRPS() && mechanism.getSecondaryMotor() != null) {
+            return Math.abs(mechanism.getSecondarySetpoint() - goal.secondaryRPS()) <= SETPOINT_MATCH_EPSILON_RPS;
+        }
+        return true;
     }
 
     /**

@@ -59,7 +59,7 @@ repositories {
 }
 
 dependencies {
-    implementation "com.github.TomAs-1226:FrcCatalyst:v1.3.0"
+    implementation "com.github.TomAs-1226:FrcCatalyst:v1.3.1"
 }
 ```
 </details>
@@ -99,6 +99,14 @@ operatorController.b().onTrue(elevator.goTo("STOW"));
 ```
 
 ---
+
+## v1.3.1: audit fixes
+
+A full adversarial audit of the library. Nine verified issues fixed — including two that could crash
+the robot loop (a throwing `zeroed()` escaping a rejected request; `Action.run(Command)` on reuse) —
+plus a state machine that now resumes a transition interrupted by a disable, and a `spinUpAndWait`
+that no longer stops the wheel just before a shot. One subtle swerve skew-sign discrepancy is
+reported for simulation review rather than flipped blind. See the [CHANGELOG](CHANGELOG.md).
 
 ## What's New in v1.3.0: an understandable state machine, servos, live debugging
 
@@ -829,7 +837,7 @@ double maxSpeed = config.estimateMaxSpeed();      // ~1.9 m/s
 
 ## Testing
 
-FrcCatalyst ships **76 JUnit tests** in `src/test`, run with `./gradlew test`:
+FrcCatalyst ships **78 JUnit tests** in `src/test`, run with `./gradlew test`:
 
 - **46 tests covering the state machine engine** — graph validation and refused transitions
   (`StateMachineGraphTest`), transition sequencing, staging and deadlines

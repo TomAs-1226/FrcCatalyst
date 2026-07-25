@@ -130,4 +130,50 @@ class StateMachineRobustnessTest {
                 "waitingOn must report the mechanism holding up the held goal: " + r.sm.waitingOn());
         assertTrue(r.sm.progress() < 1.0, "progress must reflect the held goal, not the confirmed state");
     }
+
+    @Test
+    void aThrowingZeroedRejectsCleanlyInsteadOfCrashingTheRequest() {
+        // A binding whose zeroed() throws (CANcoder off the bus) must produce a NOT_ZEROED rejection,
+        // not an exception out of request() — describeRejection re-checks zeroed() and must fail closed.
+        FakeClock clock = new FakeClock();
+        Binding<Double> exploding = new Binding<Double>() {
+            public String key() { return "arm"; }
+            public boolean atGoal(Double g, double s) { return true; }
+            public boolean zeroed() { throw new IllegalStateException("CANcoder off the bus"); }
+        };
+        StateMachineCore.Builder<St> b = StateMachineCore.builder(St.class, "Zeroed").clock(clock);
+        Handle<Double> h = b.bind("arm", exploding);
+        StateMachineCore<St> sm = b.initialState(St.STOW)
+                .state(St.STOW, s -> s.set(h, 0.0))
+                .state(St.MID, s -> s.set(h, 1.0))
+                .state(St.HIGH, s -> s.set(h, 2.0))
+                .state(St.INTAKE, s -> s.set(h, 0.1))
+                .state(St.CLIMB, s -> s.set(h, 0.0))
+                .hub(St.STOW)
+                .build();
+        sm.seed(St.STOW);
+        TransitionResult<St> result = sm.request(St.MID, "test");   // must not throw
+        assertTrue(result.rejected());
+        assertEquals(RejectReason.NOT_ZEROED, result.reason());
+    }
+
+    @Test
+    void disablingMidTransitionThenReenablingResumesIt() {
+        Rig r = new Rig(30.0);
+        r.sm.seed(St.STOW);
+        r.elevator.rate = 0.05;               // slow, so the transition is genuinely in flight
+        r.sm.request(St.MID, "go");
+        r.run(3);
+        assertTrue(r.sm.isTransitioning(), "precondition: a transition is in flight");
+
+        r.sm.setEnabled(false);
+        r.clock.advance(5.0);                 // a disabled stretch
+        r.sm.step();
+        r.sm.setEnabled(true);
+
+        assertTrue(r.sm.isTransitioning(),
+                "re-enabling mid-transition must RESUME it, not silently drop it");
+        r.run(300);
+        assertTrue(r.sm.isSettledAt(St.MID), "the resumed transition must complete");
+    }
 }

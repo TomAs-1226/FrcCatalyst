@@ -668,8 +668,16 @@ public final class StateMachineCore<S extends Enum<S>> {
             disabledSinceSeconds = Double.NaN;
         }
         this.enabled = enabled;
-        if (!enabled) phase = Phase.DISABLED;
-        else if (phase == Phase.DISABLED) phase = stateConfirmed ? Phase.HOLDING : Phase.IDLE;
+        if (!enabled) {
+            phase = Phase.DISABLED;
+        } else if (phase == Phase.DISABLED) {
+            // Resume, don't drop. A transition still in flight when the robot was disabled (route is
+            // non-empty) must go back to MOVING so step() keeps advancing it; otherwise
+            // isTransitioning() would be false, advanceTransition() would never run, and the
+            // mechanisms would silently fall back to the origin state's goals. The next step()
+            // re-derives SETTLING/HOLDING from the live sensors.
+            phase = !route.isEmpty() ? Phase.MOVING : (stateConfirmed ? Phase.HOLDING : Phase.IDLE);
+        }
     }
 
     /** Whether actuation is enabled. */
@@ -1032,7 +1040,11 @@ public final class StateMachineCore<S extends Enum<S>> {
                 if (gating != null) {
                     for (Handle<?> h : gating) {
                         Bound b = byHandle.get(h);
-                        if (!b.binding.zeroed()) return b.key + " has not been zeroed";
+                        // safeZeroed, not raw zeroed(): describeRejection runs inside request()/
+                        // requestDirect(), which are documented never to throw. A binding whose
+                        // zeroed() throws was already caught (fail-closed) by evaluate(); calling it
+                        // raw here would let it throw a second time straight out of the scheduler.
+                        if (!safeZeroed(b)) return b.key + " has not been zeroed";
                     }
                 }
                 return "a mechanism has not been zeroed";

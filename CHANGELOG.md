@@ -5,6 +5,50 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.1] — 2026-07-24 — Audit fixes
+
+A full adversarial audit of the library. Ten issues were raised and verified; nine are fixed here
+(the tenth is reported for review, see below). Additive and backward compatible.
+
+### Fixed
+
+- **A throwing `zeroed()` could crash the robot loop from a rejected request** (high). Inside
+  `StateMachineCore`, `describeRejection()` re-checked `Binding.zeroed()` unguarded while every other
+  call on the decision path used the fail-closed `safeZeroed(...)`. A binding whose `zeroed()` threw
+  (a CANcoder off the CAN bus) would throw a second time out of `request()` — documented never to
+  throw — and out of `CommandScheduler.run()`. Now guarded.
+- **`Action.run(Command)` could crash the robot loop on reuse** (high). The overload stores one
+  command instance, and `Action.toCommand()` composes it via `until(...)`; a second `toCommand()`
+  (an `Autopilot` cycle, a `Strategist` re-selection) threw "command already composed" out of the
+  scheduler. `toCommand()` now fails closed to a no-op instead of throwing, and the overload is
+  documented as single-use — use `run(Supplier<Command>)` for anything run more than once.
+- **Disabling mid-transition then re-enabling silently dropped the transition** (medium). The state
+  machine went to `HOLDING` on re-enable even with a transition still in flight, so it stopped
+  advancing and the mechanisms fell back to the origin state's goals. It now resumes the transition.
+- **`FlywheelBinding.atGoal` ignored the second wheel** (medium). Two dual-speed goals that shared a
+  primary speed but differed in spin (backspin/topspin) were indistinguishable to `isAt`. The
+  secondary setpoint is now corroborated too.
+- **`FlywheelMechanism.spinUpAndWait` stopped the wheel the instant it reached speed** (medium). It
+  was built on `spinUp`, whose `finallyDo` stops the motors; the `.until(atSpeed)` therefore cut the
+  wheel just before a shot. It now reaches speed and ends with the velocity latched.
+- **`AimingSolverVector` could emit `Infinity`/`NaN` RPS** (low). A 90-degree hood limit made the
+  clamp re-derivation divide by `sin(0)`; a zero efficiency or wheel diameter divided by zero. The
+  divisions are guarded and `efficiency`/`wheelDiameter` are validated at build.
+- **`GhostReplay` CSV round-trip broke under comma-decimal locales** (low). `save()` now formats with
+  `Locale.ROOT` to match `load()`'s `Double.parseDouble`.
+- **`AlertManager`'s own javadoc example grew alerts without bound** (low). It showed a message with a
+  live value; alerts de-duplicate by exact text, so that pattern never clears and grows the NT array.
+  The example and contract now make clear that alert text must be invariant.
+- **Corrected the `Actuator.pursueCommand` / `Superstructure` docs** (low) that claimed a build-time
+  requirements-subset probe which is not performed — it is a contract the binding must honour.
+
+### Reported, not changed
+
+- The `advancedDrive` skew correction rotates the command by `+omega*dt/2` while its own javadoc and
+  the standard pose-exponential correction say `-omega*dt/2`. The sign looks inverted, but it is a
+  subtle, convention-dependent, second-order effect; it is flagged for a combined translate-plus-rotate
+  simulation check rather than flipped blind.
+
 ## [1.3.0] — 2026-07-24 — Understandable state machine, servos, and live debugging
 
 Focused on making the state machine easy to read and debug (issue

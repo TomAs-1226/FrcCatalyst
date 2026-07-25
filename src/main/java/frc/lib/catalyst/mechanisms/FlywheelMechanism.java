@@ -314,9 +314,25 @@ public class FlywheelMechanism extends CatalystMechanism {
         }).withName(name + ".TrackFF");
     }
 
-    /** Command to spin up and wait until at speed. */
+    /**
+     * Command to spin up and end once at speed, leaving the wheel spinning.
+     *
+     * <p>Deliberately does <b>not</b> reuse {@link #spinUp(double)}: that command's {@code finallyDo}
+     * stops the motors and zeros the setpoint when it ends, so {@code spinUp(v).until(atSpeed)} would
+     * cut the wheel the instant it reached speed — useless before a shot. This applies the velocity
+     * until {@code atSpeed()} and then ends with the Phoenix velocity request still latched, so a
+     * following command (a feeder, say) sees a wheel that is up to speed and staying there.
+     */
     public Command spinUpAndWait(double velocityRPS) {
-        return spinUp(velocityRPS).until(this::atSpeed)
+        return run(() -> {
+            primarySetpointRPS = velocityRPS;
+            secondarySetpointRPS = velocityRPS;
+            applyVelocity(primaryMotor, velocityRPS, 0);
+            if (secondaryMotor != null) {
+                applyVelocity(secondaryMotor, velocityRPS, 0);
+            }
+            setState("SpinUp " + String.format("%.0f", velocityRPS) + " RPS");
+        }).until(this::atSpeed)
                 .withName(name + ".SpinUpAndWait(" + String.format("%.0f", velocityRPS) + ")");
     }
 

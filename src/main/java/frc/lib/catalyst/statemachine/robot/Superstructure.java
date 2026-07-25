@@ -706,10 +706,11 @@ public final class Superstructure<S extends Enum<S>> extends SubsystemBase imple
          * Every actuator must own at least one subsystem, or it has nothing to drive and no
          * requirement to hold against a driver override.
          *
-         * <p>The full requirement <em>probe</em> promised by {@link Actuator#pursueCommand} — building
-         * each command once and asserting its requirements are a subset of the declared set — is done
-         * lazily by {@link GoalRunner} at construction rather than here, because it needs a concrete
-         * goal instance and those are not resolved until the engine is built.
+         * <p>The requirements-subset rule stated on {@link Actuator#pursueCommand} is a contract the
+         * binding must honour, not something checked here: a hosted command's requirements are never
+         * registered with the scheduler, so there is nothing to probe them against. The nine built-in
+         * bindings all satisfy it (each owns exactly the one mechanism it drives); a custom binding is
+         * responsible for the same.
          */
         private void checkRequirements(List<String> problems) {
             for (Map.Entry<Handle<?>, Actuator<?>> e : actuators.entrySet()) {

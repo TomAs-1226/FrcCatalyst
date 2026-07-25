@@ -25,9 +25,13 @@ public interface Actuator<G> extends Binding<G> {
     /**
      * Command that drives the mechanism toward {@code goal}.
      *
-     * <p>Contract, enforced by a probe at {@link Superstructure.Builder#build()}:
+     * <p>Contract the implementation must honour (the nine built-in bindings do; the state machine
+     * does <b>not</b> automatically verify it, because a hosted command's requirements are never
+     * registered with the scheduler):
      * <ul>
-     *   <li>Its requirements must be a subset of {@link #requirements()}.</li>
+     *   <li>Its requirements must be a subset of {@link #requirements()} — the command is hosted, not
+     *       scheduled, so a requirement it declares beyond the owned subsystem is neither reserved nor
+     *       checked and would let it quietly fight another subsystem for control.</li>
      *   <li>It must return a <b>fresh instance on every call</b> — a hosted command is
      *       initialised more than once over a match.</li>
      *   <li>It must either never end, or end with a <em>persistent</em> effect (a

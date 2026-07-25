@@ -215,7 +215,10 @@ public final class GhostReplay {
             pw.println("# Catalyst ghost replay — t,x,y,thetaDeg");
             for (Sample s : samples) {
                 Pose2d p = s.pose();
-                pw.printf("%.6f,%.4f,%.4f,%.3f%n",
+                // Locale.ROOT: load() parses with Double.parseDouble, which only accepts '.' as the
+                // decimal separator. Without a fixed locale a comma-decimal JVM would write "1,5" and
+                // the round-trip would fail to parse.
+                pw.printf(java.util.Locale.ROOT, "%.6f,%.4f,%.4f,%.3f%n",
                         s.t(), p.getX(), p.getY(), p.getRotation().getDegrees());
             }
         }

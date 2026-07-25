@@ -102,12 +102,12 @@ public class AimingSolverVector {
             finalHoodPitch = minHoodAngle;
             double clampedTheta = (Math.PI / 2.0) - finalHoodPitch.getRadians();
             double reqVhoriz = Math.hypot(reqVx, reqVy);
-            finalSpeedMps = reqVhoriz / Math.sin(clampedTheta);
+            finalSpeedMps = clampedSpeed(reqVhoriz, clampedTheta, reqVx, reqVy, reqVz);
         } else if (calculatedHoodPitch.getDegrees() > maxHoodAngle.getDegrees()) {
             finalHoodPitch = maxHoodAngle;
             double clampedTheta = (Math.PI / 2.0) - finalHoodPitch.getRadians();
             double reqVhoriz = Math.hypot(reqVx, reqVy);
-            finalSpeedMps = reqVhoriz / Math.sin(clampedTheta);
+            finalSpeedMps = clampedSpeed(reqVhoriz, clampedTheta, reqVx, reqVy, reqVz);
         } else {
             finalHoodPitch = calculatedHoodPitch;
             finalSpeedMps = Math.sqrt((reqVx * reqVx) + (reqVy * reqVy) + (reqVz * reqVz));
@@ -115,8 +115,26 @@ public class AimingSolverVector {
 
         double finalRps = finalSpeedMps / (wheelCircumference * efficiency);
         Rotation2d finalYaw = new Rotation2d(reqPhi);
+        // efficiency and wheelDiameter are validated > 0 at build(), so finalRps is finite here.
 
         return new TargetState(finalHoodPitch, finalYaw, finalRps);
+    }
+
+    /**
+     * Wheel speed that projects to {@code reqVhoriz} horizontally at hood elevation {@code clampedTheta}.
+     *
+     * <p>Guards the {@code / sin(clampedTheta)} division: when the hood is pinned near vertical
+     * (a 90-degree limit makes {@code clampedTheta} ~0, {@code sin} ~0), the horizontal projection is
+     * undefined and a naive divide would return {@code Infinity}. In that degenerate case the full 3D
+     * shot magnitude is returned instead, which is finite and physically sensible.
+     */
+    private static double clampedSpeed(double reqVhoriz, double clampedTheta,
+                                       double vx, double vy, double vz) {
+        double sin = Math.sin(clampedTheta);
+        if (Math.abs(sin) < 1e-6) {
+            return Math.sqrt(vx * vx + vy * vy + vz * vz);
+        }
+        return reqVhoriz / sin;
     }
 
     /** Builder for {@link AimingSolverVector}. */
@@ -190,6 +208,14 @@ public class AimingSolverVector {
             }
             if (targetPosition == null) {
                 throw new IllegalStateException("A target position must be provided!");
+            }
+            if (wheelDiameterMeters <= 0) {
+                throw new IllegalStateException("wheelDiameter must be positive (got "
+                        + wheelDiameterMeters + " m) — RPS is derived by dividing by wheel circumference.");
+            }
+            if (efficiency <= 0) {
+                throw new IllegalStateException("efficiency must be positive (got " + efficiency
+                        + ") — RPS is derived by dividing by it.");
             }
             return new AimingSolverVector(this);
         }
