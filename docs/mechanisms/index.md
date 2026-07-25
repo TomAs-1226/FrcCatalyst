@@ -46,7 +46,7 @@ FrcCatalyst provides ten generic mechanism types that cover virtually every FRC 
 
 ## Self-describing & simulated
 
-New in rc3, every mechanism describes itself and runs real physics in simulation.
+Every mechanism describes itself and runs real physics in simulation.
 
 ### Every mechanism implements `describe()`
 
@@ -79,10 +79,10 @@ public MechanismView describe() {
 
 ### Real physics in simulation
 
-All built-in mechanisms run accurate WPILib physics models in simulation. In
-rc3, `RollerMechanism`, `ClawMechanism`, `WinchMechanism`, and
-`DifferentialWristMechanism` gained `simulationPeriodic()` models, joining the
-mechanisms that already simulated (Linear, Rotational, Flywheel, Turret):
+Every built-in mechanism runs an accurate WPILib physics model in simulation —
+Linear, Rotational, Flywheel, and Turret alongside `RollerMechanism`,
+`ClawMechanism`, `WinchMechanism`, and `DifferentialWristMechanism`, each with
+its own `simulationPeriodic()`:
 
 - **RollerMechanism** uses a `FlywheelSim`.
 - **ClawMechanism** uses a `DCMotorSim`.

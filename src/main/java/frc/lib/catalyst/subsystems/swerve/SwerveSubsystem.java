@@ -92,8 +92,13 @@ public class SwerveSubsystem extends SubsystemBase {
     private double speedMultiplier = 1.0;
 
     // Control requests (reused to avoid GC)
+    // ForwardPerspective is set to OperatorPerspective EXPLICITLY (it is also the Phoenix default) so
+    // the red-alliance flip is guaranteed and self-documented: field-centric "forward" is measured
+    // from the operator's perspective, which periodic() sets to 180 deg on red via
+    // setOperatorPerspectiveForward(...). Without this a red team drives inverted. (Reported by 3211.)
     private final SwerveRequest.FieldCentric fieldCentricRequest = new SwerveRequest.FieldCentric()
-            .withDriveRequestType(DriveRequestType.OpenLoopVoltage);
+            .withDriveRequestType(DriveRequestType.OpenLoopVoltage)
+            .withForwardPerspective(SwerveRequest.ForwardPerspectiveValue.OperatorPerspective);
     private final SwerveRequest.RobotCentric robotCentricRequest = new SwerveRequest.RobotCentric()
             .withDriveRequestType(DriveRequestType.OpenLoopVoltage);
     private final SwerveRequest.SwerveDriveBrake brakeRequest = new SwerveRequest.SwerveDriveBrake();

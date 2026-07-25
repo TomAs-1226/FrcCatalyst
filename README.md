@@ -59,7 +59,7 @@ repositories {
 }
 
 dependencies {
-    implementation "com.github.TomAs-1226:FrcCatalyst:v1.3.1"
+    implementation "com.github.TomAs-1226:FrcCatalyst:v1.3.2"
 }
 ```
 </details>
@@ -99,6 +99,15 @@ operatorController.b().onTrue(elevator.goTo("STOW"));
 ```
 
 ---
+
+## v1.3.2: field-centric red flip & loop-cost guidance
+
+Two fixes from team 3211's competition report. Field-centric drive now sets the operator perspective
+explicitly on the request, so the red-alliance forward flip is guaranteed rather than relying on the
+CTRE default (`SwerveSubsystem.periodic()` already publishes the perspective from the alliance each
+loop). A new [loop-cost section](docs/advanced/logging.md) lays out how to keep the loop under 20 ms —
+disable tunables at competition, profile vision, halve telemetry, prefer a CANivore. See the
+[CHANGELOG](CHANGELOG.md).
 
 ## v1.3.1: audit fixes
 

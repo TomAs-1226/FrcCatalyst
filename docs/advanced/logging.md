@@ -189,3 +189,45 @@ When a mechanism calls `processInputs(inputs)`:
 So every individual field still lands as a discrete NT/AK/DataLog key — no
 opaque blob. Dashboards built against v0.2's per-key NT layout keep working
 because the keys are unchanged.
+
+## Keeping the loop under 20 ms
+
+Catalyst's per-loop cost is deliberately kept low — motor status signals are read from Phoenix 6's
+cached values (never a blocking bus read), their update frequencies are set once and the bus is
+optimized, health checks are throttled to once every 5 ms no matter how many mechanisms call in, and
+live-tuning only reconfigures a motor when a gain actually changes. Even so, a robot with several
+mechanisms plus swerve and vision can creep toward the 20 ms budget. The levers below are the ones
+that matter, roughly in order of impact:
+
+1. **Turn off live tuning for competition.** With tuning enabled, every mechanism re-reads all of its
+   Slot 0 and Motion Magic gains from NetworkTables every loop. One call at robot init skips all of
+   it:
+
+   ```java
+   TunableNumber.disableTuning();   // in robotInit, competition builds
+   ```
+
+   Values fall back to what you configured in the builder. Re-enable with `TunableNumber.enableTuning()`
+   on a practice robot.
+
+2. **Vision is the usual culprit.** Reading a Limelight's pose and feeding a pose estimator every loop
+   is often the single biggest cost, and it is easy to misattribute to the mechanisms. Confirm it with
+   AdvantageScope's loop-timing view (or the RIO's own loop-overrun message) before optimizing
+   anything else. Run the camera at the rate you actually need, and reject implausible measurements
+   early (`VisionSubsystem` already rejects high-speed and high-spin frames, off-field and stale
+   poses, and outliers too far from the current estimate).
+
+3. **Halve the telemetry volume if you are not replaying.** Each mechanism logs its inputs POJO *and*
+   a per-key mirror for v0.2 dashboard compatibility. If you do not need AdvantageKit-style replay,
+   skip the POJO serialization:
+
+   ```java
+   CatalystLog.enableLoggingInputs(false);   // keep the per-key NT layout, drop the replay table
+   ```
+
+4. **Prefer a CANivore.** Putting the drivetrain and mechanism motors on a CANivore bus (rather than
+   the RIO's `rio` bus) is the highest-leverage hardware change for CAN-bound loops.
+
+Catalyst itself does not do blocking work in `periodic()`, so if the loop is still over budget after
+the above, profile with AdvantageScope — the cost is almost always vision, a team-authored periodic,
+or CAN-bus saturation rather than the mechanism wrappers.

@@ -5,6 +5,29 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.2] — 2026-07-25 — Field-centric red flip & loop-cost guidance
+
+Two fixes prompted by team 3211's competition report. Additive and backward compatible.
+
+### Fixed
+
+- **Field-centric drive now sets the operator perspective explicitly on the request** (reported by
+  team 3211). `SwerveSubsystem.periodic()` already calls `setOperatorPerspectiveForward(...)` from
+  the alliance each loop (red → `Rotation2d.k180deg`), and CTRE's `FieldCentric` request defaults
+  its `ForwardPerspective` to `OperatorPerspective` — so the red-alliance flip was intended to work
+  already. To make it robust and self-documenting rather than reliant on the CTRE default, the reused
+  request now sets `.withForwardPerspective(ForwardPerspectiveValue.OperatorPerspective)` explicitly.
+  A team whose forward direction did not flip on red should confirm they are on 1.3.2 and that their
+  `SwerveSubsystem` is running (its `periodic()` is what publishes the perspective each loop).
+
+### Docs
+
+- **"Keeping the loop under 20 ms"** — a new section on the [logging & telemetry page](docs/advanced/logging.md)
+  laying out the loop-cost levers in impact order (disable tunables at competition, profile vision,
+  halve telemetry with `enableLoggingInputs(false)`, prefer a CANivore bus). Prompted by team 3211's
+  loop-overrun report; the library's own per-loop cost was audited and found already optimized
+  (Phoenix signal-frequency tuning, throttled health checks, change-detected tunables).
+
 ## [1.3.1] — 2026-07-24 — Audit fixes
 
 A full adversarial audit of the library. Ten issues were raised and verified; nine are fixed here
