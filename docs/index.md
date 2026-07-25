@@ -27,12 +27,14 @@ A Java library of pre-built mechanism building blocks for FRC robots on Phoenix 
 
 ## Latest release
 
-**v1.3.0** makes the state machine understandable, debuggable, and adds servos: a plain-language
-`explain()` dump of what you built and why it's stuck, a `ServoMechanism`, and live sim status panels.
-See the [release notes](https://github.com/TomAs-1226/FrcCatalyst/releases) and the
-[CHANGELOG](https://github.com/TomAs-1226/FrcCatalyst/blob/main/CHANGELOG.md). New this release:
-the [State Machine Internals](advanced/statemachine-internals.html) guide and the
-[State Machine Visualizer](tools/statemachine/) browser tool.
+**v1.3.2** fixes the field-centric red-alliance flip and adds loop-cost guidance for keeping the
+loop under 20 ms — both prompted by team 3211's competition report. It builds on the v1.3.x line,
+which made the state machine understandable and debuggable: a plain-language `explain()` dump of
+what you built and why it's stuck, a `ServoMechanism`, live sim status panels, the
+[State Machine Internals](advanced/statemachine-internals.html) guide, and the
+[State Machine Visualizer](tools/statemachine/) browser tool. See the
+[release notes](https://github.com/TomAs-1226/FrcCatalyst/releases) and the
+[CHANGELOG](https://github.com/TomAs-1226/FrcCatalyst/blob/main/CHANGELOG.md).
 
 ---
 
