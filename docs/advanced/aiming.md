@@ -23,12 +23,21 @@ without hardware:
 
 | Class | Where | What it does |
 |---|---|---|
-| `AimingSolver` | `util/` | Pure geometry. Robot pose + field velocity → field-relative aim bearing, distance, flight time, shooter RPM, hood angle. No motors. |
+| `AimingSolver` | `util/` | Pure geometry, time-of-flight approach. Robot pose + field velocity → field-relative aim bearing, distance, flight time, shooter RPM, hood angle. No motors. |
+| `AimingSolverVector` | `util/` | Pure geometry, **3D vector-adding** approach (added in 1.2.1). Same inputs → hood pitch, yaw, and flywheel RPS, solved by subtracting the robot's velocity from the shot vector. No motors. |
 | `TurretMechanism` | `mechanisms/` | The motor wrapper. Continuous-angle resolution (wrap / limit unwrap), field-relative tracking, vision lock. |
 
 You can use either alone — `AimingSolver` to aim a swerve chassis at a
 target, `TurretMechanism` for a turret that tracks a vision error
 directly — but together they do shoot-while-moving.
+
+> **Two solvers, two approaches.** `AimingSolver` leads a moving virtual goal by flight time and
+> hands back a bearing (and bearing rate) — pair it with `TurretMechanism.track(...)`.
+> `AimingSolverVector` (contributed in [#27](https://github.com/TomAs-1226/FrcCatalyst/pull/27),
+> following the Huskie Robotics
+> [shoot-on-the-move write-up](https://www.chiefdelphi.com/t/huskie-physics-shoot-on-the-move-with-equations/522805))
+> instead treats the shot as a velocity vector and also solves the hood angle and wheel speed. Pick
+> whichever matches how your shooter is characterised — both are pure math and unit-tested.
 
 ---
 

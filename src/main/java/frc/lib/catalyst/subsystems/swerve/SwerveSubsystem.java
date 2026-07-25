@@ -3,9 +3,11 @@ package frc.lib.catalyst.subsystems.swerve;
 import static edu.wpi.first.units.Units.MetersPerSecond;
 import static edu.wpi.first.units.Units.RadiansPerSecond;
 
+import java.util.Set;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 
+import com.ctre.phoenix6.Utils;
 import com.ctre.phoenix6.swerve.SwerveDrivetrain;
 import com.ctre.phoenix6.swerve.SwerveModule.DriveRequestType;
 import com.ctre.phoenix6.swerve.SwerveRequest;
@@ -22,16 +24,17 @@ import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
-import edu.wpi.first.networktables.StructArrayPublisher;
-import edu.wpi.first.networktables.StructPublisher;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
+import edu.wpi.first.wpilibj.Notifier;
+import edu.wpi.first.wpilibj.RobotBase;
+import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import frc.lib.catalyst.logging.CatalystLog;
+import frc.lib.catalyst.util.AlertManager;
 import frc.lib.catalyst.util.RobotState;
 import frc.lib.catalyst.util.SlewRateLimiter;
 
@@ -64,7 +67,7 @@ public class SwerveSubsystem extends SubsystemBase {
 
     private final SwerveDrivetrain drivetrain;
     private final double maxSpeedMPS;
-    private final double maxAngularRate;
+    private double maxAngularRate;
 
     // boolean to see if the operator perspective has been applied alredy. (need to add this to make sure the red side is working)
     private boolean hasAppliedOperatorPerspective = false;
@@ -89,20 +92,34 @@ public class SwerveSubsystem extends SubsystemBase {
     private double speedMultiplier = 1.0;
 
     // Control requests (reused to avoid GC)
+    // ForwardPerspective is set to OperatorPerspective EXPLICITLY (it is also the Phoenix default) so
+    // the red-alliance flip is guaranteed and self-documented: field-centric "forward" is measured
+    // from the operator's perspective, which periodic() sets to 180 deg on red via
+    // setOperatorPerspectiveForward(...). Without this a red team drives inverted. (Reported by 3211.)
     private final SwerveRequest.FieldCentric fieldCentricRequest = new SwerveRequest.FieldCentric()
-            .withDriveRequestType(DriveRequestType.OpenLoopVoltage);
+            .withDriveRequestType(DriveRequestType.OpenLoopVoltage)
+            .withForwardPerspective(SwerveRequest.ForwardPerspectiveValue.OperatorPerspective);
     private final SwerveRequest.RobotCentric robotCentricRequest = new SwerveRequest.RobotCentric()
             .withDriveRequestType(DriveRequestType.OpenLoopVoltage);
     private final SwerveRequest.SwerveDriveBrake brakeRequest = new SwerveRequest.SwerveDriveBrake();
     private final SwerveRequest.Idle idleRequest = new SwerveRequest.Idle();
+    // Closed-loop request for path following: velocity control + wheel force
+    // feedforwards from PathPlanner (both are dropped by the open-loop teleop path).
+    private final SwerveRequest.ApplyRobotSpeeds pathApplyRequest =
+            new SwerveRequest.ApplyRobotSpeeds().withDriveRequestType(DriveRequestType.Velocity);
 
-    // Telemetry
-    private final NetworkTable telemetryTable;
-    private final StructPublisher<Pose2d> posePub;
-    private final StructPublisher<ChassisSpeeds> speedsPub;
-    // Measured + commanded module states, for the AdvantageScope swerve view.
-    private final StructArrayPublisher<SwerveModuleState> moduleStatesPub;
-    private final StructArrayPublisher<SwerveModuleState> moduleTargetsPub;
+    // Simulation: a high-rate thread that actually advances the Phoenix sim so the
+    // drivetrain moves in the simulator (without it, status signals stay stale).
+    // Yields automatically to an external physics engine — see setSimPose().
+    private static final double SIM_LOOP_PERIOD = 0.005; // 200 Hz
+    private Notifier simNotifier = null;
+    private double lastSimTime;
+    private boolean internalSimYielded = false;
+
+    // Telemetry. Everything is published through CatalystLog under "Swerve/" (root
+    // "Catalyst/"), so a team that swaps the sink once — for WPILOG or a 2027 backend —
+    // gets the drivetrain telemetry along with everything else. See issue #24.
+    private static final String SWERVE = "Swerve/";
 
     /**
      * Create a SwerveSubsystem wrapping a CTRE-generated SwerveDrivetrain.
@@ -121,18 +138,33 @@ public class SwerveSubsystem extends SubsystemBase {
         headingPID.enableContinuousInput(-Math.PI, Math.PI);
         headingPID.setTolerance(Math.toRadians(1.5));
 
-        telemetryTable = NetworkTableInstance.getDefault()
-                .getTable("Catalyst").getSubTable("Swerve");
-        posePub = telemetryTable.getStructTopic("Pose", Pose2d.struct).publish();
-        speedsPub = telemetryTable.getStructTopic("ChassisSpeeds", ChassisSpeeds.struct).publish();
-        moduleStatesPub = telemetryTable
-                .getStructArrayTopic("ModuleStates", SwerveModuleState.struct).publish();
-        moduleTargetsPub = telemetryTable
-                .getStructArrayTopic("ModuleTargets", SwerveModuleState.struct).publish();
-
         if (pathPlannerConfig != null) {
             configurePathPlanner(pathPlannerConfig);
         }
+
+        // Advance the Phoenix physics sim on its own high-rate thread so the
+        // The internal Phoenix sim (see startSimThread) is started lazily from the first
+        // periodic() call in simulation, NOT here. Starting it in the constructor gives an
+        // external physics engine no chance to opt out first: even one updateSimState()
+        // call seeds Phoenix's sim-device state (FusedCANcoder syncs an internal
+        // rotor-to-CANcoder offset on first use), and a bridge that takes over afterwards
+        // with its own conventions inherits per-module corruption that never heals. By
+        // first periodic(), anyone integrating external physics has had a full
+        // construction window to call disableInternalSim().
+    }
+
+    private void startSimThread() {
+        if (internalSimYielded) {
+            return;
+        }
+        lastSimTime = Utils.getCurrentTimeSeconds();
+        simNotifier = new Notifier(() -> {
+            double now = Utils.getCurrentTimeSeconds();
+            double dt = now - lastSimTime;
+            lastSimTime = now;
+            drivetrain.updateSimState(dt, RobotController.getBatteryVoltage());
+        });
+        simNotifier.startPeriodic(SIM_LOOP_PERIOD);
     }
 
     public SwerveSubsystem(SwerveDrivetrain drivetrain, double maxSpeedMPS) {
@@ -147,7 +179,12 @@ public class SwerveSubsystem extends SubsystemBase {
                     this::getPose,
                     this::resetPose,
                     this::getChassisSpeeds,
-                    (speeds, feedforwards) -> driveRobotCentric(speeds),
+                    // Closed-loop velocity control, forwarding PathPlanner's wheel
+                    // force feedforwards (both dropped by the open-loop teleop path).
+                    (speeds, feedforwards) -> drivetrain.setControl(
+                            pathApplyRequest.withSpeeds(speeds)
+                                    .withWheelForceFeedforwardsX(feedforwards.robotRelativeForcesXNewtons())
+                                    .withWheelForceFeedforwardsY(feedforwards.robotRelativeForcesYNewtons())),
                     new PPHolonomicDriveController(
                             new PIDConstants(config.translationKP, config.translationKI, config.translationKD),
                             new PIDConstants(config.rotationKP, config.rotationKI, config.rotationKD)),
@@ -158,7 +195,11 @@ public class SwerveSubsystem extends SubsystemBase {
                     },
                     this);
         } catch (Exception e) {
-            DriverStation.reportError("Failed to configure PathPlanner: " + e.getMessage(), false);
+            // Loud + persistent: AutoBuilder is left unconfigured, so autos won't
+            // path. A quiet reportError is too easy to miss until a match.
+            String msg = "PathPlanner failed to configure (autos will not path): " + e.getMessage();
+            DriverStation.reportError(msg, e.getStackTrace());
+            AlertManager.getInstance().error("Swerve", msg);
         }
     }
 
@@ -179,11 +220,50 @@ public class SwerveSubsystem extends SubsystemBase {
      *
      * <p>Call once per {@code simulationPeriodic()}. See
      * {@code docs/advanced/simulation.md} for the maple-sim wiring.
+     *
+     * <p>The first call also stops Catalyst's internal Phoenix sim thread, by
+     * way of {@link #disableInternalSim()}. Something is clearly supplying
+     * physics, and two writers on the same module rotor states would fight:
+     * {@code updateSimState()} would overwrite maple-sim's values at 200 Hz and
+     * the physics would quietly stop reaching the robot. If you want the
+     * internal sim off before any pose arrives, call {@link
+     * #disableInternalSim()} yourself.
      */
     public void setSimPose(Pose2d simPose) {
         if (edu.wpi.first.wpilibj.RobotBase.isSimulation() && simPose != null) {
+            disableInternalSim();
             drivetrain.resetPose(simPose);
         }
+    }
+
+    /**
+     * Stop Catalyst's internal Phoenix simulation thread.
+     *
+     * <p>Only needed when an external physics engine (maple-sim, or your own)
+     * is driving the module sim states. {@link #setSimPose(Pose2d)} calls this
+     * for you, so the maple-sim wiring in {@code docs/advanced/simulation.md}
+     * needs no extra step. Idempotent, and a no-op on a real robot.
+     */
+    public void disableInternalSim() {
+        if (internalSimYielded) {
+            return;
+        }
+        internalSimYielded = true;
+
+        if (simNotifier != null) {
+            simNotifier.stop();
+            simNotifier.close();
+            simNotifier = null;
+        }
+    }
+
+    /**
+     * Whether Catalyst's own Phoenix sim thread is currently advancing the
+     * drivetrain. False on a real robot, and false once an external physics
+     * engine has taken over.
+     */
+    public boolean isInternalSimRunning() {
+        return simNotifier != null;
     }
 
     /**
@@ -192,6 +272,33 @@ public class SwerveSubsystem extends SubsystemBase {
      */
     public ChassisSpeeds getChassisSpeeds() {
         return drivetrain.getState().Speeds;
+    }
+
+    /**
+     * The module setpoints the drivetrain most recently commanded (angle + speed per module).
+     *
+     * <p>This is the clean "speeds-out" seam for bridging an external physics engine such as
+     * maple-sim: feed these targets to {@code SelfControlledSwerveDriveSimulation.runSwerveStates(...)}
+     * and push the resulting pose back with {@link #setSimPose(Pose2d)}, instead of reaching through
+     * the raw CTRE drivetrain and reproducing every per-module magnet offset and FusedCANcoder sync
+     * by hand. See {@code docs/advanced/simulation.md}. May be {@code null} before the first control
+     * request.
+     *
+     * @return the commanded module states, or {@code null} if none have been issued yet
+     * @since 1.2.1
+     */
+    public SwerveModuleState[] getModuleTargets() {
+        return drivetrain.getState().ModuleTargets;
+    }
+
+    /**
+     * The measured module states (angle + speed per module), from the drivetrain's own encoders.
+     *
+     * @return the measured module states, or {@code null} if unavailable
+     * @since 1.2.1
+     */
+    public SwerveModuleState[] getModuleStates() {
+        return drivetrain.getState().ModuleStates;
     }
 
     /**
@@ -216,6 +323,15 @@ public class SwerveSubsystem extends SubsystemBase {
     /** Max angular rate in rad/s (as configured). */
     public double getMaxAngularRate() {
         return maxAngularRate;
+    }
+
+    /**
+     * Override the max angular rate (rad/s). The default is derived from the
+     * first module's radius, which is wrong for asymmetric module layouts; set
+     * it explicitly when the geometry isn't symmetric.
+     */
+    public void setMaxAngularRate(double radPerSec) {
+        this.maxAngularRate = radPerSec;
     }
 
     // --- Drive Methods ---
@@ -384,6 +500,10 @@ public class SwerveSubsystem extends SubsystemBase {
     /**
      * Set the heading lock PID gains.
      * Default is P=5.0, I=0, D=0 which works well for most robots.
+     *
+     * <p>Note: a single heading PID instance backs every heading-based drive mode
+     * ({@link #headingLockDrive}, {@link #driveWithHeading}, {@link #pointAtTarget},
+     * {@link #advancedDrive}, ...), so this retunes all of them at once.
      */
     public void setHeadingPIDGains(double kP, double kI, double kD) {
         headingPID.setPID(kP, kI, kD);
@@ -455,6 +575,12 @@ public class SwerveSubsystem extends SubsystemBase {
      * - Speed multiplier
      *
      * This is the recommended default drive command for competition.
+     *
+     * <p>Note: the drive feature flags (skew correction, slew limiting,
+     * snap-to-angle) are applied only by this command. The simpler drive modes
+     * ({@link #fieldCentricDrive}, {@link #robotCentricDrive},
+     * {@link #headingLockDrive}, {@link #driveWithHeading}, {@link #pointAtTarget})
+     * intentionally do not apply them.
      */
     public Command advancedDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
                                   DoubleSupplier rotSupplier, double deadband) {
@@ -628,16 +754,21 @@ public class SwerveSubsystem extends SubsystemBase {
      */
     public Command pathfindToPose(Supplier<Pose2d> targetPose, double translationKP,
                                   double toleranceMeters, PathConstraints constraints) {
-        try {
-            return AutoBuilder.pathfindToPose(targetPose.get(), constraints)
-                    .andThen(driveToPose(targetPose, translationKP, toleranceMeters))
-                    .withName("Swerve.PathfindToPose");
-        } catch (Exception e) {
-            DriverStation.reportError(
-                    "AutoBuilder not configured for pathfindToPose — falling back to PID align: "
-                            + e.getMessage(), true);
-            return driveToPose(targetPose, translationKP, toleranceMeters);
-        }
+        // Defer so the pose is read when the command is scheduled, not when it is
+        // constructed (usually once, at RobotContainer time). The Supplier
+        // signature promises lazy evaluation, and the driveToPose hand-off is
+        // already live, so both legs now track a moving target.
+        return Commands.defer(() -> {
+            try {
+                return AutoBuilder.pathfindToPose(targetPose.get(), constraints)
+                        .andThen(driveToPose(targetPose, translationKP, toleranceMeters));
+            } catch (Exception e) {
+                DriverStation.reportError(
+                        "AutoBuilder not configured for pathfindToPose — falling back to PID align: "
+                                + e.getMessage(), true);
+                return driveToPose(targetPose, translationKP, toleranceMeters);
+            }
+        }, Set.of(this)).withName("Swerve.PathfindToPose");
     }
 
     /**
@@ -787,9 +918,9 @@ public class SwerveSubsystem extends SubsystemBase {
         return out;
     }
 
-    /** X-brake command (lock wheels). */
+    /** X-brake command (lock wheels). Holds the brake for as long as it runs. */
     public Command xBrake() {
-        return runOnce(this::setBrake).withName("Swerve.XBrake");
+        return run(this::setBrake).withName("Swerve.XBrake");
     }
 
     /**
@@ -805,7 +936,9 @@ public class SwerveSubsystem extends SubsystemBase {
     
     @Override
     public Command idle() {
-        return runOnce(()-> drivetrain.setControl(idleRequest)).withName("Idle");
+        // WPILib's Subsystem.idle() contract is a command that runs forever to
+        // hold the requirement, so use run(...) not runOnce(...).
+        return run(() -> drivetrain.setControl(idleRequest)).withName("Idle");
     }
 
     /**
@@ -849,8 +982,16 @@ public class SwerveSubsystem extends SubsystemBase {
 
     @Override
     public void periodic() {
+        // Lazy-start the internal Phoenix sim on the first loop tick. See the constructor
+        // note: starting it there poisons external physics bridges that attach right after
+        // construction, because updateSimState() seeds sim-device state before they can
+        // call disableInternalSim(). startSimThread() itself is a no-op once yielded.
+        if (RobotBase.isSimulation() && simNotifier == null) {
+            startSimThread();
+        }
+
         //do the same as in the commandSwerveDriveTrain periodic function so no need to cast it to another type and do a .register for another periodic.
-        //do it it didnt happen alredy or if we are on disable so i dont care about the longer time for the periodic function   
+        //do it it didnt happen alredy or if we are on disable so i dont care about the longer time for the periodic function
         if (!hasAppliedOperatorPerspective || RobotState.isDisabled()) {
             RobotState.allianceOpt()
             .ifPresent(AllianceColor -> {
@@ -859,17 +1000,21 @@ public class SwerveSubsystem extends SubsystemBase {
             });
         }
         Pose2d pose = getPose();
-        posePub.set(pose);
-        speedsPub.set(getChassisSpeeds());
+        CatalystLog.log(SWERVE + "Pose", Pose2d.struct, pose);
+        CatalystLog.log(SWERVE + "ChassisSpeeds", ChassisSpeeds.struct, getChassisSpeeds());
         var state = drivetrain.getState();
-        if (state.ModuleStates != null) moduleStatesPub.set(state.ModuleStates);
-        if (state.ModuleTargets != null) moduleTargetsPub.set(state.ModuleTargets);
-        telemetryTable.getEntry("HeadingDeg").setDouble(pose.getRotation().getDegrees());
+        if (state.ModuleStates != null) {
+            CatalystLog.log(SWERVE + "ModuleStates", SwerveModuleState.struct, state.ModuleStates);
+        }
+        if (state.ModuleTargets != null) {
+            CatalystLog.log(SWERVE + "ModuleTargets", SwerveModuleState.struct, state.ModuleTargets);
+        }
+        CatalystLog.log(SWERVE + "HeadingDeg", pose.getRotation().getDegrees());
         ChassisSpeeds speeds = getChassisSpeeds();
         double speed = Math.hypot(speeds.vxMetersPerSecond, speeds.vyMetersPerSecond);
-        telemetryTable.getEntry("SpeedMPS").setDouble(speed);
-        telemetryTable.getEntry("OmegaRadPerSec").setDouble(speeds.omegaRadiansPerSecond);
-        telemetryTable.getEntry("SpeedMultiplier").setDouble(speedMultiplier);
+        CatalystLog.log(SWERVE + "SpeedMPS", speed);
+        CatalystLog.log(SWERVE + "OmegaRadPerSec", speeds.omegaRadiansPerSecond);
+        CatalystLog.log(SWERVE + "SpeedMultiplier", speedMultiplier);
     }
 
     // ===========================================

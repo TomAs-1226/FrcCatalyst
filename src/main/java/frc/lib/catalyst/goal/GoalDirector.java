@@ -6,6 +6,7 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.lib.catalyst.mechanisms.SuperstructureCoordinator;
+import frc.lib.catalyst.statemachine.robot.SuperstructureLike;
 
 /**
  * The optional "give the robot an intent, it figures out the details" layer.
@@ -57,14 +58,14 @@ import frc.lib.catalyst.mechanisms.SuperstructureCoordinator;
  */
 public class GoalDirector {
 
-    private final SuperstructureCoordinator coordinator;   // nullable
+    private final SuperstructureLike coordinator;          // nullable
     private final Goal defaultGoal;                          // nullable
     private final NetworkTable table;
 
     private volatile Goal activeGoal;        // the goal currently being pursued (nullable)
     private volatile boolean activeReady;    // cached readiness of the active goal
 
-    private GoalDirector(SuperstructureCoordinator coordinator, Goal defaultGoal) {
+    private GoalDirector(SuperstructureLike coordinator, Goal defaultGoal) {
         this.coordinator = coordinator;
         this.defaultGoal = defaultGoal;
         this.table = NetworkTableInstance.getDefault()
@@ -192,7 +193,7 @@ public class GoalDirector {
 
     /** Fluent builder for {@link GoalDirector}. */
     public static final class Builder {
-        private SuperstructureCoordinator coordinator;
+        private SuperstructureLike coordinator;
         private Goal defaultGoal;
 
         private Builder() {}
@@ -204,6 +205,24 @@ public class GoalDirector {
          */
         public Builder coordinator(SuperstructureCoordinator coordinator) {
             this.coordinator = coordinator;
+            return this;
+        }
+
+        /**
+         * The superstructure goals drive, as of 1.2.0 accepting either the legacy
+         * {@link SuperstructureCoordinator} or the new
+         * {@link frc.lib.catalyst.statemachine.robot.Superstructure}.
+         *
+         * <p>Pointing a goal layer at the new state machine is a one-line change here; goals
+         * still name their state as a {@code String}, so a director on the new engine and one on
+         * the old coordinator remain interchangeable. With the new engine, readiness also becomes
+         * truthful for free — {@code isAtState} maps to a measured, confirmed arrival rather than
+         * to a flag that was set when a transition command ended for any reason at all.
+         *
+         * @since 1.2.0
+         */
+        public Builder superstructure(SuperstructureLike superstructure) {
+            this.coordinator = superstructure;
             return this;
         }
 

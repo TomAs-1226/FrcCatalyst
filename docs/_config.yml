@@ -57,3 +57,8 @@ callouts:
   tip:
     title: Tip
     color: green
+
+# Mermaid diagrams (used by the State Machine Internals page). just-the-docs loads
+# mermaid from jsDelivr; pinning the version keeps the render stable.
+mermaid:
+  version: "10.9.0"

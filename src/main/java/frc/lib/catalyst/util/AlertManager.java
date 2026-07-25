@@ -11,16 +11,25 @@ import java.util.List;
  * Centralized alert system for mechanism health monitoring and fault detection.
  * Publishes alerts to NetworkTables for dashboard display and reports to DriverStation.
  *
+ * <p><b>Alert messages must be invariant (constant) strings.</b> Alerts are de-duplicated and cleared
+ * by exact message text, so a message that embeds a live value ({@code "temp: " + temp + "C"}) is a
+ * <em>different</em> alert every loop — it can never be cleared and it grows the alert list (and the
+ * republished NetworkTables array) without bound. Put the live numbers on the Driver Station console
+ * or a telemetry key; keep the alert text a stable description of the condition, and clear it when the
+ * condition clears.
+ *
  * <p>Example usage:
  * <pre>{@code
  * AlertManager alerts = AlertManager.getInstance();
  *
- * // In periodic:
+ * // In periodic — stable text, raised while the condition holds, cleared when it clears:
  * if (motor.getTemperature() > 70) {
- *     alerts.warning("Elevator", "Motor temperature high: " + motor.getTemperature() + "C");
+ *     alerts.warning("Elevator", "Motor temperature high");   // NOT "...high: " + temp
+ * } else {
+ *     alerts.clearWarning("Elevator", "Motor temperature high");
  * }
  * if (motor.getStatorCurrent() > 100) {
- *     alerts.error("Elevator", "Stator current exceeded 100A!");
+ *     alerts.error("Elevator", "Stator current exceeded 100A");
  * }
  * }</pre>
  */

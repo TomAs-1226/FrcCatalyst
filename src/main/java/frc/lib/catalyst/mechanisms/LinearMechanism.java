@@ -301,7 +301,12 @@ public class LinearMechanism extends CatalystMechanism {
 
     /**
      * Command to move to a position in meters using Motion Magic.
-     * Ends immediately after setting the target (use .until() or atPositionTrigger for waiting).
+     *
+     * <p><b>Fire-and-forget:</b> this sets the Motion Magic target and ends after
+     * one tick, so {@code andThen(...)} off it runs immediately, before the
+     * mechanism has moved. When a superstructure transition must wait for arrival,
+     * use {@link #goToAndWait(double, double)} (or gate on
+     * {@link #atPositionTrigger(double)}) instead.
      */
     public Command goTo(double meters) {
         return runOnce(() -> {
@@ -467,8 +472,40 @@ public class LinearMechanism extends CatalystMechanism {
         return runOnce(() -> {
             motor.zeroEncoder();
             setpointMeters = 0;
+            hasBeenZeroed = true;
             setState("Zeroed");
         }).withName(name + ".Zero");
+    }
+
+    /**
+     * Home against a hard stop by current spike: drive at {@code volts} (signed,
+     * toward the stop) until the stator current reaches {@code currentThresholdAmps},
+     * then seed the encoder to {@code seedMeters}, hold there, and mark the
+     * mechanism zeroed. Useful when there is no limit switch. Bound it with
+     * {@code .withTimeout(...)} as a safety net in case the spike never arrives.
+     */
+    public Command homeOnCurrent(double volts, double currentThresholdAmps, double seedMeters) {
+        return run(() -> {
+            motor.setVoltage(volts);
+            setState("Homing");
+        }).until(() -> getCurrent() >= currentThresholdAmps)
+          .finallyDo(interrupted -> {
+            if (!interrupted) {
+                motor.setEncoderPosition(metersToRotations(seedMeters));
+                setpointMeters = seedMeters;
+                hasBeenZeroed = true;
+                motor.setMotionMagicPosition(metersToRotations(seedMeters));
+                setState("Homed");
+            } else {
+                motor.setVoltage(0);
+                setState("Idle");
+            }
+        }).withName(name + ".HomeOnCurrent");
+    }
+
+    /** Home against a hard stop by current spike, seeding the encoder to 0. */
+    public Command homeOnCurrent(double volts, double currentThresholdAmps) {
+        return homeOnCurrent(volts, currentThresholdAmps, 0.0);
     }
 
     // --- Internals ---
@@ -557,6 +594,31 @@ public class LinearMechanism extends CatalystMechanism {
     /** Get the underlying motor for advanced use. */
     public CatalystMotor getMotor() {
         return motor;
+    }
+
+    /**
+     * The named position presets configured on this mechanism, as an immutable map.
+     *
+     * <p>Added in 1.2.0 so tooling outside this package — notably
+     * {@link frc.lib.catalyst.statemachine.mech.LinearBinding} — can resolve a preset name to
+     * metres <em>at build time</em> and report an unknown name as a configuration error, rather
+     * than throwing from inside a command factory during a match.
+     *
+     * @return preset name to position in metres; empty when none were configured
+     * @since 1.2.0
+     */
+    public java.util.Map<String, Double> getNamedPositions() {
+        return config.namedPositions;
+    }
+
+    /**
+     * The configured position tolerance in metres — the band used by
+     * {@link #atPosition(String)} and the default for state-machine arrival tests.
+     *
+     * @since 1.2.0
+     */
+    public double getPositionTolerance() {
+        return config.positionToleranceMeters;
     }
 
     @Override

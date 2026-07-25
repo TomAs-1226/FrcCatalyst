@@ -25,11 +25,20 @@ A Java library of pre-built mechanism building blocks for FRC robots on Phoenix 
   <img src="https://img.shields.io/badge/PhotonVision-v2026.3.1-22c55e?style=flat-square" alt="PhotonVision"/>
 </p>
 
+## Latest release
+
+**v1.3.0** makes the state machine understandable, debuggable, and adds servos: a plain-language
+`explain()` dump of what you built and why it's stuck, a `ServoMechanism`, and live sim status panels.
+See the [release notes](https://github.com/TomAs-1226/FrcCatalyst/releases) and the
+[CHANGELOG](https://github.com/TomAs-1226/FrcCatalyst/blob/main/CHANGELOG.md). New this release:
+the [State Machine Internals](advanced/statemachine-internals.html) guide and the
+[State Machine Visualizer](tools/statemachine/) browser tool.
+
 ---
 
 ## Browser tools
 
-Eight single-file tools served from this site. Click and use — no clone, no install.
+Eleven single-file tools served from this site. Click and use — no clone, no install.
 
 <style>
 .hero-tools {
@@ -90,6 +99,7 @@ Eight single-file tools served from this site. Click and use — no clone, no in
   <a class="hero-tool" href="tools/motors/"><span class="icon">⚡</span><span class="name">MotorType Browser</span><span class="desc">Every motor preset + gear-ratio calculator.</span></a>
   <a class="hero-tool" href="tools/canids/"><span class="icon">🔌</span><span class="name">CAN ID Planner</span><span class="desc">Catch CAN ID collisions before crimping.</span></a>
   <a class="hero-tool" href="tools/auto/"><span class="icon">🧭</span><span class="name">Auto Builder</span><span class="desc">Generate a behavior-framework auto.</span></a>
+  <a class="hero-tool" href="tools/statemachine/"><span class="icon">🔀</span><span class="name">State Machine Visualizer</span><span class="desc">Draw the graph your <code>Superstructure</code> logs — states, guards, dead-ends.</span></a>
 </div>
 
 ---
@@ -137,7 +147,7 @@ Motion Magic, gravity FF, sim, telemetry, command factories, health monitoring, 
 | **ClawMechanism** | Motor-driven grippers | Stall detection, beam break, multi-follower, passive-hold |
 | **DifferentialWristMechanism** | Diffy wrists (pitch + roll) | **Phoenix-6 native differential control**, separate Slot 0 / Slot 1 tuning |
 | **PneumaticMechanism** | Solenoids / pistons | Double or single solenoid, optional pressure-gating, pulse / toggle commands |
-| **SuperstructureCoordinator** | Multi-mechanism | State machine with safe transitions |
+| **Superstructure** (v1.2.0+) | Whole-robot coordination | Real state machine over **all nine mechanism types plus your own subsystems** — legal-transition graph, guards, interlocks, staged actuation, proven arrival, full logging. Replaces the now-deprecated `SuperstructureCoordinator` (linear + rotational only), which still works and is not being removed |
 
 ### Subsystems
 
@@ -157,9 +167,10 @@ Motion Magic, gravity FF, sim, telemetry, command factories, health monitoring, 
 | `TunableNumber` | Dashboard-editable constants for live PID tuning |
 | `AutoSelector` | PathPlanner auto chooser with safe fallbacks |
 | `GamePieceTracker` | Multi-stage piece state machine with Triggers |
+| `Superstructure` / `StateMachineCore` (v1.2.0+) | Enum-typed whole-robot state machine: undeclared edges are refused, arrival is measured rather than assumed, and every decision is logged |
 | Skew correction | Pose-exponential discretization for swerve |
 | Collision zones | Prevent physical mechanism collisions |
-| `SimDashboard` (v1.0.0-rc3+) | Generic browser sim cockpit that adapts to any mechanism via `describe()` / `MechanismView`; sim-only, dependency-free |
+| `SimDashboard` (v1.1.0+) | Generic browser sim cockpit that adapts to any mechanism via `describe()` / `MechanismView`; sim-only, dependency-free |
 
 ### Health and safety (v0.3.3+)
 
@@ -187,7 +198,7 @@ Builder config, Motion Magic or ProfiledPID, named position presets (`goTo("STOW
 WPILib sim, NetworkTables telemetry, temperature cutoff, limit-switch auto-zero,
 HealthCheck-based fault monitoring, multi-follower support, pre-built commands,
 **SysId quasistatic / dynamic routines (v0.4.0+)**,
-**a self-describing `describe()` / `MechanismView` snapshot driveable in the built-in `SimDashboard` (v1.0.0-rc3+)**.
+**a self-describing `describe()` / `MechanismView` snapshot driveable in the built-in `SimDashboard` (v1.1.0+)**.
 
 ---
 
@@ -202,7 +213,7 @@ HealthCheck-based fault monitoring, multi-follower support, pre-built commands,
 | [Driver](driver/) | DriverProfile, RumbleEvents, controller feel |
 | [Utilities](utilities/) | Health Kit, RobotSafety, RobotState, MotorType, CANRegistry, feedforward, profiles |
 | [Advanced](advanced/) | Behavior framework, turret + SOTF, state-space, live tuning, health, SysId |
-| [Tools](tools/) | The eight browser tools — incl. Auto Builder |
+| [Tools](tools/) | The eleven browser tools — incl. Auto Builder + State Machine Visualizer |
 | [Examples](examples/) | Whole-robot examples |
 | [Testing](testing/) | Unit-testing Catalyst-based code |
 

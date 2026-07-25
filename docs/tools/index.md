@@ -8,7 +8,7 @@ has_children: false
 # Tools
 {: .no_toc }
 
-Eight single-file browser tools, hosted right here. Nothing to install.
+Eleven single-file browser tools, hosted right here. Nothing to install.
 {: .fs-6 .fw-300 }
 
 <style>
@@ -145,6 +145,13 @@ Eight single-file browser tools, hosted right here. Nothing to install.
   <span class="tag calc">Visualizer</span>
 </a>
 
+<a class="tool-card" href="statemachine/">
+  <div class="icon">🔀</div>
+  <p class="name">State Machine Visualizer</p>
+  <p class="desc">Paste the <code>Graph/Dot</code> string — or the <code>Graph/States</code> and <code>Graph/Edges</code> arrays — your <code>Superstructure</code> logs, and see the legal-transition graph drawn. Guards are dashed; dead-ends and unreachable states are flagged so a missing edge is obvious.</p>
+  <span class="tag calc">Visualizer</span>
+</a>
+
 </div>
 
 ---
@@ -162,7 +169,7 @@ once and that's it.
 
 ## AdvantageScope tab bundles
 
-Eight portable JSON bundles describing the NT field paths each
+Nine portable JSON bundles describing the NT field paths each
 mechanism publishes, plus a recommended chart layout. Drop one into
 AdvantageScope, Elastic, Glass, or Shuffleboard — the schema is
 dashboard-agnostic.
@@ -177,7 +184,20 @@ dashboard-agnostic.
 | ClawMechanism | [claw.json](advantagescope/claw.json) |
 | DifferentialWristMechanism | [diffwrist.json](advantagescope/diffwrist.json) |
 | PneumaticMechanism | [pneumatic.json](advantagescope/pneumatic.json) |
+| Superstructure (state machine) | [statemachine.json](advantagescope/statemachine.json) |
 
 Replace `{MECH}` with the name from your Config builder (`Arm`, `Elevator`,
 `Shooter`, …) and drag the listed NT keys onto the matching axes.
 Schema: [`catalyst-tab-bundle.schema.json`](catalyst-tab-bundle.schema.json).
+
+The state-machine bundle uses two placeholders instead of one. `{SM}` is the
+log prefix you gave `Superstructure.builder(…)` — it defaults to the machine
+name, so `Superstructure` unless you called `.logPrefix(…)`. `{BINDING}` is a
+binding key from `b.bind("elevator", …)`; the two per-binding tabs are meant to
+be copied once per mechanism you want to watch, since `Error` and `Tolerance`
+are in that mechanism's own units and do not share an axis.
+
+Ten tabs, and the first one is the one to import if you only import one: the
+State timeline puts `State`, `StateConfirmed`, `Phase`, `Target` and `Blocker`
+side by side, which is enough to see a transition stall and read off the name
+of the mechanism that stalled it.

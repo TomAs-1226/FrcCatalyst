@@ -1,7 +1,6 @@
 package frc.lib.catalyst.hardware;
 
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.networktables.StringArrayPublisher;
+import frc.lib.catalyst.logging.CatalystLog;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -33,8 +32,8 @@ import java.util.Optional;
  * reference {@code CANIds.X} from the planner output and the same id from
  * the subsystem code without tripping yourself up.
  *
- * <p>The full plan is published to NetworkTables as a string array at
- * {@code /Catalyst/CAN/Devices} so the Health Dashboard and any other NT
+ * <p>The full plan is published through {@link CatalystLog} as a string array
+ * at {@code /Catalyst/CAN/Devices} so the Health Dashboard and any other NT
  * viewer can see exactly what's wired where.
  */
 public final class CANRegistry {
@@ -53,7 +52,6 @@ public final class CANRegistry {
     }
 
     private static final Map<String, Entry> byKey = new LinkedHashMap<>();   // "bus/id" → entry
-    private static StringArrayPublisher pub;
 
     private CANRegistry() {}
 
@@ -152,15 +150,10 @@ public final class CANRegistry {
     }
 
     private static void republish() {
-        if (pub == null) {
-            pub = NetworkTableInstance.getDefault()
-                    .getTable("Catalyst").getSubTable("CAN")
-                    .getStringArrayTopic("Devices").publish();
-        }
         List<Entry> sorted = all();
         String[] out = new String[sorted.size()];
         for (int i = 0; i < sorted.size(); i++) out[i] = sorted.get(i).serialize();
-        pub.set(out);
+        CatalystLog.log("CAN/Devices", out);
     }
 
     /** Test hook. Returns the internal map view for assertions. Not for production code. */

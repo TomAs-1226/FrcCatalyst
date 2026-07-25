@@ -61,6 +61,7 @@
 | Browser sim cockpit for any mechanism | Hand-write per robot | **Generic `SimDashboard`** |
 | Safe temperature cutoffs | Manual | **Automatic** |
 | Limit switch auto-zeroing | Manual wiring | **One builder call** |
+| Whole-robot state machine | Hand-rolled per season | **Declarative graph + full logging** |
 
 ---
 
@@ -84,7 +85,7 @@ repositories {
 }
 
 dependencies {
-    implementation "com.github.TomAs-1226:FrcCatalyst:v1.0.0-rc3"
+    implementation "com.github.TomAs-1226:FrcCatalyst:v1.3.2"
 }
 ```
 </details>
@@ -124,6 +125,125 @@ operatorController.b().onTrue(elevator.goTo("STOW"));
 ```
 
 ---
+
+## v1.3.2: field-centric red flip & loop-cost guidance
+
+Two fixes from team 3211's competition report. Field-centric drive now sets the operator perspective
+explicitly on the request, so the red-alliance forward flip is guaranteed rather than relying on the
+CTRE default (`SwerveSubsystem.periodic()` already publishes the perspective from the alliance each
+loop). A new [loop-cost section](docs/advanced/logging.md) lays out how to keep the loop under 20 ms —
+disable tunables at competition, profile vision, halve telemetry, prefer a CANivore. See the
+[CHANGELOG](CHANGELOG.md).
+
+## v1.3.1: audit fixes
+
+A full adversarial audit of the library. Nine verified issues fixed — including two that could crash
+the robot loop (a throwing `zeroed()` escaping a rejected request; `Action.run(Command)` on reuse) —
+plus a state machine that now resumes a transition interrupted by a disable, and a `spinUpAndWait`
+that no longer stops the wheel just before a shot. One subtle swerve skew-sign discrepancy is
+reported for simulation review rather than flipped blind. See the [CHANGELOG](CHANGELOG.md).
+
+## What's New in v1.3.0: an understandable state machine, servos, live debugging
+
+Built around making the state machine easy to read and debug ([#29](https://github.com/TomAs-1226/FrcCatalyst/issues/29)),
+plus a couple of lean components. All additive.
+
+- **`explain()`** — `superstructure.explain()` prints a plain-language dump of what you built and why
+  it's stuck. The one-call "just tell me what's going on" button.
+- **State Machine Internals page** — a "how it works under the hood" guide with a symptom → log-key
+  debug map. See [docs/advanced/statemachine-internals.md](docs/advanced/statemachine-internals.md).
+- **Browser state-graph tool** — paste your machine's graph from the log and *see* it: states, edges,
+  guards, and flagged dead-ends/unreachable states.
+- **`ServoMechanism`** — a lean PWM-servo mechanism (hoods, ratchets, funnel flappers), a first-class
+  state-machine member too.
+- **`SimDashboard.statusPanel(...)`** — a live text card in the sim cockpit; the example wires a servo
+  to a tiny state machine and shows its `explain()` output live.
+
+Full notes: [CHANGELOG.md](CHANGELOG.md).
+
+## What's New in v1.2.1: shooter, sim, and logging plumbing
+
+A maintenance release that clears the issue backlog and the ready PRs. All additive.
+
+- **Torque-current FOC velocity control** for shooters ([#20](https://github.com/TomAs-1226/FrcCatalyst/pull/20)) —
+  `FlywheelMechanism` torque-current mode with a per-loop amps-feedforward `track(...)`, closing the
+  last [#17](https://github.com/TomAs-1226/FrcCatalyst/issues/17) gap.
+- **Swerve sim opt-out** ([#19](https://github.com/TomAs-1226/FrcCatalyst/pull/19)) — the internal
+  sim thread stands down when maple-sim takes over, plus `getModuleTargets()` as the clean
+  mechanism-level bridge seam.
+- **`AimingSolverVector`** ([#27](https://github.com/TomAs-1226/FrcCatalyst/pull/27)) — a second,
+  vector-adding shoot-on-the-fly solver alongside the time-of-flight `AimingSolver`.
+- **All telemetry routes through `CatalystLog`** ([#24](https://github.com/TomAs-1226/FrcCatalyst/issues/24)) —
+  swap the sink once and every stream follows; existing NT keys unchanged.
+
+Full notes: [CHANGELOG.md](CHANGELOG.md).
+
+## What's New in v1.2.0: a real state machine for the whole robot
+
+Resolves [#22](https://github.com/TomAs-1226/FrcCatalyst/issues/22). The new
+`frc.lib.catalyst.statemachine` package replaces `SuperstructureCoordinator`, which only ever
+understood `LinearMechanism` and `RotationalMechanism` positions and so could not describe a whole
+robot. Backward compatible — the coordinator is deprecated but frozen, not removed, and existing
+robot code keeps working unchanged.
+
+- **Every mechanism type, plus yours.** All nine Catalyst mechanisms (elevator, arm, differential
+  wrist, turret, flywheel, roller, claw, winch, pneumatic) have a typed binding. Any `SubsystemBase`
+  you wrote yourself reaches the same fidelity through four escape-hatch tiers in `Mechanisms`:
+  `instant` (fire and forget), `custom` (a method call plus a real arrival test), `commands` (you
+  already expose `Command` factories), and `build` (units, tolerance, ranges, notes, re-assertion).
+  The engine knows nothing about the typed bindings — it knows only `Actuator` — so a team's own
+  swerve or climber is not second-class.
+- **A transition graph, not a preset applier.** You declare which state changes are legal; an edge
+  you did not declare is a request the robot refuses, with a reason, in the log. On top of that:
+  guards and entry guards, global interlocks, per-edge staged actuation (raise the elevator *then*
+  swing the arm), optional multi-hop routing, per-state and per-edge deadlines, and fault policies.
+- **Arrival is proven, never assumed.** `current()` is only ever a state whose every gating
+  mechanism was *measured* to be at its goal. This is the bug that made the old coordinator
+  dangerous: it set the current state to the target even when a transition was interrupted or timed
+  out, so the next transition planned its route from a state the robot was not in. Now a timeout
+  leaves the machine where it actually is.
+- **Logging you do not have to build.** A structured schema under `/Catalyst/<prefix>/` covering the
+  graph, the live phase, progress and deadlines; a `Blocker` string that names *which* mechanism is
+  holding things up; a 50-entry transition history with outcomes and per-mechanism arrival times;
+  and one-shot Driver Station warnings, so you can diagnose a stuck superstructure with no dashboard
+  at all.
+
+Full guide: [docs/advanced/statemachine.md](docs/advanced/statemachine.md).
+
+## What's New in v1.1.0: audit fixes from a full robot port
+
+Resolves the 15-finding v1.0.0 audit ([#17](https://github.com/TomAs-1226/FrcCatalyst/issues/17)) from porting Team 5805's clone of team581's 2026 comp-bot onto Catalyst. Backward compatible.
+
+- **Swerve simulates now.** `SwerveSubsystem` starts a 200 Hz sim thread, so the drivetrain actually moves in the simulator instead of freezing.
+- **`CatalystGyro` stopped wiping the Pigeon 2 mount pose** (the default config apply is gone; opt in with the new config-taking constructor).
+- **Correctness fixes**: `LinearMechanism.zero()` sets `hasBeenZeroed`; `pathfindToPose()` is lazy; `xBrake()`/`idle()` hold their requirement; PathPlanner path following is closed-loop and keeps its feedforwards; `configurePathPlanner()` fails loudly.
+- **New API**: runtime current limits (`CatalystMotor.setSupplyCurrentLimit(...)`), current-spike homing (`mechanism.homeOnCurrent(...)`), `RotationalMechanism.hasBeenZeroed()`, `SwerveSubsystem.setMaxAngularRate(...)`.
+- **Packaging**: the vendordep now lists the PhotonVision, PathPlanner, and Phoenix repos so transitives resolve; corrected the install coordinate and test-coverage wording.
+
+## 🎉 v1.0.0 is here: out of beta
+
+**FrcCatalyst is 1.0.0.** After a long beta run (v0.3 through v0.10) and four
+release candidates, the library is stable, documented, and ready for the 2026
+season. Every mechanism, the swerve stack, Shoot-On-The-Fly aiming, the behavior
+framework, logging, and the generic `SimDashboard` are covered by a real unit
+test suite and proven in the simulator and on a real robot.
+
+Thank you to everyone who filed issues and PRs through the beta, especially
+**@avrahamavraham** and the teams following along on Chief Delphi. This is your
+release too.
+
+1.0.0 is the same code as rc4, promoted after the release-candidate series held
+up. Semantic versioning starts here: the public API is stable, and breaking
+changes wait for 2.0.0. Go build something awesome. 🚀
+
+## What's New in v1.0.0-rc4: community PRs, telemetry, swerve, sim, vision
+
+- **Merged 7 community PRs** (thanks @avrahamavraham): red-alliance field-centric fix, wheel-radius-based max angular rate, an `idle()` command + ChassisSpeeds publisher, struct logging, a logging enable/disable toggle, and custom `WpilogSink` destinations.
+- **Struct + struct-array logging** end to end: `CatalystLog.log(key, struct, value)` and `(key, struct, array)` publish any WPILib struct type (poses, module states) as real objects in AdvantageScope, through both the NetworkTables and WPILOG sinks.
+- **Swerve module telemetry**: measured and target `SwerveModuleState[]` publish to `/Catalyst/Swerve/ModuleStates` and `/ModuleTargets` for the AdvantageScope swerve view.
+- **SimDashboard v2**: per-mechanism sparkline history, a pause/resume toggle, and CSV export of the live snapshot.
+- **`SimCameraSource`**: a vision source that emits noisy, latency-delayed pose estimates from a simulated pose, so the multi-camera fusion pipeline runs in the simulator with no hardware.
+- **WPILib 2027**: a `wpilib-2027` branch with a grounded migration plan (`MIGRATION_2027.md`). Main stays on WPILib 2026.
 
 ## What's New in v1.0.0-rc3: Configurable simulation
 
@@ -299,7 +419,21 @@ frc.lib.catalyst
 |   +-- ClawMechanism               Motor-driven gripper with stall-based grip detection
 |   +-- DifferentialWristMechanism  Two-motor diffy wrist (pitch + roll)
 |   +-- PneumaticMechanism          Single/double solenoid with pressure-aware safety
-|   +-- SuperstructureCoordinator   State machine + collision zones + timeouts
+|   +-- SuperstructureCoordinator   Deprecated in v1.2.0 — use statemachine/ below
+|
++-- statemachine/        Whole-robot state machine (v1.2.0)
+|   +-- StateMachineCore         The engine: graph, guards, staging, deadlines, logging
+|   +-- StateGraph               Declared legal transitions + route planning
+|   +-- StateSpec, EdgeSpec      Per-state goals; per-edge guards, staging, timeouts
+|   +-- Binding, Handle          What a mechanism must answer; typed reference to one
+|   +-- Phase, RejectReason      Where a transition is; why one was refused
+|   +-- Routing, FaultPolicy     Direct-only vs shortest-path; what a blown deadline does
+|   +-- TransitionRecord         One history entry: outcome + per-mechanism arrival times
+|   +-- Snapshot                 Whole-machine state as one immutable object
+|   +-- goals/                   LinearGoal, RotationalGoal, WristGoal, FlywheelGoal,
+|   |                            TurretGoal, ClawGoal, RollerGoal, WinchGoal, PneumaticGoal
+|   +-- mech/Mechanisms          Factory facade: 9 typed bindings + 4 escape-hatch tiers
+|   +-- robot/Superstructure     Public entry point — builder, commands, triggers
 |
 +-- io/                  Hardware-abstraction layer (v0.3)
 |   +-- *MechanismInputs            Per-loop input snapshots (replay-friendly)
@@ -500,6 +634,86 @@ driver.y().onTrue(climbHook.retract());
 
 ---
 
+## State machine
+
+`Superstructure` coordinates every mechanism on the robot from one enum of states. You declare what
+each state means — the goal every mechanism holds — and which transitions between states are legal.
+A transition you did not declare is one the robot refuses to make, and it says why in the log.
+
+The invariant worth understanding before anything else: **`current()` is only ever a state whose
+arrival was proven**, meaning every gating mechanism was measured to be at its goal. If a transition
+times out, the machine stays where it actually is rather than pretending it arrived, so the next
+transition plans its route from the truth. This is exactly what `SuperstructureCoordinator` got
+wrong, and it is why that class is now deprecated.
+
+```java
+public enum SuperState { STOW, INTAKE, CARRY, AIM }
+
+var b = Superstructure.builder(SuperState.class, "Superstructure");
+
+var elevator = b.bind("elevator", Mechanisms.linear(elevatorMech));
+var arm      = b.bind("arm",      Mechanisms.rotational(armMech));
+var intake   = b.bind("intake",   Mechanisms.roller(intakeMech));
+var claw     = b.bind("claw",     Mechanisms.claw(clawMech));
+var shooter  = b.bind("shooter",  Mechanisms.flywheel(shooterMech));
+
+superstructure = b
+    // The safe posture, stated once. Every state inherits it unless it says otherwise, so a
+    // mechanism you forget in one state does not stay where the last state parked it.
+    .defaults(s -> s
+        .set(claw,    ClawGoal.hold())
+        .set(intake,  RollerGoal.idle())
+        .set(shooter, FlywheelGoal.idle()))
+
+    .state(SuperState.STOW, s -> s
+        .set(elevator, LinearGoal.meters(0.0))
+        .set(arm,      RotationalGoal.degrees(0)))
+
+    .state(SuperState.INTAKE, s -> s
+        .set(elevator, LinearGoal.meters(0.05))
+        .set(arm,      RotationalGoal.degrees(-20))
+        .set(intake,   RollerGoal.intakeUntilPiece(3.0))
+        .set(claw,     ClawGoal.open()))
+
+    .state(SuperState.CARRY, s -> s
+        .set(elevator, LinearGoal.meters(0.15))
+        .set(arm,      RotationalGoal.degrees(10))
+        .set(claw,     ClawGoal.grip(1.5)))
+
+    .state(SuperState.AIM, s -> s
+        .set(elevator, LinearGoal.meters(0.30))
+        .set(arm,      RotationalGoal.degrees(35))
+        .set(shooter,  FlywheelGoal.rpm(4200))
+        .entryGuard(clawMech::hasPiece, "no piece"))   // refuse to aim with an empty claw
+
+    .hub(SuperState.STOW)                              // STOW connects to everything
+    .allow(SuperState.INTAKE, SuperState.CARRY)
+    .allowBoth(SuperState.CARRY, SuperState.AIM)
+
+    // Raise the elevator BEFORE the arm swings out, or the arm hits the chassis.
+    .edge(SuperState.STOW, SuperState.AIM, e -> e.stage(elevator).stage(arm))
+
+    .build();
+
+// In robotInit, tell it where the robot is physically built. Nothing moves; this only
+// establishes the origin the first transition plans from.
+superstructure.engine().seed(SuperState.STOW);
+
+// Bindings. The String is recorded in the transition history, so the log says who asked.
+operator.a().onTrue(superstructure.goTo(SuperState.INTAKE, "op.a"));
+operator.y().onTrue(superstructure.goTo(SuperState.AIM,    "op.y"));
+superstructure.arrivedAt(SuperState.CARRY).onTrue(leds.flash(Color.kGreen));
+```
+
+Any subsystem you wrote yourself works here too. `Mechanisms.instant`, `.custom`, `.commands` and
+`.build` cover everything from an LED strip with no arrival concept up to a vendor-SDK wrapper that
+needs its own tolerance, range checking and blocker notes.
+
+Full guide — every goal type, the four escape-hatch tiers, the logging schema, fault policies, and
+migrating off `SuperstructureCoordinator`: [docs/advanced/statemachine.md](docs/advanced/statemachine.md).
+
+---
+
 ## Logging & AdvantageKit Bridge
 
 Every mechanism routes telemetry through `CatalystLog`, a static facade backed
@@ -587,7 +801,8 @@ VisionSubsystem vision = new VisionSubsystem(VisionConfig.builder()
 | `AlertManager` | Centralized fault/warning system with NetworkTables publishing |
 | `MechanismVisualizer` | Mechanism2d dashboard builder (elevator + arm visualization) |
 | `CharacterizationHelper` | SysId routine wrapper for one-line characterization setup |
-| `SuperstructureCoordinator` | Multi-mechanism state machine with collision zones + timeouts |
+| `Superstructure` | Whole-robot state machine: every mechanism type, legal-transition graph, proven arrival, full logging |
+| `SuperstructureCoordinator` | **Deprecated in v1.2.0** (frozen, not removed) — use `Superstructure` |
 | `InterpolatingTable` | TreeMap-based linear interpolation (shooter distance tables) |
 | `CatalystMath` | Joystick curves, angle math, geometry helpers, physics |
 | `SlewRateLimiter` | Asymmetric rate limiter (different accel/decel profiles) |
@@ -657,19 +872,23 @@ double maxSpeed = config.estimateMaxSpeed();      // ~1.9 m/s
 
 ## Testing
 
-FrcCatalyst includes a comprehensive test project at [FrcCatalystTest](https://github.com/TomAs-1226/FrcCatalystTest) that validates all library components:
+FrcCatalyst ships **78 JUnit tests** in `src/test`, run with `./gradlew test`:
 
-- **68 JUnit tests** covering utilities, math helpers, hardware types, and mechanism construction
-- **Simulation tests** for all mechanism types (elevator, arm, flywheel, roller, winch)
-- **SuperstructureCoordinator** state machine integration tests
+- **46 tests covering the state machine engine** — graph validation and refused transitions
+  (`StateMachineGraphTest`), transition sequencing, staging and deadlines
+  (`StateMachineTransitionTest`), the proven-arrival invariant (`StateMachineTruthTest`), the
+  logging schema (`StateMachineTelemetryTest`), and robustness against throwing guards and
+  post-timeout recovery (`StateMachineRobustnessTest`).
+- **Aiming and field math** — the Shoot-On-The-Fly solver closed-loop proof (`AimingSolverTest`),
+  the vector-adding SOTF solver (`AimingSolverVectorTest`),
+  turret continuous-wrap (`TurretMathTest`), and alliance flipping (`AllianceFlipUtilTest`).
 
 ```bash
-# Run unit tests (utilities, math, hardware)
 ./gradlew test
-
-# Run all tests including mechanism simulation
-./gradlew testAll
 ```
+
+A separate end-to-end project at [FrcCatalystTest](https://github.com/TomAs-1226/FrcCatalystTest)
+exercises the library in simulation across every mechanism type.
 
 ---
 

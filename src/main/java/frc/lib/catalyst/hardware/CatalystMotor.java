@@ -15,6 +15,7 @@ import com.ctre.phoenix6.signals.MotorAlignmentValue;
 import com.ctre.phoenix6.controls.MotionMagicVoltage;
 import com.ctre.phoenix6.controls.NeutralOut;
 import com.ctre.phoenix6.controls.PositionVoltage;
+import com.ctre.phoenix6.controls.VelocityTorqueCurrentFOC;
 import com.ctre.phoenix6.controls.VelocityVoltage;
 import com.ctre.phoenix6.controls.VoltageOut;
 import com.ctre.phoenix6.hardware.CANcoder;
@@ -28,9 +29,7 @@ import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
 import static edu.wpi.first.units.Units.Volts;
 import com.ctre.phoenix6.signals.NeutralModeValue;
-import edu.wpi.first.networktables.DoublePublisher;
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
+import frc.lib.catalyst.logging.CatalystLog;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -66,15 +65,9 @@ public class CatalystMotor {
     private final VoltageOut voltageRequest = new VoltageOut(0);
     private final PositionVoltage positionRequest = new PositionVoltage(0);
     private final VelocityVoltage velocityRequest = new VelocityVoltage(0);
+    private final VelocityTorqueCurrentFOC velocityTorqueRequest = new VelocityTorqueCurrentFOC(0);
     private final MotionMagicVoltage motionMagicRequest = new MotionMagicVoltage(0);
     private final NeutralOut neutralRequest = new NeutralOut();
-
-    // Telemetry publishers
-    private final DoublePublisher positionPub;
-    private final DoublePublisher velocityPub;
-    private final DoublePublisher voltagePub;
-    private final DoublePublisher currentPub;
-    private final DoublePublisher tempPub;
 
     // Config storage
     private double gearRatio = 1.0;
@@ -82,6 +75,11 @@ public class CatalystMotor {
     // Retained so live-tuning helpers can rebuild Slot0Configs without losing the
     // gravity model the mechanism was originally configured with.
     private GravityTypeValue gravityType;
+    // Retained so a runtime current-limit change re-sends the WHOLE CurrentLimits
+    // group (Phoenix's apply(CurrentLimitsConfigs) overwrites all of it), instead
+    // of silently dropping the other limit and its thermal protection.
+    private double supplyCurrentLimit;
+    private double statorCurrentLimit;
 
     private CatalystMotor(Builder builder) {
         this.canId = builder.canId;
@@ -96,6 +94,8 @@ public class CatalystMotor {
         this.gearRatio = builder.gearRatio;
         this.positionConversionFactor = builder.positionConversionFactor;
         this.gravityType = builder.gravityType;
+        this.supplyCurrentLimit = builder.currentLimit;
+        this.statorCurrentLimit = builder.statorCurrentLimit;
 
         // Apply configuration
         TalonFXConfiguration config = new TalonFXConfiguration();
@@ -113,6 +113,10 @@ public class CatalystMotor {
         config.CurrentLimits.SupplyCurrentLimit = builder.currentLimit;
         config.CurrentLimits.StatorCurrentLimitEnable = true;
         config.CurrentLimits.StatorCurrentLimit = builder.statorCurrentLimit;
+
+        // Torque-current peaks (only meaningful for *TorqueCurrentFOC requests; harmless otherwise)
+        config.TorqueCurrent.PeakForwardTorqueCurrent = builder.peakForwardTorqueCurrent;
+        config.TorqueCurrent.PeakReverseTorqueCurrent = builder.peakReverseTorqueCurrent;
 
         // PID (Slot 0)
         config.Slot0.kP = builder.kP;
@@ -216,6 +220,8 @@ public class CatalystMotor {
             followerConfig.CurrentLimits.SupplyCurrentLimit = builder.currentLimit;
             followerConfig.CurrentLimits.StatorCurrentLimitEnable = true;
             followerConfig.CurrentLimits.StatorCurrentLimit = builder.statorCurrentLimit;
+            followerConfig.TorqueCurrent.PeakForwardTorqueCurrent = builder.peakForwardTorqueCurrent;
+            followerConfig.TorqueCurrent.PeakReverseTorqueCurrent = builder.peakReverseTorqueCurrent;
 
             for (int i = 0; i < 5; i++) {
                 var status = follower.getConfigurator().apply(followerConfig);
@@ -246,15 +252,6 @@ public class CatalystMotor {
                 f.optimizeBusUtilization();
             }
         }
-
-        // Set up telemetry
-        NetworkTable table = NetworkTableInstance.getDefault()
-                .getTable("Catalyst").getSubTable(this.name);
-        positionPub = table.getDoubleTopic("Position").publish();
-        velocityPub = table.getDoubleTopic("Velocity").publish();
-        voltagePub = table.getDoubleTopic("Voltage").publish();
-        currentPub = table.getDoubleTopic("Current").publish();
-        tempPub = table.getDoubleTopic("Temperature").publish();
     }
 
     // --- Control Methods ---
@@ -290,6 +287,28 @@ public class CatalystMotor {
     }
 
     /** Set closed-loop velocity target in mechanism rotations per second. */
+    /**
+     * Closed-loop velocity via torque-current FOC (requires a Phoenix Pro license on the device).
+     *
+     * <p>In this mode the Slot 0 gains are in <b>amps</b>, not volts: kP is A per rps of error, kS
+     * is A, kV is A per rps. Voltage-mode gains are not transferable — running them through this
+     * request will be violent. Configure {@code Builder.torqueCurrentLimits(...)} so the request
+     * has headroom (Phoenix defaults the peaks conservatively).
+     *
+     * @param velocityRPS target velocity in rotations per second
+     * @param feedforwardAmps additive feedforward in amps, recomputable every loop (the classic use
+     *     is compensating a shooter for the ball being fed into it)
+     */
+    public void setVelocityTorqueCurrent(double velocityRPS, double feedforwardAmps) {
+        motor.setControl(
+                velocityTorqueRequest.withVelocity(velocityRPS).withFeedForward(feedforwardAmps));
+    }
+
+    /** Closed-loop torque-current velocity with no additive feedforward. */
+    public void setVelocityTorqueCurrent(double velocityRPS) {
+        setVelocityTorqueCurrent(velocityRPS, 0.0);
+    }
+
     public void setVelocity(double velocityRPS) {
         motor.setControl(velocityRequest.withVelocity(velocityRPS));
     }
@@ -407,6 +426,38 @@ public class CatalystMotor {
     }
 
     /**
+     * Change the supply current limit at runtime (e.g. state-based power
+     * budgeting). Re-sends the whole {@link CurrentLimitsConfigs} group so the
+     * stator limit and both enables are preserved.
+     */
+    public void setSupplyCurrentLimit(double amps) {
+        this.supplyCurrentLimit = amps;
+        applyCurrentLimits();
+    }
+
+    /** Change the stator current limit at runtime. Preserves the supply limit. */
+    public void setStatorCurrentLimit(double amps) {
+        this.statorCurrentLimit = amps;
+        applyCurrentLimits();
+    }
+
+    /** Change both current limits at runtime in a single config apply. */
+    public void setCurrentLimits(double supplyAmps, double statorAmps) {
+        this.supplyCurrentLimit = supplyAmps;
+        this.statorCurrentLimit = statorAmps;
+        applyCurrentLimits();
+    }
+
+    private void applyCurrentLimits() {
+        CurrentLimitsConfigs limits = new CurrentLimitsConfigs();
+        limits.SupplyCurrentLimitEnable = true;
+        limits.SupplyCurrentLimit = supplyCurrentLimit;
+        limits.StatorCurrentLimitEnable = true;
+        limits.StatorCurrentLimit = statorCurrentLimit;
+        motor.getConfigurator().apply(limits);
+    }
+
+    /**
      * Hot-reload Slot 1 PID + feedforward gains. Slot 1 is used by Catalyst's
      * differential mechanisms (e.g. {@link frc.lib.catalyst.mechanisms.DifferentialWristMechanism})
      * for the differential-axis controller while Slot 0 handles the average axis.
@@ -432,13 +483,13 @@ public class CatalystMotor {
         motor.getConfigurator().apply(mm);
     }
 
-    /** Update telemetry. Call from subsystem periodic(). */
+    /** Update telemetry. Call from subsystem periodic(). Publishes through CatalystLog. */
     public void updateTelemetry() {
-        positionPub.set(getPosition());
-        velocityPub.set(getVelocity());
-        voltagePub.set(getAppliedVoltage());
-        currentPub.set(getStatorCurrent());
-        tempPub.set(getTemperature());
+        CatalystLog.log(name + "/Position", getPosition());
+        CatalystLog.log(name + "/Velocity", getVelocity());
+        CatalystLog.log(name + "/Voltage", getAppliedVoltage());
+        CatalystLog.log(name + "/Current", getStatorCurrent());
+        CatalystLog.log(name + "/Temperature", getTemperature());
     }
 
     /**
@@ -536,6 +587,10 @@ public class CatalystMotor {
         private double canUpdateHz = 50.0;
         private double currentLimit = 40;
         private double statorCurrentLimit = 80;
+        // Phoenix's own defaults (+/-800 A are the config maximums; Phoenix ships narrower).
+        // Kept at Phoenix defaults unless torqueCurrentLimits() is called.
+        private double peakForwardTorqueCurrent = 800;
+        private double peakReverseTorqueCurrent = -800;
         private double gearRatio = 1.0;
         private double positionConversionFactor = 1.0;
         private double kP = 0, kI = 0, kD = 0;
@@ -585,6 +640,20 @@ public class CatalystMotor {
         public Builder optimizeCanBus() { return optimizeCanBus(50.0); }
         public Builder currentLimit(double amps) { this.currentLimit = amps; return this; }
         public Builder statorCurrentLimit(double amps) { this.statorCurrentLimit = amps; return this; }
+
+        /**
+         * Peak torque-current for *TorqueCurrentFOC requests (Pro-licensed devices). Phoenix's own
+         * default is the full +/-800 A range; shooters commonly want something like +200/-200 so a
+         * ball being fed in cannot command an unbounded correction.
+         *
+         * @param peakForwardAmps positive amps
+         * @param peakReverseAmps negative amps
+         */
+        public Builder torqueCurrentLimits(double peakForwardAmps, double peakReverseAmps) {
+            this.peakForwardTorqueCurrent = peakForwardAmps;
+            this.peakReverseTorqueCurrent = peakReverseAmps;
+            return this;
+        }
         public Builder gearRatio(double ratio) { this.gearRatio = ratio; return this; }
         public Builder positionConversionFactor(double factor) { this.positionConversionFactor = factor; return this; }
 

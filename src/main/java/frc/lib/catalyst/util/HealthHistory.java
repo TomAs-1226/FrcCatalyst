@@ -1,8 +1,8 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.networktables.StringArrayPublisher;
 import edu.wpi.first.wpilibj.Timer;
+
+import frc.lib.catalyst.logging.CatalystLog;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -11,7 +11,7 @@ import java.util.List;
 /**
  * Fixed-capacity ring buffer of recent {@link HealthCheck} fire / clear
  * edges. The most recent {@code N} (default 100) events are kept in memory
- * and published as a string array on NetworkTables for the Health
+ * and published as a string array through CatalystLog for the Health
  * Dashboard's timeline view.
  *
  * <p>{@link HealthMonitor} feeds events in automatically — teams don't
@@ -52,7 +52,6 @@ public final class HealthHistory {
 
     private static int capacity = DEFAULT_CAPACITY;
     private static final Deque<Event> events = new ArrayDeque<>();
-    private static StringArrayPublisher pub;
 
     private HealthHistory() {}
 
@@ -90,14 +89,9 @@ public final class HealthHistory {
     }
 
     private static void republish() {
-        if (pub == null) {
-            pub = NetworkTableInstance.getDefault()
-                    .getTable("Catalyst").getSubTable("Health")
-                    .getStringArrayTopic("History").publish();
-        }
         String[] out = new String[events.size()];
         int i = 0;
         for (Event e : events) out[i++] = e.serialize();
-        pub.set(out);
+        CatalystLog.log("Health/History", out);
     }
 }

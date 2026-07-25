@@ -1,14 +1,10 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.networktables.BooleanPublisher;
-import edu.wpi.first.networktables.IntegerPublisher;
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.networktables.StringPublisher;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
+import frc.lib.catalyst.logging.CatalystLog;
 
 /**
  * Cross-mechanism safety watchdog driven by {@link HealthMonitor}.
@@ -23,7 +19,7 @@ import edu.wpi.first.wpilibj2.command.button.Trigger;
  * <p>The watchdog also de-bounces transient bursts: a few ERRORs that
  * clear within a half-second won't trip, but a sustained group will.
  *
- * <p>The state is published to NetworkTables under
+ * <p>The state is published through {@link CatalystLog} under
  * {@code /Catalyst/Safety/...} so dashboards (including the Health
  * Dashboard at {@code docs/tools/health/}) light up the same way teams'
  * driver station does.
@@ -58,26 +54,13 @@ public final class RobotSafety {
     private static double underThresholdSince = -1;
     private static String lastReason = "";
 
-    private static BooleanPublisher trippedPub;
-    private static StringPublisher reasonPub;
-    private static IntegerPublisher errorPub;
-    private static IntegerPublisher warnPub;
-
     private RobotSafety() {}
 
     /** Install (or replace) the safety policy. */
     public static synchronized void configure(Config c) {
         config = c;
-        if (trippedPub == null) {
-            NetworkTable table = NetworkTableInstance.getDefault()
-                    .getTable("Catalyst").getSubTable("Safety");
-            trippedPub = table.getBooleanTopic("Tripped").publish();
-            reasonPub = table.getStringTopic("Reason").publish();
-            errorPub = table.getIntegerTopic("ErrorCount").publish();
-            warnPub = table.getIntegerTopic("WarnCount").publish();
-        }
-        trippedPub.set(tripped);
-        reasonPub.set(lastReason);
+        CatalystLog.log("Safety/Tripped", tripped);
+        CatalystLog.log("Safety/Reason", lastReason);
     }
 
     /** True if the watchdog has tripped (sustained over-threshold faults). */
@@ -116,10 +99,8 @@ public final class RobotSafety {
         if (tripped) return;
         tripped = true;
         lastReason = reason == null ? "manual trip" : reason;
-        if (trippedPub != null) {
-            trippedPub.set(true);
-            reasonPub.set(lastReason);
-        }
+        CatalystLog.log("Safety/Tripped", true);
+        CatalystLog.log("Safety/Reason", lastReason);
         if (config != null && config.onTrip != null) {
             try { config.onTrip.run(); } catch (Throwable ignored) {}
         }
@@ -138,8 +119,8 @@ public final class RobotSafety {
     public static synchronized void reset() {
         tripped = false;
         lastReason = "";
-        if (trippedPub != null) trippedPub.set(false);
-        if (reasonPub != null) reasonPub.set("");
+        CatalystLog.log("Safety/Tripped", false);
+        CatalystLog.log("Safety/Reason", "");
         if (config != null && config.onReset != null) {
             try { config.onReset.run(); } catch (Throwable ignored) {}
         }
@@ -164,10 +145,8 @@ public final class RobotSafety {
             if (!tripped && now - overThresholdSince >= config.debounceSeconds) {
                 tripped = true;
                 lastReason = buildReason(errorCount, warnCount);
-                if (trippedPub != null) {
-                    trippedPub.set(true);
-                    reasonPub.set(lastReason);
-                }
+                CatalystLog.log("Safety/Tripped", true);
+                CatalystLog.log("Safety/Reason", lastReason);
                 if (config.onTrip != null) {
                     try { config.onTrip.run(); } catch (Throwable ignored) {}
                 }
@@ -179,18 +158,16 @@ public final class RobotSafety {
             if (tripped && config.autoReset && now - underThresholdSince >= config.autoResetSeconds) {
                 tripped = false;
                 lastReason = "";
-                if (trippedPub != null) {
-                    trippedPub.set(false);
-                    reasonPub.set("");
-                }
+                CatalystLog.log("Safety/Tripped", false);
+                CatalystLog.log("Safety/Reason", "");
                 if (config.onReset != null) {
                     try { config.onReset.run(); } catch (Throwable ignored) {}
                 }
             }
         }
 
-        if (errorPub != null) errorPub.set(errorCount);
-        if (warnPub != null) warnPub.set(warnCount);
+        CatalystLog.log("Safety/ErrorCount", (long) errorCount);
+        CatalystLog.log("Safety/WarnCount", (long) warnCount);
     }
 
     private static String buildReason(int errorCount, int warnCount) {

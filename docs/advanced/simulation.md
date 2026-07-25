@@ -91,6 +91,44 @@ optional `BooleanSupplier` so a toggle tracks live robot state instead of just
 the last click), and `add` to chain straight to the next mechanism. Call
 `title(String)` to set the page title and `stop()` to shut the server down.
 
+### Live text panels
+
+Not everything you want to watch in sim is a mechanism. A running state
+machine, the match clock, a scoring FSM — these have no travel bar or speed
+readout, they have *state you want to read as text*. `statusPanel` renders that:
+
+```java
+public SimDashboard statusPanel(String title, java.util.function.Supplier<java.util.List<String>> lines)
+```
+
+It adds a titled text card to the cockpit that shows each string on its own
+line, and the supplier is called once per `update()` so the card is always
+live. It returns `this`, so it chains alongside `add(...)` like the other
+registration calls. It is deliberately **decoupled from mechanisms and
+reusable**: it takes a plain `Supplier<List<String>>`, so anything that can
+describe itself as a few lines of text works — you are not limited to things
+that implement `describe()`.
+
+The headline use is watching a state machine think. A Catalyst state machine's
+`explain()` returns a plain-language dump of what you built and why it is stuck
+(current state, the route it is taking, which guard is blocking a transition).
+Split it into lines and hand it to a panel, and the reasoning updates live as
+the machine runs:
+
+```java
+dash.statusPanel("Superstructure",
+    () -> java.util.Arrays.asList(sm.explain().split("\n")));
+```
+
+The example project does exactly this. Alongside the one-of-every-kind
+mechanism lab, it stands up a servo hood driven by a tiny three-state machine
+(`CLOSE` / `MID` / `FAR`), wires the state buttons to `goTo(...)`, and adds a
+`statusPanel("Hood State Machine", () -> Arrays.asList(hoodMachine.explain().split("\n")))`
+so you can click a target state and watch `explain()` narrate the routing and
+guarding live, next to the servo it is driving. For what `explain()` prints and
+how the engine decides transitions, see
+[State machine internals](../advanced/statemachine-internals.html).
+
 ### Widget per mechanism kind
 
 The dashboard maps each `MechanismView` kind to a fitting widget:
@@ -105,6 +143,11 @@ The dashboard maps each `MechanismView` kind to a fitting widget:
 | `diffwrist` | pitch value with roll in the extras |
 | `winch` | extension value over its range |
 | `pneumatic` | solenoid state chip |
+
+Each widget also draws a live **sparkline** of its primary value with a setpoint
+guide, so you can watch a mechanism settle. The header has a **Pause/Resume**
+toggle (freeze the view mid-motion) and an **Export CSV** button that downloads
+the current snapshot of every mechanism.
 
 ### Mechanisms now run real physics in sim
 
@@ -158,7 +201,8 @@ it through these.
 
 | Hook | What it's for |
 |---|---|
-| `SwerveSubsystem.setSimPose(Pose2d)` | feed maple-sim's physics pose into Catalyst's estimator (sim only; no-op on a real robot) |
+| `SwerveSubsystem.setSimPose(Pose2d)` | feed maple-sim's physics pose into Catalyst's estimator (sim only; no-op on a real robot). Also stands Catalyst's own sim thread down on first call — see below |
+| `SwerveSubsystem.disableInternalSim()` | stand the internal sim down explicitly, if you want it off before the first pose arrives |
 | `SimGamePieces` | stream simulated piece positions to NT for AdvantageScope |
 
 ### Setup
@@ -189,9 +233,59 @@ public void simulationPeriodic() {
 }
 ```
 
+### Catalyst's own sim thread gets out of the way
+
+Without maple-sim, `SwerveSubsystem` runs a 200 Hz thread calling Phoenix's
+`updateSimState()` so the drivetrain moves in the simulator out of the box.
+With maple-sim, that thread would be a second writer on the same module rotor
+states — and at 200 Hz it would win, quietly overwriting the physics before it
+ever reached your robot code.
+
+So the first `setSimPose()` call stops it. The wiring above needs no extra step;
+this is only worth knowing about when something looks stuck. To check, or to
+stand it down before any pose arrives:
+
+```java
+drive.disableInternalSim();          // explicit, idempotent, no-op on a real robot
+drive.isInternalSimRunning();        // false once an external engine has taken over
+```
+
 > Method names follow maple-sim's API, which changes between releases, so
 > check their current docs. The Catalyst side (`setSimPose`, `SimGamePieces`)
 > is stable.
+
+### Bridge at the mechanism level, not the device level
+
+There are two ways to connect an external physics engine to a CTRE swerve, and the choice matters
+more than it looks.
+
+- **Device-level** — write each `TalonFX`/`CANcoder` simulation state yourself. This is the seam it
+  is tempting to reach for, but getting a swerve right this way means reproducing every per-module
+  magnet offset, every per-module inversion, the module orientation enums, and the `FusedCANcoder`
+  rotor-to-CANcoder sync *exactly*. Get any of it subtly wrong and you get a **marginally stable steer
+  loop** whose symptoms look like drive problems, brownouts, or drifting odometry — never like the
+  steer feedback that is actually wrong. It is a genuinely hard thing to debug.
+- **Mechanism-level (recommended)** — hand maple-sim the module setpoints Catalyst already computed and
+  let it own the physics. About forty lines, deterministic, and there is no device state to corrupt.
+
+The seam for the second approach is {@code SwerveSubsystem.getModuleTargets()} (added in 1.2.1) — the
+commanded module states, so you never reach through the raw drivetrain:
+
+```java
+// In simulationPeriodic(), instead of writing TalonFX sim states by hand:
+SwerveModuleState[] targets = drive.getModuleTargets();   // what Catalyst just commanded
+if (targets != null) {
+    selfControlledSim.runSwerveStates(targets);           // maple-sim owns the physics
+}
+drive.setSimPose(selfControlledSim.getActualPoseInSimulationWorld());
+```
+
+where `selfControlledSim` is maple-sim's
+`SelfControlledSwerveDriveSimulation`.
+
+> One caveat under mechanism-level bridging: because no device sim states are written,
+> `/Catalyst/Swerve/ModuleStates` (the *measured* states) reads zeros — `getModuleTargets()` /
+> `/Catalyst/Swerve/ModuleTargets` is the observable that reflects what the robot is doing.
 
 ### What you can test in sim
 
@@ -207,6 +301,22 @@ stack runs against it:
   field with `pathfindToPose` and `followChoreoPath`.
 - **Vision pursuit** feeds `driveToPiece` a supplier of the nearest simulated
   piece pose and cycles.
+- **Vision fusion** runs with no camera: add a `SimCameraSource` to your
+  `VisionConfig`, feeding it the true simulated pose. It emits noisy,
+  latency-delayed pose estimates so the whole `VisionSubsystem` pipeline (accept
+  / reject, std-dev weighting, feeding the swerve estimator) runs in the
+  simulator, letting you tune `maxAmbiguity` and the std-dev model early.
+
+```java
+VisionConfig cfg = VisionConfig.builder()
+    .driveSubsystem(drive)
+    .addCamera(SimCameraSource.builder("SimFront")
+        .truePose(() -> swerveSim.getSimulatedDriveTrainPose())
+        .translationStdDevMeters(0.03)
+        .latencySeconds(0.03)
+        .build())
+    .build();
+```
 
 ### Visualization
 

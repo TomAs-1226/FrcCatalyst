@@ -19,8 +19,20 @@ public class CatalystGyro {
     public CatalystGyro(int canId, String canBus) {
         this.canId = canId;
         this.pigeon = new Pigeon2(canId, canBus);
+        // Intentionally do NOT apply a configuration here. Applying a default
+        // Pigeon2Configuration would erase whatever is on the device — most
+        // importantly the mount-pose offset teams set in Tuner X. Use the
+        // config-taking constructor if you want Catalyst to own the config.
+    }
 
-        Pigeon2Configuration config = new Pigeon2Configuration();
+    /**
+     * Construct with an explicit {@link Pigeon2Configuration} to apply. Use this
+     * only when you want Catalyst (not Tuner X) to own the device configuration;
+     * it overwrites the whole config, so include your mount pose in {@code config}.
+     */
+    public CatalystGyro(int canId, String canBus, Pigeon2Configuration config) {
+        this.canId = canId;
+        this.pigeon = new Pigeon2(canId, canBus);
         for (int i = 0; i < 5; i++) {
             var status = pigeon.getConfigurator().apply(config);
             if (status.isOK()) break;

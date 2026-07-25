@@ -108,9 +108,20 @@ public final class Action {
             return Commands.none();
         }
         if (work == null) return Commands.none();
-        // End on success OR command completion. If no explicit success
-        // condition was given, this is just the work itself.
-        return work.until(successCondition).withName("Action:" + name);
+        // End on success OR command completion. If no explicit success condition was given, this is
+        // just the work itself. The composition is guarded: if the factory handed back a command that
+        // is already part of another composition — the classic footgun of the run(Command) overload,
+        // whose single instance gets composed on the first call — WPILib throws IllegalArgumentException
+        // from registerComposedCommands. That must not escape into CommandScheduler.run() (this is
+        // called from a Commands.defer supplier in Autopilot/Strategist), so it degrades to a no-op
+        // instead of taking the robot loop down. Use run(Supplier) for anything invoked more than once.
+        try {
+            return work.until(successCondition).withName("Action:" + name);
+        } catch (RuntimeException alreadyComposed) {
+            System.err.println("[Catalyst] Action '" + name + "': command is already composed — use "
+                    + "run(Supplier<Command>) instead of run(Command) for an action run more than once.");
+            return Commands.none();
+        }
     }
 
     // ============================================================
@@ -147,9 +158,15 @@ public final class Action {
         }
 
         /**
-         * Convenience for a command that is safe to reuse, or when you build
-         * the command inline. Prefer {@link #run(Supplier)} for anything with
-         * internal state.
+         * Convenience for a command you build inline and run <b>once</b>.
+         *
+         * <p><b>Single-use.</b> This stores the one command instance and hands it back every time the
+         * action is turned into a command. WPILib composes a command the first time it is used (here,
+         * inside {@link Action#toCommand()}'s {@code until(...)}), and a command may not be composed
+         * twice — so an action built this way and run more than once (an {@code Autopilot} cycle, a
+         * {@code Strategist} that re-selects it) will only work the first time and quietly do nothing
+         * after. For anything invoked repeatedly, use {@link #run(Supplier)}, which builds a fresh
+         * command each run. {@code toCommand()} fails closed (a no-op, not a crash) if this trap is hit.
          */
         public Builder run(Command command) {
             this.commandFactory = () -> command;

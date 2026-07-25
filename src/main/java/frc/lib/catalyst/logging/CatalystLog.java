@@ -44,7 +44,16 @@ package frc.lib.catalyst.logging;
  */
 public final class CatalystLog {
 
-    private static LogSink sink = new NetworkTablesSink();
+    /**
+     * The active sink. Deliberately <b>not</b> eagerly initialised: an eager
+     * {@code = new NetworkTablesSink()} means merely touching this class constructs a
+     * NetworkTables sink during class initialisation, which throws on a machine with no HAL and
+     * makes even the {@link #setSink(LogSink)} escape hatch unusable from a unit test.
+     * Resolved lazily by {@link #getSink()} instead, so a test can install a fake first.
+     *
+     * @since 1.2.0 (lazy)
+     */
+    private static LogSink sink;
     private static boolean loggingInputs = true;
     private CatalystLog() {}
 
@@ -54,30 +63,38 @@ public final class CatalystLog {
      *
      * @param newSink non-null sink to receive every subsequent log call
      */
-    public static void setSink(LogSink newSink) {
+    public static synchronized void setSink(LogSink newSink) {
         if (newSink == null) throw new IllegalArgumentException("sink must not be null");
         sink = newSink;
     }
 
-    /** The currently active sink. */
-    public static LogSink getSink() { return sink; }
+    /**
+     * The currently active sink, constructing the default {@link NetworkTablesSink} on first use.
+     *
+     * <p>Every {@code log(...)} overload goes through here rather than touching the field
+     * directly, so the default sink is never built on a machine that only ever installs its own.
+     */
+    public static synchronized LogSink getSink() {
+        if (sink == null) sink = new NetworkTablesSink();
+        return sink;
+    }
 
     /** Record a {@code double} under {@code key}. */
-    public static void log(String key, double value)    { sink.log(key, value); }
+    public static void log(String key, double value)    { getSink().log(key, value); }
     /** Record a {@code boolean} under {@code key}. */
-    public static void log(String key, boolean value)   { sink.log(key, value); }
+    public static void log(String key, boolean value)   { getSink().log(key, value); }
     /** Record a {@code long} under {@code key}. */
-    public static void log(String key, long value)      { sink.log(key, value); }
+    public static void log(String key, long value)      { getSink().log(key, value); }
     /** Record a {@code String} under {@code key}. */
-    public static void log(String key, String value)    { sink.log(key, value); }
+    public static void log(String key, String value)    { getSink().log(key, value); }
     /** Record a {@code double[]} under {@code key}. */
-    public static void log(String key, double[] value)  { sink.log(key, value); }
+    public static void log(String key, double[] value)  { getSink().log(key, value); }
     /** Record a {@code boolean[]} under {@code key}. */
-    public static void log(String key, boolean[] value) { sink.log(key, value); }
+    public static void log(String key, boolean[] value) { getSink().log(key, value); }
     /** Record a {@code long[]} under {@code key}. */
-    public static void log(String key, long[] value)    { sink.log(key, value); }
+    public static void log(String key, long[] value)    { getSink().log(key, value); }
     /** Record a {@code String[]} under {@code key}. */
-    public static void log(String key, String[] value)  { sink.log(key, value); }
+    public static void log(String key, String[] value)  { getSink().log(key, value); }
 
     /**
      * Record a WPILib struct-serializable {@code value} (e.g. a {@code Pose2d}
@@ -86,12 +103,12 @@ public final class CatalystLog {
      * as a real 2D/3D object instead of loose numbers.
      */
     public static <T> void log(String key, edu.wpi.first.util.struct.Struct<T> struct, T value) {
-        sink.log(key, struct, value);
+        getSink().log(key, struct, value);
     }
 
     /** Record an array of struct-serializable values (e.g. {@code SwerveModuleState[]}) under {@code key}. */
     public static <T> void log(String key, edu.wpi.first.util.struct.Struct<T> struct, T[] values) {
-        sink.log(key, struct, values);
+        getSink().log(key, struct, values);
     }
 
     /**
@@ -103,7 +120,7 @@ public final class CatalystLog {
      */
     public static void processInputs(String prefix, CatalystInputs inputs) {
         if (loggingInputs) {
-            sink.processInputs(prefix, inputs);        
+            getSink().processInputs(prefix, inputs);        
         }
     }
     /**

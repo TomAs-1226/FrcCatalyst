@@ -64,6 +64,28 @@ You don't have to do anything. On startup, `CatalystLog` is wired to a
 mechanism publishes its per-loop state through that root. Dashboards built
 against v0.2 keep working.
 
+## Logging struct types (poses, module states)
+
+Beyond primitives and arrays, `CatalystLog` logs any WPILib struct-serializable
+type through its `Struct` descriptor, so AdvantageScope renders it as a real 2D
+or 3D object instead of loose numbers:
+
+```java
+CatalystLog.log("Drive/Pose", Pose2d.struct, drive.getPose());
+CatalystLog.log("Drive/ModuleStates", SwerveModuleState.struct, drive.getModuleStates());
+```
+
+Both a scalar (`log(key, struct, value)`) and an array
+(`log(key, struct, value[])`) overload are available. They work through every
+sink: the `NetworkTablesSink` publishes them with cached `StructPublisher` /
+`StructArrayPublisher`, the `WpilogSink` records them as `StructLogEntry` /
+`StructArrayLogEntry`, and `CompoundSink` forwards to both. `SwerveSubsystem`
+uses this internally to publish `/Catalyst/Swerve/ModuleStates` and
+`/ModuleTargets` for the AdvantageScope swerve view.
+
+To cut NetworkTables traffic under loop overrun, gate the per-mechanism input
+snapshots with `CatalystLog.enableLoggingInputs(false)` (outputs still log).
+
 ## Bridging to AdvantageKit
 
 AdvantageKit's `Logger.recordOutput(...)` is the public API for getting custom
@@ -167,3 +189,45 @@ When a mechanism calls `processInputs(inputs)`:
 So every individual field still lands as a discrete NT/AK/DataLog key — no
 opaque blob. Dashboards built against v0.2's per-key NT layout keep working
 because the keys are unchanged.
+
+## Keeping the loop under 20 ms
+
+Catalyst's per-loop cost is deliberately kept low — motor status signals are read from Phoenix 6's
+cached values (never a blocking bus read), their update frequencies are set once and the bus is
+optimized, health checks are throttled to once every 5 ms no matter how many mechanisms call in, and
+live-tuning only reconfigures a motor when a gain actually changes. Even so, a robot with several
+mechanisms plus swerve and vision can creep toward the 20 ms budget. The levers below are the ones
+that matter, roughly in order of impact:
+
+1. **Turn off live tuning for competition.** With tuning enabled, every mechanism re-reads all of its
+   Slot 0 and Motion Magic gains from NetworkTables every loop. One call at robot init skips all of
+   it:
+
+   ```java
+   TunableNumber.disableTuning();   // in robotInit, competition builds
+   ```
+
+   Values fall back to what you configured in the builder. Re-enable with `TunableNumber.enableTuning()`
+   on a practice robot.
+
+2. **Vision is the usual culprit.** Reading a Limelight's pose and feeding a pose estimator every loop
+   is often the single biggest cost, and it is easy to misattribute to the mechanisms. Confirm it with
+   AdvantageScope's loop-timing view (or the RIO's own loop-overrun message) before optimizing
+   anything else. Run the camera at the rate you actually need, and reject implausible measurements
+   early (`VisionSubsystem` already rejects high-speed and high-spin frames, off-field and stale
+   poses, and outliers too far from the current estimate).
+
+3. **Halve the telemetry volume if you are not replaying.** Each mechanism logs its inputs POJO *and*
+   a per-key mirror for v0.2 dashboard compatibility. If you do not need AdvantageKit-style replay,
+   skip the POJO serialization:
+
+   ```java
+   CatalystLog.enableLoggingInputs(false);   // keep the per-key NT layout, drop the replay table
+   ```
+
+4. **Prefer a CANivore.** Putting the drivetrain and mechanism motors on a CANivore bus (rather than
+   the RIO's `rio` bus) is the highest-leverage hardware change for CAN-bound loops.
+
+Catalyst itself does not do blocking work in `periodic()`, so if the loop is still over budget after
+the above, profile with AdvantageScope — the cost is almost always vision, a team-authored periodic,
+or CAN-bus saturation rather than the mechanism wrappers.
