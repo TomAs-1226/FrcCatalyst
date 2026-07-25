@@ -110,6 +110,66 @@ ignored on a real robot, where state comes from real sensors:
   sets the per-axis moment of inertia for the sim model (default `0.004` kg m^2).
   Used only by the simulation, ignored on a real robot.
 
+## Flywheel: torque-current FOC
+
+*Added in v1.2.1.*
+
+By default a `FlywheelMechanism` runs its velocity loop in **voltage** — the PID and
+feedforward gains produce a volt command that Phoenix converts to current through the
+motor's electrical model. On a Phoenix Pro device you can instead run the loop in
+**torque-current FOC**, where the controller commands motor current directly. This
+matters for shooters for two reasons. First, a flywheel's job is to deliver torque to
+the game piece, and torque is proportional to current — so a shooter characterised in
+amps controls the thing you actually care about, without the battery-voltage sag that a
+voltage loop has to fight. Second, it lets you add a **per-loop feedforward in amps**
+that compensates for the piece being fed into the wheel: the instant a ball hits the
+flywheel it drags the speed down, and if you feed forward the extra current the moment
+the feeder fires, the wheel barely dips instead of recovering after the shot has already
+gone wide.
+
+Enable it in the builder with `torqueCurrentFOC(true)`, set the current envelope with
+`torqueCurrentLimits(peakForwardAmps, peakReverseAmps)`, and note that the Slot 0 gains
+you pass to `pid(...)` / `feedforward(...)` are now interpreted in amps:
+
+```java
+FlywheelMechanism shooter = new FlywheelMechanism(
+    FlywheelMechanism.Config.builder()
+        .name("Shooter")
+        .motor(20)
+        .gearRatio(1.5)
+        .torqueCurrentFOC(true)          // velocity loop runs in amps, not volts
+        .torqueCurrentLimits(200, -200)  // clamp the FOC request to +/-200 A
+        .pid(8.0, 0, 0)                  // kP is A per rps of error
+        .feedforward(4.0, 0.9)           // kS is A, kV is A per rps
+        .velocityTolerance(3.0)
+        .build());
+```
+
+The feedforward-aware `track(velocityRpsSupplier, feedforwardAmpsSupplier)` overload
+re-reads both the target speed and the compensating current every loop. The classic
+wiring recomputes the feedforward from the feeder's current draw, so the flywheel braces
+for the piece exactly as it arrives:
+
+```java
+shooter.setDefaultCommand(shooter.track(
+    () -> shotTable.rpsFor(distanceToGoal()),   // live target speed, RPS
+    () -> feedforwardAmpsForFedPiece()));        // recomputed every loop, in amps
+```
+
+Under the hood the mechanism calls `CatalystMotor.setVelocityTorqueCurrent(rps, ffAmps)`
+(a plain `setVelocityTorqueCurrent(rps)` with no feedforward is also available), which
+issues a Phoenix `VelocityTorqueCurrentFOC` request bounded by the peaks from
+`Builder.torqueCurrentLimits(...)`.
+
+{: .warning }
+**Slot 0 gains are AMPS in this mode, and are not transferable from a voltage loop.**
+`kP` is A/rps of error, `kS` is A, `kV` is A/rps — running gains tuned for a voltage loop
+through the torque-current request will be violent. Re-characterise from scratch when you
+switch modes. Two more sharp edges: `track(velocity, feedforwardAmps)` **throws an
+`IllegalStateException` at wiring time** if `torqueCurrentFOC(true)` was not set (an amps
+feedforward has no meaning in a voltage loop, so it fails on the bench instead of silently
+on the field), and torque-current FOC **requires a Phoenix Pro license** on the device.
+
 ## DifferentialWristMechanism
 
 A two-motor differential wrist (a.k.a. "diffy wrist") where sum of motor rotations
@@ -195,6 +255,63 @@ operator.b().onTrue(climbHook.pulse(0.25));    // kicker pattern
 When `requirePressureAbove(psi)` is set and a compressor with an analog
 pressure sensor is wired, the mechanism refuses to drive forward below the
 threshold (raising an alert rather than firing a piston dry).
+
+## ServoMechanism
+
+*Added in v1.3.0.*
+
+A PWM hobby/RC servo wrapped as a mechanism: a shooter hood, a ratchet release, a funnel
+flapper — any small position-controlled actuator wired to a PWM channel rather than a CAN
+motor. A servo is **open-loop**: you command an angle and the servo's own internal
+controller holds it, but there is no encoder feeding position back. So `ServoMechanism` is
+deliberately simpler than the CAN mechanisms — no PID, no Motion Magic, no gravity
+feedforward, no SysId. What you keep is the rest of Catalyst's ergonomics: a validated
+builder, named positions you can `goTo("FAR")`, angle clamping to the mechanism's real
+travel, telemetry, and a `describe()` view for the sim dashboard. Because there is no
+feedback, the "measured" angle reads back the *commanded* angle.
+
+```java
+ServoMechanism hood = new ServoMechanism(
+    ServoMechanism.Config.builder()
+        .name("Hood")
+        .channel(0)              // PWM port (required)
+        .angleRange(20, 60)      // physical travel in degrees; goTo clamps to this
+        .startAngle(20)          // angle driven to at construction (defaults to the min)
+        .position("CLOSE", 20)   // named presets, validated against the range at build
+        .position("FAR", 55)
+        .build());
+
+operator.a().onTrue(hood.goTo("FAR"));
+operator.b().onTrue(hood.goTo("CLOSE"));
+operator.x().onTrue(hood.goTo(42.5));   // a raw angle also works
+```
+
+Since a servo holds its own position, `goTo(...)` never ends on its own — it keeps the
+requirement and re-asserts the setpoint — so bind it with `onTrue` as a latch or compose
+it in a sequence.
+
+### In a Superstructure
+
+Because there is no encoder, a state machine cannot *sense* that a servo arrived — so a
+state carrying a `ServoGoal` counts it "arrived" once a short settle window has elapsed.
+That is an honest settle timer, not a measurement: the binding reports `observable ==
+false` so a log reader never mistakes the timer for a sensor read (default settle is 0.35
+s). Bind the servo into a `Superstructure` in one line with `Mechanisms.servo(...)`, and
+give each state a `ServoGoal.preset(...)`:
+
+```java
+superstructure.bind(Mechanisms.servo(hood, "hood"));
+
+superstructure.state("SHOOT_FAR")
+    .set("hood", ServoGoal.preset("FAR"))   // resolved to degrees at build time
+    .done();
+```
+
+Preset goals are resolved to degrees once, at validate time, so an unknown preset name or
+an out-of-range angle fails the build on your laptop instead of throwing from inside a
+command factory during a match. Use `ServoGoal.preset(name, settleSeconds)` (or
+`ServoGoal.degrees(deg, settleSeconds)`) when the default settle time is too short for a
+slow servo or a long throw.
 
 ## TurretMechanism
 

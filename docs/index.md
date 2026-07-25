@@ -25,6 +25,15 @@ A Java library of pre-built mechanism building blocks for FRC robots on Phoenix 
   <img src="https://img.shields.io/badge/PhotonVision-v2026.3.1-22c55e?style=flat-square" alt="PhotonVision"/>
 </p>
 
+## Latest release
+
+**v1.3.0** makes the state machine understandable, debuggable, and adds servos: a plain-language
+`explain()` dump of what you built and why it's stuck, a `ServoMechanism`, and live sim status panels.
+See the [release notes](https://github.com/TomAs-1226/FrcCatalyst/releases) and the
+[CHANGELOG](https://github.com/TomAs-1226/FrcCatalyst/blob/main/CHANGELOG.md). New this release:
+the [State Machine Internals](advanced/statemachine-internals.html) guide and the
+[State Machine Visualizer](tools/statemachine/) browser tool.
+
 ---
 
 ## Browser tools

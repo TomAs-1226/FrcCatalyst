@@ -91,6 +91,44 @@ optional `BooleanSupplier` so a toggle tracks live robot state instead of just
 the last click), and `add` to chain straight to the next mechanism. Call
 `title(String)` to set the page title and `stop()` to shut the server down.
 
+### Live text panels
+
+Not everything you want to watch in sim is a mechanism. A running state
+machine, the match clock, a scoring FSM — these have no travel bar or speed
+readout, they have *state you want to read as text*. `statusPanel` renders that:
+
+```java
+public SimDashboard statusPanel(String title, java.util.function.Supplier<java.util.List<String>> lines)
+```
+
+It adds a titled text card to the cockpit that shows each string on its own
+line, and the supplier is called once per `update()` so the card is always
+live. It returns `this`, so it chains alongside `add(...)` like the other
+registration calls. It is deliberately **decoupled from mechanisms and
+reusable**: it takes a plain `Supplier<List<String>>`, so anything that can
+describe itself as a few lines of text works — you are not limited to things
+that implement `describe()`.
+
+The headline use is watching a state machine think. A Catalyst state machine's
+`explain()` returns a plain-language dump of what you built and why it is stuck
+(current state, the route it is taking, which guard is blocking a transition).
+Split it into lines and hand it to a panel, and the reasoning updates live as
+the machine runs:
+
+```java
+dash.statusPanel("Superstructure",
+    () -> java.util.Arrays.asList(sm.explain().split("\n")));
+```
+
+The example project does exactly this. Alongside the one-of-every-kind
+mechanism lab, it stands up a servo hood driven by a tiny three-state machine
+(`CLOSE` / `MID` / `FAR`), wires the state buttons to `goTo(...)`, and adds a
+`statusPanel("Hood State Machine", () -> Arrays.asList(hoodMachine.explain().split("\n")))`
+so you can click a target state and watch `explain()` narrate the routing and
+guarding live, next to the servo it is driving. For what `explain()` prints and
+how the engine decides transitions, see
+[State machine internals](../advanced/statemachine-internals.html).
+
 ### Widget per mechanism kind
 
 The dashboard maps each `MechanismView` kind to a fitting widget:
