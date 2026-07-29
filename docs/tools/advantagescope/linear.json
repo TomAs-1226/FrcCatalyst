@@ -1,6 +1,6 @@
 {
   "$schema": "../catalyst-tab-bundle.schema.json",
-  "catalystVersion": "1.3.2",
+  "catalystVersion": "1.3.3",
   "mechanism": "LinearMechanism",
   "description": "Position/velocity/current dashboard for any LinearMechanism (elevators, extenders).",
   "placeholders": {

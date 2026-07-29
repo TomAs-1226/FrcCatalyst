@@ -59,7 +59,7 @@ repositories {
 }
 
 dependencies {
-    implementation "com.github.TomAs-1226:FrcCatalyst:v1.3.2"
+    implementation "com.github.TomAs-1226:FrcCatalyst:v1.3.3"
 }
 ```
 </details>
@@ -99,6 +99,14 @@ operatorController.b().onTrue(elevator.goTo("STOW"));
 ```
 
 ---
+
+## v1.3.3: LoopMonitor
+
+A small measurement tool for the loop-overrun problem team 3211 hit. Drop a `LoopMonitor` in
+`robotPeriodic()` — it tracks your real loop time, publishes it under `Catalyst/Loop/Robot/...`, and
+raises one warning when the rolling average sits over the 20 ms budget (so a single startup spike
+does not cry wolf). Pairs with the [loop-cost guide](docs/advanced/logging.md): measure first, then
+reach for the levers. Additive, and the stats are unit-tested with no HAL. See the [CHANGELOG](CHANGELOG.md).
 
 ## v1.3.2: field-centric red flip & loop-cost guidance
 

@@ -196,8 +196,23 @@ Catalyst's per-loop cost is deliberately kept low — motor status signals are r
 cached values (never a blocking bus read), their update frequencies are set once and the bus is
 optimized, health checks are throttled to once every 5 ms no matter how many mechanisms call in, and
 live-tuning only reconfigures a motor when a gain actually changes. Even so, a robot with several
-mechanisms plus swerve and vision can creep toward the 20 ms budget. The levers below are the ones
-that matter, roughly in order of impact:
+mechanisms plus swerve and vision can creep toward the 20 ms budget.
+
+**Measure before you change anything.** Drop a `LoopMonitor` in `robotPeriodic()` — it tracks your
+real loop time, publishes it under `Catalyst/Loop/Robot/...`, and raises one warning when the rolling
+average sits over budget (so a single startup spike does not cry wolf):
+
+```java
+private final LoopMonitor loop = new LoopMonitor();   // "Robot", 20 ms budget
+
+public void robotPeriodic() {
+    CommandScheduler.getInstance().run();
+    loop.record();
+}
+```
+
+Watch `Catalyst/Loop/Robot/AverageMs` in AdvantageScope. If it sits comfortably under 20 you have
+nothing to fix. If it creeps up, the levers below are the ones that matter, roughly in order of impact:
 
 1. **Turn off live tuning for competition.** With tuning enabled, every mechanism re-reads all of its
    Slot 0 and Motion Magic gains from NetworkTables every loop. One call at robot init skips all of

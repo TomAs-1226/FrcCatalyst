@@ -5,6 +5,21 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.3] — 2026-07-28 — LoopMonitor
+
+A small, additive measurement tool for the loop-overrun problem team 3211 reported.
+
+### Added
+
+- **`LoopMonitor`** (`frc.lib.catalyst.util`). Call `record()` once per `robotPeriodic()` and it
+  measures the real loop time, tracks the last / rolling-average / peak in milliseconds, publishes
+  them under `Catalyst/Loop/<name>/...`, and raises a single `AlertManager` warning when the rolling
+  average sits over the budget (20 ms by default). It alerts on the average rather than one-off
+  spikes, and warns/clears only on the transition so the alert list never churns. The clock is
+  injectable, so the statistics are unit-tested with no HAL, no NetworkTables, and no robot
+  (`LoopMonitorTest`, 7 tests). Pairs with the "Keeping the loop under 20 ms" logging guide added in
+  1.3.2: measure first, then reach for the levers.
+
 ## [1.3.2] — 2026-07-25 — Field-centric red flip & loop-cost guidance
 
 Two fixes prompted by team 3211's competition report. Additive and backward compatible.

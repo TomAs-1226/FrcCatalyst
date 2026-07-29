@@ -27,8 +27,9 @@ A Java library of pre-built mechanism building blocks for FRC robots on Phoenix 
 
 ## Latest release
 
-**v1.3.2** fixes the field-centric red-alliance flip and adds loop-cost guidance for keeping the
-loop under 20 ms — both prompted by team 3211's competition report. It builds on the v1.3.x line,
+**v1.3.3** adds `LoopMonitor`, a one-line tool that measures your real loop time and warns when it
+runs over the 20 ms budget — the measurement half of the loop-cost guidance from v1.3.2, both
+prompted by team 3211's competition report. It builds on the v1.3.x line,
 which made the state machine understandable and debuggable: a plain-language `explain()` dump of
 what you built and why it's stuck, a `ServoMechanism`, live sim status panels, the
 [State Machine Internals](advanced/statemachine-internals.html) guide, and the
