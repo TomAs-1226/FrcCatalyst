@@ -27,8 +27,9 @@ A Java library of pre-built mechanism building blocks for FRC robots on Phoenix 
 
 ## Latest release
 
-**v1.4.0** ships the **optional** Catalyst desktop app: every tool in one native window, a one-click
-vendordep install into your robot project, offline auto-update, and an AI-agent connector. There are
+**v1.4.0** ships the **optional** Catalyst desktop app ([download](https://github.com/TomAs-1226/FrcCatalyst/releases/latest)):
+every tool in one native window, a one-click vendordep install into your robot project, offline
+auto-update, and an AI-agent connector. There are
 **no library API changes** — the app is a companion you can ignore entirely; robot code is untouched.
 It builds on the v1.3.x line,
 which made the state machine understandable and debuggable: a plain-language `explain()` dump of

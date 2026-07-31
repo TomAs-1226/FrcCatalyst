@@ -100,6 +100,14 @@ operatorController.b().onTrue(elevator.goTo("STOW"));
 
 ---
 
+## v1.4.0: Catalyst Desktop (optional companion app)
+
+An **optional** desktop app (Windows now, macOS via CI) puts every Catalyst tool in one native window,
+installs the vendordep into your robot project with one click (offline), auto-updates, and carries an
+AI-agent connector — an MCP server exposing the tools and a distilled knowledge graph to agents. **No
+library API changes:** the app is entirely optional and the library works exactly as above without it.
+Grab the installer from the [latest release](https://github.com/TomAs-1226/FrcCatalyst/releases/latest).
+
 ## v1.3.3: LoopMonitor
 
 A small measurement tool for the loop-overrun problem team 3211 hit. Drop a `LoopMonitor` in
