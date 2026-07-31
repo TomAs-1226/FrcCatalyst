@@ -5,6 +5,21 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.4.0] — 2026-07-30 — Catalyst Desktop (optional companion app)
+
+Introduces the **optional** Catalyst desktop app. **No library API changes** — the version bump
+aligns the library with the first app release; robot code written against 1.3.3 works identically on
+1.4.0, and teams that never touch the app lose nothing.
+
+### Added
+
+- **Catalyst Desktop** — an optional, cross-platform companion app (Tauri; Windows now, macOS via CI).
+  Every Catalyst browser tool in one native window; a one-click *install into your robot project* that
+  drops the vendordep in from a bundled copy (works offline); offline-graceful auto-update for both the
+  app and the library; and an **AI-agent connector** — a dependency-free MCP server that exposes the
+  tools and a distilled knowledge graph to agents (Claude, Cursor, …). The app is entirely optional and
+  ships separately from the library JAR.
+
 ## [1.3.3] — 2026-07-28 — LoopMonitor
 
 A small, additive measurement tool for the loop-overrun problem team 3211 reported.

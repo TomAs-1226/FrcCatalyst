@@ -27,9 +27,10 @@ A Java library of pre-built mechanism building blocks for FRC robots on Phoenix 
 
 ## Latest release
 
-**v1.3.3** adds `LoopMonitor`, a one-line tool that measures your real loop time and warns when it
-runs over the 20 ms budget — the measurement half of the loop-cost guidance from v1.3.2, both
-prompted by team 3211's competition report. It builds on the v1.3.x line,
+**v1.4.0** ships the **optional** Catalyst desktop app: every tool in one native window, a one-click
+vendordep install into your robot project, offline auto-update, and an AI-agent connector. There are
+**no library API changes** — the app is a companion you can ignore entirely; robot code is untouched.
+It builds on the v1.3.x line,
 which made the state machine understandable and debuggable: a plain-language `explain()` dump of
 what you built and why it's stuck, a `ServoMechanism`, live sim status panels, the
 [State Machine Internals](advanced/statemachine-internals.html) guide, and the
