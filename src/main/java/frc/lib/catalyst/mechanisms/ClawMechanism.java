@@ -70,7 +70,8 @@ public class ClawMechanism extends CatalystMechanism {
                 .inverted(config.inverted)
                 .brakeMode(config.brakeMode)
                 .currentLimit(config.currentLimit)
-                .statorCurrentLimit(config.statorCurrentLimit);
+                .statorCurrentLimit(config.statorCurrentLimit)
+                .useFocControl(config.useFoc);
 
         for (FollowerSpec spec : config.followers) {
             motorBuilder.withFollower(spec.canId(), spec.oppose());
@@ -358,6 +359,7 @@ public class ClawMechanism extends CatalystMechanism {
         final String canBus;
         final boolean inverted;
         final boolean brakeMode;
+        final boolean useFoc;
         final double currentLimit;
         final double statorCurrentLimit;
         final double closeVoltage;
@@ -374,6 +376,7 @@ public class ClawMechanism extends CatalystMechanism {
             this.canBus = b.canBus;
             this.inverted = b.inverted;
             this.brakeMode = b.brakeMode;
+            this.useFoc = b.useFOC;
             this.currentLimit = b.currentLimit;
             this.statorCurrentLimit = b.statorCurrentLimit;
             this.closeVoltage = b.closeVoltage;
@@ -393,6 +396,7 @@ public class ClawMechanism extends CatalystMechanism {
             private String canBus = "";
             private boolean inverted = false;
             private boolean brakeMode = true;
+            private boolean useFOC = true;
             private double currentLimit = 30;
             private double statorCurrentLimit = 60;
             private double closeVoltage = 6.0;
@@ -433,6 +437,7 @@ public class ClawMechanism extends CatalystMechanism {
             public Builder canBus(String canBus) { this.canBus = canBus; return this; }
             public Builder inverted(boolean inverted) { this.inverted = inverted; return this; }
             public Builder brakeMode(boolean brake) { this.brakeMode = brake; return this; }
+            public Builder useFOC(boolean useFOC) { this.useFOC = useFOC; return this;}
             public Builder currentLimit(double amps) { this.currentLimit = amps; return this; }
             public Builder statorCurrentLimit(double amps) { this.statorCurrentLimit = amps; return this; }
 
