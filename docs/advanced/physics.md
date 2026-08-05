@@ -53,7 +53,9 @@ about the real robot's measured behaviour.
 ## Setting it up
 
 Four measurements and five suppliers. The model values are things you can get in an afternoon with a
-bathroom scale and a tape measure.
+bathroom scale and a tape measure — and **[Measuring Your Robot](physics-measurement.md)** covers how,
+including which measurements actually matter. (Short version: friction and centre-of-mass height do;
+mass barely does, because it cancels out of the traction limit entirely.)
 
 ```java
 PhysicsCore physics = PhysicsCore.builder()
@@ -624,10 +626,78 @@ Things Physics Core cannot do, so you are not surprised by them on a field:
 
 ---
 
+## Validating against simulation
+
+Physics Core is an estimator, and the only way to know an estimator is any good is to compare it
+against a state you already know. A real robot never gives you that — the true velocity is exactly the
+thing nobody knows. A simulation does.
+
+```java
+PhysicsValidator validator = PhysicsValidator.builder()
+    .robotModel(myRobot)          // YOUR robot, not a default
+    .kinematics(myKinematics)
+    .build();
+
+System.out.println(validator.runAll().describe());
+```
+
+```text
+Physics Core simulation validation: 9/9 passed
+  PASS  Fused velocity beats encoders during slip - 48% less velocity error than the wheels alone
+  PASS  Differential slip is detected on the right module - module 2 identified
+  PASS  Clean driving reports no slip - 0 of 200 loops flagged
+  PASS  Uniform slip surfaces as disturbance, not module slip
+  PASS  Impacts are reported once, promptly - one event, 40 ms after impact
+  PASS  Confidence falls without vision and recovers with it - 0.97 -> 0.59 -> 0.99
+  PASS  Release-state prediction beats aiming from the present - 1 cm vs 36 cm (96% better)
+  PASS  A wrong wheel radius shows up as sensor disagreement
+  PASS  It degrades safely with no accelerometer
+```
+
+**Run it against your own `RobotModel`.** The thresholds are tuned for a typical mid-weight swerve, and
+a robot far from that — very light, very tall, unusual footprint — may need different ones. Better to
+find that out in the pit than in a match.
+
+### Why it isn't circular
+
+A simulator built from the estimator's own assumptions proves nothing. `SimulatedRobot` deliberately
+does things Physics Core does not model, and the result is only meaningful because of them:
+
+- **Wheel radius error** — the sim's wheels are a few percent off what the code believes
+- **Accelerometer bias and noise** — a constant offset the estimator knows nothing about
+- **Encoder noise** on every module
+- **Odometry that drifts through slip**, because the reported pose integrates *wheel* speed
+- **Wheels that skid through an impact** — a swerve encoder measures rolling along its own axis, so it
+  never sees a sideways hit
+
+`DisturbanceInjector` and `SimulatedRobot.setModuleSlipBias(...)` let you provoke specific faults, so a
+detector can be exercised a hundred times in a unit test instead of once on a slick patch of carpet.
+
+### What a pass means, and what it does not
+
+It means the estimator recovers a known truth from imperfect sensors. That is real, and it is the rung
+of the validation ladder below shadow mode.
+
+It does **not** mean the model matches carpet. The simulation assumes constant friction, rigid contact,
+and a drivetrain that slips uniformly; a real field is messier than all three. Passing here earns the
+right to run shadow mode on a robot — it does not replace it.
+
+> **This is not a formality.** Building this validation found three real defects that unit tests had
+> missed: fusion was silently disabled for anyone calling `update(PhysicsSample)` directly, the
+> collision detector fired every time the robot accelerated hard off the line, and the wheel-trust
+> floor was high enough that a complementary filter re-joined the wheels part way through a slip. The
+> fused-velocity improvement went from 0.08% to 48% once those were fixed.
+
+---
+
 ## Adopting it, in order
 
 Nothing here has to be adopted at once, and the order matters — each step is worth something on its
 own and earns the next one.
+
+**0. Measure your robot, then run the validator.** Fifteen minutes with a scale and a tape measure
+([guide](physics-measurement.md)), then `PhysicsValidator.runAll()` against your model. Both happen
+before the robot is on carpet, and a failure here is far cheaper to find than one on a field.
 
 **1. Shadow mode, one practice session.** Wire `PhysicsCore` and nothing else. It has no control
 authority, so there is nothing to be careful about. Watch `Catalyst/Physics/...` in AdvantageScope.

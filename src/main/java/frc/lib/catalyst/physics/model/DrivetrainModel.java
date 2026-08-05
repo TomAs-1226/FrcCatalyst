@@ -142,6 +142,44 @@ public final class DrivetrainModel {
     }
 
     /**
+     * The hardest the robot can spin before the wheels break loose, in rad/s^2.
+     *
+     * <p>Maximum yaw torque is every wheel putting its whole friction budget into turning:
+     * {@code mu*m*g*r}, where {@code r} is the distance from the centre to a module. Divide by the
+     * robot's rotational inertia and you have the angular equivalent of the traction limit — the
+     * number a path planner needs when it asks how fast the robot can rotate onto a heading.
+     *
+     * <p>This is what {@link RobotModel#momentOfInertiaKgM2()} is for. If that was left to the
+     * uniform-slab estimate rather than measured, expect this to run optimistic by 10-20%: a real
+     * robot carries its battery and drivetrain low and outboard, so it has more inertia than a
+     * uniform slab of the same mass.
+     */
+    public double maxAngularAccelerationRadPerSecSq() {
+        double halfLength = robot.wheelBaseMeters() / 2.0;
+        double halfWidth = robot.trackWidthMeters() / 2.0;
+        double moduleRadius = Math.hypot(halfLength, halfWidth);
+        double maxTorque = maxTractionForceNewtons() * moduleRadius;
+        return maxTorque / robot.momentOfInertiaKgM2();
+    }
+
+    /**
+     * Force at the carpet from the torque the motors are producing, in newtons — {@code tau / r} per
+     * wheel, summed.
+     *
+     * <p>This is what {@link RobotModel#wheelRadiusMeters()} is for. Pair it with
+     * {@link #accelerationFromForce(double)} to turn a commanded motor torque into the acceleration
+     * the robot will actually get, which is clipped at the traction limit whether the motors know it
+     * or not.
+     *
+     * @param torquePerWheelNm torque delivered at each wheel, after the gear reduction
+     * @param wheelCount       how many driven wheels are contributing
+     */
+    public double wheelForceFromTorque(double torquePerWheelNm, int wheelCount) {
+        if (wheelCount < 1) return 0.0;
+        return torquePerWheelNm * wheelCount / robot.wheelRadiusMeters();
+    }
+
+    /**
      * Acceleration the drivetrain would produce from a total wheel force, in m/s^2 — {@code F / m},
      * clipped at the traction limit because the carpet cannot transmit more than that no matter what
      * the motors are doing.
