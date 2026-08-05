@@ -59,7 +59,7 @@ repositories {
 }
 
 dependencies {
-    implementation "com.github.TomAs-1226:FrcCatalyst:v1.4.0"
+    implementation "com.github.TomAs-1226:FrcCatalyst:v1.5.0"
 }
 ```
 </details>
@@ -99,6 +99,26 @@ operatorController.b().onTrue(elevator.goTo("STOW"));
 ```
 
 ---
+
+## v1.5.0: Physics Core (optional physical-intelligence layer)
+
+Every other part of Catalyst tells the robot what to do. **Physics Core** is the part that notices
+what the robot *did*. It fuses wheel odometry and the IMU into one velocity with an honest confidence
+attached, scores which wheel is lying when a tyre breaks loose, notices when something hit the robot,
+and predicts where the robot will be at the instant a shot actually leaves it.
+
+```java
+LaunchState launch = physics.predictLaunchState();     // 120 ms ahead, at release
+var shot = aimingSolver.calculate(launch.pose(), launch.fieldVelocity());
+
+if (physics.analyze().isSlipping()) { /* your odometry is drifting right now */ }
+if (physics.state().quality().level() == LOST) { /* stop trusting the pose */ }
+```
+
+**Entirely optional and strictly advisory.** It writes no pose, schedules no command, blocks no
+transition, and changes no setpoint — every existing API works identically without it. This release is
+Phase 1 (shadow mode): observation only, 94 HAL-free unit tests, telemetry under `Catalyst/Physics/...`.
+See the [Physics Core guide](docs/advanced/physics.md) and the [roadmap](docs/ROADMAP.md).
 
 ## v1.4.0: Catalyst Desktop (optional companion app)
 

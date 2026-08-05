@@ -27,14 +27,19 @@ A Java library of pre-built mechanism building blocks for FRC robots on Phoenix 
 
 ## Latest release
 
-**v1.4.0** ships the **optional** Catalyst desktop app ([download](https://github.com/TomAs-1226/FrcCatalyst/releases/latest)):
-every tool in one native window, a one-click vendordep install into your robot project, offline
-auto-update, and an AI-agent connector. There are
-**no library API changes** — the app is a companion you can ignore entirely; robot code is untouched.
-It builds on the v1.3.x line,
-which made the state machine understandable and debuggable: a plain-language `explain()` dump of
-what you built and why it's stuck, a `ServoMechanism`, live sim status panels, the
-[State Machine Internals](advanced/statemachine-internals.html) guide, and the
+**v1.5.0** adds **[Physics Core](advanced/physics.html)** — the optional layer that watches how your
+robot actually behaves. It fuses wheel odometry and the IMU into one velocity with an honest
+confidence attached, scores which wheel is lying when a tyre breaks loose, notices when something hit
+the robot, and predicts where the robot will be at the instant a shot leaves it. It is **entirely
+optional and strictly advisory**: it writes no pose, schedules no command, and blocks no transition,
+so every existing API works exactly as before. This release is Phase 1 — observation only, 94 HAL-free
+unit tests, telemetry under `Catalyst/Physics/…`.
+
+It follows v1.4.0's **optional** [Catalyst desktop app](https://github.com/TomAs-1226/FrcCatalyst/releases/latest)
+(every tool in one native window, one-click vendordep install, offline auto-update, an AI-agent
+connector) and the v1.3.x line, which made the state machine understandable and debuggable: a
+plain-language `explain()` dump of what you built and why it's stuck, a `ServoMechanism`, live sim
+status panels, the [State Machine Internals](advanced/statemachine-internals.html) guide, and the
 [State Machine Visualizer](tools/statemachine/) browser tool. See the
 [release notes](https://github.com/TomAs-1226/FrcCatalyst/releases) and the
 [CHANGELOG](https://github.com/TomAs-1226/FrcCatalyst/blob/main/CHANGELOG.md).
