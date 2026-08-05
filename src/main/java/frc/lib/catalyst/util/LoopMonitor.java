@@ -119,13 +119,24 @@ public class LoopMonitor {
         CatalystLog.log("Loop/" + name + "/OverBudget", isOverBudget());
     }
 
+    /**
+     * Fraction of the budget the average must fall back to before the warning clears.
+     *
+     * <p>Without this the alert churns: a robot averaging exactly its budget — which is the common
+     * case, because that is what the loop is tuned to — crosses the threshold in both directions
+     * every few loops, and each crossing raises or clears the alert and prints to the Driver Station
+     * console. One warning that stays up until the loop is genuinely healthy again is the useful
+     * signal; a hundred identical lines is noise that buries everything else.
+     */
+    private static final double ALERT_CLEAR_FRACTION = 0.9;
+
     // Warn/clear only on the transition, with a fixed message, so the alert list never churns.
     private void updateAlert() {
-        boolean over = isOverBudget();
-        if (over && !alertActive) {
+        double current = average.isFull() ? average.get() : lastLoopSeconds;
+        if (!alertActive && current > budgetSeconds) {
             AlertManager.getInstance().warning("LoopMonitor:" + name, overBudgetMessage);
             alertActive = true;
-        } else if (!over && alertActive) {
+        } else if (alertActive && current < budgetSeconds * ALERT_CLEAR_FRACTION) {
             AlertManager.getInstance().clearWarning("LoopMonitor:" + name, overBudgetMessage);
             alertActive = false;
         }

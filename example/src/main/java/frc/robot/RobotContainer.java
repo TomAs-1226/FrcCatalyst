@@ -5,6 +5,7 @@ import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.wpilibj.RobotBase;
+import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj.simulation.DriverStationSim;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
@@ -15,6 +16,7 @@ import frc.lib.catalyst.behavior.Strategist;
 import frc.lib.catalyst.goal.Goal;
 import frc.lib.catalyst.goal.GoalDirector;
 import frc.lib.catalyst.hardware.MotorType;
+import frc.lib.catalyst.logging.CatalystLog;
 import frc.lib.catalyst.mechanisms.FlywheelMechanism;
 import frc.lib.catalyst.mechanisms.LinearMechanism;
 import frc.lib.catalyst.mechanisms.RollerMechanism;
@@ -24,6 +26,7 @@ import frc.lib.catalyst.util.AimingSolver;
 import frc.lib.catalyst.util.AlertManager;
 import frc.lib.catalyst.util.GhostReplay;
 import frc.lib.catalyst.util.InterpolatingTable;
+import frc.lib.catalyst.util.LoopMonitor;
 import frc.lib.catalyst.util.RobotSafety;
 
 import java.util.List;
@@ -87,6 +90,9 @@ public class RobotContainer {
     private static final double AUTO_SECONDS = 20.0;     // REBUILT autonomous period
     private static final double MATCH_SECONDS = 160.0;   // 20 s auto + 140 s teleop
     private static final double HUB_ACTIVE_PERIOD = 8.0; // activation alternates
+
+    /** Measures the real loop time and publishes it under {@code Catalyst/Loop/Robot/...}. */
+    private final LoopMonitor loop = new LoopMonitor();
     private static final int MAX_FUEL = 50;
 
     // --- Mechanisms ---------------------------------------------------------
@@ -539,6 +545,35 @@ public class RobotContainer {
         }
 
         stateJson = buildStateJson();
+        publishForConsole();
+    }
+
+    /**
+     * Publish the handful of keys a driver station dashboard binds to.
+     *
+     * <p>This is the whole robot-side contract for
+     * <a href="https://github.com/TomAs-1226/CatalystConsole">Catalyst Console</a>, and it is short on
+     * purpose: alerts and loop time already go out through {@link AlertManager} and
+     * {@link LoopMonitor} without being asked, so all that is left is the pose, the game state the
+     * dashboard cannot know, and the two values WPILib does not put on NetworkTables for you.
+     *
+     * <p>The pose here is the cockpit's simulated one rather than a {@code PhysicsCore} estimate —
+     * this showcase has no drivetrain to estimate from. On a real robot the same key comes out of
+     * Physics Core for free.
+     */
+    private void publishForConsole() {
+        loop.record();
+        CatalystLog.log("Physics/PoseArray", new double[] { poseX, poseY, heading });
+
+        // Whether the hub is scoring for us right now, and how long that has left to run. The console
+        // shows a countdown from these; without them it can only estimate from the match clock.
+        double sinceStart = simClock - matchStart;
+        double intoWindow = sinceStart - Math.floor(sinceStart / HUB_ACTIVE_PERIOD) * HUB_ACTIVE_PERIOD;
+        CatalystLog.log("Game/TowerActive", hubActive);
+        CatalystLog.log("Game/TowerSeconds", HUB_ACTIVE_PERIOD - intoWindow);
+
+        CatalystLog.log("Status/CanUtilization", RobotController.getCANStatus().percentBusUtilization);
+        CatalystLog.log("Status/BatteryVolts", RobotController.getBatteryVoltage());
     }
 
     private String buildStateJson() {
