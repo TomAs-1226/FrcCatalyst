@@ -235,10 +235,16 @@ class PhysicsCoreTest {
     }
 
     @Test
-    void velocityObservationsAreAcceptedAndNullsAreNot() {
+    void aVelocityObservationIsOnlyAcceptedOnceThereIsAnEstimateToFuseWith() {
         double[] clock = {0.0};
         PhysicsCore physics = core(clock);
 
+        // Before the first update there is nothing to weigh it against, so it is refused rather than
+        // being quietly treated as the whole estimate.
+        assertFalse(physics.observe(new VelocityObservation(
+                new Translation2d(2.0, 0.0), 0.0, 0.1, "flow")));
+
+        physics.update(driving(0.0, 2.0, Translation2d.kZero));
         assertTrue(physics.observe(new VelocityObservation(
                 new Translation2d(2.0, 0.0), 0.0, 0.1, "flow")));
         assertFalse(physics.observe(null));

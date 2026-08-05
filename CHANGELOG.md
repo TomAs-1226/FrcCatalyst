@@ -5,6 +5,133 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.6.0] — 2026-08-05 — Physics Core, completed
+
+Completes the Physics Core RFC ([#33](https://github.com/TomAs-1226/FrcCatalyst/issues/33)): the
+articulated mass model, closed-form ballistics, online parameter identification, fault isolation,
+predictive capability evaluation, whole-robot power planning, counterfactual replay, and the opt-in
+bounded-intervention layer.
+
+**Still additive, still not intrusive, still not mandatory.** Robot code written against 1.5.0 works
+identically on 1.6.0. Physics Core continues to write no pose and schedule no command, and the one new
+piece that *could* change how the robot drives — `PhysicsConstraints` — has no installer and no
+periodic hook: it computes limits and hands them to you. A team that never calls it gets exactly the
+robot they had before.
+
+### Added — a live centre of mass
+
+- **`MechanismModel` / `ArticulatedRobotModel`** (`physics.model`). The robot as a transform tree of
+  masses, so the centre of mass moves when the mechanisms do. Raising a 10 kg carriage 1.2 m on a
+  60 kg robot moves the CoM 20 cm; a static `centerOfMassHeightMeters` cannot see that. Links compose
+  through `childOf`, which also yields the **field-relative end-effector pose** placement games want
+  (`fieldPoseOf`). Linear, rotational, custom, and fixed links; `build()` rejects duplicate names and
+  parent cycles, and a link naming an unknown parent falls back to the chassis rather than silently
+  dropping its mass.
+- **`StabilityModel`**. Tipping from the **zero-moment point**: `zmp = com − (h/g)·a`, with the margin
+  reported in metres, plus per-wheel normal loads and a worst-direction acceleration limit. It agrees
+  exactly with `DrivetrainModel`'s closed-form `g·halfWidth/comHeight` when the mass is centred — the
+  tests assert that cross-check — and diverges correctly as soon as the robot extends or carries mass
+  off-centre.
+
+### Added — ballistics, so shot gates stop guessing
+
+- **`ProjectileModel`**. Closed-form time of flight, height at distance, apex, max range, and the two
+  launch angles that reach a target, with an optional exact linear-drag model. Gives
+  `LaunchState.missRadiusMeters(...)` a real flight time instead of a constant that is wrong at every
+  distance but one. Quadratic drag and spin are deliberately absent — neither has a closed form, and
+  fitting them needs measurements, which is what the aiming solvers' interpolating tables already are.
+  Below a negligible-drag threshold the drag path falls back to the exact parabola, because the drag
+  solution is a difference of two terms that both blow up like `1/k` and loses all precision there.
+
+### Added — learning the constants the robot actually has
+
+- **`RecursiveLeastSquares`**. Constant-time, constant-memory linear fitting with a forgetting factor.
+  Convergence is judged on **mean per-parameter variance** rather than the raw covariance trace, so
+  the same threshold means the same thing regardless of how many coefficients are being fitted.
+- **`FeedforwardIdentifier`**. Recovers `kS`/`kV`/`kA` (and an elevator or arm gravity term) from
+  normal operation. **`recommendation()` stays empty until the fit has genuinely converged** — a
+  mechanism run at one speed forever cannot separate `kS` from `kV`, and no quantity of samples fixes
+  that.
+- **`BatteryResistanceIdentifier`**. Measures this battery's internal resistance from voltage sag —
+  the number every brownout prediction rests on and nobody measures. Refuses to report under a steady
+  load, where resistance is unidentifiable.
+- Neither has any way to write a gain. They report; you review and apply.
+
+### Added — diagnostics that name a cause
+
+- **`ModelResidualMonitor`**. Separates noise from bias statistically instead of by threshold: a
+  residual that averages to zero is a noisy sensor, one that sits to one side is a wrong model. Calls
+  bias only when the offset beats both a tolerance and its own standard error, so a 12 cm offset
+  buried in 40 cm of scatter is still caught.
+- **`FaultIsolator`**. Ranks candidate causes by the residual pattern they predict, including
+  `expectsQuiet` — the residual a cause should *not* disturb, which is what separates wheel slip from
+  a wheel-radius calibration error. Scores are documented as **diagnostic scores, not probabilities**,
+  and deliberately do not inflate with severity.
+- **`JamDetector`**. Tells a jam from a successful intake the only honest way — by asking whether the
+  piece is there. With no piece sensor it reports `STALLED` rather than guessing.
+
+### Added — deciding before committing
+
+- **`CapabilityEvaluator`**. "Is this action worth attempting, and what will it cost", answered before
+  it is scheduled. Duration from an exact trapezoidal profile, position error from the estimate's own
+  uncertainty compounded over that duration, tip margin from the live CoM, voltage from the power
+  predictor. Anything not configured is absent rather than invented, and a robot already too fast to
+  stop in the distance available is reported infeasible with the reason.
+- **`PowerPredictor`**. Complements `BrownoutMonitor` rather than duplicating it: the monitor watches
+  the present and backs off, this is asked about the future and sequences demands into waves that fit.
+  Open-circuit voltage is inferred from the present reading, so it follows the battery down a match.
+
+### Added — replay, injection, and the opt-in limits
+
+- **`PhysicsConstraints`** (`physics.constraints`). Phase 3, built so it cannot engage by accident.
+  Four independent limits — traction/tipping from the live CoM, confidence, slip, electrical headroom
+  — with `explain()` naming whichever binds, so every recommended slowdown is attributable to a
+  sentence. Conditions are exposed as plain predicates as well as WPILib `Trigger`s, which keeps the
+  logic HAL-free and testable.
+- **`PhysicsReplay`** (`physics.replay`). Counterfactual analysis over recorded samples: run the same
+  twelve seconds against two configurations and compare. Exact and deterministic. A transform can
+  remove a sensor to ask what it was worth.
+- **`DisturbanceInjector`** (`physics.sim`). Injects slip and impacts on purpose, so detectors can be
+  tested a hundred times in a unit test instead of once on a slick patch of carpet.
+
+### Added — the rest of the observation contract
+
+- **`RangeObservation`**, **`BearingObservation`**, **`ContactObservation`**, each with a residual
+  helper. A bearing that is too oblique for a trustworthy 3D solve is often still a perfectly good
+  angle; contact with a known wall is the most accurate absolute measurement on the field and almost
+  nobody uses it.
+
+### Changed
+
+- **`VelocityObservation` is now genuinely fused** rather than logged. It is the one measurement that
+  can settle a wheels-versus-IMU disagreement, because it is the only one that sees the robot's motion
+  without going through either. Fusion is inverse-variance weighting, and the tightened variance grows
+  back at a configured process noise so the benefit fades rather than being claimed forever.
+  `PhysicsCore.observe(...)` now returns `false` for a velocity observation arriving before the first
+  update, when there is no estimate to fuse with.
+- Range, bearing, and contact observations reset the staleness clock — an independent absolute
+  measurement agreeing with the estimate is exactly what staleness tracks — but are **not** fused into
+  the pose, which stays out of scope.
+- `MechanismModel.fixed(...)` puts the position in the link transform rather than the centre-of-mass
+  offset, so `poseOf(name)` reports where the link actually is. It previously gave the right centre of
+  mass and a link that appeared to sit at the robot origin.
+
+### Documented
+
+- The [Physics Core guide](docs/advanced/physics.md) roughly triples in length: the mass tree and its
+  rotation-sign trap, the zero-moment-point derivation, ballistics scope, when to believe a parameter
+  fit, fault-isolation patterns, the power planning distinction, and a seven-step adoption order.
+- A **Known limits** section states plainly what it cannot do — most importantly that **uniform slip
+  is invisible to per-module scoring** (all four wheels reading fast leaves no residual), so a robot
+  with no accelerometer cannot detect it at all. `SlipEstimator`'s javadoc says the same.
+
+### Testing
+
+120 new tests (**214 physics, 299 total, all passing**), still entirely HAL-free. The parameter fits
+are verified by generating data from known coefficients and checking they come back; the ballistics by
+round-trip — solve for a launch angle, fly the shot, confirm it lands on the target; the stability
+model by cross-checking against an independent closed-form derivation.
+
 ## [1.5.0] — 2026-08-05 — Catalyst Physics Core (Phase 1, shadow mode)
 
 Introduces **Catalyst Physics Core**, an optional, game-independent physical-intelligence layer.

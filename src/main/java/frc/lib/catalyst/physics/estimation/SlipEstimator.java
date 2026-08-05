@@ -36,6 +36,20 @@ import frc.lib.catalyst.util.SignalProcessor;
  * every residual is measurement noise, and reporting slip there would cry wolf every time the robot
  * sits still. Scores are smoothed so a single noisy frame cannot trip anything.
  *
+ * <h2>What this cannot see</h2>
+ * <b>It detects differential slip, not uniform slip.</b> If one wheel breaks loose while the others
+ * grip, the residual is obvious. If <em>all four</em> break loose together — flooring it from a
+ * standstill, or a whole robot shoved sideways on a slick patch — every module reads fast, forward
+ * kinematics reads exactly as fast, and every residual is zero. The check is blind to it by
+ * construction, because it has nothing to compare against.
+ *
+ * <p>That case is caught elsewhere, and deliberately so:
+ * {@link DisturbanceEstimator} compares the wheels against the IMU, which does not care about
+ * traction at all, so a drivetrain that is accelerating on paper and not in reality shows up there
+ * as a large unexplained residual. The two checks cover different halves of the problem, and a robot
+ * with no accelerometer genuinely cannot detect uniform slip — which is worth knowing rather than
+ * assuming otherwise.
+ *
  * <p>No hardware, no HAL — feed it module states and it is fully unit testable.
  *
  * @since 1.5.0

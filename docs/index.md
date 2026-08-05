@@ -27,13 +27,18 @@ A Java library of pre-built mechanism building blocks for FRC robots on Phoenix 
 
 ## Latest release
 
-**v1.5.0** adds **[Physics Core](advanced/physics.html)** — the optional layer that watches how your
+**v1.6.0** completes **[Physics Core](advanced/physics.html)** — the optional layer that watches how your
 robot actually behaves. It fuses wheel odometry and the IMU into one velocity with an honest
 confidence attached, scores which wheel is lying when a tyre breaks loose, notices when something hit
-the robot, and predicts where the robot will be at the instant a shot leaves it. It is **entirely
-optional and strictly advisory**: it writes no pose, schedules no command, and blocks no transition,
-so every existing API works exactly as before. This release is Phase 1 — observation only, 94 HAL-free
-unit tests, telemetry under `Catalyst/Physics/…`.
+the robot, and predicts where the robot will be at the instant a shot leaves it. On top of v1.5.0's
+shadow mode it adds a **live centre of mass and tipping margin** that tracks your elevator as it
+moves, closed-form ballistics, **online identification** of feedforward gains and battery resistance
+(reported, never applied), residual-based fault isolation, and pre-flight capability evaluation.
+
+It is **entirely optional and strictly advisory**: it writes no pose, schedules no command, and blocks
+no transition, so every existing API works exactly as before. Even the new limit layer only *computes*
+speed and acceleration caps — applying one is a line of your code. 214 HAL-free tests, telemetry under
+`Catalyst/Physics/…`.
 
 It follows v1.4.0's **optional** [Catalyst desktop app](https://github.com/TomAs-1226/FrcCatalyst/releases/latest)
 (every tool in one native window, one-click vendordep install, offline auto-update, an AI-agent

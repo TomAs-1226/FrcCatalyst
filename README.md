@@ -59,7 +59,7 @@ repositories {
 }
 
 dependencies {
-    implementation "com.github.TomAs-1226:FrcCatalyst:v1.5.0"
+    implementation "com.github.TomAs-1226:FrcCatalyst:v1.6.0"
 }
 ```
 </details>
@@ -99,6 +99,34 @@ operatorController.b().onTrue(elevator.goTo("STOW"));
 ```
 
 ---
+
+## v1.6.0: Physics Core, completed
+
+Everything the [Physics Core RFC](https://github.com/TomAs-1226/FrcCatalyst/issues/33) asked for. On
+top of v1.5.0's shadow mode:
+
+- **A live centre of mass.** Describe your elevator and arm once and the tipping margin tracks them —
+  raise a 10 kg carriage 1.2 m on a 60 kg robot and the CoM moves 20 cm, which a static constant
+  cannot see. Also gives you the field-relative end-effector pose for free.
+- **Closed-form ballistics**, so a shot gate has a real time of flight instead of a magic constant.
+- **Online identification** of `kS`/`kV`/`kA` and battery internal resistance from normal driving —
+  **reported, never applied.** There is no method that writes a gain.
+- **Fault isolation** that names a cause: which residuals move *together* separates wheel slip from a
+  wheel-radius calibration error.
+- **Capability evaluation** — "feasible? 1.42 s, 9.4 V minimum, 4.2 cm error, 7.1 cm tip margin, low
+  risk" — before the action is scheduled.
+- **Counterfactual replay** over recorded samples, and a disturbance injector so detectors can be
+  tested without a field.
+
+```java
+if (evaluator.evaluateDriveTo(physics.state(), scoringSpot, 55).isReliable()) { score(); }
+
+drive.setSpeedMultiplier(limits.speedScale());   // opt-in: it computes, you apply
+```
+
+**Still not intrusive.** The one piece that could change how the robot drives has no installer and no
+periodic hook. 214 HAL-free tests. See the [guide](docs/advanced/physics.md) and
+[roadmap](docs/ROADMAP.md).
 
 ## v1.5.0: Physics Core (optional physical-intelligence layer)
 
