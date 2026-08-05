@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'com.frccatalyst'
-version = '1.4.0'
+version = '1.5.0'
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
@@ -77,6 +77,8 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     // wpimath geometry classes need quickbuf at runtime (protobuf serialization).
     testRuntimeOnly 'us.hebi.quickbuf:quickbuf-runtime:1.4'
+    // SwerveDriveKinematics builds a SimpleMatrix, so wpimath needs EJML at runtime too.
+    testRuntimeOnly 'org.ejml:ejml-simple:0.44.0'
 }
 
 test {

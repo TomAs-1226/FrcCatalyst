@@ -30,10 +30,12 @@ import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj.Notifier;
 import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj.RobotController;
+import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.lib.catalyst.logging.CatalystLog;
+import frc.lib.catalyst.physics.RobotStateSource;
 import frc.lib.catalyst.util.AlertManager;
 import frc.lib.catalyst.util.RobotState;
 import frc.lib.catalyst.util.SlewRateLimiter;
@@ -62,8 +64,12 @@ import frc.lib.catalyst.util.SlewRateLimiter;
  *         .build()
  * );
  * }</pre>
+ *
+ * <p>Implements {@link RobotStateSource}, so code that only needs "where is the robot and how fast"
+ * can take the interface and work equally well with a plain drivetrain or with
+ * {@code PhysicsCore}.
  */
-public class SwerveSubsystem extends SubsystemBase {
+public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
 
     private final SwerveDrivetrain drivetrain;
     private final double maxSpeedMPS;
@@ -313,6 +319,46 @@ public class SwerveSubsystem extends SubsystemBase {
 
     public Rotation2d getHeading() {
         return getPose().getRotation();
+    }
+
+    // --- RobotStateSource ---
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Same value as {@link #getPose()}.
+     *
+     * @since 1.5.0
+     */
+    @Override
+    public Pose2d pose() {
+        return getPose();
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Same value as {@link #getFieldRelativeSpeeds()}.
+     *
+     * @since 1.5.0
+     */
+    @Override
+    public ChassisSpeeds fieldVelocity() {
+        return getFieldRelativeSpeeds();
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The drivetrain state is read live on every {@link #pose()} call, so the answer is "now" —
+     * accurate to within the odometry thread's update period. It is reported on the FPGA clock, which
+     * is what the rest of the contract's consumers timestamp against.
+     *
+     * @since 1.5.0
+     */
+    @Override
+    public double timestampSeconds() {
+        return Timer.getFPGATimestamp();
     }
 
     /** Max translational speed in m/s (as configured). */

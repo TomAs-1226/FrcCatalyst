@@ -5,6 +5,105 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.5.0] — 2026-08-05 — Catalyst Physics Core (Phase 1, shadow mode)
+
+Introduces **Catalyst Physics Core**, an optional, game-independent physical-intelligence layer.
+Additive and strictly advisory: it writes no pose, schedules no command, blocks no transition, and
+changes no setpoint. Robot code written against 1.4.0 works identically on 1.5.0, and a team that
+never configures a robot model loses nothing. Implements Phases 0 and 1 of the RFC in
+[#33](https://github.com/TomAs-1226/FrcCatalyst/issues/33).
+
+### Added
+
+- **`frc.lib.catalyst.physics`** — the new package. `PhysicsCore` is the one object a robot project
+  touches; call `update()` once per loop and ask it five questions: `state()`, `predict(h)`,
+  `predictLaunchState(delay)`, `analyze()`, `health()`. Everything publishes under
+  `Catalyst/Physics/...`.
+  - **Fused state estimation** (`PhysicalStateEstimator`). Wheel odometry is exact at steady state
+    and wrong the instant a tyre slips; integrated IMU acceleration is traction-blind but drifts. A
+    weighted complementary observer blends them, with the wheels' weight falling from 0.98 to 0.15 as
+    slip rises — never to zero, because an estimate running purely on integrated acceleration walks
+    away within seconds. Reported acceleration is the derivative of the fused velocity, so the output
+    is self-consistent at either extreme.
+  - **Honest confidence** (`LocalizationQuality`). Time since the last absolute fix, wheel slip, and
+    wheels-versus-IMU disagreement each subtract from confidence, capped so no single factor can zero
+    it alone. Carries per-axis standard deviations, a `HIGH`/`MODERATE`/`LOW`/`LOST` band, and short
+    stable text naming the dominant limit ("vision stale 4.1 s"). Every weight is documented and
+    tunable.
+  - **Per-module slip scoring** (`SlipEstimator`). Runs the believed chassis velocity back through
+    inverse kinematics and compares each wheel against its prediction, counting only the component
+    along the module's predicted direction so a module still rotating toward its setpoint is not
+    mistaken for one that is slipping. `slipFactor()` (mean) drives the fusion weight;
+    `peakSlip()` (max) is what to alert on. Suppressed below 0.25 m/s.
+  - **Disturbance residuals and collision detection** (`DisturbanceEstimator`, `CollisionDetector`).
+    The acceleration the wheels imply versus the acceleration the IMU measured. Wheels accelerate and
+    the robot does not → the tyres are spinning; the robot accelerates and the wheels did not command
+    it → something hit it. An event needs 70% of the traction limit for two consecutive loops, with a
+    0.5 s refractory period so one collision is reported once, and reports the peak of the impact
+    rather than whichever loop crossed first.
+  - **Shot-release prediction** (`StatePredictor`, `LaunchStatePredictor`, `LaunchState`). A shot
+    leaves ~120 ms after the trigger; at 3 m/s that is 36 cm of error before the piece is out.
+    `LaunchState` exposes `pose()` and `fieldVelocity()`, so it drops into `AimingSolver` and
+    `AimingSolverVector` with **no new overload and no API change**. `missRadiusMeters(flightTime)`
+    compounds position and velocity uncertainty into a shot gate. The predictor integrates a
+    decaying-acceleration model in closed form (a robot cannot accelerate forever), and
+    `constantAcceleration()` recovers the textbook form for short horizons.
+  - **Physical model** (`RobotModel`, `DrivetrainModel`). Four measurements — mass, footprint, wheel
+    radius, centre-of-mass height — yield the traction limit (`mu*g`), the tipping limit
+    (`g*halfWidth/comHeight`), stopping distances, and their inverse
+    (`maxSpeedForStoppingDistance`). Every default is stated on the builder method that sets it.
+  - **Timestamp handling** (`SignalBuffer`, `SignalSnapshot`, `TimestampSynchronizer`). Allocation-free
+    ring buffers with interpolated lookup, and per-signal latency so measurements are stamped at
+    capture time. Residuals computed across signals read at different instants include that skew;
+    this removes it. Refuses to extrapolate outside what it holds.
+  - **Observations** (`PoseObservation`, `VelocityObservation`). Timestamped, uncertainty-carrying
+    evidence from outside the drivetrain. A pose observation landing more than a metre from the
+    current estimate is rejected and counted — one bad frame should not convince the robot it
+    teleported.
+  - **Compute profiles** (`PhysicsProfile`). `MINIMAL` / `BALANCED` / `ADVANCED` / `SYSTEMCORE`, so
+    behaviour is gated on a stated budget rather than a controller name. `ADVANCED` and `SYSTEMCORE`
+    behave as `BALANCED` today and deliberately do not silently enable anything unvalidated.
+- **`RobotStateSource` / `UncertainRobotStateSource`** — the contract for "where is the robot and how
+  fast". Both `SwerveSubsystem` and `PhysicsCore` implement it, so consumers depend on neither and
+  keep working whether or not a team adopts Physics Core. `UncertainRobotStateSource` adds
+  `quality()` and derives a diagonal `poseCovariance()` from it by default.
+- **`SwerveSubsystem.pose()` / `fieldVelocity()` / `timestampSeconds()`** — the three contract methods,
+  delegating to the existing `getPose()` and `getFieldRelativeSpeeds()`. Purely additive.
+- **[Physics Core guide](docs/advanced/physics.md)** — what it is for, how the fusion and the
+  confidence model work, how to wire it into state-machine guards and `BehaviorEngine` preconditions,
+  what deliberately did not ship, and a six-step procedure for validating it on a real robot before
+  trusting it.
+
+### Notes on scope
+
+Phase 1 is **shadow mode**. Deliberately not in this release, and staged behind validation on a real
+robot: pose fusion (your drivetrain estimator stays the single writer of `Pose2d`), dynamic
+constraints, and online parameter identification. Power modelling is intentionally absent —
+`BrownoutMonitor` already predicts sag from `Sum(I) * R`, and a second path would conflict with it.
+Physics Core is not a rigid-body engine; there is no collision solver or contact model, and
+simulation with game pieces stays with the maple-sim seam.
+
+### Testing
+
+94 new unit tests (179 total, all passing), every one HAL-free — no NetworkTables, no Driver Station,
+no robot. Clocks are injectable and `PhysicsCore.update(PhysicsSample)` takes every measurement as an
+argument, so the whole pipeline is drivable from a test or a log.
+
+### Docs
+
+- **[Roadmap](docs/ROADMAP.md) rewritten** ([#31](https://github.com/TomAs-1226/FrcCatalyst/issues/31),
+  reported by [avrahamavraham](https://github.com/avrahamavraham)). The 2026 plan was complete — every
+  Tier 1 and Tier 2 item shipped or declined — so the page had gone stale. It now closes out the old
+  plan as a record, states the Physics Core phase plan with its kill criteria, and names what is
+  actually next: validating Phase 1 on a robot, the QuestNav pose source, and finishing the Phase 2
+  advisory integrations.
+
+### Build
+
+- `org.ejml:ejml-simple` added as a **test-only** runtime dependency. `SwerveDriveKinematics` builds a
+  `SimpleMatrix`, which the test runtime did not otherwise resolve. No change to the published
+  library's dependencies.
+
 ## [1.4.0] — 2026-07-30 — Catalyst Desktop (optional companion app)
 
 Introduces the **optional** Catalyst desktop app. **No library API changes** — the version bump
