@@ -26,13 +26,20 @@
  *       {@code SwerveSubsystem} and Physics Core both satisfy, so consumers depend on neither.</li>
  *   <li>{@code data} — timestamped signal buffers and the synchronizer that lines them up onto one
  *       clock, because comparing measurements taken at different instants is how residuals lie.</li>
- *   <li>{@code observation} — timestamped evidence arriving from outside the drivetrain.</li>
- *   <li>{@code model} — the handful of measured physical facts, and the traction and tipping limits
- *       that follow from them.</li>
- *   <li>{@code estimation} — the fused state, per-module slip scoring, and the unexplained-acceleration
- *       residual.</li>
- *   <li>{@code prediction} — short-horizon propagation, and the robot's state at shot release.</li>
- *   <li>{@code diagnostics} — discrete events, currently collisions.</li>
+ *   <li>{@code observation} — timestamped evidence arriving from outside the drivetrain: poses,
+ *       velocities, ranges, bearings, and known contacts.</li>
+ *   <li>{@code model} — the measured physical facts and what follows from them: traction and tipping
+ *       limits, a live mass tree, stability from the zero-moment point, and closed-form ballistics.</li>
+ *   <li>{@code estimation} — the fused state, per-module slip scoring, the unexplained-acceleration
+ *       residual, and online identification of feedforward gains and battery resistance.</li>
+ *   <li>{@code prediction} — short-horizon propagation, shot-release state, whole-robot power
+ *       planning, and pre-flight capability evaluation.</li>
+ *   <li>{@code diagnostics} — discrete events and fault reasoning: collisions, jams, residual
+ *       monitoring, and cause ranking.</li>
+ *   <li>{@code constraints} — the opt-in Phase 3 layer. Computes limits; applies none of them.</li>
+ *   <li>{@code replay} — run recorded samples through a different configuration to ask what it would
+ *       have done.</li>
+ *   <li>{@code sim} — inject faults on purpose, so the detectors can be tested without a field.</li>
  * </ul>
  *
  * <h2>Scope</h2>
@@ -40,9 +47,19 @@
  * For simulation with game pieces, Catalyst integrates with maple-sim. Physics Core is about the real
  * robot's measured behaviour.
  *
- * <p>What ships today is Phase 1 — shadow mode. Every service is observation-only and every algorithm
- * is HAL-free and unit tested. Fusing pose, applying dynamic constraints, and online parameter
- * identification are later, explicitly opt-in phases; see the project roadmap.
+ * <h2>Two things it will not do on its own</h2>
+ * <ul>
+ *   <li><b>It never writes your pose.</b> Your drivetrain estimator stays the single writer of
+ *       {@code Pose2d}. Absolute observations reach Physics Core as evidence about confidence, and an
+ *       outlier is rejected and counted rather than believed.</li>
+ *   <li><b>It never applies a limit.</b> {@code constraints} computes speed and acceleration caps;
+ *       putting one into effect is a line of your code. A team that never writes that line gets
+ *       exactly the robot they had before.</li>
+ * </ul>
+ *
+ * <p>Learned parameters follow the same rule: {@code FeedforwardIdentifier} and
+ * {@code BatteryResistanceIdentifier} report what the robot's behaviour says its constants are, and
+ * have no way to change them.
  *
  * @since 1.5.0
  */

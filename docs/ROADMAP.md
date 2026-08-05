@@ -8,7 +8,7 @@ nav_order: 9
 {: .no_toc }
 
 Where Catalyst stands against the rest of the FRC software ecosystem, and what comes next.
-Landscape researched June 2026; roadmap current as of **v1.5.0 (August 2026)**.
+Landscape researched June 2026; roadmap current as of **v1.6.0 (August 2026)**.
 {: .fs-6 .fw-300 }
 
 ## Table of contents
@@ -56,8 +56,9 @@ No mainstream FRC library bundles these. This is the moat:
 - **Shoot-On-The-Fly** — two solvers (`AimingSolver`, `AimingSolverVector`) plus `TurretMechanism`.
 - **Health & safety kit** — `HealthCheck` / `HealthMonitor` / `RobotSafety` / `HealthHistory` /
   `SystemCheck` / `BrownoutMonitor` / `LoopMonitor`, with a live dashboard.
-- **Physical intelligence** — Physics Core (v1.5.0): fused state with honest confidence, slip
-  scoring, collision detection, shot-release prediction. Nobody else packages this either.
+- **Physical intelligence** — Physics Core (v1.5.0–v1.6.0): fused state with honest confidence, slip
+  and collision detection, a live centre of mass and tipping margin, online gain and battery
+  identification, and pre-flight capability evaluation. Nobody else packages this either.
 - **Unified mechanism layer** — nine mechanisms, live tuning, CAN registry, one builder call each.
 
 ---
@@ -105,13 +106,15 @@ layer already bridges to it.
 | 1.3.3 | `LoopMonitor` — measure the loop before reaching for the levers (team 3211 report) |
 | 1.4.0 | **Catalyst Desktop** — optional companion app, offline vendordep install, auto-update, MCP server for AI agents |
 | 1.5.0 | **Physics Core** — Phase 1, shadow mode |
+| 1.6.0 | **Physics Core completed** — live mass tree and stability, ballistics, online parameter identification, fault isolation, capability evaluation, power planning, replay, opt-in constraints |
 
 ---
 
 ## Now: Physics Core
 
 Tracked in [#33](https://github.com/TomAs-1226/FrcCatalyst/issues/33). The full RFC spans five phases;
-**Phase 1 shipped in v1.5.0** and the rest is staged behind validation.
+**Phase 1 shipped in v1.5.0; Phases 2, 3, and 5 and most of Phase 4 shipped in v1.6.0.** What
+remains is either coprocessor-class work or gated on validation from a real robot.
 
 The scope statement, unchanged from the RFC: *an optional collection of synchronized data pipelines,
 physical models, estimation algorithms, predictive services, and digital-twin adapters that use real
@@ -134,30 +137,43 @@ disturbance residuals and collision detection; a pose-observation adapter with o
 release-time state prediction; full telemetry under `Catalyst/Physics/...`. 94 HAL-free unit tests.
 See the [Physics Core guide](advanced/physics.md).
 
-### Phase 2 — advisory integrations 🚧 partly shipped
+### Phase 2 — advisory integrations ✅ v1.5.0 / v1.6.0
 
-`predictLaunchState()` already drops into both aiming solvers, and the state machine and
+`predictLaunchState()` drops into both aiming solvers with no new overload; the state machine and
 `BehaviorEngine` consume Physics Core through their existing `guard` / `when` hooks with no API
-change. Still to come: Autopilot logging path-compromised conditions, and mechanisms exposing
-expected-versus-measured response.
+change; `ModelResidualMonitor` gives mechanisms expected-versus-measured response; and
+`CapabilityEvaluator` supplies the feasibility input `BehaviorEngine` fallbacks wanted. Autopilot
+path-compromised events remain the one loose end — see [Next](#next).
 
-### Phase 3 — bounded interventions 📋 explicit opt-in only
+### Phase 3 — bounded interventions ✅ v1.6.0, opt-in only
 
-Traction-aware odometry weighting, low-confidence speed reduction, replan requests after a confirmed
-disturbance, holding a shot when the predicted miss radius is too large, anti-tip and power-aware
-constraints. **Gated on Phase 1 validation on a real robot** — nothing here ships before the shadow
-data says it earns its place.
+`PhysicsConstraints` computes low-confidence speed reduction, slip-aware and anti-tip acceleration
+limits, and power-aware caps. **It applies none of them.** There is no installer and no periodic hook:
+it hands you numbers and `explain()` tells you which limit binds, so every recommended slowdown is
+attributable. Teams should log `speedScale()` alongside what they actually command for a session
+before acting on it.
 
-### Phase 4 — advanced backend 📋
+Still deliberately unshipped from this phase: **traction-aware odometry weighting and automatic replan
+requests**, both of which would mean Physics Core writing pose or driving path selection. Those stay
+out until shadow data from a real robot justifies them.
 
-Fixed-lag smoothing, delayed-measurement replay, a richer nonlinear estimator, online parameter
-identification, local vision process integration, an articulated whole-robot model. This is where the
-`ADVANCED` and `SYSTEMCORE` compute profiles start to mean something different from `BALANCED`.
+### Phase 4 — advanced backend 🚧 mostly shipped
 
-### Phase 5 — higher-level predictive services 📋
+Shipped in v1.6.0: **online parameter identification** (`FeedforwardIdentifier`,
+`BatteryResistanceIdentifier`, on a recursive-least-squares core) and the **articulated whole-robot
+model** (`ArticulatedRobotModel`, `StabilityModel`), which makes the centre of mass and the tipping
+limit live rather than static.
 
-Capability evaluation ("is this action feasible, and what will it cost?"), counterfactual replay,
-predictive power scheduling, uncertainty-aware behaviour selection.
+Outstanding, and genuinely needing a coprocessor: fixed-lag smoothing, delayed-measurement replay
+inside the estimator, a richer nonlinear estimator, and local vision process integration. This is what
+would finally make `ADVANCED` and `SYSTEMCORE` mean something different from `BALANCED`.
+
+### Phase 5 — higher-level predictive services ✅ v1.6.0
+
+`CapabilityEvaluator` (feasibility, duration, position error, tip margin, voltage — each with a
+derivation rather than a heuristic), `PhysicsReplay` for counterfactual analysis over recorded
+samples, `PowerPredictor` for predictive load sequencing, and uncertainty-aware behaviour selection
+through the confidence-scaled constraints.
 
 ### Kill criteria
 
@@ -194,35 +210,59 @@ as a `PoseEstimate` drops into the hardened multi-camera fusion, and feeds `phys
 the same time. The wrinkle: it needs the QuestNav vendordep on the classpath, so it ships as an
 optional integration.
 
-### Physics Core Phase 2 completion 🚧
+### Robot validation 📋 — the gate on everything else
 
-Autopilot path-compromised events and mechanism expected-versus-measured response — the two advisory
-integrations not yet wired.
+Physics Core is now feature-complete against the RFC and has **never run on a robot**. Every algorithm
+is unit tested against synthetic data, which proves the mathematics and proves nothing about carpet.
+Until a real shadow-mode session says otherwise, everything in the package is a well-tested hypothesis.
 
-### Robot validation of Phase 1 📋
+What the first sessions need to establish, in order:
 
-The gate on everything downstream. Nothing in Phase 3 gets built before the shadow data from a real
-robot says the Phase 1 estimates are worth acting on.
+1. **Sensor disagreement sits near zero** while driving normally. Anything else is a calibration error
+   that every downstream number inherits.
+2. **Slip detection catches induced slip** without firing on hard braking over rough carpet.
+3. **Collision detection reports one event per impact**, and clears.
+4. **Confidence tracks reality** — falls when vision is covered, recovers when it returns.
+5. **The identifiers converge** to something close to the SysId gains already in the constants file.
+   If they do not, one of the two is wrong and that is worth knowing.
+6. **`PhysicsConstraints` would have intervened at sensible moments** — logged alongside what was
+   actually commanded, before anybody applies it.
+
+### Autopilot path-compromised events 🚧
+
+The one advisory integration still unwired: `Autopilot` logging when a confirmed disturbance has
+displaced the robot off its planned path. The detection exists; the reporting hook does not.
+
+### Carried forward: QuestNav pose source 📋
+
+Still the highest-value unbuilt item, and Physics Core makes it more valuable, not less: QuestNav
+gives absolute correction that survives losing sight of a tag, which is exactly what the confidence
+model rewards. Research notes above.
+
+### Advanced backend, if a coprocessor arrives 📋
+
+Fixed-lag smoothing, delayed-measurement replay inside the estimator, a nonlinear estimator, and local
+vision processing. These are what would make `ADVANCED` and `SYSTEMCORE` differ from `BALANCED`, and
+they are the only remaining RFC items that genuinely need more compute than a roboRIO has.
 
 ### Under consideration
 
 - **`catalyst.world`** — a game-independent world model (game pieces, field zones, targets, and their
   uncertainty), deliberately kept separate from Physics Core: Physics Core estimates physical
   reality, a world model represents season-specific entities.
-- **Counterfactual replay** — "would this estimator have rejected that bad vision frame?" run against
-  recorded logs. Depends on Phase 4.
-- **Residual-based fault isolation** — ranking likely causes when measurements disagree with the
-  model, using honest diagnostic scores rather than probabilities until they are validated.
+- **Traction-aware odometry weighting** — the one Phase 3 intervention held back, because it would
+  mean Physics Core writing pose. Gated on validation.
 
 ---
 
 ## Recommended next three
 
-1. **Validate Physics Core Phase 1 on a real robot** — everything else in the physics track is gated
-   on it, and it costs nothing to run in shadow mode.
+1. **Run Physics Core in shadow mode on a real robot.** It is feature-complete and unvalidated, and
+   that is the single largest gap in the library right now. It costs nothing — no control authority —
+   and everything else in the physics track is gated on what it shows.
 2. **QuestNav source** — still low effort, still high visibility, and now worth more than it was.
-3. **Finish Phase 2 advisory integrations** — Autopilot and mechanisms, so the whole stack can see
-   what Physics Core sees.
+3. **Autopilot path-compromised events** — the last advisory integration, so the whole stack sees what
+   Physics Core sees.
 
 Together these say: *Catalyst is the library that makes your robot reliable (self-test), accurately
 localized (vision + QuestNav + physics), testable before it's built (maple-sim), and honest about

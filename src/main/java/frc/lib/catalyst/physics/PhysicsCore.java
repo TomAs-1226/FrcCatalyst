@@ -267,16 +267,28 @@ public final class PhysicsCore implements UncertainRobotStateSource {
             estimator.recordAbsoluteFix(observation.timestampSeconds());
             return true;
         }
-        if (observation instanceof VelocityObservation) {
-            // Accepted and logged, but not yet fused: an independent velocity source is only worth
-            // weighing once it has been validated against a real robot, which is a later phase. The
-            // contract is here now so teams can wire the source and see it in shadow-mode logs.
+        if (observation instanceof VelocityObservation velocity) {
+            // Unlike a pose, this one really is fused. It is the only measurement that can settle a
+            // wheels-versus-IMU disagreement, because it is the only one that sees the robot's actual
+            // motion without going through either.
+            boolean applied = estimator.applyVelocityObservation(
+                    velocity.fieldVelocity(), velocity.standardDeviation());
             if (loggingEnabled) {
                 CatalystLog.log(LOG_ROOT + "VelocityObservation/Source", observation.source());
+                CatalystLog.log(LOG_ROOT + "VelocityObservation/SpeedMps", velocity.speedMetersPerSecond());
+                CatalystLog.log(LOG_ROOT + "VelocityObservation/Applied", applied);
             }
-            return true;
+            return applied;
         }
-        return false;
+        // Range, bearing, and contact observations constrain the pose, which Physics Core does not
+        // own in shadow mode. They are accepted so a team can wire the source and see the residuals,
+        // and they reset the staleness clock the same way a pose fix does, because an independent
+        // absolute measurement agreeing with the estimate is exactly what staleness is tracking.
+        estimator.recordAbsoluteFix(observation.timestampSeconds());
+        if (loggingEnabled) {
+            CatalystLog.log(LOG_ROOT + "Observation/Source", observation.source());
+        }
+        return true;
     }
 
     // ===========================================

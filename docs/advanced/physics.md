@@ -8,8 +8,9 @@ nav_order: 10
 # Physics Core
 {: .no_toc }
 
-The optional layer that watches how your robot actually behaves — fused velocity with honest
-confidence, per-module slip scoring, collision detection, and shot-release prediction.
+The optional layer that watches how your robot actually behaves — fused state with honest confidence,
+slip and collision detection, a live centre of mass, online parameter identification, and predictive
+capability evaluation.
 {: .fs-6 .fw-300 }
 
 ## Table of contents
@@ -300,57 +301,363 @@ Physics Core is told what it may spend rather than being hard-coded to a control
 | Profile | What runs | Notes |
 |---|---|---|
 | `MINIMAL` | Fused velocity, confidence, prediction | For a loop that is already tight |
-| `BALANCED` | + slip scoring, disturbance residuals, collision detection | **Default.** What Phase 1 was designed against |
-| `ADVANCED` | Same as `BALANCED` today | Reserved for richer estimation, a later phase |
-| `SYSTEMCORE` | Same as `BALANCED` today | Reserved for coprocessor-class work, a later phase |
+| `BALANCED` | + slip scoring, disturbance residuals, collision detection | **Default.** What the shadow-mode benchmark targets |
+| `ADVANCED` | Same as `BALANCED` today | Reserved for fixed-lag smoothing and a nonlinear estimator |
+| `SYSTEMCORE` | Same as `BALANCED` today | Reserved for coprocessor-class work |
 
 `ADVANCED` and `SYSTEMCORE` deliberately do not silently enable anything unvalidated. If you select
 one today you get `BALANCED` behaviour, and the profile is recorded in `health()` so a log says what
 was actually running.
+
+The profile gates only what runs **inside** `PhysicsCore.update()`. The models, identifiers,
+evaluators, and constraints described below are separate objects you construct and call yourself, so
+their cost is yours to place — most are pure functions you can call once a second rather than once a
+loop.
 
 Watch `Catalyst/Loop/Robot/AverageMs` before and after enabling it — see
 [keeping the loop under 20 ms](logging.md).
 
 ---
 
-## What ships today, and what does not
+## The mass tree: where the centre of mass actually is
 
-What is here is **Phase 1: shadow mode.** Every service is observation-only, every algorithm is
-HAL-free and unit tested (94 tests), and nothing takes control authority.
+`RobotModel` carries one `centerOfMassHeightMeters`, and for a robot that stays low that is the end of
+it. It stops being true the moment something heavy goes up. Raise a 10 kg elevator carriage 1.2 m on a
+60 kg robot and the true centre of mass climbs 20 cm — which is the difference between a comfortable
+tipping margin and a marginal one, and a static number cannot see it.
 
-Deliberately **not** in this release:
+Describe the moving parts once and the model tracks them:
 
-- **Pose fusion.** Physics Core reads your pose and never writes it. Your drivetrain estimator stays
-  the single writer of `Pose2d`. A vision observation only resets the staleness term in confidence —
-  and one that lands more than a metre from the current estimate is rejected outright and counted,
-  because one bad frame should not convince the robot it teleported.
-- **Dynamic constraints.** Nothing slows the robot down or clamps acceleration on its own. The limits
-  are published; applying them is your policy, written where you can see it.
-- **Online parameter identification.** Learning `kS`/`kV`/`kA`, effective mass, or battery resistance
-  from real operation, and never applying learned values silently during a match.
-- **Power modelling.** `BrownoutMonitor` already predicts sag from `Σ I × R` — see
-  [health monitoring](health.md). Duplicating it would create a second, conflicting path.
+```java
+ArticulatedRobotModel robot = ArticulatedRobotModel.builder()
+    .chassis(chassisModel)                        // mass of everything that does NOT move
+    .add(MechanismModel.linear("Elevator", 10.0)
+        .mountedAt(new Translation3d(0, 0, 0.15))
+        .position(elevator::getPosition)          // live, metres
+        .build())
+    .add(MechanismModel.rotational("Arm", 5.0)
+        .childOf("Elevator")                      // rides on the carriage
+        .comAt(new Translation3d(0.35, 0, 0))     // mass is out along the arm
+        .angle(() -> Units.degreesToRadians(arm.getPosition()))
+        .build())
+    .build();
 
-Those are later, explicitly opt-in phases. See the [roadmap](../ROADMAP.md).
+double h = robot.centerOfMassHeightMeters();                       // live
+Pose3d gripper = robot.fieldPoseOf("Arm", drive.getPose()).get();  // field-relative end effector
+```
+
+Links form a transform tree, so `childOf` composes properly: raise the elevator and the arm goes with
+it. That also gives you the **field-relative end-effector pose** placement games want, without
+hand-rolling a transform chain every season.
+
+> **Watch the sign on rotational links.** Right-handed rotation about `+Y` takes `+X` toward `−Z`, so
+> a *positive* angle pitches the far end *down*. Most arms count up as positive, which is the
+> opposite. Pass `.about(new Translation3d(0, -1, 0))` or negate in the supplier. Getting it backwards
+> does not throw — it silently *lowers* the CoM when the arm goes up — so check it once with the arm
+> raised.
+
+### Stability, properly
+
+`StabilityModel` computes the **zero-moment point**: gravity plus the robot's own acceleration produce
+a resultant, and where that resultant meets the carpet is where the ground has to push back.
+
+```text
+zmp = (cx, cy) − (cz / g) · (ax, ay)
+```
+
+While the ZMP is inside the wheel rectangle every wheel carries load. At the edge, the inside wheels
+have unloaded. Past it, the robot rotates about that edge.
+
+```java
+StabilityModel stability = new StabilityModel(robot);
+
+double margin = stability.tipMarginMeters(state.fieldAcceleration(), state.pose().getRotation());
+double limit  = stability.maxAccelerationMpsSq(new Translation2d(1, 0));   // hardest safe forward
+double[] load = stability.wheelLoadsNewtons(robotRelativeAccel);           // FL, FR, BL, BR
+```
+
+`tipMarginMeters` is in metres, so it is a number you can show a driver and threshold a guard on.
+`DrivetrainModel.maxTippingAccelerationMpsSq()` is this same calculation with the CoM assumed centred
+and fixed — the two agree exactly in that case, which is asserted in the tests, and diverge as soon as
+the robot extends or carries mass off-centre.
+
+Wheel loads use the standard bilinear split. Four contacts on a rigid body are statically
+indeterminate — the real split depends on frame flex Catalyst does not model — but the bilinear
+distribution is the unique symmetric one that reproduces both the total weight and the moment about
+each axis, and it goes to zero on exactly the wheel that lifts.
 
 ---
 
-## Validating it on your robot
+## Ballistics: time of flight without a magic constant
 
-Physics Core is measurement, so measure it before you trust it.
+`missRadiusMeters(timeOfFlight)` needs a flight time, and a constant is wrong at every distance but
+one. `ProjectileModel` solves it in closed form:
 
-1. **Run it in shadow mode for a practice session.** It has no control authority, so there is nothing
-   to be careful about. Watch `Catalyst/Physics/...` in AdvantageScope.
-2. **Check `SensorDisagreement` while driving normally.** It should sit near zero. A persistently
-   large value with no slip reported points at a calibration problem — wrong wheel radius, wrong gear
-   ratio, or an IMU mounted at an angle nobody told the code about. Fix that before reading anything
-   else.
-3. **Induce slip deliberately.** Full-throttle from a standstill on a slick patch. `Slip/Peak` should
-   spike and `Slip/WorstModule` should name the right corner.
-4. **Bump the robot.** `Collision/MpsSq` should record it once, not six times.
-5. **Cover the cameras.** `Quality/Confidence` should fall over about three seconds and recover when
-   they come back.
-6. **Then, and only then**, start gating decisions on it.
+```java
+ProjectileModel shot = ProjectileModel.noDrag();
 
-If a Physics Core signal does not outperform the simple check you already had, keep using the simple
-check. That rule applies to everything in this package.
+double flight = shot.timeOfFlightSeconds(distance, exitSpeed, hoodAngle).orElse(1.0);
+if (launch.fitsTarget(flight, GOAL_RADIUS)) { shooter.fire(); }
+
+var angles = shot.launchAnglesFor(distance, goalHeight, exitSpeed).orElseThrow();
+// angles.flat() is less sensitive to speed error; angles.lobbed() drops in more steeply
+```
+
+Two models, both exact rather than integrated: `noDrag()` (the parabola) and
+`withLinearDrag(k)` (`v̇ = −k·v`, still closed-form).
+
+> **Quadratic drag and spin are deliberately absent.** Real drag on a light game piece goes as `v²`,
+> and backspin produces lift a ballistic model has no term for. Neither has a closed form, and fitting
+> them needs coefficients you can only get by measuring — at which point the measurement is the better
+> model. That is exactly what `AimingSolver`'s interpolating tables already are, and they remain the
+> way to **aim**. Use this for timing and clearance, not to replace a characterisation sweep.
+
+---
+
+## Learning the constants the robot actually has
+
+`kS`/`kV`/`kA` come from a SysId sweep in the pit, and then the robot gets driven for six weeks. Tread
+wears, bearings tighten, someone swaps a motor. The identifiers watch normal operation and report what
+the gains look like *now*.
+
+```java
+FeedforwardIdentifier elevatorFf = FeedforwardIdentifier.builder("Elevator")
+    .withElevatorGravity()
+    .seed(0.15, 2.4, 0.06, 0.35)     // your current gains, as a starting point
+    .build();
+
+elevatorFf.addSample(motor.getAppliedVoltage(), mech.getVelocity(), mech.getAcceleration());
+
+// in the pit, when you want to know:
+elevatorFf.recommendation().ifPresent(r -> System.out.println(r.describe()));
+```
+
+Same for the battery, whose internal resistance every brownout prediction rests on and which nobody
+measures:
+
+```java
+battery.addSample(RobotController.getBatteryVoltage(), pdh.getTotalCurrent());
+battery.recommendation().ifPresent(r -> System.out.println(r.describe()));
+```
+
+Both are recursive least squares — constant time, constant memory, mathematically identical to a batch
+fit over the whole log.
+
+> **Nothing applies these.** There is no method that writes a gain. You read the recommendation,
+> review it, and type it into your constants file if you agree. A value learned mid-match and applied
+> mid-match with nobody watching is how a robot develops a behaviour nobody can reproduce in the pit.
+
+**When to believe it.** A fit needs *varied* data. A mechanism that only ever runs at one speed cannot
+separate `kS` from `kV` — both explain the same observation — and no amount of collecting fixes that.
+The covariance tracks exactly this, so `recommendation()` stays **empty** until the fit has genuinely
+pinned the values down. A battery under a perfectly steady load reports nothing, forever, and that is
+correct.
+
+---
+
+## Fault isolation: which cause fits the pattern
+
+One biased residual says something is wrong. Which residuals are biased *together* says what.
+
+`ModelResidualMonitor` separates noise from bias statistically rather than by threshold: a residual
+that swings both ways and averages to zero is a noisy sensor and a correct model; one that sits
+consistently to one side is a wrong model. It calls bias only when the offset beats both a tolerance
+and its own standard error, so a 12 cm offset buried in 40 cm of scatter is still caught.
+
+`FaultIsolator` then ranks causes by the pattern they predict:
+
+```java
+FaultIsolator isolator = FaultIsolator.builder()
+    .monitor(frontLeftSpeedResidual)
+    .monitor(wheelsVsImuResidual)
+    .candidate("Front-left wheel slip", c -> c
+        .expects("FL wheel speed", 1.0)
+        .expects("wheels vs IMU", 0.8))
+    .candidate("Front-left wheel radius calibration", c -> c
+        .expects("FL wheel speed", 1.0)
+        .expectsQuiet("wheels vs IMU", 1.0))     // this is what separates them
+    .build();
+```
+
+Both causes disturb that module's speed residual. Only slip also disturbs the IMU comparison — a wheel
+rolling correctly at the wrong assumed size still agrees about acceleration. `expectsQuiet` is what
+turns "something is wrong with the front left" into "your wheel radius is off".
+
+> **These are diagnostic scores, not probabilities.** 0.9 does not mean 90% likely; it means this
+> cause explains the observed pattern about nine tenths as well as a textbook instance would. Nothing
+> here has been validated against a population of real faults. They are for *ranking* — for pointing a
+> student at the right corner of the robot first.
+
+`JamDetector` handles the case motor signals alone genuinely cannot: a jam and a successful intake
+produce identical current and velocity. It separates them the only honest way, by asking whether the
+piece is there. With no piece sensor configured it reports `STALLED` and lets you decide, rather than
+guessing.
+
+---
+
+## Deciding before you commit
+
+`CapabilityEvaluator` answers "is this worth attempting, and what will it cost" *before* the action is
+scheduled — a cycle abandoned at second 1.4 is a cycle wasted, and the information was available at
+second 0.
+
+```java
+Action scoreHigh = Action.named("Score high")
+    .when(() -> evaluator.evaluateDriveTo(physics.state(), scoringSpot, 55).isReliable())
+    .run(superstructure::scoreHigh)
+    .build();
+
+BehaviorEngine.sequence("Cycle").attempt(scoreHigh).orElse(scoreLow).build();
+```
+
+```text
+Feasible: yes
+Predicted completion: 1.42 s
+Predicted minimum voltage: 9.4 V
+Predicted position error: 4.2 cm
+Tip margin: 7.1 cm
+Risk: low
+```
+
+Every figure has a derivation, not a heuristic: time from an exact trapezoidal profile under the
+acceleration and speed limits in force; position error from the estimate's own uncertainty compounded
+over that duration; tip margin from the live centre of mass at the acceleration the move requires;
+voltage from `PowerPredictor`. Anything not configured is **absent rather than invented** — with no
+power predictor the voltage line simply does not appear.
+
+A robot already travelling too fast to stop in the distance available is reported infeasible with the
+reason, which is a real and useful answer.
+
+### Power: planning, not reflex
+
+`BrownoutMonitor` and `PowerPredictor` are not duplicates. `BrownoutMonitor` watches the present and
+backs off — a reflex. `PowerPredictor` is asked about the future — a plan.
+
+```java
+if (power.canSustain(60.0)) { elevator.raise().schedule(); }
+
+var plan = power.plan(
+    new PowerDemand("Elevator", 60), new PowerDemand("Shooter", 45), new PowerDemand("Intake", 25));
+// "Elevator + Shooter then Intake"
+```
+
+Open-circuit voltage is inferred from the present reading (`V_now + I_now·R`), so the prediction
+follows the battery down over a match instead of pretending it is always fresh. Demands are packed in
+the order you give them — the sequencing respects the priority you already decided rather than
+silently reordering the robot's behaviour.
+
+---
+
+## Bounded intervention — opt-in, and visibly so
+
+This is the only part of Physics Core that could change how the robot drives, so it is built to make
+that impossible by accident. There is no `install()`, no periodic hook, nothing that reaches into
+`SwerveSubsystem`. It computes limits; you apply them, on a line you wrote:
+
+```java
+PhysicsConstraints limits = PhysicsConstraints.builder()
+    .physics(physics).stability(stability).power(power).build();
+
+// your code, your call:
+drive.setSpeedMultiplier(limits.speedScale());
+```
+
+Four limits, each independent, tightest wins: traction and tipping (from the live CoM, so it tightens
+on its own when the elevator goes up), confidence, slip, and electrical headroom.
+
+`limits.explain()` names whichever is binding — every slowdown this recommends is attributable to a
+sentence:
+
+```text
+speed scaled to 45%, accel capped at 4.2 m/s^2: confidence LOW (vision stale 4.1 s); wheel slip 34%
+```
+
+The speed scale never returns zero unless the estimate is genuinely lost; a robot frozen mid-match
+because a camera blinked is worse than one moving cautiously.
+
+---
+
+## Replay: asking what a change would have done
+
+Tuning an estimator on a real robot is a miserable loop — change a threshold, find a field, recreate
+the situation, hope the log caught it. Recorded samples remove all of it.
+
+```java
+Result strict  = PhysicsReplay.of(samples).run(() -> buildCore(0.3));
+Result relaxed = PhysicsReplay.of(samples).run(() -> buildCore(0.7));
+
+System.out.println(strict.compareTo(relaxed));
+// "peak slip 0.91 vs 0.44; 3 vs 1 collision(s); mean confidence 0.62 vs 0.78"
+```
+
+Replay is exact, not approximate: `update(PhysicsSample)` takes every measurement as an argument and
+the clock is injectable, so the same samples in the same order give the same numbers every time. A
+transform can also remove a sensor, to ask what it was worth:
+
+```java
+replay.run(this::buildCore, s -> new PhysicsSample(   // what if the IMU had been dead?
+    s.timestampSeconds(), s.pose(), s.robotRelativeSpeeds(), s.moduleStates(), null, s.yawRateRadPerSec()));
+```
+
+And `DisturbanceInjector` produces faults on purpose, so a slip detector can be tested a hundred times
+in a unit test rather than once on a slick patch of carpet.
+
+---
+
+## Known limits, stated plainly
+
+Things Physics Core cannot do, so you are not surprised by them on a field:
+
+- **Uniform slip is invisible to per-module scoring.** If all four wheels break loose together, every
+  module reads fast, forward kinematics reads exactly as fast, and every residual is zero. The
+  wheels-versus-IMU residual catches it instead — which means **a robot with no accelerometer cannot
+  detect uniform slip at all.** Two checks, two halves of the problem.
+- **Physics Core still never writes your pose.** Absolute observations reach it as evidence about
+  confidence. One landing more than a metre from the current estimate is rejected and counted.
+- **Range, bearing, and contact observations are accepted but not fused into the pose**, for the same
+  reason. They reset the staleness clock and expose residuals you can watch; using them to *correct*
+  position is pose fusion, which stays out.
+- **Wheel-load distribution is an approximation.** Four contacts on a rigid body are statically
+  indeterminate.
+- **No quadratic drag, no spin, no contact model.** See the ballistics and scope notes above.
+- **Diagnostic scores are not probabilities.** Ranking aid only.
+
+---
+
+## Adopting it, in order
+
+Nothing here has to be adopted at once, and the order matters — each step is worth something on its
+own and earns the next one.
+
+**1. Shadow mode, one practice session.** Wire `PhysicsCore` and nothing else. It has no control
+authority, so there is nothing to be careful about. Watch `Catalyst/Physics/...` in AdvantageScope.
+
+**2. Check `SensorDisagreement` while driving normally.** It should sit near zero. A persistently
+large value with no slip reported points at a calibration problem — wrong wheel radius, wrong gear
+ratio, or an IMU mounted at an angle nobody told the code about. **Fix that before reading anything
+else**, because every downstream number inherits it.
+
+**3. Provoke each detector and confirm it both fires and clears.**
+
+| Do this | Expect |
+|---|---|
+| Full throttle from a standstill on a slick patch | `Slip/Peak` spikes, `Slip/WorstModule` names the right corner |
+| Bump the robot | `Collision/MpsSq` records it **once**, not six times |
+| Cover the cameras | `Quality/Confidence` falls over ~3 s, recovers when they come back |
+
+**4. Add the mass tree** if anything heavy moves. Check the sign on rotational links by raising the
+arm and confirming `centerOfMassHeightMeters()` goes **up**.
+
+**5. Start consuming it read-only** — a state-machine guard, a `BehaviorEngine` precondition, a shot
+gate. Still no control authority; you are just letting decisions see the physics.
+
+**6. Only then, `PhysicsConstraints`.** Log `speedScale()` alongside what you are actually commanding
+for a session before you apply it, so you can see when it would have intervened and agree with it.
+
+**7. Parameter identification is independent of all of the above** and safe to run from day one — it
+cannot change anything. Let it collect over a few matches and compare its recommendations with your
+constants file.
+
+> **The rule that governs all of it:** if a Physics Core signal does not measurably outperform the
+> simple check you already had, keep the simple check. That applies to everything in this package, and
+> it is why the roadmap carries explicit kill criteria.

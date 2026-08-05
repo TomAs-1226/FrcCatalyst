@@ -86,6 +86,14 @@ public final class PhysicalStateEstimator {
     private double lastDisagreement = 0.0;
     private boolean initialized = false;
 
+    /**
+     * Velocity variance after an independent velocity observation was folded in, or {@code NaN} when
+     * there is none in effect. Grows with process noise every update until it is no worse than the
+     * confidence-derived figure, at which point it is dropped — the observation's benefit has expired.
+     */
+    private double observedVelocityVariance = Double.NaN;
+    private final double velocityProcessNoise;
+
     private PhysicalStateEstimator(Builder builder) {
         this.kinematicTrust = builder.kinematicTrust;
         this.minimumKinematicTrust = builder.minimumKinematicTrust;
@@ -99,6 +107,7 @@ public final class PhysicalStateEstimator {
         this.bestVelocityStdDev = builder.bestVelocityStdDev;
         this.worstVelocityStdDev = builder.worstVelocityStdDev;
         this.hasAccelerometer = builder.hasAccelerometer;
+        this.velocityProcessNoise = builder.velocityProcessNoise;
         this.accelX = new SignalProcessor.ExponentialMovingAverage(builder.accelerationSmoothing);
         this.accelY = new SignalProcessor.ExponentialMovingAverage(builder.accelerationSmoothing);
         this.angularAccel = new SignalProcessor.ExponentialMovingAverage(builder.accelerationSmoothing);
@@ -166,6 +175,7 @@ public final class PhysicalStateEstimator {
             fusedAccel = new Translation2d(
                     accelX.calculate(rawAccel.getX()), accelY.calculate(rawAccel.getY()));
             fusedAngularAccel = angularAccel.calculate((yawRateRadPerSec - lastYawRate) / dt);
+            growObservedVelocityVariance(dt);
         }
 
         LocalizationQuality quality = buildQuality(timestampSeconds, slipFactor);
@@ -208,6 +218,84 @@ public final class PhysicalStateEstimator {
         lastAbsoluteFixTimestamp = timestampSeconds;
     }
 
+    /**
+     * Fold in a velocity measured by something other than the drive wheels — an optical-flow sensor, a
+     * passive odometry pod, the frame-to-frame delta of a vision pose.
+     *
+     * <p>Unlike a pose observation, this genuinely <em>changes the estimate</em>, and it is the one
+     * measurement that can. Wheels and IMU both fail during a slip: the wheels report motion the robot
+     * is not making, and the IMU has nothing absolute to anchor its integration to. A source that
+     * measures how fast the robot is actually moving is the only thing that can settle the
+     * disagreement, so ignoring it would be leaving the most useful sensor on the bench.
+     *
+     * <p>Fusion is inverse-variance weighting, which is the optimal linear combination of two unbiased
+     * estimates:
+     *
+     * <pre>
+     * w      = σ_est² / (σ_est² + σ_obs²)
+     * v      = v_est + w·(v_obs - v_est)
+     * σ_new² = σ_est²·σ_obs² / (σ_est² + σ_obs²)
+     * </pre>
+     *
+     * <p>A confident observation moves the estimate a long way and tightens it; a vague one nudges it
+     * and barely helps. The tightened variance then grows back at the configured process noise on
+     * every update, so the benefit fades over a second or so rather than being claimed forever.
+     *
+     * @param fieldVelocity     measured field-relative velocity, m/s
+     * @param standardDeviation 1-sigma uncertainty of that measurement, m/s
+     * @return true if it was folded in; false before the first {@link #update} call, when there is no
+     *         estimate to fuse with
+     */
+    public boolean applyVelocityObservation(Translation2d fieldVelocity, double standardDeviation) {
+        if (!initialized || fieldVelocity == null || !(standardDeviation > 0)) return false;
+
+        double estimateVariance = effectiveVelocityVariance();
+        double observationVariance = standardDeviation * standardDeviation;
+        double weight = estimateVariance / (estimateVariance + observationVariance);
+
+        Translation2d current = new Translation2d(
+                state.fieldVelocity().vxMetersPerSecond, state.fieldVelocity().vyMetersPerSecond);
+        Translation2d fused = current.plus(fieldVelocity.minus(current).times(weight));
+
+        observedVelocityVariance =
+                estimateVariance * observationVariance / (estimateVariance + observationVariance);
+
+        state = new PhysicalRobotState(
+                state.timestampSeconds(),
+                state.pose(),
+                new ChassisSpeeds(fused.getX(), fused.getY(),
+                        state.fieldVelocity().omegaRadiansPerSecond),
+                state.fieldAcceleration(),
+                state.angularAccelerationRadPerSecSq(),
+                rebuildQualityWithVelocity(state.quality()));
+        return true;
+    }
+
+    /** The variance currently in force on the velocity estimate, m²/s². */
+    private double effectiveVelocityVariance() {
+        double derived = state.quality().velocityStdDevMetersPerSecond();
+        double derivedVariance = derived * derived;
+        if (Double.isNaN(observedVelocityVariance)) return derivedVariance;
+        return Math.min(derivedVariance, observedVelocityVariance);
+    }
+
+    /** Process noise: the observation's benefit decays as the robot keeps moving. */
+    private void growObservedVelocityVariance(double dt) {
+        if (Double.isNaN(observedVelocityVariance)) return;
+        observedVelocityVariance += velocityProcessNoise * velocityProcessNoise * dt;
+        double derived = state.quality().velocityStdDevMetersPerSecond();
+        if (observedVelocityVariance >= derived * derived) observedVelocityVariance = Double.NaN;
+    }
+
+    /** Replaces the velocity standard deviation in a quality with the fused one. */
+    private LocalizationQuality rebuildQualityWithVelocity(LocalizationQuality quality) {
+        double fusedStdDev = Math.sqrt(effectiveVelocityVariance());
+        if (fusedStdDev >= quality.velocityStdDevMetersPerSecond()) return quality;
+        return new LocalizationQuality(quality.confidence(), quality.translationStdDevMeters(),
+                quality.rotationStdDevRadians(), fusedStdDev, quality.secondsSinceAbsoluteFix(),
+                quality.reason());
+    }
+
     /** The latest fused state. {@link PhysicalRobotState#unknown()} before the first update. */
     public PhysicalRobotState state() {
         return state;
@@ -241,6 +329,7 @@ public final class PhysicalStateEstimator {
         lastYawRate = 0.0;
         lastDisagreement = 0.0;
         initialized = false;
+        observedVelocityVariance = Double.NaN;
         accelX.reset();
         accelY.reset();
         angularAccel.reset();
@@ -258,11 +347,18 @@ public final class PhysicalStateEstimator {
         double confidence = saturate(1.0 - stalenessTerm - slipTerm - disagreementTerm);
         double degradation = 1.0 - confidence;
 
+        double velocityStdDev = lerp(bestVelocityStdDev, worstVelocityStdDev, degradation);
+        // A recent independent velocity observation beats the confidence-derived figure until its
+        // benefit has decayed away, so take whichever is tighter.
+        if (!Double.isNaN(observedVelocityVariance)) {
+            velocityStdDev = Math.min(velocityStdDev, Math.sqrt(observedVelocityVariance));
+        }
+
         return new LocalizationQuality(
                 confidence,
                 lerp(bestTranslationStdDev, worstTranslationStdDev, degradation),
                 lerp(bestRotationStdDev, worstRotationStdDev, degradation),
-                lerp(bestVelocityStdDev, worstVelocityStdDev, degradation),
+                velocityStdDev,
                 staleness,
                 dominantReason(stalenessTerm, slipTerm, disagreementTerm, staleness, slipFactor));
     }
@@ -312,6 +408,7 @@ public final class PhysicalStateEstimator {
         private double bestVelocityStdDev = 0.05;
         private double worstVelocityStdDev = 1.50;
         private boolean hasAccelerometer = true;
+        private double velocityProcessNoise = 0.5;
 
         /**
          * Weight given to wheel odometry when nothing is slipping, {@code (0, 1]}. Defaults to 0.98 —
@@ -389,6 +486,16 @@ public final class PhysicalStateEstimator {
         public Builder rotationStdDevRange(double best, double worst) {
             this.bestRotationStdDev = best;
             this.worstRotationStdDev = worst;
+            return this;
+        }
+
+        /**
+         * How fast the benefit of a velocity observation decays, in m/s per √s. Defaults to 0.5 — a
+         * tightened velocity estimate is back to its usual uncertainty within roughly a second, which
+         * is about how long a wheel-and-IMU estimate stays good on its own.
+         */
+        public Builder velocityProcessNoise(double velocityProcessNoise) {
+            this.velocityProcessNoise = velocityProcessNoise;
             return this;
         }
 
