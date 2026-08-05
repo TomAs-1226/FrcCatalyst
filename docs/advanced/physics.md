@@ -94,6 +94,11 @@ physics.observe(PoseObservation.of(estimate.pose(), estimate.timestamp(), "limel
 Everything lands under `Catalyst/Physics/...` in NetworkTables, so a shadow-mode session is
 reviewable in AdvantageScope with no dashboard work.
 
+The fused pose goes out twice, because dashboards disagree about how to read one: `Physics/Pose` is a
+`Pose2d` struct, which AdvantageScope understands natively, and `Physics/PoseArray` is a plain
+`[x, y, theta]` double array for everything that does not. Use whichever your tooling prefers — they
+are the same pose.
+
 ### Every source is optional
 
 | Missing | What you lose | What still works |
