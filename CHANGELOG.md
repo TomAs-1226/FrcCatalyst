@@ -5,6 +5,28 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+Found while wiring [Catalyst Console](https://github.com/TomAs-1226/CatalystConsole), a driver station
+companion dashboard, to a real robot: the telemetry it was written against was not at the path the docs
+said it was.
+
+### Fixed
+
+- **Physics Core and `LoopMonitor` telemetry was landing one table too deep.** `CatalystLog` keys are
+  relative — the sink supplies the `Catalyst` root table, which is why every other caller writes
+  `"Vision/…"`, `"Safety/…"`, `"Health/…"`. These two prefixed it again, so everything documented as
+  `Catalyst/Physics/…` and `Catalyst/Loop/…` was actually published at `/Catalyst/Catalyst/…` and no
+  dashboard found it. The keys now match what the documentation has always claimed, so no docs changed
+  — only the code that disagreed with them.
+
+### Added
+
+- **`PhysicsCore` publishes the fused pose.** It is the headline output of a state estimator and it was
+  the one thing missing from the telemetry. It goes out twice on purpose: `Physics/Pose` as a `Pose2d`
+  struct for AdvantageScope, and `Physics/PoseArray` as a plain `[x, y, theta]` array for the many
+  dashboards that cannot read struct topics.
+
 ## [1.7.0] — 2026-08-05 — Physics Core validated in simulation
 
 Physics Core shipped feature-complete in 1.6.0 and had never been run against a known truth. This

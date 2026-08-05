@@ -106,7 +106,9 @@ import frc.lib.catalyst.util.SignalProcessor;
  */
 public final class PhysicsCore implements UncertainRobotStateSource {
 
-    private static final String LOG_ROOT = "Catalyst/Physics/";
+    // Relative, like every other CatalystLog caller: the sink supplies the "Catalyst" root table, so
+    // repeating it here would publish to /Catalyst/Catalyst/Physics/... and no dashboard would find it.
+    private static final String LOG_ROOT = "Physics/";
     private static final String ALERT_KEY = "PhysicsCore";
 
     /**
@@ -529,6 +531,13 @@ public final class PhysicsCore implements UncertainRobotStateSource {
     }
 
     private void publish(PhysicalRobotState state) {
+        // The fused pose is the headline output, so it goes out twice on purpose: as a Pose2d struct
+        // for AdvantageScope, and as a plain [x, y, theta] array for every dashboard that cannot read
+        // struct topics. Three doubles a loop is a fair price for working everywhere.
+        CatalystLog.log(LOG_ROOT + "Pose", Pose2d.struct, state.pose());
+        CatalystLog.log(LOG_ROOT + "PoseArray", new double[] {
+            state.pose().getX(), state.pose().getY(), state.pose().getRotation().getRadians()
+        });
         CatalystLog.log(LOG_ROOT + "Velocity/X", state.fieldVelocity().vxMetersPerSecond);
         CatalystLog.log(LOG_ROOT + "Velocity/Y", state.fieldVelocity().vyMetersPerSecond);
         CatalystLog.log(LOG_ROOT + "Speed", state.speedMetersPerSecond());

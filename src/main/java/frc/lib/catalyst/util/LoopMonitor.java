@@ -112,10 +112,11 @@ public class LoopMonitor {
     }
 
     private void publish() {
-        CatalystLog.log("Catalyst/Loop/" + name + "/LastMs", lastLoopSeconds * 1000.0);
-        CatalystLog.log("Catalyst/Loop/" + name + "/AverageMs", average.get() * 1000.0);
-        CatalystLog.log("Catalyst/Loop/" + name + "/MaxMs", maxLoopSeconds * 1000.0);
-        CatalystLog.log("Catalyst/Loop/" + name + "/OverBudget", isOverBudget());
+        // Relative, like every other CatalystLog caller: the sink supplies the "Catalyst" root table.
+        CatalystLog.log("Loop/" + name + "/LastMs", lastLoopSeconds * 1000.0);
+        CatalystLog.log("Loop/" + name + "/AverageMs", average.get() * 1000.0);
+        CatalystLog.log("Loop/" + name + "/MaxMs", maxLoopSeconds * 1000.0);
+        CatalystLog.log("Loop/" + name + "/OverBudget", isOverBudget());
     }
 
     // Warn/clear only on the transition, with a fixed message, so the alert list never churns.
