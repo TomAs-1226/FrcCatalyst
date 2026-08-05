@@ -5,6 +5,91 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.7.0] — 2026-08-05 — Physics Core validated in simulation
+
+Physics Core shipped feature-complete in 1.6.0 and had never been run against a known truth. This
+release builds a simulator that provides one, marks Physics Core against the RFC's acceptance criteria,
+and fixes the three real defects that exercise found. It also documents how to measure the robot the
+whole thing depends on.
+
+**The headline number: fused velocity error through a slip went from 0.08% better than raw encoders to
+48% better.** The first figure was what a silently-disabled fusion looks like.
+
+### Fixed — found by the validation, not by unit tests
+
+- **Fusion was silently disabled for anyone calling `update(PhysicsSample)` directly.** `PhysicsCore`
+  inferred "this robot has no accelerometer" from whether a *builder supplier* had been configured, so
+  replay, tests, and any team doing their own sampling got wheel-only estimation while supplying
+  perfectly good IMU data in the sample. Availability is now decided per sample.
+  `withoutAccelerometer()` still works as an explicit veto.
+- **The collision detector fired every time the robot accelerated hard off the line.** It thresholded
+  on the raw wheels-versus-IMU residual, and hard acceleration that breaks traction produces exactly as
+  large a residual as being hit. `DisturbanceEstimator` now decomposes the residual into the part slip
+  can explain and the part it cannot — slip can only ever make the robot accelerate *less* than the
+  wheels claim, along the direction they are pushing, so anything outside that range is external.
+  `impactEvidence()` drives collisions; `slipEvidence()` drives wheel distrust.
+- **The wheel-trust floor was too high for a first-order filter.** A complementary filter settles onto
+  whatever it is weighted toward, so the old 0.15 floor meant the estimate re-joined the wheels within
+  about seven loops — part way through a slip, which is exactly the wrong moment. The floor is now
+  0.005, bounded by a new **slip budget**: the estimate may ride the IMU for a configurable window
+  (2 s by default, floor held flat for the first 60%) after which wheel trust climbs back, because
+  dead reckoning that never ends is drift.
+- **`MechanismModel.fixed(...)`** and two smaller fixes carried from 1.6.0 testing.
+
+### Added — simulation validation
+
+- **`SimulatedRobot`** (`physics.sim`). A robot that knows the truth: traction-limited dynamics, slip
+  that makes the wheels over-report, odometry that drifts through it, and per-module bias for
+  differential slip. Deliberately includes effects Physics Core does **not** model — wheel radius
+  error, accelerometer bias and noise, encoder noise, and wheels that skid through a sideways impact
+  without the encoders seeing it — because a simulator built from the estimator's own assumptions
+  proves nothing. Deterministic from a seed.
+- **`PhysicsValidator`** (`physics.sim`). Nine scenarios scored against the RFC's acceptance criteria,
+  with the metrics behind every verdict so a near-miss is visible rather than just "fail". Run it
+  against **your** `RobotModel` — the thresholds suit a typical mid-weight swerve and a robot far from
+  that may need different ones.
+
+Current results on a 55 kg reference robot: 48% less velocity error than encoders through a slip;
+differential slip detected on the correct module; zero false positives in 200 loops of clean driving;
+uniform slip correctly surfacing as disturbance rather than module slip; one collision event 40 ms
+after impact; confidence 0.97 → 0.59 → 0.99 across a five-second vision dropout; release-state
+prediction 96% better than aiming from the present.
+
+### Added — measuring the robot
+
+- **`ModelUncertainty`** (`physics.model`). Propagates measurement error through to the limits, in
+  quadrature, and names which measurement is limiting you. It exists because the sensitivities are
+  genuinely counter-intuitive: **mass does not affect the traction limit at all** — a heavier robot
+  needs more force and gets proportionally more grip, and the two cancel exactly — while
+  centre-of-mass height maps one-for-one onto the tipping limit and is the hardest thing to measure.
+- **[Measuring Your Robot](docs/advanced/physics-measurement.md)** — a new guide. What each number
+  drives, how to measure it with pit tools (tilt test and pull test for friction, tilt-and-weigh for
+  centre of mass, high-speed video for release delay), the accuracy each one actually needs, a worked
+  example, a checklist, and a table of what goes wrong if you get each one wrong.
+
+The last of those is the part worth reading: the errors that make Physics Core **cautious** announce
+themselves in telemetry, and the errors that make it **optimistic** — friction too high, centre of mass
+too low, footprint measured from the frame rather than the contact patches — stay quiet until the robot
+tips. When unsure, round toward caution.
+
+### Changed
+
+- **`DrivetrainModel.maxAngularAccelerationRadPerSecSq()`** and **`wheelForceFromTorque(...)`** — added
+  because `RobotModel`'s `momentOfInertiaKgM2` and `wheelRadiusMeters` were stored and consumed by
+  nothing. Rather than tell teams to measure values that no calculation used, they now have real uses,
+  and the measurement guide says plainly that moment of inertia is worth skipping unless you need the
+  angular limit.
+- **`PhysicsAnalysis.disturbanceFraction()`** added, and `isDisturbed()` now consults it. Uniform slip
+  leaves no per-module residual *and* pulls the fused acceleration down toward the truth once the
+  estimator distrusts the wheels, so a robot sliding across the carpet could show a modest traction
+  usage while the wheels and the IMU were shouting at each other.
+
+### Testing
+
+325 tests total, all passing, still entirely HAL-free. The validation scenarios are themselves tested
+for determinism and re-run across three different noise seeds, because a single lucky seed proves
+nothing.
+
 ## [1.6.0] — 2026-08-05 — Physics Core, completed
 
 Completes the Physics Core RFC ([#33](https://github.com/TomAs-1226/FrcCatalyst/issues/33)): the

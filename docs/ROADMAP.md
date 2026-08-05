@@ -8,7 +8,7 @@ nav_order: 9
 {: .no_toc }
 
 Where Catalyst stands against the rest of the FRC software ecosystem, and what comes next.
-Landscape researched June 2026; roadmap current as of **v1.6.0 (August 2026)**.
+Landscape researched June 2026; roadmap current as of **v1.7.0 (August 2026)**.
 {: .fs-6 .fw-300 }
 
 ## Table of contents
@@ -106,6 +106,7 @@ layer already bridges to it.
 | 1.3.3 | `LoopMonitor` — measure the loop before reaching for the levers (team 3211 report) |
 | 1.4.0 | **Catalyst Desktop** — optional companion app, offline vendordep install, auto-update, MCP server for AI agents |
 | 1.5.0 | **Physics Core** — Phase 1, shadow mode |
+| 1.7.0 | **Physics Core validated in simulation** — a ground-truth simulator, nine scored acceptance scenarios, three real defects fixed, and a robot-measurement guide |
 | 1.6.0 | **Physics Core completed** — live mass tree and stability, ballistics, online parameter identification, fault isolation, capability evaluation, power planning, replay, opt-in constraints |
 
 ---
@@ -210,11 +211,26 @@ as a `PoseEstimate` drops into the hardened multi-camera fusion, and feeds `phys
 the same time. The wrinkle: it needs the QuestNav vendordep on the classpath, so it ships as an
 optional integration.
 
-### Robot validation 📋 — the gate on everything else
+### Simulation validation ✅ v1.7.0
 
-Physics Core is now feature-complete against the RFC and has **never run on a robot**. Every algorithm
-is unit tested against synthetic data, which proves the mathematics and proves nothing about carpet.
-Until a real shadow-mode session says otherwise, everything in the package is a well-tested hypothesis.
+`PhysicsValidator` runs Physics Core against a ground-truth simulator with deliberately imperfect
+sensors and scores it against the RFC's acceptance criteria. Nine scenarios, all passing on the
+reference robot, re-run across three noise seeds.
+
+It earned its keep immediately: building it found three real defects that 300-odd unit tests had
+missed — fusion silently disabled for direct `update(PhysicsSample)` callers, a collision detector
+that fired on every hard launch, and a wheel-trust floor high enough that the filter re-joined the
+wheels mid-slip. The fused-velocity result went from **0.08% to 48%** better than raw encoders once
+those were fixed.
+
+This is the rung below shadow mode, not a substitute for it. It shows the estimator recovers a known
+truth from imperfect sensors; it says nothing about whether the *model* matches carpet.
+
+### Robot validation 📋 — still the gate on everything else
+
+Physics Core is feature-complete, simulation-validated, and has **never run on a robot**. The
+simulation assumes constant friction, rigid contact, and uniform slip; a real field is messier than
+all three.
 
 What the first sessions need to establish, in order:
 
@@ -257,9 +273,12 @@ they are the only remaining RFC items that genuinely need more compute than a ro
 
 ## Recommended next three
 
-1. **Run Physics Core in shadow mode on a real robot.** It is feature-complete and unvalidated, and
-   that is the single largest gap in the library right now. It costs nothing — no control authority —
-   and everything else in the physics track is gated on what it shows.
+1. **Run Physics Core in shadow mode on a real robot.** It is feature-complete and validated in
+   simulation, which is as far as it can get without carpet. That remaining gap is the single largest
+   one in the library. It costs nothing — no control authority — and everything else in the physics
+   track is gated on what it shows. Measure the robot first
+   ([guide](advanced/physics-measurement.md)) and run `PhysicsValidator` against your own model; both
+   happen before the robot is on a field.
 2. **QuestNav source** — still low effort, still high visibility, and now worth more than it was.
 3. **Autopilot path-compromised events** — the last advisory integration, so the whole stack sees what
    Physics Core sees.

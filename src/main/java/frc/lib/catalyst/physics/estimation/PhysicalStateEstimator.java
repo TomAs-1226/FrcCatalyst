@@ -62,6 +62,12 @@ import frc.lib.catalyst.util.SignalProcessor;
  */
 public final class PhysicalStateEstimator {
 
+    /**
+     * Fraction of the slip budget that may be spent before the wheel-trust floor starts climbing back.
+     * Below this the floor stays at its minimum, so an ordinary slip is ridden out entirely on the IMU.
+     */
+    private static final double BUDGET_RAMP_START = 0.6;
+
     private final double kinematicTrust;
     private final double minimumKinematicTrust;
     private final double absoluteFixHalfLife;
@@ -93,6 +99,9 @@ public final class PhysicalStateEstimator {
      */
     private double observedVelocityVariance = Double.NaN;
     private final double velocityProcessNoise;
+    private final double slipBudgetSeconds;
+    /** Accumulated slip time, which drains the dead-reckoning budget and refills when gripping. */
+    private double slipSeconds = 0.0;
 
     private PhysicalStateEstimator(Builder builder) {
         this.kinematicTrust = builder.kinematicTrust;
@@ -108,6 +117,7 @@ public final class PhysicalStateEstimator {
         this.worstVelocityStdDev = builder.worstVelocityStdDev;
         this.hasAccelerometer = builder.hasAccelerometer;
         this.velocityProcessNoise = builder.velocityProcessNoise;
+        this.slipBudgetSeconds = builder.slipBudgetSeconds;
         this.accelX = new SignalProcessor.ExponentialMovingAverage(builder.accelerationSmoothing);
         this.accelY = new SignalProcessor.ExponentialMovingAverage(builder.accelerationSmoothing);
         this.angularAccel = new SignalProcessor.ExponentialMovingAverage(builder.accelerationSmoothing);
@@ -162,11 +172,20 @@ public final class PhysicalStateEstimator {
             accelY.reset();
             angularAccel.reset();
         } else {
+            // Drain the dead-reckoning budget while slipping and refill it while gripping, before the
+            // weight is computed, so a long slide re-anchors to the wheels rather than riding the IMU
+            // indefinitely.
+            slipSeconds = Math.max(0.0, Math.min(slipBudgetSeconds,
+                    slipSeconds + (slipFactor > 0.3 ? dt : -dt)));
+
             Translation2d previousVelocity = new Translation2d(
                     state.fieldVelocity().vxMetersPerSecond, state.fieldVelocity().vyMetersPerSecond);
             Translation2d imuVelocity = previousVelocity.plus(measuredAccelField.times(dt));
 
-            double weight = kinematicWeight(slipFactor);
+            // Availability is per sample: the configured flag can veto the IMU, but it cannot conjure
+            // one, and an absent supplier does not mean an absent reading.
+            double weight = kinematicWeight(slipFactor,
+                    hasAccelerometer && robotRelativeAcceleration != null);
             fusedVelocity = wheelVelocity.times(weight).plus(imuVelocity.times(1.0 - weight));
 
             lastDisagreement = wheelVelocity.minus(imuVelocity).getNorm();
@@ -199,11 +218,69 @@ public final class PhysicalStateEstimator {
      * {@link Builder#minimumKinematicTrust(double)}, and stays pinned at full trust when no
      * accelerometer was configured — with nothing to fall back to, backing off the wheels would just
      * freeze the estimate.
+     *
+     * <p>The floor also rises once a slip has gone on too long; see {@link #slipBudgetExhaustion()}.
      */
     public double kinematicWeight(double slipFactor) {
-        if (!hasAccelerometer) return kinematicTrust;
+        return kinematicWeight(slipFactor, hasAccelerometer);
+    }
+
+    /**
+     * The same, told explicitly whether an accelerometer reading was available <em>this loop</em>.
+     *
+     * <p>Availability is a property of the sample, not of how the core was configured. A team that
+     * drives Physics Core with {@code update(PhysicsSample)} — from replay, from a test, or from their
+     * own sampling code — supplies acceleration in the sample without ever configuring a supplier, and
+     * inferring "no accelerometer" from the absent supplier silently disabled their fusion entirely.
+     * The simulation validation reported that as a flat 0% improvement over encoder-only velocity,
+     * which is what a disabled fusion looks like.
+     */
+    private double kinematicWeight(double slipFactor, boolean accelerometerAvailable) {
+        if (!accelerometerAvailable) return kinematicTrust;
         double slip = Math.max(0.0, Math.min(1.0, slipFactor));
-        return kinematicTrust - slip * (kinematicTrust - minimumKinematicTrust);
+        double floor = minimumKinematicTrust
+                + (kinematicTrust - minimumKinematicTrust) * budgetRamp();
+        return kinematicTrust - slip * (kinematicTrust - floor);
+    }
+
+    /**
+     * How far through the dead-reckoning budget a sustained slip has run, from 0 to 1.
+     *
+     * <p>The reason the wheels keep a vote at all is that integrated acceleration drifts. But a slip
+     * is a <em>bounded</em> event: a robot spins its wheels for a fraction of a second, not a match.
+     * Over that window the IMU is by far the better source, and the accelerometer bias that would
+     * eventually ruin it has had no time to accumulate — a 0.1&nbsp;m/s² bias costs 0.1&nbsp;m/s after
+     * a whole second, against the several m/s the wheels are wrong by.
+     *
+     * <p>So the floor starts low, letting the estimate ride the IMU through the slip, and climbs back
+     * toward full wheel trust as {@link Builder#slipBudget(double)} is used up. If slip is still being
+     * reported after that long, either it is genuinely a very long slide or the detection is wrong,
+     * and in both cases re-anchoring to the wheels is the safer failure.
+     *
+     * <p>The budget refills while the wheels are gripping, at the same rate it drains.
+     */
+    public double slipBudgetExhaustion() {
+        return Math.max(0.0, Math.min(1.0, slipSeconds / slipBudgetSeconds));
+    }
+
+    /** How long the current run of slip has been accumulating, in seconds. */
+    public double slipSeconds() {
+        return slipSeconds;
+    }
+
+    /**
+     * How far the wheel-trust floor has been raised back up, from 0 to 1.
+     *
+     * <p>Flat at zero until {@link #BUDGET_RAMP_START} of the budget is gone, then ramping to full. A
+     * gradual ramp from the very first loop of slip would defeat the purpose: the floor would already
+     * be climbing while the slip is still short enough to be worth riding out, and the estimate would
+     * be dragged back onto the wheels during exactly the window it should be ignoring them. Normal
+     * slips finish well inside the flat region and never see the ramp at all.
+     */
+    private double budgetRamp() {
+        double exhaustion = slipBudgetExhaustion();
+        if (exhaustion <= BUDGET_RAMP_START) return 0.0;
+        return (exhaustion - BUDGET_RAMP_START) / (1.0 - BUDGET_RAMP_START);
     }
 
     /**
@@ -396,7 +473,7 @@ public final class PhysicalStateEstimator {
     /** Builder for {@link PhysicalStateEstimator}. */
     public static final class Builder {
         private double kinematicTrust = 0.98;
-        private double minimumKinematicTrust = 0.15;
+        private double minimumKinematicTrust = 0.005;
         private double absoluteFixHalfLife = 3.0;
         private double residualScale = 1.0;
         private double maxSampleGapSeconds = 0.25;
@@ -409,6 +486,7 @@ public final class PhysicalStateEstimator {
         private double worstVelocityStdDev = 1.50;
         private boolean hasAccelerometer = true;
         private double velocityProcessNoise = 0.5;
+        private double slipBudgetSeconds = 2.0;
 
         /**
          * Weight given to wheel odometry when nothing is slipping, {@code (0, 1]}. Defaults to 0.98 —
@@ -421,9 +499,19 @@ public final class PhysicalStateEstimator {
         }
 
         /**
-         * Floor on wheel trust at full slip, {@code (0, 1)}. Defaults to 0.15. Do not set this to zero:
-         * an estimate running purely on integrated acceleration walks away within a second or two, and
-         * a small anchor costs far less than that drift.
+         * Floor on wheel trust at full slip, {@code (0, 1)}. Defaults to 0.005.
+         *
+         * <p>It is deliberately low, and the reason is structural. A complementary filter's steady
+         * state is whatever it is weighted toward, so <em>any</em> meaningful wheel weight means the
+         * estimate converges back onto the wheels within a few loops — which is exactly wrong when the
+         * wheels are the thing that is lying. At the old 0.15 the estimate re-joined the wheels within
+         * about seven loops. Even at 0.03 a first-order filter leaks two thirds of the way back onto the
+         * wheels across half a second, so the floor has to be genuinely small for the IMU to carry
+         * the estimate through a slip at all.
+         *
+         * <p>What stops it drifting forever is {@link #slipBudget(double)}, not this floor, and that is
+         * the honest split: a bounded slip is safe to dead-reckon through, an unbounded one is not.
+         * Zero is still rejected, so there is always something to re-anchor to.
          */
         public Builder minimumKinematicTrust(double minimumKinematicTrust) {
             this.minimumKinematicTrust = minimumKinematicTrust;
@@ -455,6 +543,21 @@ public final class PhysicalStateEstimator {
          */
         public Builder maxSampleGap(double maxSampleGapSeconds) {
             this.maxSampleGapSeconds = maxSampleGapSeconds;
+            return this;
+        }
+
+        /**
+         * How long the estimate may ride the IMU through a sustained slip before wheel trust is forced
+         * back up, in seconds. Defaults to 2.0, and the floor holds at its minimum for the first 60% of it.
+         *
+         * <p>A real slip lasts a fraction of a second, and over that window integrated acceleration is
+         * by far the better source: a 0.1&nbsp;m/s² accelerometer bias costs 0.1&nbsp;m/s after a whole
+         * second, against the several m/s the wheels are wrong by. Past this budget, either it is a
+         * genuinely long slide or the slip detection is wrong, and re-anchoring to the wheels is the
+         * safer failure in both cases. The budget refills while the wheels grip.
+         */
+        public Builder slipBudget(double slipBudgetSeconds) {
+            this.slipBudgetSeconds = slipBudgetSeconds;
             return this;
         }
 
@@ -520,6 +623,9 @@ public final class PhysicalStateEstimator {
             }
             if (!(residualScale > 0)) {
                 throw new IllegalStateException("residualScale must be > 0 (got " + residualScale + ")");
+            }
+            if (!(slipBudgetSeconds > 0)) {
+                throw new IllegalStateException("slipBudget must be > 0 (got " + slipBudgetSeconds + ")");
             }
             if (!(maxSampleGapSeconds > 0)) {
                 throw new IllegalStateException("maxSampleGap must be > 0 (got " + maxSampleGapSeconds + ")");

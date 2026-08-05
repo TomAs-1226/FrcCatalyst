@@ -109,6 +109,12 @@ public final class PhysicsCore implements UncertainRobotStateSource {
     private static final String LOG_ROOT = "Catalyst/Physics/";
     private static final String ALERT_KEY = "PhysicsCore";
 
+    /**
+     * Unexplained-by-the-IMU acceleration, as a fraction of the traction limit, at which the wheels
+     * are considered fully untrustworthy. Half the traction limit going missing is not noise.
+     */
+    private static final double CONCLUSIVE_SLIP_EVIDENCE = 0.5;
+
     private final RobotModel robotModel;
     private final DrivetrainModel drivetrainModel;
     private final PhysicsProfile profile;
@@ -163,9 +169,11 @@ public final class PhysicsCore implements UncertainRobotStateSource {
         this.loggingEnabled = builder.loggingEnabled;
         this.alertsEnabled = builder.alertsEnabled;
 
-        PhysicalStateEstimator.Builder estimatorBuilder = PhysicalStateEstimator.builder();
-        if (builder.accelerationSource == null) estimatorBuilder.withoutAccelerometer();
-        this.estimator = estimatorBuilder.build();
+        // Deliberately does NOT call withoutAccelerometer() when no supplier is configured. The
+        // estimator decides per sample, because a caller using update(PhysicsSample) - replay, a test,
+        // custom sampling - supplies acceleration in the sample and never configures a supplier at
+        // all. Inferring absence from the builder silently disabled their fusion.
+        this.estimator = PhysicalStateEstimator.builder().build();
 
         this.predictor = StatePredictor.withDefaults();
         this.launchPredictor = new LaunchStatePredictor(builder.releaseDelaySeconds);
@@ -226,7 +234,7 @@ public final class PhysicsCore implements UncertainRobotStateSource {
                 sample.robotRelativeSpeeds(),
                 sample.robotRelativeAcceleration(),
                 sample.yawRateRadPerSec(),
-                slipFactor);
+                wheelDistrust(slipFactor));
 
         Optional<CollisionEvent> collision = updateDiagnostics(sample, updated);
         analysis = buildAnalysis(updated, slipFactor, collision);
@@ -401,6 +409,35 @@ public final class PhysicsCore implements UncertainRobotStateSource {
     //                 INTERNALS
     // ===========================================
 
+    /**
+     * How much the wheels should be distrusted this loop, combining both slip signals.
+     *
+     * <p>Per-module scoring only sees <em>differential</em> slip: when all four wheels break loose
+     * together they all agree with each other and every residual is zero. Driving the fusion weight
+     * from that signal alone means the wheels keep their full vote in exactly the case where they are
+     * most wrong — a gap the simulation validation surfaced as "0% improvement over encoder-only
+     * velocity during a slip", which was an honest result and a bad one.
+     *
+     * <p>{@link DisturbanceEstimator#slipEvidence()} covers the other half: acceleration the wheels
+     * claimed and the IMU never saw. Taking the larger of the two distrusts the wheels in both failure
+     * modes.
+     *
+     * <p>The disturbance figure is one loop old, because diagnostics run after the estimator. That is
+     * deliberate — using this loop's residual would make the fusion depend on a value derived from the
+     * fusion — and at 50&nbsp;Hz a 20&nbsp;ms lag on a signal that persists for the length of a slip
+     * costs nothing.
+     */
+    private double wheelDistrust(double slipFactor) {
+        if (disturbanceEstimator == null) return slipFactor;
+        // Saturate well before the full traction limit. Acceleration the wheels claimed and the IMU
+        // never saw, at half of what the carpet could deliver, is not measurement noise - it is a
+        // definite fault, and treating it as "77% distrust" leaves the wheels a quarter of the vote,
+        // which a complementary filter converges back onto within a few loops. Conclusive evidence
+        // should produce conclusive distrust.
+        double evidence = disturbanceEstimator.slipEvidence() / CONCLUSIVE_SLIP_EVIDENCE;
+        return Math.max(slipFactor, Math.min(1.0, evidence));
+    }
+
     private double updateSlip(PhysicsSample sample) {
         if (slipEstimator == null || !sample.hasModuleStates()) return 0.0;
         if (sample.moduleStates().length != slipEstimator.moduleCount()) return 0.0;
@@ -447,6 +484,8 @@ public final class PhysicsCore implements UncertainRobotStateSource {
         double peakSlip = slipEstimator == null ? 0.0 : slipEstimator.peakSlip();
         int worstModule = slipEstimator == null ? -1 : slipEstimator.worstModule();
         double disturbance = disturbanceEstimator == null ? 0.0 : disturbanceEstimator.magnitudeMpsSq();
+        double disturbanceFraction =
+                disturbanceEstimator == null ? 0.0 : disturbanceEstimator.normalizedMagnitude();
         Rotation2d disturbanceDirection =
                 disturbanceEstimator == null ? Rotation2d.kZero : disturbanceEstimator.direction();
         Optional<CollisionEvent> lastCollision = collision.isPresent()
@@ -460,6 +499,7 @@ public final class PhysicsCore implements UncertainRobotStateSource {
                 drivetrainModel.tractionUsage(updated.fieldAcceleration()),
                 drivetrainModel.tippingUsage(updated.fieldAcceleration()),
                 disturbance,
+                disturbanceFraction,
                 disturbanceDirection,
                 lastCollision);
     }
@@ -506,6 +546,7 @@ public final class PhysicsCore implements UncertainRobotStateSource {
         CatalystLog.log(LOG_ROOT + "TractionUsage", analysis.tractionUsage());
         CatalystLog.log(LOG_ROOT + "TippingUsage", analysis.tippingUsage());
         CatalystLog.log(LOG_ROOT + "Disturbance/MpsSq", analysis.disturbanceMpsSq());
+        CatalystLog.log(LOG_ROOT + "Disturbance/Fraction", analysis.disturbanceFraction());
         CatalystLog.log(LOG_ROOT + "Disturbance/Degrees", analysis.disturbanceDirection().getDegrees());
         CatalystLog.log(LOG_ROOT + "SensorDisagreement", estimator.sensorDisagreementMps());
         CatalystLog.log(LOG_ROOT + "Status", analysis.describe());

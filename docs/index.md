@@ -27,7 +27,7 @@ A Java library of pre-built mechanism building blocks for FRC robots on Phoenix 
 
 ## Latest release
 
-**v1.6.0** completes **[Physics Core](advanced/physics.html)** — the optional layer that watches how your
+**v1.7.0** validates **[Physics Core](advanced/physics.html)** against a ground-truth simulator, and adds a [guide to measuring your robot](advanced/physics-measurement.html). v1.6.0 completed it — the optional layer that watches how your
 robot actually behaves. It fuses wheel odometry and the IMU into one velocity with an honest
 confidence attached, scores which wheel is lying when a tyre breaks loose, notices when something hit
 the robot, and predicts where the robot will be at the instant a shot leaves it. On top of v1.5.0's
@@ -38,7 +38,7 @@ moves, closed-form ballistics, **online identification** of feedforward gains an
 It is **entirely optional and strictly advisory**: it writes no pose, schedules no command, and blocks
 no transition, so every existing API works exactly as before. Even the new limit layer only *computes*
 speed and acceleration caps — applying one is a line of your code. 214 HAL-free tests, telemetry under
-`Catalyst/Physics/…`.
+`Catalyst/Physics/…`. The validator marks the estimator against the RFC's acceptance criteria — and building it found three real defects that 300 unit tests had missed, taking the fused-velocity result from 0.08% to **48%** better than raw encoders.
 
 It follows v1.4.0's **optional** [Catalyst desktop app](https://github.com/TomAs-1226/FrcCatalyst/releases/latest)
 (every tool in one native window, one-click vendordep install, offline auto-update, an AI-agent

@@ -61,7 +61,11 @@ public final class CollisionDetector {
      * @return the event, on the loop it fires; empty otherwise
      */
     public Optional<CollisionEvent> update(double timestampSeconds) {
-        double normalized = disturbance.normalizedMagnitude();
+        // Threshold on the part of the residual that slip cannot explain, not on the raw magnitude.
+        // Hard acceleration that breaks traction produces just as large a residual as being hit, and
+        // reporting that as a collision means the detector fires every time the robot launches off
+        // the line - which it did, until the simulation validation caught it.
+        double normalized = disturbance.impactEvidence();
         boolean overThreshold = normalized >= thresholdFraction;
         boolean inRefractory = timestampSeconds - lastEventTimestamp < refractorySeconds;
 
@@ -140,8 +144,10 @@ public final class CollisionDetector {
         }
 
         /**
-         * Fraction of the traction limit the residual must exceed. Defaults to 0.7. Lower it to catch
-         * gentler contact at the cost of firing on hard braking over a rough patch of carpet.
+         * Fraction of the traction limit the <em>unexplained-by-slip</em> acceleration must exceed.
+         * Defaults to 0.7. Lower it to catch gentler contact at the cost of firing on rough carpet.
+         *
+         * @see frc.lib.catalyst.physics.estimation.DisturbanceEstimator#impactEvidence()
          */
         public Builder threshold(double thresholdFraction) {
             this.thresholdFraction = thresholdFraction;

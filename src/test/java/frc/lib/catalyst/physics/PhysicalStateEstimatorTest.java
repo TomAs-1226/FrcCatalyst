@@ -42,9 +42,51 @@ class PhysicalStateEstimatorTest {
         PhysicalStateEstimator estimator = PhysicalStateEstimator.builder().build();
 
         assertEquals(0.98, estimator.kinematicWeight(0.0), 1e-9);
-        assertEquals(0.15, estimator.kinematicWeight(1.0), 1e-9);
-        assertEquals(0.565, estimator.kinematicWeight(0.5), 1e-9);
-        assertEquals(0.15, estimator.kinematicWeight(5.0), 1e-9);      // clamped
+        // The floor is deliberately tiny. A complementary filter settles onto whatever it is weighted
+        // toward, so leaving the wheels a meaningful vote means the estimate re-joins them part way
+        // through a slip - which the simulation validation caught as a 0% improvement over the raw
+        // encoders. What bounds the resulting dead reckoning is the slip budget, not this floor.
+        assertEquals(0.005, estimator.kinematicWeight(1.0), 1e-9);
+        assertEquals(0.4925, estimator.kinematicWeight(0.5), 1e-9);
+        assertEquals(0.005, estimator.kinematicWeight(5.0), 1e-9);     // clamped
+    }
+
+    @Test
+    void aLongSlipEventuallyReAnchorsToTheWheels() {
+        PhysicalStateEstimator estimator = PhysicalStateEstimator.builder().slipBudget(1.0).build();
+        estimator.update(0.0, ORIGIN, forward(2.0), Translation2d.kZero, 0.0, 0.0);
+
+        // Under 60% of the budget, the floor stays down and the estimate rides the IMU.
+        for (int i = 1; i <= 25; i++) {
+            estimator.update(i * 0.02, ORIGIN, forward(2.0), Translation2d.kZero, 0.0, 1.0);
+        }
+        assertEquals(0.0, estimator.slipBudgetExhaustion(), 0.6);
+        double duringNormalSlip = estimator.kinematicWeight(1.0);
+
+        // Keep "slipping" well past the budget and the wheels have to be trusted again, because
+        // dead reckoning that never ends is not dead reckoning, it is drift.
+        for (int i = 26; i <= 80; i++) {
+            estimator.update(i * 0.02, ORIGIN, forward(2.0), Translation2d.kZero, 0.0, 1.0);
+        }
+        assertEquals(1.0, estimator.slipBudgetExhaustion(), 1e-9);
+        assertEquals(0.98, estimator.kinematicWeight(1.0), 1e-9);
+        assertTrue(estimator.kinematicWeight(1.0) > duringNormalSlip);
+    }
+
+    @Test
+    void theSlipBudgetRefillsWhileTheWheelsGrip() {
+        PhysicalStateEstimator estimator = PhysicalStateEstimator.builder().slipBudget(1.0).build();
+        estimator.update(0.0, ORIGIN, forward(2.0), Translation2d.kZero, 0.0, 0.0);
+
+        for (int i = 1; i <= 60; i++) {
+            estimator.update(i * 0.02, ORIGIN, forward(2.0), Translation2d.kZero, 0.0, 1.0);
+        }
+        assertTrue(estimator.slipSeconds() > 0.5);
+
+        for (int i = 61; i <= 200; i++) {
+            estimator.update(i * 0.02, ORIGIN, forward(2.0), Translation2d.kZero, 0.0, 0.0);
+        }
+        assertEquals(0.0, estimator.slipSeconds(), 1e-9);
     }
 
     @Test
@@ -56,8 +98,8 @@ class PhysicalStateEstimatorTest {
         PhysicalRobotState slipping =
                 estimator.update(0.02, ORIGIN, forward(4.0), Translation2d.kZero, 0.0, 1.0);
 
-        // 0.15 * 4.0 + 0.85 * 2.0
-        assertEquals(2.3, slipping.fieldVelocity().vxMetersPerSecond, 1e-9);
+        // 0.005 * 4.0 + 0.995 * 2.0 - the wheels barely get a vote, which is the whole point.
+        assertEquals(2.01, slipping.fieldVelocity().vxMetersPerSecond, 1e-9);
         assertTrue(slipping.fieldVelocity().vxMetersPerSecond < 2.5);
     }
 
@@ -217,6 +259,8 @@ class PhysicalStateEstimatorTest {
                 () -> PhysicalStateEstimator.builder().minimumKinematicTrust(0.0).build());
         assertThrows(IllegalStateException.class,
                 () -> PhysicalStateEstimator.builder().kinematicTrust(0.3).minimumKinematicTrust(0.5).build());
+        assertThrows(IllegalStateException.class,
+                () -> PhysicalStateEstimator.builder().slipBudget(0.0).build());
         assertThrows(IllegalStateException.class,
                 () -> PhysicalStateEstimator.builder().absoluteFixHalfLife(0.0).build());
         assertThrows(IllegalStateException.class,

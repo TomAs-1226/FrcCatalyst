@@ -59,7 +59,7 @@ repositories {
 }
 
 dependencies {
-    implementation "com.github.TomAs-1226:FrcCatalyst:v1.6.0"
+    implementation "com.github.TomAs-1226:FrcCatalyst:v1.7.0"
 }
 ```
 </details>
@@ -99,6 +99,34 @@ operatorController.b().onTrue(elevator.goTo("STOW"));
 ```
 
 ---
+
+## v1.7.0: Physics Core validated in simulation
+
+Physics Core shipped feature-complete in 1.6.0 and had never been run against a known truth. `SimulatedRobot`
+provides one, and `PhysicsValidator` marks Physics Core against the RFC's acceptance criteria:
+
+```text
+Physics Core simulation validation: 9/9 passed
+  PASS  Fused velocity beats encoders during slip - 48% less velocity error than the wheels alone
+  PASS  Impacts are reported once, promptly - one event, 40 ms after impact
+  PASS  Confidence falls without vision and recovers with it - 0.97 -> 0.59 -> 0.99
+  PASS  Release-state prediction beats aiming from the present - 1 cm vs 36 cm (96% better)
+  ...
+```
+
+**Building it found three real defects that 300 unit tests had missed.** Fusion was silently disabled
+for anyone calling `update(PhysicsSample)` directly; the collision detector fired every time the robot
+launched off the line; and the wheel-trust floor was high enough that the filter re-joined the wheels
+part way through a slip. The headline number went from **0.08% to 48%** once they were fixed.
+
+The simulator deliberately does things Physics Core does not model — wheel radius error, accelerometer
+bias, encoder noise, wheels that skid through a sideways hit — because a simulator built from the
+estimator's own assumptions proves nothing.
+
+Also new: **[Measuring Your Robot](docs/advanced/physics-measurement.md)**, covering how to measure
+each input with pit tools and, more usefully, which ones matter. **Mass does not affect the traction
+limit at all** — a heavier robot needs more force and gets proportionally more grip, and the two cancel
+exactly. `ModelUncertainty` will tell you which measurement is actually limiting you.
 
 ## v1.6.0: Physics Core, completed
 

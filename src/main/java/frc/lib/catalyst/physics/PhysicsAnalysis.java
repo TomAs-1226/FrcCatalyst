@@ -30,6 +30,8 @@ import frc.lib.catalyst.physics.diagnostics.CollisionEvent;
  * @param tractionUsage     fraction of available grip in use; above 1 the drivetrain is not the cause
  * @param tippingUsage      fraction of the tipping margin in use; above 1 the robot is going over
  * @param disturbanceMpsSq  acceleration the wheels cannot account for, m/s^2
+ * @param disturbanceFraction the same as a fraction of the traction limit — {@code 1.0} means an
+ *                          acceleration the drivetrain could not have produced at all
  * @param disturbanceDirection field-relative direction that disturbance is pushing
  * @param lastCollision     the most recent detected impact, if there has been one
  * @since 1.5.0
@@ -41,12 +43,13 @@ public record PhysicsAnalysis(
         double tractionUsage,
         double tippingUsage,
         double disturbanceMpsSq,
+        double disturbanceFraction,
         Rotation2d disturbanceDirection,
         Optional<CollisionEvent> lastCollision) {
 
     /** Nothing measured yet — what {@link PhysicsCore#analyze()} returns before the first update. */
     public static PhysicsAnalysis nominal() {
-        return new PhysicsAnalysis(0.0, 0.0, -1, 0.0, 0.0, 0.0, Rotation2d.kZero, Optional.empty());
+        return new PhysicsAnalysis(0.0, 0.0, -1, 0.0, 0.0, 0.0, 0.0, Rotation2d.kZero, Optional.empty());
     }
 
     /** True when any module is slipping enough to be worth reacting to (peak above 0.5). */
@@ -62,9 +65,16 @@ public record PhysicsAnalysis(
     /**
      * True when the robot is doing something the drivetrain cannot explain — being pushed, having
      * hit something, or spinning its wheels hard enough to break the model.
+     *
+     * <p>Checks the unexplained acceleration directly, not just the traction usage. Uniform slip, where
+     * every wheel breaks loose together, leaves no per-module residual <em>and</em> pulls the fused
+     * acceleration <em>down</em> toward the truth once the estimator starts distrusting the wheels — so
+     * a robot sliding across the carpet can show a perfectly modest traction usage while the wheels and
+     * the IMU are shouting at each other. That case has to come from the disturbance figure or it is
+     * missed entirely.
      */
     public boolean isDisturbed() {
-        return tractionUsage > 1.0 || isSlipping();
+        return tractionUsage > 1.0 || isSlipping() || disturbanceFraction > 0.5;
     }
 
     /** One line describing the dominant physical concern, or {@code "nominal"} when there is none. */
