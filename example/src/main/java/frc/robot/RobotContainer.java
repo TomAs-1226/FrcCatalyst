@@ -89,7 +89,14 @@ public class RobotContainer {
 
     private static final double AUTO_SECONDS = 20.0;     // REBUILT autonomous period
     private static final double MATCH_SECONDS = 160.0;   // 20 s auto + 140 s teleop
-    private static final double HUB_ACTIVE_PERIOD = 8.0; // activation alternates
+    /**
+     * Time remaining at the end of each TELEOP segment, from the 2026 Game Manual, Table 6-2:
+     * transition shift, then shifts 1-4, then END GAME.
+     */
+    private static final double[] SHIFT_ENDS = {130.0, 105.0, 80.0, 55.0, 30.0, 0.0};
+
+    /** Disabled pause between looped matches, so the transition is visible rather than instant. */
+    private static final double RESET_SECONDS = 8.0;
 
     /** Measures the real loop time and publishes it under {@code Catalyst/Loop/Robot/...}. */
     private final LoopMonitor loop = new LoopMonitor();
@@ -288,6 +295,10 @@ public class RobotContainer {
     // every Catalyst mechanism kind, proving the sim adapts to any mechanism.
     private MechanismShowcase mechanismLab;
     private boolean autoEnabledOnce = false;
+    /** The FMS game-specific message for this match: "R", "B", or empty before it is assessed. */
+    private String gameData = "";
+    private boolean lastAutoFlag = false;
+    private boolean lastEnabledFlag = false;
     private double simClock = 0;
     private double matchStart = 0;
 
@@ -443,8 +454,7 @@ public class RobotContainer {
             }
         }
 
-        // Hub activation alternates through the match (REBUILT scoring rule).
-        hubActive = ((int) ((simClock - matchStart) / HUB_ACTIVE_PERIOD)) % 2 == 0;
+        runMatchCycle();
 
         // Autonomous routine: a planned waypoint path with intake/shoot actions.
         if (pendingAuto) {
@@ -549,6 +559,72 @@ public class RobotContainer {
     }
 
     /**
+     * Run a REBUILT match on a loop: 20 s auto, 140 s teleop, then a short reset before the next one.
+     *
+     * <p>Before this existed the simulation simply ran forever in teleop with no clock, which is
+     * comfortable to develop against and useless for checking anything that depends on match time —
+     * the shift schedule, the end game, a dashboard countdown. It drives {@link DriverStationSim} the
+     * way a real field would, so robot code and any attached dashboard see a genuine match.
+     *
+     * <p>Segment boundaries are the ones in the 2026 Game Manual, Table 6-2. Teleop counts <em>down</em>
+     * from 140, so each shift is named by the time remaining when it ends.
+     */
+    private void runMatchCycle() {
+        double elapsed = simClock - matchStart;
+
+        if (elapsed >= MATCH_SECONDS + RESET_SECONDS) {
+            matchStart = simClock;
+            elapsed = 0;
+            gameData = "";
+            hubActive = true;
+        }
+
+        boolean inAuto = elapsed < AUTO_SECONDS;
+        boolean inMatch = elapsed < MATCH_SECONDS;
+        double remaining = inAuto
+                ? AUTO_SECONDS - elapsed
+                : Math.max(0.0, MATCH_SECONDS - elapsed);
+
+        if (inAuto != lastAutoFlag || inMatch != lastEnabledFlag) {
+            lastAutoFlag = inAuto;
+            lastEnabledFlag = inMatch;
+            DriverStationSim.setAutonomous(inAuto);
+            DriverStationSim.setEnabled(inMatch);
+            DriverStationSim.notifyNewData();
+        }
+
+        // FMS assesses AUTO fuel and names the alliance whose hub sits out first, a few seconds into
+        // teleop. A single character, empty until then — the format WPILib documents.
+        if (gameData.isEmpty() && elapsed > AUTO_SECONDS + 3.0) {
+            gameData = scored >= 4 ? "R" : "B";
+            DriverStationSim.setGameSpecificMessage(gameData);
+            DriverStationSim.notifyNewData();
+        }
+
+        hubActive = hubActiveNow(inAuto, remaining);
+        CatalystLog.log("Match/TimeLeft", remaining);
+    }
+
+    /**
+     * Whether <em>our</em> hub is scoring right now.
+     *
+     * <p>Both hubs are active through AUTO, the transition shift and END GAME. Across shifts 1-4 they
+     * alternate, starting with the alliance named in the game data sitting out.
+     */
+    private boolean hubActiveNow(boolean inAuto, double remaining) {
+        if (inAuto || gameData.isEmpty()) return true;
+        for (int i = 0; i < SHIFT_ENDS.length; i++) {
+            if (remaining > SHIFT_ENDS[i]) {
+                if (i == 0 || i == SHIFT_ENDS.length - 1) return true;   // transition shift, end game
+                int shift = i - 1;                                        // 0-based shift 1..4
+                boolean weSitOutFirst = gameData.startsWith("R");         // this demo runs red
+                return weSitOutFirst ? shift % 2 == 1 : shift % 2 == 0;
+            }
+        }
+        return true;
+    }
+
+    /**
      * Publish the handful of keys a driver station dashboard binds to.
      *
      * <p>This is the whole robot-side contract for
@@ -565,12 +641,20 @@ public class RobotContainer {
         loop.record();
         CatalystLog.log("Physics/PoseArray", new double[] { poseX, poseY, heading });
 
-        // Whether the hub is scoring for us right now, and how long that has left to run. The console
-        // shows a countdown from these; without them it can only estimate from the match clock.
-        double sinceStart = simClock - matchStart;
-        double intoWindow = sinceStart - Math.floor(sinceStart / HUB_ACTIVE_PERIOD) * HUB_ACTIVE_PERIOD;
+        // Whether our hub is scoring right now, and how long this segment has left. A dashboard can
+        // work both out from the rules and the FMS game data, but the robot already knows, so it says.
+        double elapsed = simClock - matchStart;
+        double remaining = elapsed < AUTO_SECONDS
+                ? AUTO_SECONDS - elapsed
+                : Math.max(0.0, MATCH_SECONDS - elapsed);
+        double untilChange = remaining;
+        if (elapsed >= AUTO_SECONDS) {
+            for (double end : SHIFT_ENDS) {
+                if (remaining > end) { untilChange = remaining - end; break; }
+            }
+        }
         CatalystLog.log("Game/TowerActive", hubActive);
-        CatalystLog.log("Game/TowerSeconds", HUB_ACTIVE_PERIOD - intoWindow);
+        CatalystLog.log("Game/TowerSeconds", untilChange);
 
         CatalystLog.log("Status/CanUtilization", RobotController.getCANStatus().percentBusUtilization);
         CatalystLog.log("Status/BatteryVolts", RobotController.getBatteryVoltage());
