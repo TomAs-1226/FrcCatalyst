@@ -5,10 +5,36 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [1.8.0] — 2026-08-05 — Contact physics
+## [1.8.0] — 2026-08-05 — Contact physics, and a driver station console
 
 Simulated robots used to drive through walls. Game pieces did not exist. Both are now solid, and what
 happens when they meet depends on what they are made of.
+
+This release also has a companion application.
+
+### Catalyst Console
+
+**[Catalyst Console](https://github.com/TomAs-1226/CatalystConsole)** is a driver station dashboard for
+teams running Catalyst. It sits next to the NI Driver Station and shows what the robot is doing: live
+telemetry, alerts straight from `AlertManager`, live tuning of whatever the robot declares tunable,
+Physics Core state, the REBUILT field in 3D with your robot on it, and Driver Station logs laid out so
+they can actually be read.
+
+It ships inside the **Catalyst desktop app** — install that and the console is there, with a *Driver
+Console* entry that launches it. It is also available on its own.
+
+Three rules shape it, and they are worth stating because they constrain what it will ever do:
+
+- **It never controls the robot.** FRC requires the official NI Driver Station and only one DS may hold
+  the robot connection. There is no code path in the console that opens that socket.
+- **Nothing it does may impede driving.** No modal blocks the dashboard, no check gates anything. Every
+  failure degrades to a dimmed number and a quiet chip in a corner.
+- **It never invents a number.** An unpublished topic shows a dash. The `.dslog` parser refuses
+  versions it does not recognise rather than decoding them into nonsense.
+
+Most of what it displays, Catalyst already publishes — alerts, loop time, Physics Core state — so for
+most teams there is nothing to wire up. The full contract, including the tunable manifest schema, is in
+the console's README.
 
 ### Added — `frc.lib.catalyst.physics.contact`
 

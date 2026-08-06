@@ -100,7 +100,25 @@ operatorController.b().onTrue(elevator.goTo("STOW"));
 
 ---
 
-## v1.8.0: Contact physics
+## v1.8.0: Contact physics, and a driver station console
+
+### Catalyst Console
+
+[**Catalyst Console**](https://github.com/TomAs-1226/CatalystConsole) is a driver station dashboard for
+teams running Catalyst. Live telemetry, alerts straight from `AlertManager`, live tuning of whatever
+the robot declares tunable, Physics Core state, the REBUILT field in 3D with your robot on it, and
+Driver Station logs laid out so they can actually be read.
+
+It ships inside the Catalyst desktop app — install that and there is a **Driver Console** entry that
+launches it — and is available on its own as well.
+
+It never controls the robot: FRC requires the official NI Driver Station and only one DS may hold that
+connection, so there is no code path here that opens it. Nothing it does may impede driving, and it
+never invents a number — an unpublished topic shows a dash. Most of what it displays, Catalyst already
+publishes, so for most teams there is nothing to wire up.
+
+### Contact physics
+
 
 Simulated robots used to drive through walls, and game pieces did not exist. Both are now solid, and
 what happens when they meet depends on what they are made of — a foam ball dies on carpet and comes
