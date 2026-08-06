@@ -477,7 +477,7 @@ function renderCode(s){
 function esc(t){return (t+'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
 
 // --- field drawing ---
-const FW=16.54, FH=8.21;
+const FW=16.54, FH=8.07;
 function fx(c,x){return (x/FW)*c.width;}
 function fy(c,y){return c.height-(y/FH)*c.height;}
 
@@ -523,10 +523,14 @@ function frame(now){
 
   function drawCollision(x,c){
     const layer=collisionLayer(); if(!layer) return;
+    /* Placed through the same field-to-canvas mapping everything else uses. Blitting it across the
+       whole canvas assumed the map covered exactly FW x FH, and it does not — it covers the carpet
+       its own header declares, which is a percent or two different. That mismatch is what put the
+       geometry slightly out of register with the robot drawn on top of it. */
+    const mw=(COLLISION.lengthMeters/FW)*c.width, mh=(COLLISION.widthMeters/FH)*c.height;
     x.save(); x.imageSmoothingEnabled=false;
-    // The heightmap is stored with +y across the field; the canvas grows downward, so flip it.
     x.translate(0,c.height); x.scale(1,-1);
-    x.drawImage(layer,0,0,c.width,c.height);
+    x.drawImage(layer,0,0,mw,mh);
     x.restore();
   }
 
@@ -542,11 +546,13 @@ function frame(now){
   x.strokeStyle='rgba(255,255,255,.18)'; x.lineWidth=2; x.strokeRect(2,2,W-4,H-4);
   x.strokeStyle='rgba(255,255,255,.12)'; x.setLineDash([6,6]); x.beginPath(); x.moveTo(W/2,0); x.lineTo(W/2,H); x.stroke(); x.setLineDash([]);
   // trenches (perimeter lanes robots drive under)
-  x.fillStyle='rgba(255,255,255,0.05)'; x.fillRect(W*0.30,4,W*0.40,13); x.fillRect(W*0.30,H-17,W*0.40,13);
+  if(!COLLISION){ x.fillStyle='rgba(255,255,255,0.05)'; x.fillRect(W*0.30,4,W*0.40,13); x.fillRect(W*0.30,H-17,W*0.40,13); }
   // central Fuel field + loading stations / depots / scoring table
-  drawFuel(x,W,H);
-  drawCollision(x,c);
-    drawStations(x,W,H);
+
+  // One field, not two. When the CAD map is loaded it *replaces* the hand-drawn static
+  // geometry rather than layering over it - drawing both is what doubled the map.
+  if(COLLISION){ drawCollision(x,c); } else { drawFuel(x,W,H); drawStations(x,W,H); }
+
   // hubs (with hex opening) + towers
   if(els){
     drawHub(x,c,els.redHub,'#e94560','RED HUB',false);

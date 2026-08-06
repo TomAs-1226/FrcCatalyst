@@ -5,6 +5,7 @@ import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.wpilibj.RobotBase;
+import edu.wpi.first.wpilibj.Filesystem;
 import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj.simulation.DriverStationSim;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -22,6 +23,7 @@ import frc.lib.catalyst.logging.CatalystLog;
 import frc.lib.catalyst.physics.contact.CollisionField;
 import frc.lib.catalyst.physics.contact.ContactMaterial;
 import frc.lib.catalyst.physics.contact.ContactResolver;
+import frc.lib.catalyst.physics.contact.FieldHeightmap;
 import frc.lib.catalyst.mechanisms.FlywheelMechanism;
 import frc.lib.catalyst.mechanisms.LinearMechanism;
 import frc.lib.catalyst.mechanisms.RollerMechanism;
@@ -68,7 +70,7 @@ public class RobotContainer {
     // opening on top. BUMPS (73", 15deg, traversable) flank each hub; TRENCHES
     // run the perimeter; the DEPOT/OUTPOST feed fuel; the TOWER is the endgame
     // climb. (Geometry is faithful to the manual; exact CAD coords drop in here.)
-    private static final double FIELD_W = 16.54, FIELD_H = 8.21;
+    private static final double FIELD_W = 16.54, FIELD_H = 8.07;
     private static final double CENTER_X = FIELD_W / 2.0;
     private static final double ROBOT_R = 0.45;          // robot half-extent (m)
     private static final double ROBOT_MASS_KG = 55.0;
@@ -80,6 +82,18 @@ public class RobotContainer {
      * contact physics a team's simulation would, rather than a private approximation that can quietly
      * drift away from it.
      */
+    /**
+     * Collision taken from the season CAD, when the generated map has been deployed.
+     *
+     * <p>This is what makes the ramp climbable and the trench a real passage. The box list below only
+     * ever knew about a rectangle and two hubs, so everything else on the field — every ramp, every
+     * trench wall — simply was not there to hit.
+     */
+    private static final FieldHeightmap HEIGHTMAP = FieldHeightmap.tryLoad(
+            Filesystem.getDeployDirectory().toPath().resolve("field-collision.json")).orElse(null);
+
+    private static final double ROBOT_TALL = 0.85;
+
     private static final CollisionField COLLISION = CollisionField.rectangular(FIELD_W, FIELD_H)
             .addObstacle("blue hub", new Translation2d(4.03, FIELD_H / 2), 0.6, 0.6,
                     ContactMaterial.ALUMINIUM)
@@ -263,6 +277,8 @@ public class RobotContainer {
     private int autoScored = 0;
     private double autoWpReachedT = -1;
     private boolean hubActive = true;
+    /** How far up a ramp the robot is sitting, in metres. */
+    private double groundHeight = 0.0;
     private double lastTrailT = 0;
     private final java.util.ArrayDeque<double[]> trail = new java.util.ArrayDeque<>();
 
@@ -519,7 +535,32 @@ public class RobotContainer {
         // Collision, through the library's own contact physics rather than an ad-hoc push-out. The
         // old version zeroed the velocity into a wall, which is restitution 0 for everything; this
         // bounces off polycarbonate differently from a padded field element, and reports the impact.
-        var hit = COLLISION.contact(new Pose2d(poseX, poseY, new Rotation2d(heading)), ROBOT_R, ROBOT_R);
+        Pose2d here = new Pose2d(poseX, poseY, new Rotation2d(heading));
+
+        if (HEIGHTMAP != null) {
+            for (int pass = 0; pass < 3; pass++) {
+                var verdict = HEIGHTMAP.test(here, ROBOT_R, ROBOT_R, ROBOT_TALL, 0);
+                groundHeight = verdict.groundHeight();
+                if (!verdict.blocked()) break;
+                poseX += verdict.normal().getX() * verdict.penetration();
+                poseY += verdict.normal().getY() * verdict.penetration();
+                double into = velX * verdict.normal().getX() + velY * verdict.normal().getY();
+                if (into < 0) {
+                    velX -= into * verdict.normal().getX();
+                    velY -= into * verdict.normal().getY();
+                    CatalystLog.log("Physics/Collision/Timestamp", simClock);
+                    CatalystLog.log("Physics/Collision/MpsSq", Math.abs(into) / 0.02);
+                    CatalystLog.log("Physics/Collision/Newtons", Math.abs(into) / 0.02 * ROBOT_MASS_KG);
+                }
+                here = new Pose2d(poseX, poseY, new Rotation2d(heading));
+            }
+            CatalystLog.log("Physics/GroundHeight", groundHeight);
+            stateJson = buildStateJson();
+            publishForConsole();
+            return;
+        }
+
+        var hit = COLLISION.contact(here, ROBOT_R, ROBOT_R);
         if (hit.isPresent()) {
             var contact = hit.get();
             poseX += contact.normal().getX() * contact.penetration();
