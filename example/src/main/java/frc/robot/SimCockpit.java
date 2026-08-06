@@ -47,6 +47,31 @@ public final class SimCockpit {
         }
 
         server.createContext("/state", ex -> respond(ex, 200, "application/json", stateJson.get()));
+        // The same heightmap the simulation collides against. Serving it means the map you look at
+        // and the geometry you hit are one thing rather than two drawings that drift apart.
+        server.createContext("/collision", ex -> {
+            // Deploy resolves differently under `simulateJava` than on the roboRIO, and a silent 404
+            // just makes the map quietly wrong. Look in the places it can be, and say which failed.
+            java.nio.file.Path[] candidates = {
+                edu.wpi.first.wpilibj.Filesystem.getDeployDirectory().toPath()
+                        .resolve("field-collision.json"),
+                java.nio.file.Path.of("src", "main", "deploy", "field-collision.json"),
+                java.nio.file.Path.of("example", "src", "main", "deploy", "field-collision.json"),
+            };
+            for (java.nio.file.Path p : candidates) {
+                if (java.nio.file.Files.exists(p)) {
+                    try {
+                        respond(ex, 200, "application/json", java.nio.file.Files.readString(p));
+                        return;
+                    } catch (Exception e) {
+                        // fall through and try the next one
+                    }
+                }
+            }
+            System.err.println("[cockpit] no field-collision.json; looked in "
+                    + java.util.Arrays.toString(candidates));
+            respond(ex, 404, "application/json", "{}");
+        });
 
         server.createContext("/cmd", ex -> {
             var p = query(ex.getRequestURI());
@@ -472,7 +497,40 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 
-function draw(s,dt){
+// --- collision map, drawn from the CAD-derived heightmap -------------------
+  let COLLISION=null, COLLISION_IMG=null;
+  fetch('/collision').then(r=>r.json()).then(m=>{ if(m&&m.cols) COLLISION=m; }).catch(()=>{});
+
+  /* Rendered once into an offscreen canvas and then blitted, because rasterising ninety thousand
+     cells every frame would cost more than everything else in this cockpit put together. */
+  function collisionLayer(){
+    if(COLLISION_IMG||!COLLISION) return COLLISION_IMG;
+    const m=COLLISION, off=document.createElement('canvas');
+    off.width=m.cols; off.height=m.rows;
+    const g=off.getContext('2d'), img=g.createImageData(m.cols,m.rows);
+    for(let i=0;i<m.cols*m.rows;i++){
+      const h=m.heightsMillimetres[i], cl=m.clearanceMillimetres?m.clearanceMillimetres[i]:9999;
+      let r,gg,b,a;
+      if(h>300){ r=70;gg=76;b=92;a=235; }            // structure
+      else if(cl<1400){ r=120;gg=90;b=40;a=180; }    // drive under
+      else if(h>60){ r=60;gg=90;b=70;a=160; }        // ramp / low feature
+      else { r=0;gg=0;b=0;a=0; }                     // carpet
+      const at=i*4; img.data[at]=r; img.data[at+1]=gg; img.data[at+2]=b; img.data[at+3]=a;
+    }
+    g.putImageData(img,0,0);
+    COLLISION_IMG=off; return off;
+  }
+
+  function drawCollision(x,c){
+    const layer=collisionLayer(); if(!layer) return;
+    x.save(); x.imageSmoothingEnabled=false;
+    // The heightmap is stored with +y across the field; the canvas grows downward, so flip it.
+    x.translate(0,c.height); x.scale(1,-1);
+    x.drawImage(layer,0,0,c.width,c.height);
+    x.restore();
+  }
+
+  function draw(s,dt){
   const c=$('view'), x=c.getContext('2d'), W=c.width, H=c.height;
   x.clearRect(0,0,W,H);
   const els=s.fieldEls;
@@ -487,7 +545,8 @@ function draw(s,dt){
   x.fillStyle='rgba(255,255,255,0.05)'; x.fillRect(W*0.30,4,W*0.40,13); x.fillRect(W*0.30,H-17,W*0.40,13);
   // central Fuel field + loading stations / depots / scoring table
   drawFuel(x,W,H);
-  drawStations(x,W,H);
+  drawCollision(x,c);
+    drawStations(x,W,H);
   // hubs (with hex opening) + towers
   if(els){
     drawHub(x,c,els.redHub,'#e94560','RED HUB',false);

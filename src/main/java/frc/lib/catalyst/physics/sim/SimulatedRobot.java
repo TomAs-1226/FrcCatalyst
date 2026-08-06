@@ -15,6 +15,7 @@ import frc.lib.catalyst.physics.PhysicsSample;
 import frc.lib.catalyst.physics.contact.CollisionField;
 import frc.lib.catalyst.physics.contact.ContactMaterial;
 import frc.lib.catalyst.physics.contact.ContactResolver;
+import frc.lib.catalyst.physics.contact.FieldHeightmap;
 import frc.lib.catalyst.physics.model.DrivetrainModel;
 import frc.lib.catalyst.physics.model.RobotModel;
 
@@ -97,7 +98,13 @@ public final class SimulatedRobot {
     private static final int COLLISION_PASSES = 3;
 
     private final CollisionField collisionField;
+    private final FieldHeightmap heightmap;
+    private final double robotHeightMeters;
+    private final double climbLimitMeters;
     private final Pose2d startingPose;
+
+    /** How far off the carpet the robot is sitting — non-zero once it drives up a ramp. */
+    private double groundHeight = 0.0;
     private CollisionField.Contact lastContact = null;
     private int collisions = 0;
 
@@ -123,6 +130,9 @@ public final class SimulatedRobot {
     private SimulatedRobot(Builder builder) {
         this.robotModel = builder.robotModel;
         this.collisionField = builder.collisionField;
+        this.heightmap = builder.heightmap;
+        this.robotHeightMeters = builder.robotHeightMeters;
+        this.climbLimitMeters = builder.climbLimitMeters;
         this.startingPose = builder.startingPose;
         this.truePose = builder.startingPose;
         this.odometryPose = builder.startingPose;
@@ -294,11 +304,46 @@ public final class SimulatedRobot {
      * between them instead of settling into the corner.
      */
     private void resolveCollisions() {
+        double halfLength = robotModel.wheelBaseMeters() / 2.0;
+        double halfWidth = robotModel.trackWidthMeters() / 2.0;
+
+        // The heightmap, when there is one, is the authority: it comes from the season CAD, so it
+        // knows about ramps and trenches that a rectangle-and-boxes description cannot express.
+        if (heightmap != null) {
+            for (int pass = 0; pass < COLLISION_PASSES; pass++) {
+                var verdict = heightmap.test(
+                        truePose, halfLength, halfWidth, robotHeightMeters, climbLimitMeters);
+                groundHeight = verdict.groundHeight();
+                if (!verdict.blocked()) {
+                    return;
+                }
+                lastContact = new CollisionField.Contact(
+                        verdict.reason(), verdict.normal(), verdict.penetration(),
+                        ContactMaterial.ALUMINIUM);
+                truePose = new Pose2d(
+                        truePose.getTranslation().plus(verdict.normal().times(verdict.penetration())),
+                        truePose.getRotation());
+
+                Translation3d before = new Translation3d(trueVelocity.getX(), trueVelocity.getY(), 0);
+                var after = ContactResolver.resolveAgainstStatic(
+                        before,
+                        new Translation3d(verdict.normal().getX(), verdict.normal().getY(), 0),
+                        robotModel.massKg(), ContactMaterial.BUMPER, ContactMaterial.ALUMINIUM);
+                if (!after.resolved()) {
+                    return;
+                }
+                Translation2d resolved =
+                        new Translation2d(after.velocityA().getX(), after.velocityA().getY());
+                trueAcceleration = trueAcceleration.plus(resolved.minus(trueVelocity).div(dt));
+                trueVelocity = resolved;
+                collisions++;
+            }
+            return;
+        }
+
         if (collisionField == null) {
             return;
         }
-        double halfLength = robotModel.wheelBaseMeters() / 2.0;
-        double halfWidth = robotModel.trackWidthMeters() / 2.0;
 
         for (int pass = 0; pass < COLLISION_PASSES; pass++) {
             var found = collisionField.contact(truePose, halfLength, halfWidth);
@@ -331,6 +376,11 @@ public final class SimulatedRobot {
             trueVelocity = resolved;
             collisions++;
         }
+    }
+
+    /** How far off the carpet the robot is sitting, in metres. Non-zero once it drives up a ramp. */
+    public double groundHeightMeters() {
+        return groundHeight;
     }
 
     /** How many contacts have been resolved since construction or the last {@link #reset()}. */
@@ -476,6 +526,7 @@ public final class SimulatedRobot {
         commandedRobotRelative = new ChassisSpeeds();
         lastContact = null;
         collisions = 0;
+        groundHeight = 0.0;
         clearModuleSlipBias();
     }
 
@@ -493,6 +544,9 @@ public final class SimulatedRobot {
     public static final class Builder {
         private RobotModel robotModel;
         private CollisionField collisionField = null;
+        private FieldHeightmap heightmap = null;
+        private double robotHeightMeters = 0.85;
+        private double climbLimitMeters = 0.0;
         private Pose2d startingPose = Pose2d.kZero;
         private SwerveDriveKinematics kinematics;
         private int moduleCount = 4;
@@ -594,6 +648,25 @@ public final class SimulatedRobot {
          */
         public Builder startingPose(Pose2d pose) {
             this.startingPose = pose;
+            return this;
+        }
+
+        /**
+         * Use collision taken from the season CAD.
+         *
+         * <p>Takes precedence over {@link #collisionField(CollisionField)}, because it describes
+         * things a rectangle and a list of boxes cannot: the robot rides ramps, fits through trenches
+         * if it is short enough, and is stopped by the geometry that is actually there rather than by
+         * somebody's memory of it.
+         *
+         * @param map         from {@code npm run field-collision} in the Catalyst Console repo
+         * @param robotHeight how tall the robot is, in metres — what has to fit under a trench
+         * @param climbLimit  the biggest step it can drive up, in metres; 0 for the default
+         */
+        public Builder heightmap(FieldHeightmap map, double robotHeight, double climbLimit) {
+            this.heightmap = map;
+            this.robotHeightMeters = robotHeight;
+            this.climbLimitMeters = climbLimit;
             return this;
         }
 

@@ -65,7 +65,7 @@ dependencies {
     // in the library root first). PhotonVision is excluded: this example never
     // instantiates VisionSubsystem, so we don't need the photon artifacts (and
     // their maven server can be flaky).
-    implementation("com.frccatalyst:FrcCatalyst:1.8.0") {
+    implementation("com.frccatalyst:FrcCatalyst:1.9.0") {
         exclude group: 'org.photonvision'
     }
 
@@ -95,4 +95,10 @@ wpi.java.configureTestTasks(test)
 
 tasks.withType(JavaCompile) {
     options.compilerArgs.add '-XDstringConcat=inline'
+}
+
+// The cockpit's HTML carries em-dashes and middots. Without this javac reads them as cp1252 and
+// the served page comes out as mojibake.
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
 }

@@ -5,6 +5,49 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.9.0] — 2026-08-05 — Field collision from the CAD
+
+Collision geometry stopped being something somebody typed in and started being something read off the
+season's field model. Hand-placed boxes never match: you measure the hub, forget the trench,
+approximate the ramp as a wall, and the simulation quietly disagrees with the field it represents.
+
+### Added
+
+- **`FieldHeightmap`** — loads a heightmap generated from the season CAD by `npm run field-collision`
+  in the Catalyst Console repo, and answers whether a robot of a given size can stand somewhere and
+  which way is out if not. Two grids: **height** is the highest surface per cell, **clearance** is the
+  underside of the lowest thing overhead. Together they resolve carpet, ramps, trenches and walls in
+  one loop.
+
+  The choice that makes ramps work: *blocked* is decided by a **step**, not a height. A robot at the
+  top of a ramp is two metres above the carpet and perfectly happy; a robot against a six-centimetre
+  lip is stuck. Every sampled cell is compared against the ground under the robot's centre.
+
+  The clearance grid is what makes trenches work, and a height-only model gets them backwards: an FRC
+  trench is not dug into the floor, it is carpet with a bar above it. Max-height sees the bar, calls
+  the cell solid, and refuses passage. Now a short robot goes through and a tall one does not.
+
+- **`SimulatedRobot.Builder.heightmap(...)`** — drive against it. Takes precedence over
+  `collisionField`, and `groundHeightMeters()` reports how far up a ramp the robot has ridden.
+
+### Changed
+
+- The example's cockpit serves the same heightmap at `/collision` and draws the field from it, so
+  what you see and what you hit are one source instead of two drawings that drift apart.
+- Example compilation pinned to UTF-8; javac was reading the cockpit's em-dashes as cp1252.
+
+### Known gaps
+
+- Clearance counts geometry standing more than 6 cm clear of the carpet. On the current model that
+  finds 2379 low-overhead cells; whether REBUILT has a true drive-under trench is unconfirmed against
+  the field drawings.
+- Penetration depth is one cell rather than measured, because a heightmap does not carry one.
+  Resolution relies on repeated passes converging.
+
+381 tests, all HAL-free.
+
+---
+
 ## [1.8.0] — 2026-08-05 — Contact physics, and a driver station console
 
 Simulated robots used to drive through walls. Game pieces did not exist. Both are now solid, and what
