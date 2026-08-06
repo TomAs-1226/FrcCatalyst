@@ -132,7 +132,15 @@ public class RobotContainer {
         return HEIGHTMAP != null ? HEIGHTMAP.widthMeters() : FIELD_H;
     }
 
-    private static final double ROBOT_TALL = 0.85;
+    /**
+     * How tall the demo robot is, in metres.
+     *
+     * <p>0.52 m rather than a more typical 0.85 m, and the number is doing real work: the trench
+     * rails in the field CAD have their underside at 565&nbsp;mm. An 850&nbsp;mm robot simply does
+     * not fit, so the demo could never use the trench and the collision map looked broken when it was
+     * telling the truth. Teams that intend to run the trench build to fit under it; this one does.
+     */
+    private static final double ROBOT_TALL = 0.52;
 
     // The constants are right here: this whole model is the no-map fallback, and is only ever
     // consulted below when HEIGHTMAP is null.

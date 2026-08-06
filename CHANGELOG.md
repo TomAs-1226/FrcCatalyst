@@ -5,6 +5,45 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.9.1] — 2026-08-06 — Ramps, trenches and loose fuel
+
+Three things the field collision got wrong, all found by driving it rather than reading it.
+
+### Fixed
+
+- **Ramps were unclimbable because the ramp's own deck was recorded as a ceiling.** The clearance
+  layer logged any surface more than 60&nbsp;mm above the carpet as something overhead, with no test
+  of which way that surface faced. A ramp deck is above the carpet band, so the deck — and in 14 of
+  16 sampled cells, specifically *the blue gaff tape stuck to it* — was written into the map as a bar
+  7&nbsp;cm off the floor. The robot climbed 63&nbsp;mm of a 165&nbsp;mm ramp and was told it would
+  not fit. Only a downward-facing triangle can be a ceiling now, and edges never write one, because an
+  edge carries no facing and a wall's silhouette is a side face rather than an underside.
+
+  Worth recording that the height layer was never at fault: the ramps were always a clean gradient
+  with a 26&nbsp;mm worst step against a 60&nbsp;mm limit. The earlier measurement that the field
+  needed a 170&nbsp;mm step tolerance was this same bug re-projected, not evidence about the terrain.
+
+- **Loose fuel was baked into the terrain.** The game piece is one 150&nbsp;mm sphere instanced 456
+  times; 360 of them are heaped across the centre of the field, which rasterised into a solid slab
+  roughly 2&nbsp;m by 6.9&nbsp;m standing 130-155&nbsp;mm proud of the carpet. No robot could cross
+  the middle of the field. Loose game pieces are excluded from the heightmap — they are handled by
+  {@code SimulatedGamePiece}, which is where contact with them belongs.
+
+- **Clearance now means what it says.** Before this, of the cells carrying a clearance value, zero had
+  clearance above their own floor and 9021 had it below: every entry was a ground surface mislabelled
+  as a roof. The map now carries 1820 genuine drive-under cells.
+
+### Changed
+
+- The example robot is 0.52&nbsp;m tall rather than 0.85&nbsp;m. The trench rails in the field CAD have
+  their underside at 565&nbsp;mm, so an 850&nbsp;mm robot could never use the trench and the map looked
+  broken when it was telling the truth. Teams that intend to run the trench build to fit under it.
+
+Verified by driving the simulation the length of a perimeter lane, under a trench rail and back across
+both ramps. 388 tests pass.
+
+---
+
 ## [1.9.0] — 2026-08-05 — Field collision from the CAD
 
 Collision geometry stopped being something somebody typed in and started being something read off the
