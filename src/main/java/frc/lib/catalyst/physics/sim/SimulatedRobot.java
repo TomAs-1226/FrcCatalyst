@@ -93,9 +93,24 @@ public final class SimulatedRobot {
     private final double wheelRecoverySeconds;
     private final Random random;
 
-    /** Ground truth. */
-    /** Passes per step. Two is enough to settle a corner; more is wasted work. */
-    private static final int COLLISION_PASSES = 3;
+    /**
+     * How deep the robot is left sitting in a wall once it has settled, in metres.
+     *
+     * <p>Not zero, on purpose. Correcting to exactly touching means the next test reports clear, the
+     * one after reports contact again, and the contact flickers in and out of existence — which is
+     * chatter of a different kind. Two millimetres is below a pixel at any sane field scale.
+     */
+    private static final double PENETRATION_SLOP = 0.002;
+
+    /**
+     * Position-only relaxation passes per step.
+     *
+     * <p>Passes exist for corners: the push out of one wall can put the robot into the other, and each
+     * pass re-measures. They move the robot and nothing else. The impulse happens once, before any of
+     * them, because a collision is one event — applying it per pass is what made a single 4&nbsp;m/s
+     * head-on impact come out at whatever speed the pass count happened to produce.
+     */
+    private static final int POSITION_PASSES = 4;
 
     private final CollisionField collisionField;
     private final FieldHeightmap heightmap;
@@ -107,6 +122,8 @@ public final class SimulatedRobot {
     private double groundHeight = 0.0;
     private CollisionField.Contact lastContact = null;
     private int collisions = 0;
+    /** Whether the previous step ended in contact — the difference between an impact and a lean. */
+    private boolean touching = false;
 
     private Pose2d truePose = Pose2d.kZero;
     private Translation2d trueVelocity = Translation2d.kZero;
@@ -289,8 +306,8 @@ public final class SimulatedRobot {
     /**
      * Push the robot back out of anything it has driven into, and take the speed off it.
      *
-     * <p>Nothing happens unless a {@link CollisionField} was configured, so every simulation written
-     * before collision existed behaves exactly as it did.
+     * <p>Nothing happens unless a {@link FieldHeightmap} or a {@link CollisionField} was configured, so
+     * every simulation written before collision existed behaves exactly as it did.
      *
      * <p>The velocity change is deliberately left in {@link #trueVelocity} without touching
      * {@link #wheelVelocity}. That is not an oversight — it is the whole reason a collision is
@@ -299,44 +316,54 @@ public final class SimulatedRobot {
      * The gap between what the wheels claim and what the accelerometer felt is exactly the signal
      * {@code DisturbanceEstimator} decomposes, and it only exists if the sim reproduces it.
      *
-     * <p>Contacts are resolved one at a time across a few passes rather than all at once: in a corner
-     * two walls both want to push, and solving them simultaneously produces a robot that jitters
-     * between them instead of settling into the corner.
+     * <h2>One impulse, then position</h2>
+     *
+     * <p>This used to run a handful of passes and do both jobs in each of them, so a single 20&nbsp;ms
+     * timestep could apply three impulses to what was physically one collision. Measured against a
+     * flat wall it removed 92% of a 4&nbsp;m/s approach where the right answer was 72%, and the exit
+     * direction was whatever the last pass happened to think. Worse, the pass that decided the robot
+     * was already separating returned from the depenetration too — so a robot sitting 20&nbsp;cm inside
+     * a wall extracted itself one push per step and took seven steps to get out, which is the clipping
+     * you can see.
+     *
+     * <p>So: one impulse, computed from the contact-time normal and the velocity as it arrived, and
+     * then position-only relaxation that runs whether or not that impulse was applied. Passes settle a
+     * corner without ever touching velocity again.
      */
     private void resolveCollisions() {
         double halfLength = robotModel.wheelBaseMeters() / 2.0;
         double halfWidth = robotModel.trackWidthMeters() / 2.0;
 
+        boolean sustained = touching;
+        touching = false;
+
         // The heightmap, when there is one, is the authority: it comes from the season CAD, so it
         // knows about ramps and trenches that a rectangle-and-boxes description cannot express.
         if (heightmap != null) {
-            for (int pass = 0; pass < COLLISION_PASSES; pass++) {
-                var verdict = heightmap.test(
-                        truePose, halfLength, halfWidth, robotHeightMeters, climbLimitMeters);
-                groundHeight = verdict.groundHeight();
-                if (!verdict.blocked()) {
-                    return;
-                }
-                lastContact = new CollisionField.Contact(
-                        verdict.reason(), verdict.normal(), verdict.penetration(),
-                        ContactMaterial.ALUMINIUM);
-                truePose = new Pose2d(
-                        truePose.getTranslation().plus(verdict.normal().times(verdict.penetration())),
-                        truePose.getRotation());
+            var verdict = heightmap.test(
+                    truePose, halfLength, halfWidth, robotHeightMeters, climbLimitMeters);
+            groundHeight = verdict.groundHeight();
+            if (!verdict.blocked()) {
+                return;
+            }
+            touching = true;
+            lastContact = new CollisionField.Contact(
+                    verdict.reason(), verdict.normal(), verdict.penetration(),
+                    ContactMaterial.ALUMINIUM);
+            applyImpulse(verdict.normal(), ContactMaterial.ALUMINIUM, sustained);
 
-                Translation3d before = new Translation3d(trueVelocity.getX(), trueVelocity.getY(), 0);
-                var after = ContactResolver.resolveAgainstStatic(
-                        before,
-                        new Translation3d(verdict.normal().getX(), verdict.normal().getY(), 0),
-                        robotModel.massKg(), ContactMaterial.BUMPER, ContactMaterial.ALUMINIUM);
-                if (!after.resolved()) {
+            for (int pass = 0; pass < POSITION_PASSES; pass++) {
+                if (pass > 0) {
+                    verdict = heightmap.test(
+                            truePose, halfLength, halfWidth, robotHeightMeters, climbLimitMeters);
+                    groundHeight = verdict.groundHeight();
+                    if (!verdict.blocked()) {
+                        return;
+                    }
+                }
+                if (!depenetrate(verdict.normal(), verdict.penetration())) {
                     return;
                 }
-                Translation2d resolved =
-                        new Translation2d(after.velocityA().getX(), after.velocityA().getY());
-                trueAcceleration = trueAcceleration.plus(resolved.minus(trueVelocity).div(dt));
-                trueVelocity = resolved;
-                collisions++;
             }
             return;
         }
@@ -345,37 +372,73 @@ public final class SimulatedRobot {
             return;
         }
 
-        for (int pass = 0; pass < COLLISION_PASSES; pass++) {
-            var found = collisionField.contact(truePose, halfLength, halfWidth);
-            if (found.isEmpty()) {
+        var found = collisionField.contact(truePose, halfLength, halfWidth);
+        if (found.isEmpty()) {
+            return;
+        }
+        touching = true;
+        var hit = found.get();
+        lastContact = hit;
+        applyImpulse(hit.normal(), hit.material(), sustained);
+
+        for (int pass = 0; pass < POSITION_PASSES; pass++) {
+            if (pass > 0) {
+                found = collisionField.contact(truePose, halfLength, halfWidth);
+                if (found.isEmpty()) {
+                    return;
+                }
+                hit = found.get();
+            }
+            if (!depenetrate(hit.normal(), hit.penetration())) {
                 return;
             }
-            var hit = found.get();
-            lastContact = hit;
-
-            // Out of the wall first, so the next pass sees a clean geometry.
-            truePose = new Pose2d(
-                    truePose.getTranslation().plus(hit.normal().times(hit.penetration())),
-                    truePose.getRotation());
-
-            Translation3d before = new Translation3d(trueVelocity.getX(), trueVelocity.getY(), 0);
-            var after = ContactResolver.resolveAgainstStatic(
-                    before,
-                    new Translation3d(hit.normal().getX(), hit.normal().getY(), 0),
-                    robotModel.massKg(),
-                    ContactMaterial.BUMPER,
-                    hit.material());
-
-            if (!after.resolved()) {
-                return;   // already moving away; pushing further would only add energy
-            }
-            Translation2d resolved =
-                    new Translation2d(after.velocityA().getX(), after.velocityA().getY());
-            // The acceleration the IMU would have felt: the whole velocity change in one loop.
-            trueAcceleration = trueAcceleration.plus(resolved.minus(trueVelocity).div(dt));
-            trueVelocity = resolved;
-            collisions++;
         }
+    }
+
+    /**
+     * The one velocity change a contact gets this timestep.
+     *
+     * <p>Restitution is dropped for a contact that was already there last step. A robot leaning on a
+     * wall with the throttle held drives a few millimetres back into it every loop, and treating that
+     * self-inflicted approach as a fresh impact bounces it off its own drivetrain for as long as the
+     * driver holds the stick. Restitution belongs to the moment of arrival; a sustained press is not
+     * an arrival. Nothing is done to {@link #wheelVelocity} — see the method above for why that
+     * omission is the point.
+     */
+    private void applyImpulse(Translation2d normal, ContactMaterial surface, boolean sustained) {
+        Translation3d before = new Translation3d(trueVelocity.getX(), trueVelocity.getY(), 0);
+        var after = ContactResolver.resolveAgainstStatic(
+                before,
+                new Translation3d(normal.getX(), normal.getY(), 0),
+                robotModel.massKg(),
+                ContactMaterial.BUMPER,
+                sustained ? surface.withRestitution(0.0) : surface);
+        if (!after.resolved()) {
+            return;   // already moving away; an impulse now would only add energy
+        }
+        Translation2d resolved =
+                new Translation2d(after.velocityA().getX(), after.velocityA().getY());
+        // The acceleration the IMU would have felt: the whole velocity change in one loop.
+        trueAcceleration = trueAcceleration.plus(resolved.minus(trueVelocity).div(dt));
+        trueVelocity = resolved;
+        collisions++;
+    }
+
+    /**
+     * Move the robot out along the contact normal, leaving {@link #PENETRATION_SLOP} of overlap.
+     *
+     * @return whether there is any point running another pass
+     */
+    private boolean depenetrate(Translation2d normal, double penetration) {
+        double correction = penetration - PENETRATION_SLOP;
+        if (correction <= 0) {
+            return false;
+        }
+        // Position only. Dividing this by dt to make it a velocity is how a depenetration turns into
+        // free energy, and free energy is what a robot buzzing against a wall is made of.
+        truePose = new Pose2d(
+                truePose.getTranslation().plus(normal.times(correction)), truePose.getRotation());
+        return true;
     }
 
     /** How far off the carpet the robot is sitting, in metres. Non-zero once it drives up a ramp. */
@@ -395,12 +458,15 @@ public final class SimulatedRobot {
 
     /** Whether the robot is touching something right now. */
     public boolean isTouchingField() {
+        double halfLength = robotModel.wheelBaseMeters() / 2.0;
+        double halfWidth = robotModel.trackWidthMeters() / 2.0;
+        if (heightmap != null) {
+            return heightmap
+                    .test(truePose, halfLength, halfWidth, robotHeightMeters, climbLimitMeters)
+                    .blocked();
+        }
         if (collisionField == null) return false;
-        return collisionField
-                .contact(truePose,
-                        robotModel.wheelBaseMeters() / 2.0,
-                        robotModel.trackWidthMeters() / 2.0)
-                .isPresent();
+        return collisionField.contact(truePose, halfLength, halfWidth).isPresent();
     }
 
     /** Advance {@code loops} steps with the current command. */
@@ -526,6 +592,7 @@ public final class SimulatedRobot {
         commandedRobotRelative = new ChassisSpeeds();
         lastContact = null;
         collisions = 0;
+        touching = false;
         groundHeight = 0.0;
         clearModuleSlipBias();
     }

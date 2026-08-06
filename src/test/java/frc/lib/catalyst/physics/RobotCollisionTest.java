@@ -11,6 +11,7 @@ import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
 import frc.lib.catalyst.physics.contact.CollisionField;
 import frc.lib.catalyst.physics.contact.ContactMaterial;
+import frc.lib.catalyst.physics.contact.FieldHeightmap;
 import frc.lib.catalyst.physics.model.RobotModel;
 import frc.lib.catalyst.physics.sim.SimulatedRobot;
 import org.junit.jupiter.api.Test;
@@ -187,5 +188,137 @@ class RobotCollisionTest {
         sim.reset();
         assertEquals(0, sim.collisionCount());
         assertTrue(sim.lastContact().isEmpty());
+    }
+
+    // ------------------------------------------------------ settling against CAD-derived geometry
+    //
+    // The heightmap path is the one the console actually drives, and it is where the robot was seen
+    // buzzing against walls and sitting visibly inside them. These four tests are the shape of that
+    // complaint: does it stop, does it stay stopped, does it stay outside, and can it still slide.
+
+    private static final double HALF_ROBOT = 0.43;
+    /** Inner face of the +x wall of {@link #walledBox()}. */
+    private static final double WALL_X = 3.85;
+
+    /** A 4 x 10 m box on 5 cm cells: flat carpet inside a 50 cm perimeter wall three cells thick. */
+    private static FieldHeightmap walledBox() {
+        int cols = 80, rows = 200;
+        StringBuilder h = new StringBuilder(cols * rows * 4);
+        StringBuilder c = new StringBuilder(cols * rows * 5);
+        for (int y = 0; y < rows; y++) {
+            for (int x = 0; x < cols; x++) {
+                if (h.length() > 0) { h.append(','); c.append(','); }
+                h.append(x < 3 || y < 3 || x >= cols - 3 || y >= rows - 3 ? 500 : 0);
+                c.append(9999);
+            }
+        }
+        return FieldHeightmap.parse("{"
+                + "\"cellMeters\":0.05,\"cols\":" + cols + ",\"rows\":" + rows + ","
+                + "\"lengthMeters\":4.0,\"widthMeters\":10.0,"
+                + "\"heightsMillimetres\":[" + h + "],"
+                + "\"clearanceMillimetres\":[" + c + "]}");
+    }
+
+    private static SimulatedRobot robotOn(FieldHeightmap map, double x, double y) {
+        return SimulatedRobot.builder()
+                .robotModel(chassis()).kinematics(KINEMATICS).loopPeriod(0.02)
+                .startingPose(new Pose2d(x, y, Rotation2d.kZero))
+                .heightmap(map, 0.85, 0.0).build();
+    }
+
+    /** How far the front bumper reaches past the wall face. Negative means clear of it. */
+    private static double depthIntoWall(SimulatedRobot sim) {
+        return (sim.truePose().getX() + HALF_ROBOT) - WALL_X;
+    }
+
+    @Test
+    void aRobotHeldAgainstAWallComesToRest() {
+        SimulatedRobot sim = robotOn(walledBox(), 2.0, 5.0);
+        sim.command(new ChassisSpeeds(4.0, 0, 0));   // and never let go of the stick
+        sim.step(400);
+
+        // Everything below is measured after the impact has had eight seconds to settle. The old
+        // solver never got here: the normal swung 90 degrees between passes, so the robot buzzed in a
+        // 34 mm band with the velocity changing sign 58 times in 136 steps.
+        Pose2d settled = sim.truePose();
+        double fastest = 0;
+        double furthest = 0;
+        int reversals = 0;
+        double previous = sim.trueVelocityVector().getX();
+        for (int i = 0; i < 200; i++) {
+            sim.step();
+            double vx = sim.trueVelocityVector().getX();
+            if (vx * previous < 0) reversals++;
+            previous = vx;
+            fastest = Math.max(fastest, sim.trueSpeed());
+            furthest = Math.max(furthest,
+                    sim.truePose().getTranslation().getDistance(settled.getTranslation()));
+        }
+        System.out.printf(
+                "held against a wall: |v| <= %.3e m/s, pose band %.3e m, %d sign changes in 200 steps%n",
+                fastest, furthest, reversals);
+
+        assertTrue(fastest < 1e-6, "it should be at rest, still moving at " + fastest + " m/s");
+        assertTrue(furthest < 1e-6, "and staying put, wandering " + furthest + " m");
+        assertEquals(0, reversals, "a robot leaning on a wall does not change direction");
+    }
+
+    @Test
+    void theRobotIsPushedOutInsideTheStepThatDroveItIn() {
+        // Not "eventually". The console draws truePose() once a step, so anything still overlapping
+        // when step() returns is overlap somebody watches. It used to take seven steps — 140 ms, eight
+        // rendered frames — to climb out of a 20 cm overlap, one fixed push at a time.
+        SimulatedRobot sim = robotOn(walledBox(), 2.0, 5.0);
+        sim.command(new ChassisSpeeds(4.0, 0, 0));
+
+        double deepest = 0;
+        for (int i = 0; i < 400; i++) {
+            sim.step();
+            deepest = Math.max(deepest, depthIntoWall(sim));
+        }
+        assertTrue(sim.collisionCount() > 0, "it drove at a wall and should have hit it");
+        assertTrue(deepest < 0.003,
+                "the robot was visibly " + deepest * 1000 + " mm inside the wall at the end of a step");
+    }
+
+    @Test
+    void aRobotSlidingAlongAWallKeepsSliding() {
+        // Friction should scrub some speed off the slide, not weld the robot to the wall. The failure
+        // this guards against is the normal picking up a component along the wall, which turns every
+        // contact into a brake and, at 45 degrees out, into a shove in the wrong direction entirely.
+        SimulatedRobot sim = robotOn(walledBox(), 2.0, 1.0);
+        sim.command(new ChassisSpeeds(4.0, 4.0, 0));   // diagonally into the +x wall
+        sim.step(60);                                  // reach it and settle into the slide
+
+        double startY = sim.truePose().getY();
+        double closestApproach = Double.POSITIVE_INFINITY;
+        for (int i = 0; i < 50; i++) {
+            sim.step();
+            closestApproach = Math.min(closestApproach, -depthIntoWall(sim));
+        }
+        double slid = sim.truePose().getY() - startY;
+        double alongWall = sim.trueVelocityVector().getY();
+        System.out.printf("sliding along a wall: %.3f m in 1.0 s, %.3f m/s, %.1f mm of overlap%n",
+                slid, alongWall, -closestApproach * 1000);
+
+        assertTrue(closestApproach < 0.003,
+                "it should still be against the wall, standing " + closestApproach + " m off it");
+        assertTrue(alongWall > 1.0, "it should still be sliding, at " + alongWall + " m/s");
+        assertTrue(slid > 1.0, "and covering ground: " + slid + " m in one second");
+    }
+
+    @Test
+    void aRobotStrandedOutsideTheFieldIsNotFlungFurtherOut() {
+        // Every sample off the grid used to pick the rear corner as the worst thing under the robot,
+        // so the escape pointed forward and outward and the robot walked away from the field at
+        // 1.77 m/s of pure position, with no impulse and no limit.
+        SimulatedRobot sim = robotOn(walledBox(), 6.0, 5.0);
+        sim.stop();
+        sim.step(50);
+
+        assertEquals(6.0, sim.truePose().getX(), 1e-9, "at rest outside the field it should stay put");
+        assertTrue(sim.lastContact().isPresent());
+        assertTrue(sim.lastContact().get().normal().getX() < 0,
+                "and the way home is back toward the field, got " + sim.lastContact().get().normal());
     }
 }

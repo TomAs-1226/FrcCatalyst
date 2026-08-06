@@ -147,12 +147,23 @@ public final class FieldHeightmap {
     }
 
     private int indexOf(double x, double y) {
-        int cx = (int) Math.floor(x / cell);
-        int cy = (int) Math.floor(y / cell);
-        if (cx < 0 || cy < 0 || cx >= cols || cy >= rows) {
-            return -1;
-        }
-        return cy * cols + cx;
+        return indexOf(cellX(x), cellY(y));
+    }
+
+    private int indexOf(int cx, int cy) {
+        return onGrid(cx, cy) ? cy * cols + cx : -1;
+    }
+
+    private int cellX(double x) {
+        return (int) Math.floor(x / cell);
+    }
+
+    private int cellY(double y) {
+        return (int) Math.floor(y / cell);
+    }
+
+    private boolean onGrid(int cx, int cy) {
+        return cx >= 0 && cy >= 0 && cx < cols && cy < rows;
     }
 
     /**
@@ -165,11 +176,32 @@ public final class FieldHeightmap {
      *
      * <p>What counts as blocked is a <em>step</em>, not a height. A robot at the top of a ramp is two
      * metres above the carpet and perfectly happy; a robot against a 6&nbsp;cm lip is stuck. The step
-     * is measured between neighbouring samples. This used to compare every sample against the ground
-     * under the robot's centre, which made the limit apply across half the robot's length instead of
-     * across one cell: a metre-long ramp rising 2&nbsp;cm per cell reads as a 10&nbsp;cm wall at the
-     * front bumper, so nothing on the field was climbable and {@link Verdict#groundHeight()} never
-     * left the carpet. Cell to cell, the same ramp is 2&nbsp;cm at a time and a lip is still a lip.
+     * is measured against the ground the chassis is riding on — see {@link #supportHeight} — so a
+     * metre of 2&nbsp;cm-per-cell ramp is climbable while the same 20&nbsp;cm delivered in one cell is
+     * not.
+     *
+     * <h2>The normal is a property of the geometry, not of the pose</h2>
+     *
+     * <p>This used to point from the worst sample toward the robot's centre. That describes where a
+     * sample sits inside the footprint and carries no information about which way the surface faces.
+     * Driven head-on into a flat, axis-aligned perimeter wall it was 22&deg; out on average and 45&deg;
+     * out at worst, so a robot that hit a wall square came away moving sideways — and because the
+     * winning sample was decided by a strict {@code >} over tied severities, a sub-millimetre change
+     * of pose swapped it for its mirror image and swung the normal 90&deg; between one call and the
+     * next. That swing is what the jitter was.
+     *
+     * <p>What replaces it is an occupancy gradient: every blocked cell votes with the directions in
+     * which it has a passable neighbour. A flat wall votes unanimously and gives exactly the surface
+     * normal; a corner gives the bisector of the two walls; standing off the grid gives a vector
+     * pointing back onto it, which is what stops a stranded robot being flung further out.
+     *
+     * <h2>The penetration is measured</h2>
+     *
+     * <p>It used to be one cell, with a comment saying depth was not measurable from a heightmap. It
+     * is: every cell is an axis-aligned box of known size, so walking the escape ray cell by cell
+     * gives the exact distance a sample has to travel to get clear. The old constant was 45&times; too
+     * large on a 1&nbsp;mm graze and 4&times; too small on a 12&nbsp;cm one, and a solver fed a
+     * different wrong distance on every contact is a solver that oscillates.
      *
      * @param pose        where the robot is
      * @param halfLength  half its bumper-to-bumper length, in metres
@@ -192,127 +224,254 @@ public final class FieldHeightmap {
         int alongW = 2 * stepsW + 1;
         int samples = alongL * alongW;
 
-        // A cell whose height is above its own clearance never recorded a floor — the height grid
-        // caught the bar, not the carpet under it — so it borrows the ground beneath the centre.
-        // Off the field, or with the centre itself under a bar, carpet is the only honest guess.
-        double centreHeight = heightAt(pose.getX(), pose.getY());
-        double centreClearance = clearanceAt(pose.getX(), pose.getY());
-        double reference =
-                Double.isFinite(centreHeight) && centreClearance >= centreHeight ? centreHeight : 0.0;
-
-        double[] floor = new double[samples];
-        double[] roof = new double[samples];
         double[] sampleX = new double[samples];
         double[] sampleY = new double[samples];
-        boolean[] offField = new boolean[samples];
-
-        double highestGround = reference;
         double lowestClearance = OPEN_SKY;
 
         for (int i = 0; i < alongL; i++) {
             for (int j = 0; j < alongW; j++) {
                 double lx = ((i - stepsL) / (double) stepsL) * halfLength;
                 double ly = ((j - stepsW) / (double) stepsW) * halfWidth;
-                double x = pose.getX() + lx * c - ly * s;
-                double y = pose.getY() + lx * s + ly * c;
 
                 int k = i * alongW + j;
-                sampleX[k] = x;
-                sampleY[k] = y;
+                sampleX[k] = pose.getX() + lx * c - ly * s;
+                sampleY[k] = pose.getY() + lx * s + ly * c;
 
-                double h = heightAt(x, y);
-                if (!Double.isFinite(h)) {
-                    offField[k] = true;
-                    floor[k] = reference;
-                    roof[k] = OPEN_SKY;   // the field edge is the verdict; headroom is irrelevant
-                    continue;
+                int index = indexOf(sampleX[k], sampleY[k]);
+                if (index >= 0) {
+                    lowestClearance = Math.min(lowestClearance, clearance[index]);
                 }
-
-                double over = clearanceAt(x, y);
-                floor[k] = over >= h ? h : reference;
-                roof[k] = over;
-
-                highestGround = Math.max(highestGround, floor[k]);
-                lowestClearance = Math.min(lowestClearance, over);
             }
         }
 
-        Worst worst = new Worst();
+        double support = supportHeight(pose, sampleX, sampleY, limit);
+
+        int[] blocked = new int[samples];
+        int blockedCount = 0;
+        double severity = 0;
+        String reason = "clear";
 
         for (int k = 0; k < samples; k++) {
-            if (offField[k]) {
-                worst.offer(1e3, k, "off the field");
+            int cx = cellX(sampleX[k]);
+            int cy = cellY(sampleY[k]);
+            if (!impassable(cx, cy, support, robotHeight, limit)) {
                 continue;
             }
-            if (isOpenSky(roof[k])) {
-                continue;   // the sentinel is not a ceiling, so subtracting ground from it means nothing
+            blocked[blockedCount++] = k;
+
+            double candidate;
+            String why;
+            int index = indexOf(cx, cy);
+            if (index < 0) {
+                candidate = 1e3;   // nothing on the field outranks having left it
+                why = "off the field";
+            } else {
+                double h = height[index];
+                double over = clearance[index];
+                double rise = (over >= h ? h : support) - support;
+                double headroom = isOpenSky(over) ? Double.POSITIVE_INFINITY : over - support;
+                // Both can be true of one cell — a low bar on top of a kerb — so report the worse.
+                double asStep = rise > limit ? rise : 0;
+                double asCeiling = headroom < robotHeight ? robotHeight - headroom : 0;
+                candidate = Math.max(asStep, asCeiling);
+                why = asStep >= asCeiling
+                        ? String.format("%.0f cm step", rise * 100)
+                        : String.format("%.0f cm clearance", over * 100);
             }
-            // A chassis is rigid: it rides on the highest ground under it, so headroom is measured
-            // from there rather than from each cell's own floor.
-            double headroom = roof[k] - highestGround;
-            if (headroom < robotHeight) {
-                worst.offer(robotHeight - headroom, k,
-                        String.format("%.0f cm clearance", roof[k] * 100));
-            }
-        }
-
-        // Steps only exist between samples. The lattice is spaced at most one cell apart, so this is
-        // the per-cell rise the climb limit is defined against.
-        for (int i = 0; i < alongL; i++) {
-            for (int j = 0; j < alongW; j++) {
-                int k = i * alongW + j;
-                if (offField[k]) {
-                    continue;
-                }
-                if (i + 1 < alongL) {
-                    offerStep(worst, floor, offField, k, (i + 1) * alongW + j, limit);
-                }
-                if (j + 1 < alongW) {
-                    offerStep(worst, floor, offField, k, k + 1, limit);
-                }
-            }
-        }
-
-        if (worst.at < 0) {
-            return new Verdict(false, Translation2d.kZero, 0, highestGround, lowestClearance, "clear");
-        }
-        // Push back toward the robot's centre — away from whatever it has run into.
-        double dx = pose.getX() - sampleX[worst.at];
-        double dy = pose.getY() - sampleY[worst.at];
-        double norm = Math.hypot(dx, dy);
-        Translation2d escape = norm < 1e-6
-                ? new Translation2d(1, 0)
-                : new Translation2d(dx / norm, dy / norm);
-        // Penetration is not measurable from a heightmap, so back out by a cell at a time and let
-        // repeated resolution converge rather than inventing a distance.
-        return new Verdict(true, escape, cell, highestGround, lowestClearance, worst.reason);
-    }
-
-    /** A step between two neighbouring samples, blamed on whichever of the pair is higher. */
-    private static void offerStep(
-            Worst worst, double[] floor, boolean[] offField, int a, int b, double limit) {
-        if (offField[b]) {
-            return;   // already reported as off the field, and its floor is a stand-in, not a surface
-        }
-        double rise = Math.abs(floor[b] - floor[a]);
-        if (rise > limit) {
-            worst.offer(rise, floor[b] > floor[a] ? b : a, String.format("%.0f cm step", rise * 100));
-        }
-    }
-
-    /** The worst thing found under the footprint, kept so the verdict can point away from it. */
-    private static final class Worst {
-        double severity;
-        int at = -1;
-        String reason;
-
-        void offer(double candidate, int index, String why) {
             if (candidate > severity) {
                 severity = candidate;
-                at = index;
                 reason = why;
             }
         }
+
+        if (blockedCount == 0) {
+            return new Verdict(false, Translation2d.kZero, 0, support, lowestClearance, "clear");
+        }
+
+        Translation2d escape = escapeDirection(
+                pose, sampleX, sampleY, blocked, blockedCount,
+                support, robotHeight, limit, halfLength, halfWidth);
+
+        // One translation along the normal has to free every blocked sample at once, so the depth of
+        // the contact is the deepest of them, not the average and not a constant.
+        double reach = 2 * Math.hypot(halfLength, halfWidth) + 4 * cell;
+        double penetration = 0;
+        for (int b = 0; b < blockedCount; b++) {
+            int k = blocked[b];
+            penetration = Math.max(penetration, exitDistance(
+                    sampleX[k], sampleY[k], escape.getX(), escape.getY(),
+                    support, robotHeight, limit, reach));
+        }
+
+        return new Verdict(true, escape, penetration, support, lowestClearance, reason);
+    }
+
+    /**
+     * The ground the chassis is actually riding on, in metres above the carpet.
+     *
+     * <p>A rigid chassis rides on the highest thing under it, so this is a maximum — but only over
+     * ground it can reach. Taking it over every sample let a wall the bumper was merely touching count
+     * as floor: brush the 2&nbsp;m perimeter and {@link Verdict#groundHeight()} claimed the robot was
+     * two metres up, and that inflated support then poisoned every headroom judgement measured
+     * against it.
+     *
+     * <p>Swept rather than computed in one pass because the answer feeds its own test — the top of a
+     * ramp is only within a climbable step of the support once the middle of the ramp has been
+     * accepted. Two or three sweeps settle it; the loop bound is there so a pathological map cannot
+     * spin, and the early return is the normal exit.
+     */
+    private double supportHeight(Pose2d pose, double[] sampleX, double[] sampleY, double limit) {
+        // A cell whose height is above its own clearance never recorded a floor — the height grid
+        // caught the bar, not the carpet under it — so carpet is the only honest seed.
+        int centre = indexOf(pose.getX(), pose.getY());
+        double support = centre >= 0 && clearance[centre] >= height[centre] ? height[centre] : 0.0;
+
+        for (int sweep = 0; sweep < sampleX.length; sweep++) {
+            double best = support;
+            for (int k = 0; k < sampleX.length; k++) {
+                int index = indexOf(sampleX[k], sampleY[k]);
+                if (index < 0) {
+                    continue;
+                }
+                double h = height[index];
+                if (clearance[index] < h) {
+                    continue;   // a bar overhead, not a floor to stand on
+                }
+                if (h - support > limit) {
+                    continue;   // a wall is something to hit, not something to ride up
+                }
+                best = Math.max(best, h);
+            }
+            if (best == support) {
+                return support;
+            }
+            support = best;
+        }
+        return support;
+    }
+
+    /**
+     * Can a chassis riding on {@code support} occupy this cell?
+     *
+     * <p>Deliberately says nothing about where the robot is. The escape normal is built out of this
+     * predicate, and a direction derived from the robot's own footprint is not a surface normal.
+     */
+    private boolean impassable(int cx, int cy, double support, double robotHeight, double limit) {
+        int index = indexOf(cx, cy);
+        if (index < 0) {
+            return true;   // off the field is as solid as anything on it
+        }
+        double h = height[index];
+        double over = clearance[index];
+        double f = over >= h ? h : support;
+        if (f - support > limit) {
+            return true;
+        }
+        return !isOpenSky(over) && over - support < robotHeight;
+    }
+
+    /**
+     * Which way is out, as a unit vector.
+     *
+     * <p>Every blocked cell votes once for each direction in which it has a passable neighbour, so the
+     * result is the outward normal of the occupied region averaged over the footprint. A flat wall is
+     * unanimous, a corner produces the bisector, and the vote is unchanged by a pose that moves within
+     * a cell — which is what makes it stable enough to solve against.
+     */
+    private Translation2d escapeDirection(
+            Pose2d pose, double[] sampleX, double[] sampleY, int[] blocked, int blockedCount,
+            double support, double robotHeight, double limit, double halfLength, double halfWidth) {
+
+        // A robot buried deeper than its immediate neighbourhood sees nothing at one cell out, so the
+        // stencil widens until it finds free space or has searched its own footprint.
+        int furthest = (int) Math.ceil(Math.hypot(halfLength, halfWidth) / cell) + 2;
+        for (int radius = 1; radius <= furthest; radius++) {
+            double gx = 0;
+            double gy = 0;
+            for (int b = 0; b < blockedCount; b++) {
+                int k = blocked[b];
+                int cx = cellX(sampleX[k]);
+                int cy = cellY(sampleY[k]);
+                if (!impassable(cx + radius, cy, support, robotHeight, limit)) gx += 1;
+                if (!impassable(cx - radius, cy, support, robotHeight, limit)) gx -= 1;
+                if (!impassable(cx, cy + radius, support, robotHeight, limit)) gy += 1;
+                if (!impassable(cx, cy - radius, support, robotHeight, limit)) gy -= 1;
+            }
+            double norm = Math.hypot(gx, gy);
+            if (norm > 1e-9) {
+                return new Translation2d(gx / norm, gy / norm);
+            }
+        }
+
+        // Nothing free anywhere near. If the robot is off the grid entirely, the grid itself is the
+        // only direction worth having; otherwise fall back on the old centre-of-mass guess, which is
+        // wrong but bounded.
+        double toGridX = clamp(pose.getX(), 0, cols * cell) - pose.getX();
+        double toGridY = clamp(pose.getY(), 0, rows * cell) - pose.getY();
+        double norm = Math.hypot(toGridX, toGridY);
+        if (norm > 1e-9) {
+            return new Translation2d(toGridX / norm, toGridY / norm);
+        }
+
+        double bx = 0;
+        double by = 0;
+        for (int b = 0; b < blockedCount; b++) {
+            bx += sampleX[blocked[b]];
+            by += sampleY[blocked[b]];
+        }
+        double dx = pose.getX() - bx / blockedCount;
+        double dy = pose.getY() - by / blockedCount;
+        norm = Math.hypot(dx, dy);
+        return norm < 1e-9 ? new Translation2d(1, 0) : new Translation2d(dx / norm, dy / norm);
+    }
+
+    /**
+     * How far this sample has to travel along {@code (nx, ny)} before it is standing somewhere legal.
+     *
+     * <p>A heightmap has exact analytic geometry — each cell is an axis-aligned box of side
+     * {@link #cellMeters()} — so this is a grid walk rather than an estimate, and it handles a wall
+     * several cells thick without needing to know how thick it is.
+     *
+     * @return the exact distance, or zero if there is nothing passable within {@code reach}: a
+     *     direction that leads nowhere means the normal is wrong, not that the robot is a metre deep,
+     *     and answering {@code reach} there teleports it across the field
+     */
+    private double exitDistance(
+            double sx, double sy, double nx, double ny,
+            double support, double robotHeight, double limit, double reach) {
+
+        double travelled = 0;
+        double x = sx;
+        double y = sy;
+        // Bounded by the ray crossing at most two cell boundaries per cell of reach; the count is
+        // generous so that a near-axis-aligned ray cannot exhaust it before the distance does.
+        for (int guard = 0; guard < 256; guard++) {
+            int cx = cellX(x);
+            int cy = cellY(y);
+            if (!impassable(cx, cy, support, robotHeight, limit)) {
+                return travelled;
+            }
+            double toX = nx > 0 ? ((cx + 1) * cell - x) / nx
+                    : nx < 0 ? (cx * cell - x) / nx : Double.POSITIVE_INFINITY;
+            double toY = ny > 0 ? ((cy + 1) * cell - y) / ny
+                    : ny < 0 ? (cy * cell - y) / ny : Double.POSITIVE_INFINITY;
+            double stride = Math.min(toX, toY);
+            if (!Double.isFinite(stride)) {
+                return 0;   // no direction at all; nothing to measure along it
+            }
+            // Land inside the next cell rather than on its edge, where the floor could go either way.
+            travelled += stride + 1e-9;
+            if (travelled > reach) {
+                return 0;
+            }
+            x = sx + nx * travelled;
+            y = sy + ny * travelled;
+        }
+        return 0;
+    }
+
+    private static double clamp(double value, double low, double high) {
+        return Math.max(low, Math.min(high, value));
     }
 
     /** Load a heightmap written by {@code npm run field-collision}. */

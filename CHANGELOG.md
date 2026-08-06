@@ -5,6 +5,42 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.9.2] — 2026-08-06 — Registration and contact response
+
+Two things you could see on screen: the CAD and the collision geometry did not line up, and the robot
+buzzed against walls like a game engine with a bad solver.
+
+### Fixed
+
+- **The CAD was drawn 0.825&nbsp;m off the collision map.** The console placed the model by centring
+  its bounding box, and that box includes the **scoring table** — a 240 x 30 x 36&nbsp;in block
+  standing off the +y wall with nothing matching it on -y. It dragged the centre by 0.8376&nbsp;m, so
+  a robot stopped against an invisible barrier 0.8&nbsp;m short of the wall it appeared to be touching.
+  The extractor now emits `modelToField` — where field (0,0,carpet) sits in model space — and the
+  console places the CAD with it. Residual is 2.6&nbsp;mm on both axes, about 5% of one cell.
+
+  The CAD's own origin was the field centre all along, and the flood fill finds it to within
+  2.6&nbsp;mm. Measuring a bounding box is what threw the right answer away.
+
+- **The robot oscillated against geometry and visibly sat inside it.** Driving into a wall with the
+  throttle held, the velocity changed sign 58 times over 136 steps and the pose buzzed in a
+  33.8&nbsp;mm band; recovering from a 20&nbsp;cm overlap took 7 timesteps of visible clipping. Two
+  causes: {@code FieldHeightmap} returned a fixed one-cell penetration — over-correcting 45x on a
+  1&nbsp;mm contact and under-correcting to a quarter on a 12&nbsp;cm one — and a single timestep
+  could apply up to three impulses.
+
+  Penetration is measured now, and exactly one impulse is applied per step with position correction
+  separated from it. Exit speed matches the pair restitution to five decimal places, which is the
+  measurement that proves a single impulse: two would give e squared.
+
+- **Pose mapping used the tile's configured field size while the map declared its own.** 16.54 x 8.07
+  against 16.55 x 8.05 — a further 5&nbsp;mm and 10&nbsp;mm. Poses map through the loaded map's
+  dimensions now, with the configured size kept as the no-map fallback.
+
+398 tests.
+
+---
+
 ## [1.9.1] — 2026-08-06 — Ramps, trenches and loose fuel
 
 Three things the field collision got wrong, all found by driving it rather than reading it.

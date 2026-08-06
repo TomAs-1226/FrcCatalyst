@@ -108,6 +108,38 @@ class FieldHeightmapTest {
         return fromColumns(h, c);
     }
 
+    /** A 4 m corridor with a flat 80 cm wall across everything from x = 1.5 onward. */
+    private static FieldHeightmap wallAt(double x0) {
+        int[] h = new int[40], c = new int[40];
+        for (int x = 0; x < 40; x++) {
+            h[x] = x < (int) Math.round(x0 * 10) ? 0 : 800;
+            c[x] = 9999;
+        }
+        return fromColumns(h, c);
+    }
+
+    /**
+     * Open carpet in the low corner, 80 cm of wall at x &ge; 1.5 or y &ge; 0.6. Two flat faces meeting
+     * at a right angle, which is the case a normal built from one sample cannot describe.
+     */
+    private static FieldHeightmap cornerField() {
+        int cols = 40, rows = 20;
+        StringBuilder h = new StringBuilder();
+        StringBuilder c = new StringBuilder();
+        for (int y = 0; y < rows; y++) {
+            for (int x = 0; x < cols; x++) {
+                if (h.length() > 0) { h.append(','); c.append(','); }
+                h.append(x >= 15 || y >= 6 ? 800 : 0);
+                c.append(9999);
+            }
+        }
+        return FieldHeightmap.parse("{"
+                + "\"cellMeters\":0.1,\"cols\":" + cols + ",\"rows\":" + rows + ","
+                + "\"lengthMeters\":4.0,\"widthMeters\":2.0,"
+                + "\"heightsMillimetres\":[" + h + "],"
+                + "\"clearanceMillimetres\":[" + c + "]}");
+    }
+
     private static final double HALF = 0.15;   // a small test robot, 30 cm square
     private static final double BIG = 0.43;    // and a real one, 86 cm square
     private static final double TALL = 0.9;
@@ -210,6 +242,74 @@ class FieldHeightmapTest {
         var v = testField().test(new Pose2d(-0.2, 0.5, Rotation2d.kZero), HALF, HALF, TALL, 0);
         assertTrue(v.blocked());
         assertEquals("off the field", v.reason());
+    }
+
+    // ------------------------------------------------------- how deep, and which way (see #14)
+
+    @Test
+    void thePenetrationIsMeasuredRatherThanAssumedToBeOneCell() {
+        FieldHeightmap f = wallAt(1.5);
+        // The front bumper is at x + BIG and the wall face is at 1.5, so the overlap is arithmetic and
+        // the map should report exactly it. It used to report one cell — 0.1 m — for every one of
+        // these, which is 100x too much at the top of the list and too little at the bottom.
+        for (double overlap : new double[] {0.001, 0.01, 0.03, 0.08, 0.13}) {
+            Pose2d at = new Pose2d(1.5 - BIG + overlap, 0.5, Rotation2d.kZero);
+            var v = f.test(at, BIG, BIG, TALL, 0);
+            assertTrue(v.blocked(), "the bumper is " + overlap + " m into an 80 cm wall");
+            assertEquals(overlap, v.penetration(), 1e-6,
+                    "the way out of a " + overlap + " m overlap is " + overlap + " m");
+        }
+    }
+
+    @Test
+    void aClearVerdictHasNoPenetrationToResolve() {
+        var v = wallAt(1.5).test(new Pose2d(0.6, 0.5, Rotation2d.kZero), BIG, BIG, TALL, 0);
+        assertFalse(v.blocked(), v.reason());
+        assertEquals(0.0, v.penetration(), 1e-12);
+    }
+
+    @Test
+    void theWayOutOfAFlatWallIsTheWallsOwnNormal() {
+        FieldHeightmap f = wallAt(1.5);
+        // Nudged around by fractions of a cell. The normal used to run from the worst sample to the
+        // robot's centre, which on this geometry read 45 degrees out and flipped to its mirror image
+        // when a tie changed hands — a 90 degree swing for a sub-millimetre move. That swing let a
+        // second and third impulse land in one timestep, and it is what the jitter was made of.
+        for (int i = 0; i < 12; i++) {
+            double nudge = i * 0.0037;
+            var v = f.test(new Pose2d(1.09 + nudge, 0.5 + nudge, Rotation2d.kZero), BIG, BIG, TALL, 0);
+            assertTrue(v.blocked());
+            assertEquals(-1.0, v.normal().getX(), 1e-12, "nudge " + nudge);
+            assertEquals(0.0, v.normal().getY(), 1e-12, "nudge " + nudge + " must not steer sideways");
+        }
+    }
+
+    @Test
+    void theWayOutOfACornerIsTheBisectorOfBothWalls() {
+        var v = cornerField().test(new Pose2d(1.4, 0.5, Rotation2d.kZero), HALF, HALF, TALL, 0);
+        assertTrue(v.blocked());
+        assertEquals(-Math.sqrt(0.5), v.normal().getX(), 1e-9);
+        assertEquals(-Math.sqrt(0.5), v.normal().getY(), 1e-9);
+    }
+
+    @Test
+    void theWayOffTheFieldPointsBackOntoIt() {
+        // It used to point further out, so a robot that ended up outside was pushed away for ever at
+        // a cell a step. Twelve metres past the wall was reachable.
+        var v = testField().test(new Pose2d(-0.2, 0.5, Rotation2d.kZero), HALF, HALF, TALL, 0);
+        assertTrue(v.blocked());
+        assertTrue(v.normal().getX() > 0.5, "the way back on is +x, got " + v.normal());
+        assertTrue(v.penetration() > 0.3, "and it is a real distance: " + v.penetration());
+    }
+
+    @Test
+    void aWallTheBumperIsTouchingIsNotGroundToStandOn() {
+        // groundHeight folded every sample's floor into one maximum, walls included, so brushing an
+        // 80 cm wall reported a robot standing 80 cm above the carpet it was demonstrably sitting on.
+        var v = wallAt(1.5).test(new Pose2d(1.09, 0.5, Rotation2d.kZero), BIG, BIG, TALL, 0);
+        assertTrue(v.blocked());
+        assertEquals(0.0, v.groundHeight(), 1e-9,
+                "the robot is on carpet with its bumper in a wall, not levitating on top of it");
     }
 
     // ------------------------------------------------------------------ trenches
