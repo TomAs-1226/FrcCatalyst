@@ -209,7 +209,10 @@ public final class SimCockpit {
   <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
     <section class="card">
       <h2>REBUILT 2026 <span class="h2sub">· top-down field</span></h2>
-      <canvas id="view" width="840" height="416"></canvas>
+      <!-- 840x416 is 2.019:1, not the field's 2.050:1, which drew everything 1.5% too tall and a
+           square robot as a rectangle. The height below is the field aspect; sizeView() redoes it
+           from the map's own header once /collision answers. -->
+      <canvas id="view" width="840" height="410"></canvas>
       <div class="hint"><b>WASD</b> / arrows drive (field-oriented) · <b>Q / E</b> rotate. The turret holds the hub and
          leads the <b>virtual goal</b> (Shoot-On-The-Fly). Solid obstacles · you only score from the blue zone.</div>
     </section>
@@ -477,9 +480,21 @@ function renderCode(s){
 function esc(t){return (t+'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
 
 // --- field drawing ---
-const FW=16.54, FH=8.07;
-function fx(c,x){return (x/FW)*c.width;}
-function fy(c,y){return c.height-(y/FH)*c.height;}
+// The heightmap header is the authority on how big the field is. These two are the no-map fallback
+// and nothing else - reading them while a map is loaded is what put the map out of register.
+const FW_FALLBACK=16.54, FH_FALLBACK=8.07;
+let FW=FW_FALLBACK, FH=FH_FALLBACK;
+// The carpet is painted here rather than baked into the collision layer; see draw().
+const CARPET='#1f2740';
+// One metres-to-pixels scale for both axes. The old mapping stretched x and y independently to fill
+// the canvas, so anything square came out the wrong shape whenever the canvas was not the field's
+// aspect. Whatever is left over is centred, and it is sub-pixel once sizeView() has run.
+function mpp(c){return Math.min(c.width/FW,c.height/FH);}
+function fox(c){return (c.width-FW*mpp(c))/2;}
+function foy(c){return (c.height-FH*mpp(c))/2;}
+function fx(c,x){return fox(c)+x*mpp(c);}
+function fy(c,y){return c.height-foy(c)-y*mpp(c);}
+function sizeView(){const c=$('view'); if(!c) return; const h=Math.round(c.width*FH/FW); if(c.height!==h) c.height=h;}
 
 function spawnShot(r){
   if(balls.length>32) return;
@@ -499,7 +514,14 @@ function frame(now){
 
 // --- collision map, drawn from the CAD-derived heightmap -------------------
   let COLLISION=null, COLLISION_IMG=null;
-  fetch('/collision').then(r=>r.json()).then(m=>{ if(m&&m.cols) COLLISION=m; }).catch(()=>{});
+  fetch('/collision').then(r=>r.json()).then(m=>{
+    if(!m||!m.cols) return;
+    COLLISION=m;
+    // Contract: the file's header is the field, not the constants above. cols*cellMeters and
+    // rows*cellMeters are guaranteed to equal these, so the grid lands on the field rect exactly.
+    FW=m.lengthMeters; FH=m.widthMeters;
+    sizeView();
+  }).catch(()=>{});
 
   /* Rendered once into an offscreen canvas and then blitted, because rasterising ninety thousand
      cells every frame would cost more than everything else in this cockpit put together. */
@@ -514,34 +536,77 @@ function frame(now){
       if(h>300){ r=70;gg=76;b=92;a=235; }            // structure
       else if(cl<1400){ r=120;gg=90;b=40;a=180; }    // drive under
       else if(h>60){ r=60;gg=90;b=70;a=160; }        // ramp / low feature
-      else { r=0;gg=0;b=0;a=0; }                     // carpet
+      /* Carpet stays transparent on purpose. This layer goes down after the alliance tints, the
+         border and the centre line, so an opaque carpet here would rub all three out. draw() paints
+         the surface before them instead - it used to paint nothing at all, and 87% of the field was
+         the page showing through, which reads as a map that does not fill the canvas. */
+      else { r=0;gg=0;b=0;a=0; }
       const at=i*4; img.data[at]=r; img.data[at+1]=gg; img.data[at+2]=b; img.data[at+3]=a;
     }
     g.putImageData(img,0,0);
     COLLISION_IMG=off; return off;
   }
 
+  /* Connected runs of structure in the map, found once. The cockpit's hub and tower constants sit
+     over a metre from where the CAD puts the same structures, so a cue that claims to mark one has
+     to go looking for it in the map rather than trust the constant. */
+  let STRUCTS=null;
+  function structures(){
+    if(STRUCTS||!COLLISION) return STRUCTS;
+    const m=COLLISION, cs=m.cellMeters, h=m.heightsMillimetres,
+          seen=new Uint8Array(m.cols*m.rows), out=[];
+    for(let i=0;i<seen.length;i++){
+      if(seen[i]||h[i]<=300) continue;
+      seen[i]=1;
+      const stack=[i]; let n=0, c0=m.cols, c1=-1, r0=m.rows, r1=-1;
+      while(stack.length){
+        const j=stack.pop(), rr=(j/m.cols)|0, cc=j-rr*m.cols;
+        n++; if(cc<c0)c0=cc; if(cc>c1)c1=cc; if(rr<r0)r0=rr; if(rr>r1)r1=rr;
+        if(cc>0        &&!seen[j-1]     &&h[j-1]     >300){seen[j-1]     =1;stack.push(j-1);}
+        if(cc<m.cols-1 &&!seen[j+1]     &&h[j+1]     >300){seen[j+1]     =1;stack.push(j+1);}
+        if(rr>0        &&!seen[j-m.cols]&&h[j-m.cols]>300){seen[j-m.cols]=1;stack.push(j-m.cols);}
+        if(rr<m.rows-1 &&!seen[j+m.cols]&&h[j+m.cols]>300){seen[j+m.cols]=1;stack.push(j+m.cols);}
+      }
+      if(n>=20) out.push({x0:c0*cs,y0:r0*cs,x1:(c1+1)*cs,y1:(r1+1)*cs});   // specks are noise
+    }
+    STRUCTS=out; return out;
+  }
+  /** The structure the map has nearest a declared point, or null if there is none worth claiming. */
+  function mapStruct(px,py){
+    const all=structures(); if(!all) return null;
+    let best=null, bd=1e9;
+    for(const s of all){
+      const dx=Math.max(s.x0-px,0,px-s.x1), dy=Math.max(s.y0-py,0,py-s.y1), d=Math.hypot(dx,dy);
+      if(d<bd){ bd=d; best=s; }
+    }
+    // Past this the nearest blob is some unrelated piece of field, and pinning a label to it would
+    // just be a different wrong drawing.
+    return bd<=2.0?best:null;
+  }
+
   function drawCollision(x,c){
     const layer=collisionLayer(); if(!layer) return;
-    /* Placed through the same field-to-canvas mapping everything else uses. Blitting it across the
-       whole canvas assumed the map covered exactly FW x FH, and it does not — it covers the carpet
-       its own header declares, which is a percent or two different. That mismatch is what put the
-       geometry slightly out of register with the robot drawn on top of it. */
-    const mw=(COLLISION.lengthMeters/FW)*c.width, mh=(COLLISION.widthMeters/FH)*c.height;
+    /* Straight onto the field rect fx/fy define, so the map cannot drift from the robot drawn over
+       it. Scaling the blit by the map's size over the hardcoded constants - as this did - left two
+       bare pixels down the right edge and pushed a pixel and a half of map off the top. */
+    const w=FW*mpp(c), h=FH*mpp(c);
     x.save(); x.imageSmoothingEnabled=false;
-    x.translate(0,c.height); x.scale(1,-1);
-    x.drawImage(layer,0,0,mw,mh);
+    x.translate(fox(c),foy(c)+h); x.scale(1,-1);   // grid row 0 is field y=0, which is the bottom
+    x.drawImage(layer,0,0,w,h);
     x.restore();
   }
 
   function draw(s,dt){
   const c=$('view'), x=c.getContext('2d'), W=c.width, H=c.height;
   x.clearRect(0,0,W,H);
+  // The surface goes down first and everything else - tints, border, centre line, the collision
+  // blit - layers over it. Carpet is transparent in the blit precisely so this survives.
+  x.fillStyle=CARPET; x.fillRect(0,0,W,H);
   const els=s.fieldEls;
   // alliance zones (REBUILT: red left, blue right)
-  if(els){ const az=els.allianceZone/FW*W;
-    x.fillStyle='rgba(233,69,96,0.08)'; x.fillRect(0,0,az,H);
-    x.fillStyle='rgba(96,165,250,0.08)'; x.fillRect(W-az,0,az,H); }
+  if(els){
+    x.fillStyle='rgba(233,69,96,0.08)'; x.fillRect(0,0,fx(c,els.allianceZone),H);
+    x.fillStyle='rgba(96,165,250,0.08)'; x.fillRect(fx(c,FW-els.allianceZone),0,W,H); }
   // border + dashed center line
   x.strokeStyle='rgba(255,255,255,.18)'; x.lineWidth=2; x.strokeRect(2,2,W-4,H-4);
   x.strokeStyle='rgba(255,255,255,.12)'; x.setLineDash([6,6]); x.beginPath(); x.moveTo(W/2,0); x.lineTo(W/2,H); x.stroke(); x.setLineDash([]);
@@ -562,13 +627,13 @@ function frame(now){
   // autonomous plan path + driven trail
   drawAuto(x,c,s);
   // ghost replay (translucent purple robot)
-  if(s.ghost&&s.ghost.replaying){ const gx2=fx(c,s.ghost.x),gy2=fy(c,s.ghost.y),sz=0.9/FW*W;
+  if(s.ghost&&s.ghost.replaying){ const gx2=fx(c,s.ghost.x),gy2=fy(c,s.ghost.y),sz=0.9*mpp(c);
     x.globalAlpha=0.42; x.save(); x.translate(gx2,gy2); x.rotate(-s.ghost.hdg);
     x.fillStyle='#a78bfa'; x.strokeStyle='#c4b5fd'; x.lineWidth=2; roundRect(x,-sz/2,-sz/2,sz,sz,6); x.fill(); x.stroke();
     x.restore(); x.globalAlpha=1;
     x.fillStyle='#c4b5fd'; x.font='9px ui-monospace,monospace'; x.fillText('ghost',gx2-13,gy2-sz/2-3); }
   // opponent / defense bot (red)
-  if(s.opp&&s.opp.on){ const ox=fx(c,s.opp.x),oy=fy(c,s.opp.y),sz=0.9/FW*W;
+  if(s.opp&&s.opp.on){ const ox=fx(c,s.opp.x),oy=fy(c,s.opp.y),sz=0.9*mpp(c);
     x.fillStyle='#5e1722'; x.strokeStyle='#e94560'; x.lineWidth=2; roundRect(x,ox-sz/2,oy-sz/2,sz,sz,6); x.fill(); x.stroke();
     x.fillStyle='#ff9bb0'; x.font='bold 11px ui-monospace,monospace'; x.textAlign='center'; x.fillText('D',ox,oy+4); x.textAlign='left'; }
   const gx=fx(c,s.goalPt.x), gy=fy(c,s.goalPt.y);
@@ -596,7 +661,7 @@ function frame(now){
     if(!sp.hit){ x.beginPath(); x.moveTo(sp.x-5,sp.y-5); x.lineTo(sp.x+5,sp.y+5); x.moveTo(sp.x+5,sp.y-5); x.lineTo(sp.x-5,sp.y+5); x.stroke(); }
     x.globalAlpha=1; }
   // robot (sized from its real footprint, rotated by heading)
-  const rx=fx(c,s.robot.x), ry=fy(c,s.robot.y), size=(s.robotR||0.45)*2/FW*W, hd=-s.robot.heading;
+  const rx=fx(c,s.robot.x), ry=fy(c,s.robot.y), size=(s.robotR||0.45)*2*mpp(c), hd=-s.robot.heading;
   x.save(); x.translate(rx,ry); x.rotate(hd);
   x.fillStyle='#26304f'; x.strokeStyle='rgba(255,255,255,.25)'; x.lineWidth=2;
   roundRect(x,-size/2,-size/2,size,size,7); x.fill(); x.stroke();
@@ -632,15 +697,33 @@ function roundRect(x,X,Y,w,h,r){x.beginPath();x.moveTo(X+r,Y);x.arcTo(X+w,Y,X+w,
   x.arcTo(X,Y+h,X,Y,r);x.arcTo(X,Y,X+w,Y,r);x.closePath();}
 function hex(x,cx,cy,r){x.beginPath();for(let i=0;i<6;i++){const a=Math.PI/6+i*Math.PI/3,px=cx+Math.cos(a)*r,py=cy+Math.sin(a)*r;i?x.lineTo(px,py):x.moveTo(px,py);}x.closePath();}
 function drawHub(x,c,h,color,label,active){
-  if(!h) return; const hx=fx(c,h.x), hy=fy(c,h.y), r=h.r/FW*c.width;
-  x.fillStyle='rgba(255,255,255,0.05)';                       // bumps (flank, traversable)
-  x.fillRect(hx-r*0.7,hy-r*2.4,r*1.4,r*0.85); x.fillRect(hx-r*0.7,hy+r*1.55,r*1.4,r*0.85);
-  x.fillStyle=color+'33'; x.strokeStyle=color; x.lineWidth=2; roundRect(x,hx-r,hy-r,r*2,r*2,5); x.fill(); x.stroke();
+  if(!h) return;
+  /* The map draws the hub itself, and it draws it well over a metre from this constant - so with a
+     map loaded the filled box was an obstacle you could drive through sitting next to one you could
+     not see. What the map has no notion of is the live hub state and whose hub it is, so those two
+     stay: a dashed outline on the structure the map really has, plus the hex and the label. */
+  const st=mapStruct(h.x,h.y);
+  let hx,hy,r;
+  if(st){
+    const L=fx(c,st.x0), R=fx(c,st.x1), T=fy(c,st.y1), B=fy(c,st.y0);
+    hx=(L+R)/2; hy=(T+B)/2; r=Math.min(R-L,B-T)/2;
+    x.strokeStyle=color; x.lineWidth=1.5; x.setLineDash([4,3]);
+    roundRect(x,L,T,R-L,B-T,5); x.stroke(); x.setLineDash([]);
+  }else{
+    hx=fx(c,h.x); hy=fy(c,h.y); r=h.r*mpp(c);
+    x.fillStyle='rgba(255,255,255,0.05)';                       // bumps (flank, traversable)
+    x.fillRect(hx-r*0.7,hy-r*2.4,r*1.4,r*0.85); x.fillRect(hx-r*0.7,hy+r*1.55,r*1.4,r*0.85);
+    x.fillStyle=color+'33'; x.strokeStyle=color; x.lineWidth=2; roundRect(x,hx-r,hy-r,r*2,r*2,5); x.fill(); x.stroke();
+  }
   hex(x,hx,hy,r*0.62); x.strokeStyle=active?'#4ade80':'rgba(255,255,255,0.4)'; x.lineWidth=2; x.stroke();
   if(active){ x.fillStyle='rgba(74,222,128,0.22)'; x.fill(); }
   x.fillStyle=color; x.font='10px ui-monospace,monospace'; x.fillText(label,hx-r,hy-r-6);
 }
-function drawTower(x,c,t){ if(!t) return; const tx=fx(c,t.x),ty=fy(c,t.y),r=t.r/FW*c.width;
+function drawTower(x,c,t){ if(!t) return;
+  // Unlike the hub there is no live state or label to preserve here, so once the map is loaded the
+  // map is the whole drawing.
+  if(COLLISION) return;
+  const tx=fx(c,t.x),ty=fy(c,t.y),r=t.r*mpp(c);
   x.fillStyle='rgba(30,34,64,0.85)'; x.strokeStyle='rgba(200,200,210,0.6)'; x.lineWidth=2; roundRect(x,tx-r,ty-r,r*2,r*2,4); x.fill(); x.stroke();
   x.strokeStyle='rgba(255,255,255,0.4)'; x.lineWidth=1; for(let i=-1;i<=1;i++){x.beginPath();x.moveTo(tx-r*0.6,ty+i*r*0.5);x.lineTo(tx+r*0.6,ty+i*r*0.5);x.stroke();}
 }
@@ -678,7 +761,7 @@ function drawAuto(x,c,s){ const au=s.auto; if(!au) return;
   }
 }
 
-setInterval(poll,55); requestAnimationFrame(frame); poll();
+sizeView(); setInterval(poll,55); requestAnimationFrame(frame); poll();
 </script>
 </body>
 </html>

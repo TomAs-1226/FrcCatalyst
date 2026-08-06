@@ -28,8 +28,21 @@ import java.util.Optional;
  * is carpet and there is a bar above it. A height-only model sees the bar, calls the cell solid, and
  * refuses to let anything through — which is the opposite of what happens on a real field.
  *
+ * <p>Which is why the two grids are read together rather than one after the other. Depending on what
+ * the CAD gave it, the extractor may record a trench cell's height as the carpet under the bar or as
+ * the top of the bar itself — it is the highest surface either way. A cell whose height sits above its
+ * own clearance is therefore not a floor at all, and must not be judged as one.
+ *
  * <p>Generate the file with {@code npm run field-collision} in the Catalyst Console repo, which reads
  * the season's CAD. Hand-editing it defeats the purpose.
+ *
+ * <p>A cell with nothing above it carries a sentinel rather than a measurement: the generator writes
+ * 9999 mm, which this class reads back as {@link #OPEN_SKY}. Any clearance at or above that value is
+ * open sky and stops nothing, however tall the robot. The constant is public because the sentinel is
+ * part of the file format, and a consumer comparing {@link Verdict#lowestClearance()} against the
+ * value in the file needs both sides to be the same number. They were not: this class used to call
+ * open sky 9.0 m, so a cell the file described as 9.999 came back as 9.0 and every such comparison
+ * missed.
  *
  * <pre>{@code
  * FieldHeightmap field = FieldHeightmap.load(Path.of("src/main/deploy/field-collision.json"));
@@ -52,8 +65,24 @@ public final class FieldHeightmap {
     /** Height difference across one cell that counts as a wall rather than a slope, in metres. */
     private static final double DEFAULT_CLIMB_LIMIT = 0.06;
 
-    /** Clearance recorded for a cell with nothing above it at all. */
-    private static final double OPEN_SKY = 9.0;
+    /**
+     * Clearance that means "nothing overhead", in metres — the 9999 mm the generator writes.
+     *
+     * <p>Compare against this, not against a height of your own choosing, when asking whether a cell
+     * is open. Read the class javadoc before changing it: the number is the file format's, not ours.
+     */
+    public static final double OPEN_SKY = 9.999;
+
+    /**
+     * Is this clearance the open-sky sentinel?
+     *
+     * <p>At or above, not equal to: a map may legitimately record more headroom than the sentinel, and
+     * the file stores whole millimetres, so half of one is enough slack to survive the round trip
+     * through the generator's floating-point crop without hinging on exact equality.
+     */
+    private static boolean isOpenSky(double clearance) {
+        return clearance >= OPEN_SKY - 5e-4;
+    }
 
     private final double cell;
     private final int cols;
@@ -75,7 +104,13 @@ public final class FieldHeightmap {
         this.clearance = clearance;
     }
 
-    /** What the field does to a robot standing at a particular place. */
+    /**
+     * What the field does to a robot standing at a particular place.
+     *
+     * <p>{@code lowestClearance} is {@link #OPEN_SKY} when nothing was found overhead, and is capped
+     * there — a footprint entirely under open sky reports the sentinel rather than whatever larger
+     * number happened to be in the file.
+     */
     public record Verdict(
             boolean blocked,
             Translation2d normal,
@@ -129,9 +164,12 @@ public final class FieldHeightmap {
      * three separate intersection routines.
      *
      * <p>What counts as blocked is a <em>step</em>, not a height. A robot at the top of a ramp is two
-     * metres above the carpet and perfectly happy; a robot against a 6&nbsp;cm lip is stuck. So the
-     * test compares each cell against the ground under the robot's centre, which is the surface it is
-     * actually standing on.
+     * metres above the carpet and perfectly happy; a robot against a 6&nbsp;cm lip is stuck. The step
+     * is measured between neighbouring samples. This used to compare every sample against the ground
+     * under the robot's centre, which made the limit apply across half the robot's length instead of
+     * across one cell: a metre-long ramp rising 2&nbsp;cm per cell reads as a 10&nbsp;cm wall at the
+     * front bumper, so nothing on the field was climbable and {@link Verdict#groundHeight()} never
+     * left the carpet. Cell to cell, the same ramp is 2&nbsp;cm at a time and a lip is still a lip.
      *
      * @param pose        where the robot is
      * @param halfLength  half its bumper-to-bumper length, in metres
@@ -143,10 +181,6 @@ public final class FieldHeightmap {
             Pose2d pose, double halfLength, double halfWidth, double robotHeight, double climbLimit) {
 
         double limit = climbLimit > 0 ? climbLimit : DEFAULT_CLIMB_LIMIT;
-        double standing = heightAt(pose.getX(), pose.getY());
-        if (!Double.isFinite(standing)) {
-            standing = 0.0;   // centre is off the field; treat the carpet as the reference
-        }
 
         Rotation2d rotation = pose.getRotation();
         double c = rotation.getCos();
@@ -154,60 +188,131 @@ public final class FieldHeightmap {
 
         int stepsL = Math.max(1, (int) Math.ceil(halfLength / cell));
         int stepsW = Math.max(1, (int) Math.ceil(halfWidth / cell));
+        int alongL = 2 * stepsL + 1;
+        int alongW = 2 * stepsW + 1;
+        int samples = alongL * alongW;
 
-        double worstStep = 0.0;
+        // A cell whose height is above its own clearance never recorded a floor — the height grid
+        // caught the bar, not the carpet under it — so it borrows the ground beneath the centre.
+        // Off the field, or with the centre itself under a bar, carpet is the only honest guess.
+        double centreHeight = heightAt(pose.getX(), pose.getY());
+        double centreClearance = clearanceAt(pose.getX(), pose.getY());
+        double reference =
+                Double.isFinite(centreHeight) && centreClearance >= centreHeight ? centreHeight : 0.0;
+
+        double[] floor = new double[samples];
+        double[] roof = new double[samples];
+        double[] sampleX = new double[samples];
+        double[] sampleY = new double[samples];
+        boolean[] offField = new boolean[samples];
+
+        double highestGround = reference;
         double lowestClearance = OPEN_SKY;
-        double highestGround = standing;
-        Translation2d escape = null;
-        String reason = null;
 
-        for (int i = -stepsL; i <= stepsL; i++) {
-            for (int j = -stepsW; j <= stepsW; j++) {
-                double lx = (i / (double) stepsL) * halfLength;
-                double ly = (j / (double) stepsW) * halfWidth;
+        for (int i = 0; i < alongL; i++) {
+            for (int j = 0; j < alongW; j++) {
+                double lx = ((i - stepsL) / (double) stepsL) * halfLength;
+                double ly = ((j - stepsW) / (double) stepsW) * halfWidth;
                 double x = pose.getX() + lx * c - ly * s;
                 double y = pose.getY() + lx * s + ly * c;
 
+                int k = i * alongW + j;
+                sampleX[k] = x;
+                sampleY[k] = y;
+
                 double h = heightAt(x, y);
-                boolean offField = !Double.isFinite(h);
-                double step = offField ? Double.POSITIVE_INFINITY : h - standing;
+                if (!Double.isFinite(h)) {
+                    offField[k] = true;
+                    floor[k] = reference;
+                    roof[k] = OPEN_SKY;   // the field edge is the verdict; headroom is irrelevant
+                    continue;
+                }
 
                 double over = clearanceAt(x, y);
-                if (over < lowestClearance) {
-                    lowestClearance = over;
-                }
-                if (!offField && h > highestGround && step <= limit) {
-                    highestGround = h;   // riding up onto something climbable
-                }
+                floor[k] = over >= h ? h : reference;
+                roof[k] = over;
 
-                boolean tooTall = step > limit;
-                boolean tooLow = over < robotHeight && over < step + robotHeight;
+                highestGround = Math.max(highestGround, floor[k]);
+                lowestClearance = Math.min(lowestClearance, over);
+            }
+        }
 
-                if (tooTall || (tooLow && over < robotHeight)) {
-                    double severity = offField ? 1e3 : Math.max(step, robotHeight - over);
-                    if (severity > worstStep) {
-                        worstStep = severity;
-                        // Push back toward the robot's centre — away from whatever it has run into.
-                        double dx = pose.getX() - x;
-                        double dy = pose.getY() - y;
-                        double norm = Math.hypot(dx, dy);
-                        escape = norm < 1e-6
-                                ? new Translation2d(1, 0)
-                                : new Translation2d(dx / norm, dy / norm);
-                        reason = offField ? "off the field"
-                                : tooTall ? String.format("%.0f cm step", step * 100)
-                                : String.format("%.0f cm clearance", over * 100);
-                    }
+        Worst worst = new Worst();
+
+        for (int k = 0; k < samples; k++) {
+            if (offField[k]) {
+                worst.offer(1e3, k, "off the field");
+                continue;
+            }
+            if (isOpenSky(roof[k])) {
+                continue;   // the sentinel is not a ceiling, so subtracting ground from it means nothing
+            }
+            // A chassis is rigid: it rides on the highest ground under it, so headroom is measured
+            // from there rather than from each cell's own floor.
+            double headroom = roof[k] - highestGround;
+            if (headroom < robotHeight) {
+                worst.offer(robotHeight - headroom, k,
+                        String.format("%.0f cm clearance", roof[k] * 100));
+            }
+        }
+
+        // Steps only exist between samples. The lattice is spaced at most one cell apart, so this is
+        // the per-cell rise the climb limit is defined against.
+        for (int i = 0; i < alongL; i++) {
+            for (int j = 0; j < alongW; j++) {
+                int k = i * alongW + j;
+                if (offField[k]) {
+                    continue;
+                }
+                if (i + 1 < alongL) {
+                    offerStep(worst, floor, offField, k, (i + 1) * alongW + j, limit);
+                }
+                if (j + 1 < alongW) {
+                    offerStep(worst, floor, offField, k, k + 1, limit);
                 }
             }
         }
 
-        if (escape == null) {
+        if (worst.at < 0) {
             return new Verdict(false, Translation2d.kZero, 0, highestGround, lowestClearance, "clear");
         }
+        // Push back toward the robot's centre — away from whatever it has run into.
+        double dx = pose.getX() - sampleX[worst.at];
+        double dy = pose.getY() - sampleY[worst.at];
+        double norm = Math.hypot(dx, dy);
+        Translation2d escape = norm < 1e-6
+                ? new Translation2d(1, 0)
+                : new Translation2d(dx / norm, dy / norm);
         // Penetration is not measurable from a heightmap, so back out by a cell at a time and let
         // repeated resolution converge rather than inventing a distance.
-        return new Verdict(true, escape, cell, highestGround, lowestClearance, reason);
+        return new Verdict(true, escape, cell, highestGround, lowestClearance, worst.reason);
+    }
+
+    /** A step between two neighbouring samples, blamed on whichever of the pair is higher. */
+    private static void offerStep(
+            Worst worst, double[] floor, boolean[] offField, int a, int b, double limit) {
+        if (offField[b]) {
+            return;   // already reported as off the field, and its floor is a stand-in, not a surface
+        }
+        double rise = Math.abs(floor[b] - floor[a]);
+        if (rise > limit) {
+            worst.offer(rise, floor[b] > floor[a] ? b : a, String.format("%.0f cm step", rise * 100));
+        }
+    }
+
+    /** The worst thing found under the footprint, kept so the verdict can point away from it. */
+    private static final class Worst {
+        double severity;
+        int at = -1;
+        String reason;
+
+        void offer(double candidate, int index, String why) {
+            if (candidate > severity) {
+                severity = candidate;
+                at = index;
+                reason = why;
+            }
+        }
     }
 
     /** Load a heightmap written by {@code npm run field-collision}. */
@@ -241,15 +346,22 @@ public final class FieldHeightmap {
         if (at < 0) {
             throw new IllegalArgumentException("heightmap is missing \"" + key + "\"");
         }
-        int colon = json.indexOf(':', at);
-        int end = colon + 1;
+        // Skip whitespace BEFORE scanning the number, not after. The other way round, a single space
+        // after the colon ends the digit scan immediately and then walks the start past the end, so
+        // the substring throws. It only ever worked because the generator emits no whitespace — which
+        // is a property of one script in another repository, not something to rely on.
+        int start = json.indexOf(':', at) + 1;
+        while (start < json.length() && Character.isWhitespace(json.charAt(start))) {
+            start++;
+        }
+        int end = start;
         while (end < json.length() && "-+.eE0123456789".indexOf(json.charAt(end)) >= 0) {
             end++;
         }
-        while (end < json.length() && json.charAt(colon + 1) == ' ') {
-            colon++;
+        if (end == start) {
+            throw new IllegalArgumentException("heightmap has no number after \"" + key + "\"");
         }
-        return Double.parseDouble(json.substring(colon + 1, end).trim());
+        return Double.parseDouble(json.substring(start, end));
     }
 
     private static double[] millimetreArray(String json, String key, int expected) {

@@ -65,14 +65,36 @@ public class RobotContainer {
 
     // ===================== REBUILT (2026) field model =====================
     // Researched from the FIRST REBUILT game manual + field drawings. The field
-    // is 54 ft x 27 ft (16.54 m x 8.21 m). Each alliance HUB is a 47" structure
-    // 158.6" (4.03 m) from its alliance wall; robots shoot Fuel up into the hex
-    // opening on top. BUMPS (73", 15deg, traversable) flank each hub; TRENCHES
-    // run the perimeter; the DEPOT/OUTPOST feed fuel; the TOWER is the endgame
-    // climb. (Geometry is faithful to the manual; exact CAD coords drop in here.)
+    // is 54 ft x 27 ft, taken here as 16.54 m x 8.07 m. Each alliance HUB is a
+    // 47" structure 158.6" (4.03 m) from its alliance wall; robots shoot Fuel up
+    // into the hex opening on top. BUMPS (73", 15deg, traversable) flank each hub;
+    // TRENCHES run the perimeter; the DEPOT/OUTPOST feed fuel; the TOWER is the
+    // endgame climb. (Geometry is faithful to the manual; exact CAD coords drop
+    // in here.)
+    //
+    // This comment used to quote 8.21 m while the constant below said 8.07 — it
+    // read as the justification for a number it contradicted.
+    /**
+     * Field size to use when <em>no</em> CAD map is deployed, and nothing else.
+     *
+     * <p>The deployed heightmap header is the authority whenever there is one. Read these two
+     * directly on a path that also runs with a map loaded and the two descriptions of the field drift
+     * apart; call {@link #fieldLength()} / {@link #fieldWidth()} instead. SimCockpit names its pair
+     * {@code FW_FALLBACK} / {@code FH_FALLBACK} for exactly this reason — these carried no such marker,
+     * which is how the opponent clamp and the /state feed kept reading them.
+     */
     private static final double FIELD_W = 16.54, FIELD_H = 8.07;
-    private static final double CENTER_X = FIELD_W / 2.0;
-    private static final double ROBOT_R = 0.45;          // robot half-extent (m)
+    /** Half the bumper-to-bumper size of this (square) 0.9 m robot, in metres. */
+    private static final double ROBOT_HALF_EXTENT = 0.45;
+    /**
+     * The same robot expressed as a disc, for the tests that only know about circles.
+     *
+     * <p>A square does not fit inside a circle of its half-extent — the corners reach a further 41% out,
+     * 0.186 m here. The circular hub, tower and opponent tests below used to be handed the half-extent,
+     * so a corner could sink that far into a hub before anything pushed back. Box tests (the heightmap,
+     * {@link CollisionField}) want the half-extent; circle tests want this.
+     */
+    private static final double ROBOT_RADIUS = ROBOT_HALF_EXTENT * Math.sqrt(2.0);
     private static final double ROBOT_MASS_KG = 55.0;
 
     /**
@@ -92,8 +114,28 @@ public class RobotContainer {
     private static final FieldHeightmap HEIGHTMAP = FieldHeightmap.tryLoad(
             Filesystem.getDeployDirectory().toPath().resolve("field-collision.json")).orElse(null);
 
+    /**
+     * How long the field is, along +x, in metres: the deployed map when there is one, the fallback
+     * constant otherwise.
+     *
+     * <p>Every runtime use of the field size goes through this and {@link #fieldWidth()}. The opponent
+     * clamp and the /state feed used to read the constants straight, so a deployment with a map got an
+     * opponent penned into the wrong rectangle and a state feed asserting a field size the map
+     * contradicted.
+     */
+    private static double fieldLength() {
+        return HEIGHTMAP != null ? HEIGHTMAP.lengthMeters() : FIELD_W;
+    }
+
+    /** How wide the field is, along +y, in metres. See {@link #fieldLength()}. */
+    private static double fieldWidth() {
+        return HEIGHTMAP != null ? HEIGHTMAP.widthMeters() : FIELD_H;
+    }
+
     private static final double ROBOT_TALL = 0.85;
 
+    // The constants are right here: this whole model is the no-map fallback, and is only ever
+    // consulted below when HEIGHTMAP is null.
     private static final CollisionField COLLISION = CollisionField.rectangular(FIELD_W, FIELD_H)
             .addObstacle("blue hub", new Translation2d(4.03, FIELD_H / 2), 0.6, 0.6,
                     ContactMaterial.ALUMINIUM)
@@ -111,6 +153,13 @@ public class RobotContainer {
     private static final double TOWER_R = 0.42;
 
     // Our robot is on the BLUE alliance and scores into the BLUE hub.
+    //
+    // Known seam, not an oversight: this is a hand-placed coordinate, and the cockpit now resolves its
+    // hub cues against the deployed CAD map. With a map loaded the two can disagree — aiming and the
+    // 0.8 m hit test in fireShot() work off the number here while the hub is drawn where the map puts
+    // it, so a shot can score while looking like it missed (or the reverse). Reconciling them means
+    // sourcing the hub from the map, which is a larger change than anyone has signed up for; until
+    // then, believe this coordinate for scoring and the map for drawing.
     private static final Translation2d GOAL = BLUE_HUB;
 
     /** Impassable structures: {centerX, centerY, radius}. Hubs + towers. */
@@ -537,9 +586,16 @@ public class RobotContainer {
         // bounces off polycarbonate differently from a padded field element, and reports the impact.
         Pose2d here = new Pose2d(poseX, poseY, new Rotation2d(heading));
 
+        // Whichever branch resolves the contact, it only resolves the contact: everything after this
+        // block runs either way. The heightmap branch used to return from simPeriodic() once it was
+        // done, which silently switched off the solver, the shooting and the opponent for anyone who
+        // had deployed the CAD map — the turret sat on whatever solution it last computed and never
+        // tracked again. The showcase stopped being a showcase and nothing said so.
         if (HEIGHTMAP != null) {
+            // The map already describes the perimeter, the hubs and everything else in the CAD, so the
+            // rectangle-and-two-boxes model below is redundant here rather than complementary.
             for (int pass = 0; pass < 3; pass++) {
-                var verdict = HEIGHTMAP.test(here, ROBOT_R, ROBOT_R, ROBOT_TALL, 0);
+                var verdict = HEIGHTMAP.test(here, ROBOT_HALF_EXTENT, ROBOT_HALF_EXTENT, ROBOT_TALL, 0);
                 groundHeight = verdict.groundHeight();
                 if (!verdict.blocked()) break;
                 poseX += verdict.normal().getX() * verdict.penetration();
@@ -555,50 +611,48 @@ public class RobotContainer {
                 here = new Pose2d(poseX, poseY, new Rotation2d(heading));
             }
             CatalystLog.log("Physics/GroundHeight", groundHeight);
-            stateJson = buildStateJson();
-            publishForConsole();
-            return;
-        }
+        } else {
+            var hit = COLLISION.contact(here, ROBOT_HALF_EXTENT, ROBOT_HALF_EXTENT);
+            if (hit.isPresent()) {
+                var contact = hit.get();
+                poseX += contact.normal().getX() * contact.penetration();
+                poseY += contact.normal().getY() * contact.penetration();
 
-        var hit = COLLISION.contact(here, ROBOT_R, ROBOT_R);
-        if (hit.isPresent()) {
-            var contact = hit.get();
-            poseX += contact.normal().getX() * contact.penetration();
-            poseY += contact.normal().getY() * contact.penetration();
+                var after = ContactResolver.resolveAgainstStatic(
+                        new Translation3d(velX, velY, 0),
+                        new Translation3d(contact.normal().getX(), contact.normal().getY(), 0),
+                        ROBOT_MASS_KG, ContactMaterial.BUMPER, contact.material());
 
-            var after = ContactResolver.resolveAgainstStatic(
-                    new Translation3d(velX, velY, 0),
-                    new Translation3d(contact.normal().getX(), contact.normal().getY(), 0),
-                    ROBOT_MASS_KG, ContactMaterial.BUMPER, contact.material());
-
-            if (after.resolved()) {
-                double impact = Math.hypot(after.velocityA().getX() - velX,
-                                           after.velocityA().getY() - velY) / 0.02;
-                CatalystLog.log("Physics/Collision/Timestamp", simClock);
-                CatalystLog.log("Physics/Collision/MpsSq", impact);
-                CatalystLog.log("Physics/Collision/Newtons", impact * ROBOT_MASS_KG);
+                if (after.resolved()) {
+                    double impact = Math.hypot(after.velocityA().getX() - velX,
+                                               after.velocityA().getY() - velY) / 0.02;
+                    CatalystLog.log("Physics/Collision/Timestamp", simClock);
+                    CatalystLog.log("Physics/Collision/MpsSq", impact);
+                    CatalystLog.log("Physics/Collision/Newtons", impact * ROBOT_MASS_KG);
+                }
+                velX = after.velocityA().getX();
+                velY = after.velocityA().getY();
             }
-            velX = after.velocityA().getX();
-            velY = after.velocityA().getY();
-        }
 
-        // The scoring-relevant field elements the cockpit already knew about, kept for the drawing.
-        for (double[] o : OBSTACLES) {
-            double dx = poseX - o[0], dy = poseY - o[1];
-            double d = Math.hypot(dx, dy);
-            double minD = o[2] + ROBOT_R;
-            if (d < minD && d > 1e-6) {
-                double nxn = dx / d, nyn = dy / d;
-                poseX = o[0] + nxn * minD;
-                poseY = o[1] + nyn * minD;
-                double into = velX * nxn + velY * nyn;   // velocity into the obstacle
-                if (into < 0) { velX -= into * nxn; velY -= into * nyn; }
+            // The scoring-relevant field elements the cockpit already knew about, kept for the drawing.
+            for (double[] o : OBSTACLES) {
+                double dx = poseX - o[0], dy = poseY - o[1];
+                double d = Math.hypot(dx, dy);
+                double minD = o[2] + ROBOT_RADIUS;
+                if (d < minD && d > 1e-6) {
+                    double nxn = dx / d, nyn = dy / d;
+                    poseX = o[0] + nxn * minD;
+                    poseY = o[1] + nyn * minD;
+                    double into = velX * nxn + velY * nyn;   // velocity into the obstacle
+                    if (into < 0) { velX -= into * nxn; velY -= into * nyn; }
+                }
             }
         }
 
         // Opponent / defense bot collision (a moving obstacle you must dodge).
         if (opponentOn) {
-            double dx = poseX - oppX, dy = poseY - oppY, d = Math.hypot(dx, dy), minD = OPP_R + ROBOT_R;
+            double dx = poseX - oppX, dy = poseY - oppY, d = Math.hypot(dx, dy),
+                    minD = OPP_R + ROBOT_RADIUS;
             if (d < minD && d > 1e-6) {
                 double nx = dx / d, ny = dy / d;
                 poseX = oppX + nx * minD; poseY = oppY + ny * minD;
@@ -747,8 +801,9 @@ public class RobotContainer {
         sb.append('{');
         sb.append("\"enabled\":").append(enabled).append(',');
         sb.append("\"mode\":\"Teleop\",");
-        sb.append("\"field\":{\"w\":").append(FIELD_W).append(",\"h\":").append(FIELD_H).append("},");
-        sb.append("\"robotR\":").append(ROBOT_R).append(',');
+        sb.append("\"field\":{\"w\":").append(f(fieldLength())).append(",\"h\":").append(f(fieldWidth())).append("},");
+        // The cockpit draws a square of side 2*robotR, so this is the half-extent, not the disc radius.
+        sb.append("\"robotR\":").append(ROBOT_HALF_EXTENT).append(',');
         sb.append("\"matchTime\":").append(f(Math.max(0.0, MATCH_SECONDS - (simClock - matchStart)))).append(',');
         sb.append("\"obstacles\":[");
         for (int i = 0; i < OBSTACLES.length; i++) {
@@ -757,7 +812,7 @@ public class RobotContainer {
               .append(",\"r\":").append(f(OBSTACLES[i][2])).append('}');
         }
         sb.append("],");
-        sb.append("\"fieldEls\":{\"centerX\":").append(f(CENTER_X)).append(",\"allianceZone\":").append(f(ALLIANCE_ZONE))
+        sb.append("\"fieldEls\":{\"centerX\":").append(f(fieldLength() / 2.0)).append(",\"allianceZone\":").append(f(ALLIANCE_ZONE))
           .append(",\"redHub\":{\"x\":").append(f(RED_HUB.getX())).append(",\"y\":").append(f(RED_HUB.getY())).append(",\"r\":").append(f(HUB_R)).append('}')
           .append(",\"blueHub\":{\"x\":").append(f(BLUE_HUB.getX())).append(",\"y\":").append(f(BLUE_HUB.getY())).append(",\"r\":").append(f(HUB_R)).append('}')
           .append(",\"redTower\":{\"x\":").append(f(RED_TOWER.getX())).append(",\"y\":").append(f(RED_TOWER.getY())).append(",\"r\":").append(f(TOWER_R)).append('}')
@@ -960,8 +1015,8 @@ public class RobotContainer {
         double tvx = d > 0.1 ? dx / d * sp : 0, tvy = d > 0.1 ? dy / d * sp : 0;
         oppVx += clamp(tvx - oppVx, -st, st);
         oppVy += clamp(tvy - oppVy, -st, st);
-        oppX = clamp(oppX + oppVx * 0.02, OPP_R, FIELD_W - OPP_R);
-        oppY = clamp(oppY + oppVy * 0.02, OPP_R, FIELD_H - OPP_R);
+        oppX = clamp(oppX + oppVx * 0.02, OPP_R, fieldLength() - OPP_R);
+        oppY = clamp(oppY + oppVy * 0.02, OPP_R, fieldWidth() - OPP_R);
     }
 
     /**
