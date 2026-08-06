@@ -241,7 +241,28 @@ class FieldHeightmapTest {
     void drivingOffTheFieldIsBlocked() {
         var v = testField().test(new Pose2d(-0.2, 0.5, Rotation2d.kZero), HALF, HALF, TALL, 0);
         assertTrue(v.blocked());
-        assertEquals("off the field", v.reason());
+        // Containment reports how far out it is rather than a bare label, because that depth is what
+        // recovers the robot in one step instead of nudging it a cell at a time.
+        assertTrue(v.reason().contains("outside the field"), v.reason());
+        assertEquals(0.35, v.penetration(), 1e-9);
+        assertEquals(1.0, v.normal().getX(), 1e-9);
+    }
+
+    @Test
+    void theRobotCannotLeaveTheMapEvenWhereTheCadHasNoWall() {
+        // The CAD's guardrails fall outside the cropped carpet, so on the real map the long sides
+        // carry wall in 0.6% of their cells against 51% and 37% on the ends. Containment cannot
+        // depend on the terrain having a wall in it.
+        FieldHeightmap f = testField();
+        for (double y : new double[] {-0.4, 0.5, 1.4}) {
+            for (double x : new double[] {-0.4, 1.0, 2.4}) {
+                if (x > 0 && x < 2.0 && y > 0 && y < 1.0) continue;
+                var v = f.test(new Pose2d(x, y, Rotation2d.kZero), HALF, HALF, TALL, 0);
+                assertTrue(v.blocked(), "escaped the map at " + x + ", " + y);
+                assertTrue(v.penetration() > 0, "an escape needs a real depth to recover from");
+                assertTrue(v.normal().getNorm() > 0.5, "and a direction back in");
+            }
+        }
     }
 
     // ------------------------------------------------------- how deep, and which way (see #14)

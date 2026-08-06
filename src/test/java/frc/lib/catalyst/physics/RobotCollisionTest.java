@@ -316,7 +316,11 @@ class RobotCollisionTest {
         sim.stop();
         sim.step(50);
 
-        assertEquals(6.0, sim.truePose().getX(), 1e-9, "at rest outside the field it should stay put");
+        // It used to be asserted that a stranded robot stays put, which was the best that could be
+        // said when the only alternative was being flung further out. Containment can do better: the
+        // map boundary is a wall with a measured depth, so a robot outside it is walked back in.
+        assertTrue(sim.truePose().getX() < 6.0,
+                "it should be recovered toward the field, got x=" + sim.truePose().getX());
         assertTrue(sim.lastContact().isPresent());
         assertTrue(sim.lastContact().get().normal().getX() < 0,
                 "and the way home is back toward the field, got " + sim.lastContact().get().normal());

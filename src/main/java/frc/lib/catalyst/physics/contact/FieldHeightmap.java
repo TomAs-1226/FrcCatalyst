@@ -288,6 +288,38 @@ public final class FieldHeightmap {
             return new Verdict(false, Translation2d.kZero, 0, support, lowestClearance, "clear");
         }
 
+        /* Containment is absolute, and it is checked before anything derived from the samples.
+         *
+         * The map covers the carpet, and on this field the CAD's guardrails fall outside that crop —
+         * rows 0 and 160 carry wall in 0.6% of their cells against 51% and 37% on the ends. So the
+         * long sides have no wall in the data at all, and a robot that reaches them simply walks off
+         * the edge of the map and keeps going.
+         *
+         * Relying on the sample loop to catch that does not work: once the footprint is outside, the
+         * escape depth comes from a search along the normal that has nothing left to find, and the
+         * push-out is smaller than the distance travelled in a step. The robot escapes faster than it
+         * is recovered.
+         *
+         * The map boundary is therefore treated as a wall in its own right, with a penetration that is
+         * computed rather than searched for. Whatever the terrain says, the footprint cannot leave. */
+        double[] extent = axisExtents(pose.getRotation(), halfLength, halfWidth);
+        double outLow = extent[0] - pose.getX();
+        double outHigh = (pose.getX() + extent[0]) - length;
+        double outNear = extent[1] - pose.getY();
+        double outFar = (pose.getY() + extent[1]) - width;
+
+        double outside = 0;
+        Translation2d inward = null;
+        if (outLow > outside) { outside = outLow; inward = new Translation2d(1, 0); }
+        if (outHigh > outside) { outside = outHigh; inward = new Translation2d(-1, 0); }
+        if (outNear > outside) { outside = outNear; inward = new Translation2d(0, 1); }
+        if (outFar > outside) { outside = outFar; inward = new Translation2d(0, -1); }
+
+        if (inward != null) {
+            return new Verdict(true, inward, outside, support, lowestClearance,
+                    String.format("%.0f cm outside the field", outside * 100));
+        }
+
         Translation2d escape = escapeDirection(
                 pose, sampleX, sampleY, blocked, blockedCount,
                 support, robotHeight, limit, halfLength, halfWidth);
@@ -472,6 +504,19 @@ public final class FieldHeightmap {
 
     private static double clamp(double value, double low, double high) {
         return Math.max(low, Math.min(high, value));
+    }
+
+    /**
+     * How far an oriented robot reaches along each world axis.
+     *
+     * <p>Same reasoning as {@link CollisionField}: a robot at 45 degrees needs noticeably more room
+     * than one square to the wall, so a circumscribed radius would hold it too far off and a
+     * half-extent would let it corner through.
+     */
+    private static double[] axisExtents(Rotation2d rotation, double halfLength, double halfWidth) {
+        double c = Math.abs(rotation.getCos());
+        double s = Math.abs(rotation.getSin());
+        return new double[] {halfLength * c + halfWidth * s, halfLength * s + halfWidth * c};
     }
 
     /** Load a heightmap written by {@code npm run field-collision}. */
