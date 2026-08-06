@@ -27,7 +27,7 @@ A Java library of pre-built mechanism building blocks for FRC robots on Phoenix 
 
 ## Latest release
 
-**v1.7.0** validates **[Physics Core](advanced/physics.html)** against a ground-truth simulator, and adds a [guide to measuring your robot](advanced/physics-measurement.html). v1.6.0 completed it — the optional layer that watches how your
+**v1.8.0** makes the simulated field solid: robots and game pieces now collide with terrain and each other, and what happens depends on what they are made of. **v1.7.0** validated **[Physics Core](advanced/physics.html)** against a ground-truth simulator and added a [guide to measuring your robot](advanced/physics-measurement.html). v1.6.0 completed it — the optional layer that watches how your
 robot actually behaves. It fuses wheel odometry and the IMU into one velocity with an honest
 confidence attached, scores which wheel is lying when a tyre breaks loose, notices when something hit
 the robot, and predicts where the robot will be at the instant a shot leaves it. On top of v1.5.0's

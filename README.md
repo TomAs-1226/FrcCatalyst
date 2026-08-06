@@ -59,7 +59,7 @@ repositories {
 }
 
 dependencies {
-    implementation "com.github.TomAs-1226:FrcCatalyst:v1.7.0"
+    implementation "com.github.TomAs-1226:FrcCatalyst:v1.8.0"
 }
 ```
 </details>
@@ -99,6 +99,22 @@ operatorController.b().onTrue(elevator.goTo("STOW"));
 ```
 
 ---
+
+## v1.8.0: Contact physics
+
+Simulated robots used to drive through walls, and game pieces did not exist. Both are now solid, and
+what happens when they meet depends on what they are made of — a foam ball dies on carpet and comes
+back off the polycarbonate, because `ContactMaterial` carries that difference rather than a single
+global bounciness.
+
+`CollisionField` holds the solid parts of the field and treats the robot as an oriented box, since a
+robot at 45 degrees needs noticeably more room than one square to the wall. `SimulatedRobot` takes an
+opt-in collision field, and an impact leaves the wheel velocity alone on purpose: a swerve wheel
+measures rolling along its own axis, so a robot stopped dead by a wall has encoders still claiming
+forward motion. That gap is exactly what `DisturbanceEstimator` decomposes, and it only exists if the
+simulation reproduces it.
+
+44 new tests, including a test autonomous routine checked against ground truth. 369 in total.
 
 ## v1.7.0: Physics Core validated in simulation
 

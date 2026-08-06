@@ -8,7 +8,7 @@ nav_order: 9
 {: .no_toc }
 
 Where Catalyst stands against the rest of the FRC software ecosystem, and what comes next.
-Landscape researched June 2026; roadmap current as of **v1.7.0 (August 2026)**.
+Landscape researched June 2026; roadmap current as of **v1.8.0 (August 2026)**.
 {: .fs-6 .fw-300 }
 
 ## Table of contents

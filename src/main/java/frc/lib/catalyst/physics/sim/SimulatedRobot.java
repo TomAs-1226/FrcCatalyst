@@ -1,15 +1,20 @@
 package frc.lib.catalyst.physics.sim;
 
+import java.util.Optional;
 import java.util.Random;
 
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
+import edu.wpi.first.math.geometry.Translation3d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
 
 import frc.lib.catalyst.physics.PhysicsSample;
+import frc.lib.catalyst.physics.contact.CollisionField;
+import frc.lib.catalyst.physics.contact.ContactMaterial;
+import frc.lib.catalyst.physics.contact.ContactResolver;
 import frc.lib.catalyst.physics.model.DrivetrainModel;
 import frc.lib.catalyst.physics.model.RobotModel;
 
@@ -88,6 +93,14 @@ public final class SimulatedRobot {
     private final Random random;
 
     /** Ground truth. */
+    /** Passes per step. Two is enough to settle a corner; more is wasted work. */
+    private static final int COLLISION_PASSES = 3;
+
+    private final CollisionField collisionField;
+    private final Pose2d startingPose;
+    private CollisionField.Contact lastContact = null;
+    private int collisions = 0;
+
     private Pose2d truePose = Pose2d.kZero;
     private Translation2d trueVelocity = Translation2d.kZero;
     private Translation2d trueAcceleration = Translation2d.kZero;
@@ -109,6 +122,10 @@ public final class SimulatedRobot {
 
     private SimulatedRobot(Builder builder) {
         this.robotModel = builder.robotModel;
+        this.collisionField = builder.collisionField;
+        this.startingPose = builder.startingPose;
+        this.truePose = builder.startingPose;
+        this.odometryPose = builder.startingPose;
         this.drivetrain = new DrivetrainModel(builder.robotModel);
         this.kinematics = builder.kinematics;
         this.moduleCount = builder.moduleCount;
@@ -249,6 +266,7 @@ public final class SimulatedRobot {
 
         truePose = new Pose2d(truePose.getTranslation().plus(trueVelocity.times(dt)),
                 new Rotation2d(heading2));
+        resolveCollisions();
         // Odometry integrates the wheels, so a slip displaces it permanently - exactly like a real
         // drivetrain pose estimator with no absolute correction.
         odometryPose = new Pose2d(odometryPose.getTranslation().plus(wheelVelocity.times(dt)),
@@ -256,6 +274,83 @@ public final class SimulatedRobot {
 
         externalAcceleration = Translation2d.kZero;
         timestamp += dt;
+    }
+
+    /**
+     * Push the robot back out of anything it has driven into, and take the speed off it.
+     *
+     * <p>Nothing happens unless a {@link CollisionField} was configured, so every simulation written
+     * before collision existed behaves exactly as it did.
+     *
+     * <p>The velocity change is deliberately left in {@link #trueVelocity} without touching
+     * {@link #wheelVelocity}. That is not an oversight — it is the whole reason a collision is
+     * detectable. A swerve wheel measures rolling along its own axis, so when the robot is stopped
+     * dead by a wall the encoders carry on reporting the speed the drivetrain is still commanding.
+     * The gap between what the wheels claim and what the accelerometer felt is exactly the signal
+     * {@code DisturbanceEstimator} decomposes, and it only exists if the sim reproduces it.
+     *
+     * <p>Contacts are resolved one at a time across a few passes rather than all at once: in a corner
+     * two walls both want to push, and solving them simultaneously produces a robot that jitters
+     * between them instead of settling into the corner.
+     */
+    private void resolveCollisions() {
+        if (collisionField == null) {
+            return;
+        }
+        double halfLength = robotModel.wheelBaseMeters() / 2.0;
+        double halfWidth = robotModel.trackWidthMeters() / 2.0;
+
+        for (int pass = 0; pass < COLLISION_PASSES; pass++) {
+            var found = collisionField.contact(truePose, halfLength, halfWidth);
+            if (found.isEmpty()) {
+                return;
+            }
+            var hit = found.get();
+            lastContact = hit;
+
+            // Out of the wall first, so the next pass sees a clean geometry.
+            truePose = new Pose2d(
+                    truePose.getTranslation().plus(hit.normal().times(hit.penetration())),
+                    truePose.getRotation());
+
+            Translation3d before = new Translation3d(trueVelocity.getX(), trueVelocity.getY(), 0);
+            var after = ContactResolver.resolveAgainstStatic(
+                    before,
+                    new Translation3d(hit.normal().getX(), hit.normal().getY(), 0),
+                    robotModel.massKg(),
+                    ContactMaterial.BUMPER,
+                    hit.material());
+
+            if (!after.resolved()) {
+                return;   // already moving away; pushing further would only add energy
+            }
+            Translation2d resolved =
+                    new Translation2d(after.velocityA().getX(), after.velocityA().getY());
+            // The acceleration the IMU would have felt: the whole velocity change in one loop.
+            trueAcceleration = trueAcceleration.plus(resolved.minus(trueVelocity).div(dt));
+            trueVelocity = resolved;
+            collisions++;
+        }
+    }
+
+    /** How many contacts have been resolved since construction or the last {@link #reset()}. */
+    public int collisionCount() {
+        return collisions;
+    }
+
+    /** The most recent contact, or empty if the robot has not hit anything. */
+    public Optional<CollisionField.Contact> lastContact() {
+        return Optional.ofNullable(lastContact);
+    }
+
+    /** Whether the robot is touching something right now. */
+    public boolean isTouchingField() {
+        if (collisionField == null) return false;
+        return collisionField
+                .contact(truePose,
+                        robotModel.wheelBaseMeters() / 2.0,
+                        robotModel.trackWidthMeters() / 2.0)
+                .isPresent();
     }
 
     /** Advance {@code loops} steps with the current command. */
@@ -367,8 +462,8 @@ public final class SimulatedRobot {
 
     /** Put everything back to the origin, at rest, at time zero. */
     public void reset() {
-        truePose = Pose2d.kZero;
-        odometryPose = Pose2d.kZero;
+        truePose = startingPose;
+        odometryPose = startingPose;
         trueVelocity = Translation2d.kZero;
         wheelVelocity = Translation2d.kZero;
         trueAcceleration = Translation2d.kZero;
@@ -379,6 +474,8 @@ public final class SimulatedRobot {
         frictionScale = 1.0;
         externalAcceleration = Translation2d.kZero;
         commandedRobotRelative = new ChassisSpeeds();
+        lastContact = null;
+        collisions = 0;
         clearModuleSlipBias();
     }
 
@@ -395,6 +492,8 @@ public final class SimulatedRobot {
     /** Builder for {@link SimulatedRobot}. */
     public static final class Builder {
         private RobotModel robotModel;
+        private CollisionField collisionField = null;
+        private Pose2d startingPose = Pose2d.kZero;
         private SwerveDriveKinematics kinematics;
         private int moduleCount = 4;
         private double loopPeriod = 0.02;
@@ -486,6 +585,31 @@ public final class SimulatedRobot {
         }
 
         /** Seed for the noise generator. Same seed, same run, every time. Defaults to a fixed value. */
+        /**
+         * Where the robot starts, and where {@link SimulatedRobot#reset()} puts it back.
+         *
+         * <p>Defaults to the origin, which was fine when nothing was solid but is the inside of the
+         * corner once a {@link CollisionField} exists. Any simulation with collision wants a real
+         * starting pose — the same one the auto would actually begin from.
+         */
+        public Builder startingPose(Pose2d pose) {
+            this.startingPose = pose;
+            return this;
+        }
+
+        /**
+         * Make the field solid.
+         *
+         * <p>Without this the robot drives through walls, which is the historical behaviour and is
+         * what every simulation written before collision existed expects. With it, the robot is
+         * stopped by the perimeter and by whatever obstacles the field carries, and the impact shows
+         * up in the accelerometer where {@code PhysicsCore} can see it.
+         */
+        public Builder collisionField(CollisionField field) {
+            this.collisionField = field;
+            return this;
+        }
+
         public Builder seed(long seed) {
             this.seed = seed;
             return this;

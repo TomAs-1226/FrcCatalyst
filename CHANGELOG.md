@@ -5,7 +5,59 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.8.0] — 2026-08-05 — Contact physics
+
+Simulated robots used to drive through walls. Game pieces did not exist. Both are now solid, and what
+happens when they meet depends on what they are made of.
+
+### Added — `frc.lib.catalyst.physics.contact`
+
+- **`ContactMaterial`** — restitution, friction and rolling resistance, with presets for carpet,
+  polycarbonate, aluminium, foam game pieces, bumpers and tread. Pairs combine by geometric mean, the
+  rule Box2D and Bullet use. The point is that the same foam ball dies on carpet and comes back off the
+  wall; model both with one global bounciness and you get one of them wrong, usually the one that
+  matters.
+- **`ContactResolver`** — impulse resolution. The normal impulse sets the bounce; the tangential
+  impulse is clamped to the Coulomb cone, so a glancing hit differs by surface rather than only in how
+  high it bounces. Two details carry more weight than they look: restitution is suppressed below a
+  resting speed, or a ball on carpet bounces microscopically forever, and separating contacts are
+  skipped, or resolving them glues bodies together.
+- **`CollisionField`** — the solid parts of the field: a rectangle plus static obstacles, each with its
+  own material. The robot is treated as an oriented box, because a robot at 45° needs noticeably more
+  room than one square to the wall. Obstacle tests use the separating axis theorem and report the axis
+  of least overlap, which is the shortest way out and therefore the contact normal.
+- **`SimulatedGamePiece`** — a sphere with gravity, drag, floor and perimeter contact, rolling
+  resistance, and a bumper interaction that pushes out along the shallowest face, so a corner and a
+  flat shove a ball in visibly different directions.
+- **`SimulatedRobot.Builder.collisionField(...)`** — makes the field solid. Opt-in, so every simulation
+  written before this behaves exactly as it did. The velocity change is deliberately left out of the
+  wheel velocity: a swerve wheel measures rolling along its own axis, so a robot stopped dead by a wall
+  has encoders still claiming forward motion, and that gap is precisely what `DisturbanceEstimator`
+  decomposes. The collision is only detectable because the simulation reproduces it.
+- **`SimulatedRobot.Builder.startingPose(...)`** — where the robot starts and where `reset()` returns
+  it. The origin was fine when nothing was solid; it is the inside of the corner once it is.
+
+### Testing
+
+- **`ContactTest`**, **`RobotCollisionTest`**, **`AutoPathPhysicsTest`** — 44 new tests. The last is a
+  test autonomous routine driven through the simulator against ground truth: it accelerates, turns
+  while translating, then stops, and asserts distance covered, that rotation follows the commanded
+  sign, repeatability, that Physics Core tracks true speed within 0.75 m/s and its path within 1.5 m,
+  and that a game piece in the way ends up somewhere legal. A path that only drives straight would not
+  catch a rotation sign error, which is the mistake that actually ruins autos.
+
+369 tests, all HAL-free.
+
+### Fixed
+
+- **`LoopMonitor` churned its over-budget alert.** The edge-triggering was right but there was no
+  hysteresis, so a robot averaging exactly its budget — the common case, because that is what the loop
+  is tuned to — crossed the threshold in both directions every few loops and flooded the Driver Station
+  console with the same line. It now clears only once the average falls back to 90% of budget.
+
+---
+
+## [1.7.1] — 2026-08-05
 
 Found while wiring [Catalyst Console](https://github.com/TomAs-1226/CatalystConsole), a driver station
 companion dashboard, to a real robot: the telemetry it was written against was not at the path the docs
