@@ -15,8 +15,13 @@ import frc.lib.catalyst.behavior.Action;
 import frc.lib.catalyst.behavior.Strategist;
 import frc.lib.catalyst.goal.Goal;
 import frc.lib.catalyst.goal.GoalDirector;
+import edu.wpi.first.math.geometry.Translation3d;
+
 import frc.lib.catalyst.hardware.MotorType;
 import frc.lib.catalyst.logging.CatalystLog;
+import frc.lib.catalyst.physics.contact.CollisionField;
+import frc.lib.catalyst.physics.contact.ContactMaterial;
+import frc.lib.catalyst.physics.contact.ContactResolver;
 import frc.lib.catalyst.mechanisms.FlywheelMechanism;
 import frc.lib.catalyst.mechanisms.LinearMechanism;
 import frc.lib.catalyst.mechanisms.RollerMechanism;
@@ -65,7 +70,22 @@ public class RobotContainer {
     // climb. (Geometry is faithful to the manual; exact CAD coords drop in here.)
     private static final double FIELD_W = 16.54, FIELD_H = 8.21;
     private static final double CENTER_X = FIELD_W / 2.0;
-    private static final double ROBOT_R = 0.45;          // robot collision radius (m)
+    private static final double ROBOT_R = 0.45;          // robot half-extent (m)
+    private static final double ROBOT_MASS_KG = 55.0;
+
+    /**
+     * The solid perimeter, with the two alliance hubs in it.
+     *
+     * <p>Built from the library's own {@link CollisionField} so the showcase drives against the same
+     * contact physics a team's simulation would, rather than a private approximation that can quietly
+     * drift away from it.
+     */
+    private static final CollisionField COLLISION = CollisionField.rectangular(FIELD_W, FIELD_H)
+            .addObstacle("blue hub", new Translation2d(4.03, FIELD_H / 2), 0.6, 0.6,
+                    ContactMaterial.ALUMINIUM)
+            .addObstacle("red hub", new Translation2d(FIELD_W - 4.03, FIELD_H / 2), 0.6, 0.6,
+                    ContactMaterial.ALUMINIUM)
+            .build();
     private static final double ALLIANCE_ZONE = 4.03;    // zone depth from each wall (m)
 
     private static final Translation2d RED_HUB  = new Translation2d(4.03, 4.10);
@@ -496,14 +516,32 @@ public class RobotContainer {
         poseX += velX * 0.02;
         poseY += velY * 0.02;
 
-        // Field-wall collision (account for robot half-size).
-        if (poseX < ROBOT_R) { poseX = ROBOT_R; velX = 0; }
-        else if (poseX > FIELD_W - ROBOT_R) { poseX = FIELD_W - ROBOT_R; velX = 0; }
-        if (poseY < ROBOT_R) { poseY = ROBOT_R; velY = 0; }
-        else if (poseY > FIELD_H - ROBOT_R) { poseY = FIELD_H - ROBOT_R; velY = 0; }
+        // Collision, through the library's own contact physics rather than an ad-hoc push-out. The
+        // old version zeroed the velocity into a wall, which is restitution 0 for everything; this
+        // bounces off polycarbonate differently from a padded field element, and reports the impact.
+        var hit = COLLISION.contact(new Pose2d(poseX, poseY, new Rotation2d(heading)), ROBOT_R, ROBOT_R);
+        if (hit.isPresent()) {
+            var contact = hit.get();
+            poseX += contact.normal().getX() * contact.penetration();
+            poseY += contact.normal().getY() * contact.penetration();
 
-        // Obstacle collision: push the robot out of any field element it overlaps
-        // and kill the velocity component driving into it (so you can't pass through).
+            var after = ContactResolver.resolveAgainstStatic(
+                    new Translation3d(velX, velY, 0),
+                    new Translation3d(contact.normal().getX(), contact.normal().getY(), 0),
+                    ROBOT_MASS_KG, ContactMaterial.BUMPER, contact.material());
+
+            if (after.resolved()) {
+                double impact = Math.hypot(after.velocityA().getX() - velX,
+                                           after.velocityA().getY() - velY) / 0.02;
+                CatalystLog.log("Physics/Collision/Timestamp", simClock);
+                CatalystLog.log("Physics/Collision/MpsSq", impact);
+                CatalystLog.log("Physics/Collision/Newtons", impact * ROBOT_MASS_KG);
+            }
+            velX = after.velocityA().getX();
+            velY = after.velocityA().getY();
+        }
+
+        // The scoring-relevant field elements the cockpit already knew about, kept for the drawing.
         for (double[] o : OBSTACLES) {
             double dx = poseX - o[0], dy = poseY - o[1];
             double d = Math.hypot(dx, dy);
