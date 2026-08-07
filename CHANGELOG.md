@@ -5,6 +5,41 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.11.0] — 2026-08-07 — What the robot is made to do
+
+1.10.0 published what a robot is made of. Two robots with the same drivetrain, the same mass and the
+same fourteen motors can still be completely different machines, because one of them scores on its
+own and the other does not, and nothing on that sheet said so.
+
+### Added
+
+- **`CatalystFeatures`** — the parts of Catalyst a robot actually runs, published under
+  `/Catalyst/Robot/Catalyst/`. `Autopilot`, `Strategist`, `Sequence`, `Goal Director` and
+  `Physics Core` each record themselves as they are built, with the name they were built under, so a
+  sheet reads `Strategist · CoPilot` and `Physics Core · BALANCED` rather than a count.
+
+  Nothing is declared. `Autopilot.build()` records an autopilot because an autopilot was just built,
+  which matters more than it looks: a feature list a team maintains by hand is a list of what they
+  meant to use, and this is a list of what came up. When the two differ, the second is the one worth
+  putting on a driver station.
+
+  Registration almost always happens *after* `RobotIdentity.declare()`, because teams declare at the
+  top of `RobotContainer` and build their behaviours further down. Each record therefore refreshes
+  the sheet, exactly as a drivetrain coming up already did, and NT4's retained values mean a
+  dashboard sees the finished list whether it connected before the robot woke up or an hour into a
+  match.
+
+  A part of the library the robot does not run is absent rather than published as a false flag. "No
+  autopilot" and "an autopilot that threw while building" would otherwise look identical, and only
+  one of those deserves a driver's attention — which is why `PhysicsCore` records itself after its
+  last argument check rather than before.
+
+### Changed
+
+- The `Goal Director` constant is capitalised on both words. The published key is the feature name
+  with its spaces removed, so `Goal director` went out as `Goaldirector`, and a dashboard asking for
+  the obvious `GoalDirector` quietly found nothing at all.
+
 ## [1.10.0] — 2026-08-06 — The robot says who it is
 
 A dashboard could read everything a Catalyst robot was doing and nothing about what it was. No name,

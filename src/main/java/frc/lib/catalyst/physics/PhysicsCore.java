@@ -30,6 +30,7 @@ import frc.lib.catalyst.physics.prediction.LaunchStatePredictor;
 import frc.lib.catalyst.physics.prediction.StatePredictor;
 import frc.lib.catalyst.util.AlertManager;
 import frc.lib.catalyst.util.SignalProcessor;
+import frc.lib.catalyst.identity.CatalystFeatures;
 
 /**
  * The optional physical-intelligence layer for a Catalyst robot: one object that watches the robot's
@@ -708,6 +709,11 @@ public final class PhysicsCore implements UncertainRobotStateSource {
                 throw new IllegalStateException("poseOutlierGate must be > 0 (got "
                         + poseOutlierGateMeters + ")");
             }
+            /* Last, after every check, so a core that failed to build never claims to be running.
+             * The profile is the label because it is what changes the answers: the same robot at
+             * ACCURATE and at FAST is estimating differently, and a sheet that said only "Physics
+             * Core" would hide that. */
+            CatalystFeatures.record(CatalystFeatures.PHYSICS_CORE, profile.name());
             return new PhysicsCore(this);
         }
     }

@@ -9,6 +9,7 @@ import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.ToDoubleFunction;
+import frc.lib.catalyst.identity.CatalystFeatures;
 
 /**
  * Utility-based action selector — each loop it scores every registered
@@ -79,6 +80,7 @@ public final class Strategist {
         }
 
         public Command build() {
+            CatalystFeatures.record(CatalystFeatures.STRATEGIST, name);
             return new SelectorCommand(name, List.copyOf(behaviors), minScore);
         }
     }

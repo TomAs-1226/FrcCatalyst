@@ -7,6 +7,7 @@ import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import frc.lib.catalyst.mechanisms.SuperstructureCoordinator;
 import frc.lib.catalyst.statemachine.robot.SuperstructureLike;
+import frc.lib.catalyst.identity.CatalystFeatures;
 
 /**
  * The optional "give the robot an intent, it figures out the details" layer.
@@ -238,6 +239,11 @@ public class GoalDirector {
 
         /** Build the director. */
         public GoalDirector build() {
+            /* The default goal names the director usefully: a robot with a "Stow" default and one
+             * with a "Ready to score" default are describing different intents, and the goal is the
+             * only thing at build time that says which. */
+            CatalystFeatures.record(CatalystFeatures.GOAL_DIRECTOR,
+                    defaultGoal == null ? null : defaultGoal.name());
             return new GoalDirector(coordinator, defaultGoal);
         }
     }

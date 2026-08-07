@@ -9,6 +9,7 @@ import edu.wpi.first.wpilibj2.command.Subsystem;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
+import frc.lib.catalyst.identity.CatalystFeatures;
 
 /**
  * Teleop cycle co-pilot — the driver holds one button and the robot runs
@@ -141,6 +142,7 @@ public final class Autopilot {
             if (acquire == null || score == null) {
                 throw new IllegalStateException("Autopilot needs both an acquire and a score action");
             }
+            CatalystFeatures.record(CatalystFeatures.AUTOPILOT, name);
             return new Autopilot(this);
         }
     }

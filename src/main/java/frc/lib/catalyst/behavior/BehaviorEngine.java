@@ -14,6 +14,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
+import frc.lib.catalyst.identity.CatalystFeatures;
 
 /**
  * Reactive action sequencer — runs a list of {@link Action}s in order,
@@ -144,6 +145,8 @@ public final class BehaviorEngine {
         }
 
         public Command build() {
+            CatalystFeatures.record(CatalystFeatures.SEQUENCE, name);
+
             NetworkTable nt = NetworkTableInstance.getDefault()
                     .getTable("Catalyst").getSubTable("Behavior").getSubTable(name);
 

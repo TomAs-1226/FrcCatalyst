@@ -235,6 +235,9 @@ public final class RobotIdentity {
             lastSheet = null;
             pathPlannerConfig = null;
         }
+        /* Features are observed too, and a test that reset identity but kept them would see the
+         * previous test's autopilot on this test's robot. */
+        CatalystFeatures.reset();
     }
 
     /** Builder for the facts Catalyst cannot work out on its own. */
@@ -393,6 +396,7 @@ public final class RobotIdentity {
         addChassis(sheet, id);
         addPower(sheet, id);
         addHardware(sheet, swerve, cameras);
+        addCatalyst(sheet);
         return sheet;
     }
 
@@ -545,6 +549,30 @@ public final class RobotIdentity {
         });
 
         sheet.putList("Hardware/Cameras", cameras);
+    }
+
+    /**
+     * What this robot is made to do, as opposed to what it is made of.
+     *
+     * <p>Every entry was written by the component that created it — see {@link CatalystFeatures} —
+     * so this is a list of what came up rather than a list of what a team meant to use. A part of
+     * the library the robot does not run is absent, not published as a false flag: "no autopilot"
+     * and "an autopilot that failed to build" would otherwise look identical on the wire, and only
+     * one of those is worth a driver's attention.
+     */
+    private static void addCatalyst(SpecSheet sheet) {
+        Map<String, List<String>> features = CatalystFeatures.snapshot();
+        if (features.isEmpty()) return;
+
+        sheet.putList("Catalyst/InUse", List.copyOf(features.keySet()));
+
+        features.forEach((feature, labels) -> {
+            // "Physics Core" -> "PhysicsCore", so the key is a key and the label stays readable.
+            // The constants are capitalised per word for this reason; see CatalystFeatures.
+            String key = feature.replace(" ", "");
+            sheet.putInt("Catalyst/" + key + "/Count", OptionalInt.of(Math.max(1, labels.size())));
+            sheet.putList("Catalyst/" + key + "/Names", labels);
+        });
     }
 
     /**
