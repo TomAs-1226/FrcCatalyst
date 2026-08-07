@@ -69,13 +69,51 @@ drivetrain was built from cannot fall out of step with it, which typing the rati
 what each is drawing, but not what is wired to them — and at boot a channel in use draws exactly as
 much as one that is not.
 
+## What the robot is made to do
+
+The rest of the sheet describes what the robot is made of. `CatalystFeatures`, added in v1.11.0,
+describes what it is made to do, under `/Catalyst/Robot/Catalyst/`. Two robots with the same
+drivetrain and the same motor count can be completely different machines because one of them scores
+on its own and the other does not, and nothing else on the sheet says so.
+
+Nothing here is declared, and there is no builder call to add. Each entry is written by the component
+that created it, as it is created:
+
+| Feature | Recorded by | Named after |
+|---------|-------------|-------------|
+| `Autopilot` | `Autopilot.Builder.build()` | the builder's `name(...)`, defaulting to `Autopilot` |
+| `Strategist` | `Strategist.Builder.build()` | the name passed to `Strategist.named(...)` |
+| `Sequence` | `BehaviorEngine.Builder.build()` | the name passed to `BehaviorEngine.sequence(...)` |
+| `Goal Director` | `GoalDirector.Builder.build()` | the default goal, when the director has one |
+| `Physics Core` | `PhysicsCore.Builder.build()` | the `PhysicsProfile` it was built at |
+
+`Autopilot.build()` records an autopilot because an autopilot was just built. A feature list a team
+maintains by hand is a list of what they meant to use; this one is a list of what came up, and when
+the two differ the second is the one worth seeing on a driver station. It also means a part of the
+library that threw on its way up is absent rather than published as a false flag — "no autopilot" and
+"an autopilot that failed to build" would otherwise look identical on the wire, and only one of them
+deserves a driver's attention. `PhysicsCore` records itself after every one of its own validation
+checks for exactly that reason.
+
+The label is chosen to be the thing that changes the answer. Physics Core publishes its profile
+because the same robot at `BALANCED` and at `MINIMAL` is estimating differently — slip scoring and
+residual monitoring are off in the second. A goal director publishes its default goal because a robot
+that idles at `STOW` and one that idles somewhere ready to score are describing different intents,
+and the default is the only thing at build time that says which.
+
+Registration normally happens **after** `declare(...)`, since teams declare at the top of
+`RobotContainer` and build their behaviours further down. Each record therefore re-derives and
+rewrites the sheet, the same way a drivetrain coming up does — and because NT4 hands a subscriber the
+last value of every topic, a dashboard connecting mid-match still receives the finished list rather
+than the half of it that existed when it happened to connect.
+
 ## What is not published
 
 **A fact Catalyst does not know is absent from the wire.** Not zero, not `-1`, not an empty string.
 
-Catalyst Console draws a dash for a key the robot never published and a number for one it did, so an
-absent key is the only honest way to say "unknown" — a placeholder arrives looking exactly like a
-measurement, and nothing downstream can tell the difference. In practice:
+Once a figure has left the robot nothing downstream can tell a placeholder from a measurement: a
+brownout threshold of `0` reads exactly as confidently as one of `6.8`. An absent key is the only
+honest way to say "unknown". In practice:
 
 - No `SwerveSubsystem` means **no `Drivetrain` group at all**, rather than a group full of zeros.
 - No deployed PathPlanner settings means **no mass and no moment of inertia**. Catalyst holds no
@@ -87,6 +125,11 @@ measurement, and nothing downstream can tell the difference. In practice:
   both of those were declared.
 - A desktop or simulation has no rio, so `Identity/RioSerial`, `Identity/RioComment` and
   `Software/RioImage` are simply not there.
+- A robot that runs none of the parts listed above publishes **no `Catalyst` group at all**, not a
+  set of `false` flags. The group lists what came up; it does not enumerate what did not.
+- An empty list is treated as unknown rather than as "none". A robot with no cameras and a robot
+  whose cameras Catalyst never saw look identical from inside the library, and publishing an empty
+  array would assert the first with confidence earned for neither.
 
 `SpecSheet` is what enforces this. Every setter takes an `Optional`, and there is deliberately no
 overload that accepts a bare `double` — writing a placeholder takes more effort than writing the
@@ -106,6 +149,29 @@ dashboard to tell. Absent is correct; stale-but-confident is the defect.
 
 The sheet goes out through `CatalystLog`, so a team that has installed a WPILOG or AdvantageKit sink
 gets it in their log alongside everything else.
+
+## What reads it
+
+[Catalyst Console](https://github.com/TomAs-1226/CatalystConsole) subscribes to `/Catalyst/Robot/`
+and renders the sheet under **Settings → Robot**, which is what the one line buys you. The robot's
+plan comes first, drawn to scale from the published bumper, frame and module positions and captioned
+with which of those three it was actually drawn from; then the name with team number, season and
+controller model under it; then the feature list, and the rest of the sheet grouped as
+software, controller, drivetrain, chassis, traction, power and hardware, ending with the power
+channel map. Nothing is typed into the console — it is your robot's own account of itself.
+
+This is why the absence rule matters in practice. A row whose key the robot never published is left
+out of the card entirely rather than dashed, because a dash next to "Gyro" reads as "this robot has
+no gyro" when the truth is "it did not mention one". A robot that declared a name and no geometry
+gets the card without the drawing, which is the ordinary case rather than a broken one.
+
+Metric or imperial is a display choice made in the console, not on the robot. Everything on the wire
+stays SI, because that is what WPILib works in; the toggle exists because FRC writes its frame
+perimeter and height rules in inches, so a team checking whether they are legal would otherwise be
+converting by hand.
+
+The console never controls the robot and nothing here needs wiring up on the console side. Anything
+else subscribing to NetworkTables sees the same keys.
 
 ## Keys
 
@@ -129,7 +195,7 @@ Catalyst.
 |-----|--------|
 | `Software/CatalystVersion` | compiled into the library by its own build |
 | `Software/CatalystGitSha` | short sha, absent when the build had no repository |
-| `Software/CatalystGitDirty` | whether that build's tree was clean |
+| `Software/CatalystGitDirty` | true when that build carried uncommitted changes |
 | `Software/CatalystCommitTime` | ISO-8601 committer date |
 | `Software/RobotCodeVersion` | declared |
 | `Software/RobotCodeBuild` | declared |
@@ -209,12 +275,37 @@ module motors and encoders inside `SwerveDrivetrain` and nothing tells the regis
 registry-only count reports a swerve robot's twelve largest motors as none. Devices are merged on
 `(bus, id)`, so one counted twice is still counted once.
 
+### Catalyst
+
+Absent in full unless something recorded itself. Written by the components as they are built, not
+declared.
+
+| Key | Source |
+|-----|--------|
+| `Catalyst/InUse` | every feature recorded, sorted |
+| `Catalyst/<Feature>/Count` | how many distinct names were recorded, and at least 1 |
+| `Catalyst/<Feature>/Names` | those names, absent when the instance had none |
+
+`<Feature>` is the name from `Catalyst/InUse` with its spaces removed — `Goal Director` publishes
+under `Catalyst/GoalDirector/`. The constants are capitalised on each word for this reason: spelling
+one of them "Goal director" would put it on the wire as `Goaldirector`, and a dashboard reading
+`GoalDirector` would silently find nothing.
+
+`Count` counts distinct names rather than instances, so two sequences a team called `ThreePiece`
+report one. It falls back to 1 for a feature whose instance had no name worth publishing — a goal
+director built without a default goal, say. A blank name is never added to `Names`, because an empty
+string in a list of names reads as a robot that named something `""`.
+
+`InUse` is sorted rather than left in construction order, so a dashboard diffing two robots — or one
+robot across two builds — sees differences that are real rather than differences in whichever order
+the constructors happened to run.
+
 ## Naming the library's own build
 
 ```java
-CatalystVersion.version();     // "1.10.0"
-CatalystVersion.gitSha();      // Optional["6e02513"]
-CatalystVersion.describe();    // "1.10.0 (6e02513, dirty)"
+CatalystVersion.version();     // "1.11.0"
+CatalystVersion.gitSha();      // Optional["d604d51"]
+CatalystVersion.describe();    // "1.11.0 (d604d51, dirty)"
 ```
 
 The build generates these into a compiled constant rather than stamping the jar manifest, because a

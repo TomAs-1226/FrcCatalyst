@@ -68,8 +68,10 @@ import java.util.function.ToDoubleFunction;
  * {@code Hardware}.
  *
  * <p><b>A fact Catalyst does not know is absent from the wire.</b> Not zero, not {@code -1}, not an
- * empty string. Catalyst Console draws a dash for a missing key and a number for a present one, so
- * a placeholder is indistinguishable from a measurement once it leaves the robot. A robot with no
+ * empty string. A dashboard can tell an absent key from a published one; it cannot tell a placeholder
+ * from a measurement, because once a zero is on the wire it looks exactly like a zero that was
+ * measured. Catalyst Console leaves an unpublished fact off the sheet rather than dashing it, on the
+ * grounds that a dash beside "Gyro" claims the robot has none. A robot with no
  * swerve publishes no {@code Drivetrain} group at all rather than a group full of zeros; a project
  * with no PathPlanner settings publishes no mass. See {@link SpecSheet}, which is built so that
  * omitting a value is easier than inventing one.

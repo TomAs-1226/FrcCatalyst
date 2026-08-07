@@ -19,6 +19,31 @@ Competition-tested algorithms and utilities that successful teams build in-house
 
 ---
 
+## Robot Identity
+
+One line in `RobotContainer`, and the robot publishes its own spec sheet on NetworkTables:
+
+```java
+RobotIdentity.declare("Ratchet");
+```
+
+Team number, season, which roboRIO this is with its serial and image, the Catalyst and WPILib
+versions, the brownout threshold, the CAN inventory, the gyro — and, as soon as a `SwerveSubsystem`
+exists, drivetrain type, module count and positions, track width, wheelbase, odometry rate and top
+speed. None of that is a parameter: anything passed in can drift, and a team that regears the drive
+and forgets to edit an identity block would publish last month's robot with this month's confidence.
+
+Since v1.11.0 the sheet also says which parts of Catalyst the robot runs — Autopilot, Strategist,
+Sequence, Goal Director, Physics Core — each recorded by the component that built it rather than
+declared.
+
+A fact Catalyst does not know is absent from the wire. Not zero, not `-1`, not an empty string.
+
+The full guide, including the builder for the facts nothing can measure and the complete key list, is
+in **[Robot Identity](robot-identity.html)**.
+
+---
+
 ## StateSpaceController
 
 Optimal control using LQR (Linear Quadratic Regulator) + Kalman filter for mechanism control. This is the in-house approach successful teams use for precise mechanism control — it automatically computes optimal gains and provides lag-free noise rejection.

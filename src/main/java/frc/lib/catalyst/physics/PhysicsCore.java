@@ -711,7 +711,7 @@ public final class PhysicsCore implements UncertainRobotStateSource {
             }
             /* Last, after every check, so a core that failed to build never claims to be running.
              * The profile is the label because it is what changes the answers: the same robot at
-             * ACCURATE and at FAST is estimating differently, and a sheet that said only "Physics
+             * BALANCED and at MINIMAL is estimating differently, and a sheet that said only "Physics
              * Core" would hide that. */
             CatalystFeatures.record(CatalystFeatures.PHYSICS_CORE, profile.name());
             return new PhysicsCore(this);

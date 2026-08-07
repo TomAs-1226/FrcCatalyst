@@ -36,6 +36,7 @@
 | Safe temperature cutoffs | Manual | **Automatic** |
 | Limit switch auto-zeroing | Manual wiring | **One builder call** |
 | Whole-robot state machine | Hand-rolled per season | **Declarative graph + full logging** |
+| A spec sheet the dashboard can read | Hand-typed and out of date by week two | **`RobotIdentity.declare("Ratchet")`** |
 
 ---
 
@@ -59,7 +60,7 @@ repositories {
 }
 
 dependencies {
-    implementation "com.github.TomAs-1226:FrcCatalyst:v1.10.0"
+    implementation "com.github.TomAs-1226:FrcCatalyst:v1.11.0"
 }
 ```
 </details>
@@ -97,6 +98,35 @@ elevator.setDefaultCommand(elevator.holdPosition());
 operatorController.a().onTrue(elevator.goTo("HIGH"));
 operatorController.b().onTrue(elevator.goTo("STOW"));
 ```
+
+---
+
+## v1.11.0: what the robot is made to do
+
+The spec sheet says what the robot is made of. This says what it is made to do, under
+`/Catalyst/Robot/Catalyst/`:
+
+```text
+Catalyst/InUse                  ["Autopilot", "Goal Director", "Physics Core", "Sequence", "Strategist"]
+Catalyst/Autopilot/Names        ["Cycle"]
+Catalyst/GoalDirector/Names     ["STOW"]
+Catalyst/PhysicsCore/Names      ["BALANCED"]
+Catalyst/Sequence/Names         ["ThreePiece", "LeaveAndShoot"]
+Catalyst/Strategist/Names       ["CoPilot"]
+```
+
+Nothing is declared, and there is no builder call to add. Autopilot, Strategist, Sequence, Goal
+Director and Physics Core each record themselves as they are built, with the name they were built
+under — `Autopilot.build()` records an autopilot because an autopilot was just built. A feature list
+a team maintains by hand is a list of what they meant to use; this one is a list of what came up, and
+when the two differ the second is the one worth seeing on a driver station. A robot that runs none of
+them publishes no `Catalyst` group at all rather than five false flags.
+
+Registration normally lands *after* `declare(...)`, since teams declare at the top of
+`RobotContainer` and build their behaviours further down, so each record refreshes the sheet — and
+NT4's retained values mean a dashboard connecting mid-match still receives the finished list.
+
+Key list in [docs/advanced/robot-identity.md](docs/advanced/robot-identity.md).
 
 ---
 
@@ -582,6 +612,12 @@ frc.lib.catalyst
 |   +-- NetworkTablesSink           Default sink — same /Catalyst/... layout as v0.2
 |   +-- CompoundSink                Fan-out to multiple sinks simultaneously
 |   +-- CatalystInputs              Symmetric toLog/fromLog contract for Inputs POJOs
+|
++-- identity/            The robot's own spec sheet (v1.10.0)
+|   +-- RobotIdentity               Declare a robot; publishes everything Catalyst can derive
+|   +-- SpecSheet                   Optional-only fact set — no bare-value overloads to lie with
+|   +-- CatalystFeatures            Which parts of Catalyst this robot runs (v1.11.0)
+|   +-- CatalystVersion             Compiled-in version and git stamp, survives shading
 |
 +-- subsystems/          Complex subsystems
 |   +-- SwerveSubsystem      Swerve drive with skew correction, snap-to, advanced drive

@@ -14,10 +14,11 @@ import java.util.OptionalInt;
  * A spec sheet under construction: an ordered set of facts, and a hard refusal to record one that
  * nobody knows.
  *
- * <p>Every setter takes an {@code Optional}, never a bare value, and that is the whole design.
- * Catalyst Console draws a dash for a key the robot never published and a number for one it did, so
- * an absent key is the only honest way to say "unknown" — a placeholder ({@code 0}, {@code -1},
- * {@code ""}) is a lie the dashboard cannot detect. Leaving no overload that accepts a plain
+ * <p>Every setter for a <em>measurement</em> takes an {@code Optional}, never a bare value, and that
+ * is the whole design. ({@link #putFlag}, {@link #putList} and {@link #putNumbers} take plain values,
+ * because a flag is never unknown once the thing it describes exists, and an empty list is itself the
+ * absence.) An absent key is the only honest way to say "unknown" — a placeholder ({@code 0},
+ * {@code -1}, {@code ""}) is a lie no dashboard can detect. Leaving no overload that accepts a plain
  * {@code double} means writing the lie takes more effort than writing the truth, rather than less.
  *
  * <p>Nothing reaches NetworkTables until {@link #publish(String)} runs, so a sheet can be assembled,

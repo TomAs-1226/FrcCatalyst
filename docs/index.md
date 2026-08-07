@@ -27,11 +27,17 @@ A Java library of pre-built mechanism building blocks for FRC robots on Phoenix 
 
 ## Latest release
 
-**v1.10.0** makes the robot say who it is. `RobotIdentity.declare("Ratchet")` publishes a
+**v1.11.0** adds the other half of the [spec sheet](advanced/robot-identity.html): which parts of
+Catalyst the robot actually runs. Autopilot, Strategist, Sequence, Goal Director and Physics Core
+each record themselves under `/Catalyst/Robot/Catalyst/` as they are built, with the name they were
+built under, so the list is what came up rather than what a team meant to use. There is nothing to
+declare and nothing to keep in step.
+
+**v1.10.0** made the robot say who it is. `RobotIdentity.declare("Ratchet")` publishes that
 [spec sheet](advanced/robot-identity.html) under `/Catalyst/Robot/` — team number, season, roboRIO and
 image, library versions, drivetrain geometry, CAN inventory — all of it derived rather than typed in,
 and anything the library does not know is absent from the wire rather than published as a zero.
-Catalyst also names its own build now: `CatalystVersion.describe()`.
+Catalyst also names its own build: `CatalystVersion.describe()`.
 
 **v1.8.0** makes the simulated field solid: robots and game pieces now collide with terrain and each other, and what happens depends on what they are made of. **v1.7.0** validated **[Physics Core](advanced/physics.html)** against a ground-truth simulator and added a [guide to measuring your robot](advanced/physics-measurement.html). v1.6.0 completed it — the optional layer that watches how your
 robot actually behaves. It fuses wheel odometry and the IMU into one velocity with an honest
@@ -189,6 +195,8 @@ Motion Magic, gravity FF, sim, telemetry, command factories, health monitoring, 
 | `AutoSelector` | PathPlanner auto chooser with safe fallbacks |
 | `GamePieceTracker` | Multi-stage piece state machine with Triggers |
 | `Superstructure` / `StateMachineCore` (v1.2.0+) | Enum-typed whole-robot state machine: undeclared edges are refused, arrival is measured rather than assumed, and every decision is logged |
+| [`RobotIdentity`](advanced/robot-identity.html) (v1.10.0+) | One line publishes the robot's spec sheet on NetworkTables — derived, never typed in, and silent about anything the library cannot read |
+| [`CatalystFeatures`](advanced/robot-identity.html) (v1.11.0+) | Which parts of Catalyst the robot runs, recorded by each part as it is built |
 | Skew correction | Pose-exponential discretization for swerve |
 | Collision zones | Prevent physical mechanism collisions |
 | `SimDashboard` (v1.1.0+) | Generic browser sim cockpit that adapts to any mechanism via `describe()` / `MechanismView`; sim-only, dependency-free |
