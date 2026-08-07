@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'com.frccatalyst'
-version = '1.9.2'
+version = '1.10.0'
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
@@ -102,6 +102,79 @@ publishing {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Runtime version stamp
+//
+// `version` above never reached the artifact: the jar manifest carried nothing but
+// Manifest-Version, so Package.getImplementationVersion() came back null and the library had no way
+// to name itself. RobotIdentity publishes the Catalyst version on the wire, so it has to be a
+// runtime fact.
+//
+// Generated as a source file rather than stamped onto the manifest, because a robot project shades
+// Catalyst into its FRCUserProgram fat jar: manifests merge there and the robot's wins. A compiled
+// constant survives shading, and survives running from a classes directory under `gradlew test`.
+// ---------------------------------------------------------------------------
+
+static String runCommand(File dir, List<String> command) {
+    try {
+        Process process = new ProcessBuilder(command).directory(dir).start()
+        String out = process.inputStream.getText('UTF-8').trim()
+        process.errorStream.close()
+        return process.waitFor() == 0 ? out : ''
+    } catch (Exception ignored) {
+        // No git on PATH, or no repository at all - JitPack builds from a source archive with no
+        // .git in it. An unknown build stamp is published as nothing, never as a placeholder.
+        return ''
+    }
+}
+
+ext {
+    catalystGitSha = runCommand(projectDir, ['git', 'rev-parse', '--short', 'HEAD'])
+    catalystGitTime = runCommand(projectDir, ['git', 'log', '-1', '--format=%cI'])
+    catalystGitDirty = !catalystGitSha.isEmpty() &&
+            !runCommand(projectDir, ['git', 'status', '--porcelain']).isEmpty()
+}
+
+def generatedVersionDir = layout.buildDirectory.dir('generated/sources/catalystVersion/java/main').get().asFile
+
+def generateCatalystVersion = tasks.register('generateCatalystVersion') {
+    description = 'Writes the compiled-in version and build stamp that CatalystVersion reads back.'
+    // The commit is the input, not the wall clock. A build timestamp would put this task - and every
+    // compile downstream of it - permanently out of date, and it says less than the commit does.
+    inputs.property('version', project.version.toString())
+    inputs.property('gitSha', catalystGitSha)
+    inputs.property('gitTime', catalystGitTime)
+    inputs.property('gitDirty', catalystGitDirty)
+    outputs.dir(generatedVersionDir)
+    doLast {
+        File packageDir = new File(generatedVersionDir, 'frc/lib/catalyst/identity')
+        packageDir.mkdirs()
+        new File(packageDir, 'BuildConstants.java').write("""\
+package frc.lib.catalyst.identity;
+
+/**
+ * Written by the generateCatalystVersion task in build.gradle. Do not edit, and do not read
+ * directly - {@link CatalystVersion} is the documented way in, and is what turns a blank string
+ * here back into "unknown".
+ */
+final class BuildConstants {
+
+    static final String VERSION = "${project.version}";
+    static final String GIT_SHA = "${catalystGitSha}";
+    static final boolean GIT_DIRTY = ${catalystGitDirty};
+    static final String GIT_TIME = "${catalystGitTime}";
+
+    private BuildConstants() {}
+}
+""", 'UTF-8')
+    }
+}
+
+sourceSets.main.java.srcDir generatedVersionDir
+tasks.named('compileJava') { dependsOn generateCatalystVersion }
+tasks.named('sourcesJar') { dependsOn generateCatalystVersion }
+tasks.named('javadoc') { dependsOn generateCatalystVersion }
 
 tasks.withType(JavaCompile) {
     options.compilerArgs << '-Xlint:none'

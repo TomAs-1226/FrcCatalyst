@@ -9,6 +9,15 @@ import edu.wpi.first.math.geometry.Rotation2d;
  */
 public class CatalystGyro {
 
+    /**
+     * Device type label used in the CAN registry and on the robot's spec sheet.
+     *
+     * <p>Spelled the way Phoenix names the class, because the spec sheet's hardware inventory falls
+     * back to a device's own class name for anything Catalyst did not register — and one device
+     * appearing under two spellings would read as two devices.
+     */
+    public static final String DEVICE_TYPE = "Pigeon2";
+
     private final Pigeon2 pigeon;
     private final int canId;
 
@@ -19,6 +28,7 @@ public class CatalystGyro {
     public CatalystGyro(int canId, String canBus) {
         this.canId = canId;
         this.pigeon = new Pigeon2(canId, canBus);
+        claimCanId(canId, canBus);
         // Intentionally do NOT apply a configuration here. Applying a default
         // Pigeon2Configuration would erase whatever is on the device — most
         // importantly the mount-pose offset teams set in Tuner X. Use the
@@ -33,10 +43,22 @@ public class CatalystGyro {
     public CatalystGyro(int canId, String canBus, Pigeon2Configuration config) {
         this.canId = canId;
         this.pigeon = new Pigeon2(canId, canBus);
+        claimCanId(canId, canBus);
         for (int i = 0; i < 5; i++) {
             var status = pigeon.getConfigurator().apply(config);
             if (status.isOK()) break;
         }
+    }
+
+    /**
+     * Claim the gyro's id like every motor does.
+     *
+     * <p>Two reasons this is worth doing. A Pigeon sharing an id with a TalonFX is a wiring fault
+     * that used to go unreported because nothing registered the gyro, and the robot's spec sheet
+     * lists a gyro only if something told the registry there was one.
+     */
+    private static void claimCanId(int canId, String canBus) {
+        CANRegistry.register("Gyro", canId, canBus, DEVICE_TYPE);
     }
 
     /** Get heading as Rotation2d (yaw, CCW positive). */

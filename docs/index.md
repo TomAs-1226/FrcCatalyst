@@ -27,6 +27,12 @@ A Java library of pre-built mechanism building blocks for FRC robots on Phoenix 
 
 ## Latest release
 
+**v1.10.0** makes the robot say who it is. `RobotIdentity.declare("Ratchet")` publishes a
+[spec sheet](advanced/robot-identity.html) under `/Catalyst/Robot/` — team number, season, roboRIO and
+image, library versions, drivetrain geometry, CAN inventory — all of it derived rather than typed in,
+and anything the library does not know is absent from the wire rather than published as a zero.
+Catalyst also names its own build now: `CatalystVersion.describe()`.
+
 **v1.8.0** makes the simulated field solid: robots and game pieces now collide with terrain and each other, and what happens depends on what they are made of. **v1.7.0** validated **[Physics Core](advanced/physics.html)** against a ground-truth simulator and added a [guide to measuring your robot](advanced/physics-measurement.html). v1.6.0 completed it — the optional layer that watches how your
 robot actually behaves. It fuses wheel odometry and the IMU into one velocity with an honest
 confidence attached, scores which wheel is lying when a tyre breaks loose, notices when something hit

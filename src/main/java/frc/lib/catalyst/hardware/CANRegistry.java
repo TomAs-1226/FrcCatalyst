@@ -1,5 +1,6 @@
 package frc.lib.catalyst.hardware;
 
+import frc.lib.catalyst.identity.RobotIdentity;
 import frc.lib.catalyst.logging.CatalystLog;
 
 import java.util.ArrayList;
@@ -154,6 +155,10 @@ public final class CANRegistry {
         String[] out = new String[sorted.size()];
         for (int i = 0; i < sorted.size(); i++) out[i] = sorted.get(i).serialize();
         CatalystLog.log("CAN/Devices", out);
+
+        // The spec sheet counts devices by type, and mechanisms claim their ids as they are built —
+        // which is usually after the robot has declared itself. No-op until it has.
+        RobotIdentity.refresh();
     }
 
     /** Test hook. Returns the internal map view for assertions. Not for production code. */

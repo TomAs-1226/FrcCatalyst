@@ -19,6 +19,7 @@ import frc.lib.catalyst.goal.GoalDirector;
 import edu.wpi.first.math.geometry.Translation3d;
 
 import frc.lib.catalyst.hardware.MotorType;
+import frc.lib.catalyst.identity.RobotIdentity;
 import frc.lib.catalyst.logging.CatalystLog;
 import frc.lib.catalyst.physics.contact.CollisionField;
 import frc.lib.catalyst.physics.contact.ContactMaterial;
@@ -396,6 +397,15 @@ public class RobotContainer {
     private double matchStart = 0;
 
     public RobotContainer() {
+        // Say who the robot is; Catalyst works out the rest and publishes it under
+        // /Catalyst/Robot/. Team number, season, rio and image, library versions, brownout
+        // threshold and the CAN inventory all come from the robot itself. This demo has no swerve
+        // and no PathPlanner settings, so the drivetrain and mass keys are simply absent rather
+        // than published as zeros - which is what the driver station is meant to show as a dash.
+        // RobotIdentity.named(...) takes the few things nothing can measure: frame perimeter,
+        // bumpers, height, your own code version.
+        RobotIdentity.declare("Catalyst Demo");
+
         configureDefaults();
         // Real Catalyst safety watchdog: trip if too many concurrent faults.
         RobotSafety.configure(RobotSafety.Config.builder()

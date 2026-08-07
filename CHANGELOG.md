@@ -5,6 +5,82 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.10.0] — 2026-08-06 — The robot says who it is
+
+A dashboard could read everything a Catalyst robot was doing and nothing about what it was. No name,
+no team number, no drivetrain geometry, not even which build of the library was running — the version
+lived in `build.gradle` and never reached the artifact.
+
+### Added
+
+- **`RobotIdentity`** — a spec sheet published under `/Catalyst/Robot/`, from one line:
+
+  ```java
+  RobotIdentity.declare("Ratchet");
+  ```
+
+  That publishes the team number, the season, which roboRIO this is with its serial and image, the
+  Catalyst and WPILib versions, the brownout threshold, the CAN inventory by type, the gyro, and —
+  as soon as a `SwerveSubsystem` exists — drivetrain type, module count and positions, track width,
+  wheelbase, odometry rate, CAN FD, and top speed. Nothing on that list is a parameter, because a
+  parameter can drift: regear the drive, forget to edit the identity block, and the robot publishes
+  last month's numbers with this month's confidence.
+
+  `RobotIdentity.named(...)` takes what nothing can measure — frame perimeter, bumper thickness,
+  height, your own code version, what each power distribution channel feeds, and the Tuner X module
+  constants. Those last are worth passing because they are the only route to the gear ratios:
+  Phoenix builds a `SwerveDrivetrain` from them and does not hand them back, so a constructed
+  drivetrain can be asked its module positions but not its reduction. Passing the same objects the
+  drivetrain was built from cannot fall out of step with it, which typing the ratios in would.
+
+  **A fact Catalyst does not know is absent from the wire** — not zero, not `-1`, not an empty
+  string. A robot with no swerve publishes no drivetrain group; a project with no PathPlanner
+  settings publishes no mass; a diamond module layout publishes its module positions and no track
+  width, because `2*max|y|` by `2*max|x|` would describe a rectangle those modules do not sit on.
+  `SpecSheet` is what enforces it: every setter takes an `Optional`, and there is deliberately no
+  overload that accepts a bare `double`, so writing the placeholder takes more effort than writing
+  the truth rather than less.
+
+  Written once at boot, and that is enough. An NT4 server keeps the last value of every topic and
+  sends it to each subscriber the moment it subscribes, so a dashboard connecting mid-match or
+  reconnecting after the radio drops receives the sheet without the robot repeating itself. Nothing
+  is marked persistent, and that is a decision rather than an omission: a persistent topic is saved
+  to the rio and republished by the *next* boot, so a build that threw before declaring itself would
+  serve last week's mass with a fresh timestamp and no way to tell.
+
+- **`CatalystVersion`** — which build of Catalyst is actually running.
+  `CatalystVersion.describe()` returns `1.10.0 (6e02513, dirty)`. The build generates the constants
+  into a source file rather than stamping the jar manifest, because a robot project shades Catalyst
+  into its `FRCUserProgram` fat jar, manifests merge there, and
+  `Package.getImplementationVersion()` came back null on exactly the machine a team wants the number
+  on. A build made from a source archive with no repository in it reports no git stamp at all.
+
+### Changed
+
+- The hardware inventory merges two sources, because neither was complete. `CANRegistry` holds what
+  the mechanisms claimed as they were built and misses the drivetrain entirely — Phoenix constructs
+  the module motors and encoders inside `SwerveDrivetrain` and nothing tells the registry — so a
+  registry-only count reported a swerve robot's twelve largest motors as none. Devices are merged on
+  `(bus, id)`, and the rio bus spelled `rio` by Phoenix and `""` by the registry is the same bus.
+- `CatalystGyro` claims its CAN id like every motor does. A Pigeon sharing an id with a TalonFX was a
+  wiring fault that went unreported because nothing registered the gyro.
+
+### Known gaps
+
+- Phoenix, PathPlanner and PhotonVision versions are not published. They are pinned in Catalyst's
+  own `build.gradle` and nowhere else — none of the three exposes a runtime constant — and a robot
+  resolves its own copies. Reporting the pins would be reporting what Catalyst was compiled against
+  as though it were what is running.
+- The robot code's own version and build stamp are declared, not derived. GradleRIO writes no deploy
+  metadata, so there is nothing to read; wire `robotCodeVersion(...)` to a constant your build
+  generates rather than typing a string that is wrong the first time anyone forgets to edit it.
+
+Verified against a running simulation: 37 keys on the wire, identical on a fresh connect and on a
+reconnect by a brand new client, with the drivetrain and mass groups genuinely absent on a robot that
+has neither. 427 tests.
+
+---
+
 ## [1.9.2] — 2026-08-06 — Registration and contact response
 
 Two things you could see on screen: the CAD and the collision geometry did not line up, and the robot

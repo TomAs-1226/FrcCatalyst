@@ -59,7 +59,7 @@ repositories {
 }
 
 dependencies {
-    implementation "com.github.TomAs-1226:FrcCatalyst:v1.9.2"
+    implementation "com.github.TomAs-1226:FrcCatalyst:v1.10.0"
 }
 ```
 </details>
@@ -97,6 +97,43 @@ elevator.setDefaultCommand(elevator.holdPosition());
 operatorController.a().onTrue(elevator.goTo("HIGH"));
 operatorController.b().onTrue(elevator.goTo("STOW"));
 ```
+
+---
+
+## v1.10.0: the robot says who it is
+
+One line in `RobotContainer` and the robot publishes a spec sheet under `/Catalyst/Robot/`:
+
+```java
+RobotIdentity.declare("Ratchet");
+```
+
+Team number, season, which roboRIO this is and its serial and image, the Catalyst and WPILib versions,
+the brownout threshold, the CAN inventory — and, as soon as a `SwerveSubsystem` exists, the drivetrain
+type, module count and positions, track width, wheelbase, odometry rate and top speed. None of it is
+passed in, because anything passed in can drift: a team that regears the drive and forgets to edit an
+identity block would publish last month's robot with this month's confidence.
+
+`RobotIdentity.named(...)` takes the handful of facts nothing can measure — frame perimeter, bumpers,
+height, your own code version, what the power distribution channels are wired to, and the Tuner X
+module constants (the only route to the gear ratios, since Phoenix does not hand them back).
+
+**A fact Catalyst does not know is absent from the wire.** Not zero, not `-1`, not an empty string. A
+robot with no swerve publishes no drivetrain group at all; a project with no PathPlanner settings
+publishes no mass. Catalyst Console draws a dash for a missing key and a number for a present one, so
+a placeholder is indistinguishable from a measurement once it has left the robot.
+
+Publishing happens once at boot and that is enough. NT4 servers keep the last value of every topic and
+send it to each subscriber on subscribe, so a dashboard that connects mid-match, or reconnects after
+the radio drops, gets the sheet without the robot repeating itself. Nothing is marked persistent —
+a persistent topic would be saved to the rio and republished by the *next* boot, so a build that
+crashed before declaring itself would serve last week's numbers with a fresh timestamp.
+
+Catalyst also names its own build now. `CatalystVersion.describe()` returns `1.10.0 (6e02513, dirty)`
+— the version and git stamp are compiled in by the build, so they survive being shaded into a robot's
+fat jar, which is where `Package.getImplementationVersion()` used to come back null.
+
+Full key list in [docs/advanced/robot-identity.md](docs/advanced/robot-identity.md). 427 tests.
 
 ---
 
@@ -916,6 +953,8 @@ VisionSubsystem vision = new VisionSubsystem(VisionConfig.builder()
 | `TunableNumber` | Dashboard-editable constants for live PID tuning |
 | `AutoSelector` | PathPlanner auto chooser with safe fallbacks |
 | `GamePieceTracker` | Multi-stage game piece state machine with Triggers |
+| `RobotIdentity` | Robot spec sheet on NetworkTables — declare the name, Catalyst derives the rest |
+| `CatalystVersion` | Which build of Catalyst is running, version and git stamp |
 
 ---
 

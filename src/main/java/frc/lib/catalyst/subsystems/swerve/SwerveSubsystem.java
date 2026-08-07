@@ -34,6 +34,7 @@ import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import frc.lib.catalyst.identity.RobotIdentity;
 import frc.lib.catalyst.logging.CatalystLog;
 import frc.lib.catalyst.physics.RobotStateSource;
 import frc.lib.catalyst.util.AlertManager;
@@ -147,6 +148,11 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
         if (pathPlannerConfig != null) {
             configurePathPlanner(pathPlannerConfig);
         }
+
+        // Hand the drivetrain to the spec sheet. Does nothing until a robot has been declared, and
+        // works either way round: a team that calls RobotIdentity.declare(...) at the top of
+        // RobotContainer, before this constructor runs, still gets the drivetrain group.
+        RobotIdentity.observeDrivetrain(this);
 
         // Advance the Phoenix physics sim on its own high-rate thread so the
         // The internal Phoenix sim (see startSimThread) is started lazily from the first

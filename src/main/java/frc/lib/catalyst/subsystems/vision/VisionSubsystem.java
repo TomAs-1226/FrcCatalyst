@@ -11,6 +11,7 @@ import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import frc.lib.catalyst.identity.RobotIdentity;
 import frc.lib.catalyst.logging.CatalystLog;
 import frc.lib.catalyst.subsystems.swerve.SwerveSubsystem;
 import frc.lib.catalyst.util.AlertManager;
@@ -88,6 +89,10 @@ public class VisionSubsystem extends SubsystemBase {
                     "VisionSubsystem constructed without driveSubsystem — pose fusion is disabled. "
                             + "Call VisionConfig.builder().driveSubsystem(...) to enable.");
         }
+
+        // Names only, not this subsystem: RobotIdentity must never have to load a vision class, so a
+        // robot project that excludes the PhotonVision artifacts still publishes its spec sheet.
+        RobotIdentity.observeCameras(cameras.stream().map(CameraSource::getName).toList());
     }
 
     /**
