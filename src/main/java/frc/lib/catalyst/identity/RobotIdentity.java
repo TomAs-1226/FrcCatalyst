@@ -540,6 +540,30 @@ public final class RobotIdentity {
             List<String> rows = new ArrayList<>();
             counts.forEach((type, count) -> rows.add(type + "|" + count));
             sheet.putList("Hardware/Inventory", rows);
+
+            /* The devices themselves, not just how many of each. The map this is built from has always
+             * had the bus and the id — the sheet was reducing it to a tally and throwing away the part
+             * a pit crew actually needs, which is which id is on which bus. "bus|id|type", sorted by
+             * bus and then numerically by id so a reader can scan down a bus the way they would scan
+             * down a wiring loom. */
+            List<String> tree = new ArrayList<>();
+            devices.forEach((key, type) -> {
+                int slash = key.lastIndexOf('/');
+                String bus = slash < 0 ? "rio" : key.substring(0, slash);
+                String id = slash < 0 ? key : key.substring(slash + 1);
+                tree.add((bus.isBlank() ? "rio" : bus) + "|" + id + "|" + type);
+            });
+            tree.sort((a, b) -> {
+                String[] x = a.split("\\|"), y = b.split("\\|");
+                int bus = x[0].compareTo(y[0]);
+                if (bus != 0) return bus;
+                try {
+                    return Integer.compare(Integer.parseInt(x[1]), Integer.parseInt(y[1]));
+                } catch (NumberFormatException e) {
+                    return x[1].compareTo(y[1]);
+                }
+            });
+            sheet.putList("Hardware/Devices", tree);
         }
 
         gyro(swerve).ifPresent(found -> {

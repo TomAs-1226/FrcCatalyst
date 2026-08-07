@@ -5,6 +5,21 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.12.0] — 2026-08-07 — The devices, not the count
+
+### Added
+
+- **`Hardware/Devices`** — every CAN device with the bus it is on, its id and its type, as
+  `bus|id|type` rows sorted by bus and then numerically by id.
+
+  The map this is built from has always held all three; the sheet was reducing it to
+  `Hardware/CanDevices: 11` and `Hardware/Inventory: Kraken X60|8`, which answers a question nobody
+  has. At two in the morning in a pit the question is which id is on which wire, and whether the
+  device that stopped answering is on the rio bus or the CANivore. A tally cannot say.
+
+  `CanDevices` and `Inventory` are unchanged and still published — a count is the right shape for a
+  glance, and this is the right shape for a diagnosis.
+
 ## [1.11.0] — 2026-08-07 — What the robot is made to do
 
 1.10.0 published what a robot is made of. Two robots with the same drivetrain, the same mass and the
