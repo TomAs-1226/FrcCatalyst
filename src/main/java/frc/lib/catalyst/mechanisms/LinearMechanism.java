@@ -102,6 +102,7 @@ public class LinearMechanism extends CatalystMechanism {
                 .currentLimit(config.currentLimit)
                 .statorCurrentLimit(config.statorCurrentLimit)
                 .gearRatio(config.gearRatio)
+                .useFocControl(config.useFoc)
                 .pid(config.kP, config.kI, config.kD)
                 .feedforward(config.kS, config.kV, config.kA)
                 .gravityGain(config.kG, GravityTypeValue.Elevator_Static)
@@ -639,6 +640,7 @@ public class LinearMechanism extends CatalystMechanism {
         final List<FollowerSpec> followers;
         final MotorType motorType;
         final double gearRatio;
+        final boolean useFoc;
         final int stages;
         final double drumRadius;
         final double minPosition;
@@ -675,6 +677,7 @@ public class LinearMechanism extends CatalystMechanism {
             this.followers = List.copyOf(b.followers);
             this.motorType = b.motorType;
             this.gearRatio = b.gearRatio;
+            this.useFoc = b.useFoc;
             this.stages = b.stages;
             this.drumRadius = b.drumRadius;
             this.minPosition = b.minPosition;
@@ -745,6 +748,7 @@ public class LinearMechanism extends CatalystMechanism {
             private final List<FollowerSpec> followers = new ArrayList<>();
             private MotorType motorType = MotorType.KRAKEN_X60;
             private double gearRatio = 1.0;
+            public boolean useFoc = true;
             private int stages = 1;
             private double drumRadius = 0.0254; // 1 inch default
             private double minPosition = 0;
@@ -804,6 +808,7 @@ public class LinearMechanism extends CatalystMechanism {
             public Builder motorType(MotorType type) { this.motorType = type; return this; }
 
             public Builder gearRatio(double ratio) { this.gearRatio = ratio; return this; }
+            public Builder useFoc(boolean useFoc) { this.useFoc = useFoc; return this; }
             public Builder drumRadius(double meters) { this.drumRadius = meters; return this; }
 
             /**

@@ -61,7 +61,8 @@ public class WinchMechanism extends CatalystMechanism {
                 .brakeMode(true) // always brake for safety
                 .currentLimit(config.currentLimit)
                 .statorCurrentLimit(config.statorCurrentLimit)
-                .gearRatio(config.gearRatio);
+                .gearRatio(config.gearRatio)
+                .useFocControl(config.useFOC);
 
         // Soft limits in mechanism rotations
         if (config.spoolRadius > 0) {
@@ -331,6 +332,7 @@ public class WinchMechanism extends CatalystMechanism {
         final boolean inverted;
         final boolean secondInverted;
         final double gearRatio;
+        final boolean useFOC;
         final double spoolRadius;
         final double minPosition;
         final double maxPosition;
@@ -348,6 +350,7 @@ public class WinchMechanism extends CatalystMechanism {
             this.inverted = b.inverted;
             this.secondInverted = b.secondInverted;
             this.gearRatio = b.gearRatio;
+            this.useFOC = b.useFOC;
             this.spoolRadius = b.spoolRadius;
             this.minPosition = b.minPosition;
             this.maxPosition = b.maxPosition;
@@ -370,6 +373,7 @@ public class WinchMechanism extends CatalystMechanism {
             private boolean inverted = false;
             private boolean secondInverted = false;
             private double gearRatio = 25.0;
+            private boolean useFOC = true;
             private double spoolRadius = 0.02; // meters
             private double minPosition = 0;
             private double maxPosition = 0.6;
@@ -389,6 +393,7 @@ public class WinchMechanism extends CatalystMechanism {
             public Builder inverted(boolean inverted) { this.inverted = inverted; return this; }
             public Builder secondInverted(boolean inverted) { this.secondInverted = inverted; return this; }
             public Builder gearRatio(double ratio) { this.gearRatio = ratio; return this; }
+            public Builder useFOC(boolean useFOC) { this.useFOC = useFOC; return this; }
 
             /** Spool/drum radius in meters. Used for position-to-rotation conversion. */
             public Builder spoolRadius(double meters) { this.spoolRadius = meters; return this; }
