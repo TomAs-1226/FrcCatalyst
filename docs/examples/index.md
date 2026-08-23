@@ -28,9 +28,9 @@ A simple competition robot with an elevator for scoring and a roller intake for 
 ```java
 package frc.robot;
 
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
-import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
+import org.wpilib2.command.Command;
+import frc.lib.catalyst.command.Commands;
+import org.wpilib2.command.button.CommandXboxController;
 import frc.lib.catalyst.mechanisms.LinearMechanism;
 import frc.lib.catalyst.mechanisms.RollerMechanism;
 import frc.lib.catalyst.hardware.MotorType;

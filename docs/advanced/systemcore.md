@@ -1,0 +1,234 @@
+---
+layout: default
+title: Systemcore & WPILib 2027
+parent: Advanced
+nav_order: 12
+---
+
+# Systemcore & WPILib 2027
+{: .no_toc }
+
+What changes when you move a Catalyst robot to Systemcore, what Catalyst absorbed for you, and the
+handful of things you have to change yourself.
+{: .fs-6 .fw-300 }
+
+1. TOC
+{:toc}
+
+---
+
+## The short version
+
+Catalyst 2.x targets WPILib 2027 and Systemcore. **Your robot code mostly does not change.** WPILib
+2027 renamed its package root, reorganised its hardware classes and replaced the command framework
+outright; Catalyst absorbed all of that behind its own API so you would not have to relearn a library
+because someone else reorganised theirs.
+
+What you do have to change fits on one screen, and it is listed in [What you have to change](#what-you-have-to-change).
+
+**Versions that go together.** These are not interchangeable — a mismatch usually looks like code
+that deploys and then does nothing.
+
+| Component | Version |
+|---|---|
+| Catalyst | 2.0.0-alpha.1 |
+| WPILib | 2027.0.0-alpha-6 |
+| Systemcore OS | beta 13 |
+| Phoenix 6 | 26.50.0-alpha-1 |
+| PathPlannerLib | 2027.0.0-alpha-3 |
+| LimelightLib | 2.0.0-beta2 |
+| Java | 25 |
+
+Systemcore OS **beta 14 requires WPILib alpha-7**, which is not released. Until it is, pair Catalyst
+2.x with OS beta 13.
+
+---
+
+## What you have to change
+
+### `AutoSelector.getChooser()` returns a different type
+
+`SendableChooser` no longer exists in WPILib. The method now returns
+`org.wpilib.tunable.Selectable`. Every other `AutoSelector` method is unchanged, so this only matters
+if you called that accessor.
+
+### Five command decorators were renamed
+
+Commands v3 took the names `until`, `andThen`, `alongWith`, `raceWith` and `withTimeout` and gave
+them incompatible return types — they return group *builders* now, and Java will not let Catalyst
+narrow a builder back to a finished command. Catalyst's versions are renamed rather than shadowing
+v3's:
+
+| Was | Now |
+|---|---|
+| `.until(condition)` | `.untilTrue(condition)` |
+| `.andThen(next)` | `.then(next)` |
+| `.alongWith(others)` | `.together(others)` |
+| `.raceWith(others)` | `.racing(others)` |
+| `.withTimeout(seconds)` | `.timeoutAfter(seconds)` |
+
+`withName`, `finallyDo` and `beforeStarting` are unchanged.
+
+### `ServoMechanism.getServo()` is now `getPwm()`
+
+See [Servos do not work on Systemcore](#servos-do-not-work-on-systemcore) — this is a hardware
+limitation, not a rename for its own sake.
+
+### Subsystems implement instead of extend
+
+`SubsystemBase` is gone. Catalyst subsystems implement `CatalystSubsystem`, which restores
+`run(Runnable)`, `runOnce(Runnable)` and `startEnd(...)` so your command factories still work.
+
+**One thing to actually do**: call `registerPeriodic()` in your constructor if you define
+`periodic()`. Commands v3's `Mechanism` is an interface with no constructor to hook, so nothing
+registers it for you — and a `periodic()` that never runs compiles perfectly and fails silently.
+
+```java
+public class Intake extends CatalystMechanism {
+    public Intake() {
+        super("Intake");
+        // CatalystMechanism already does this for you. Only needed if you implement
+        // CatalystSubsystem directly.
+    }
+}
+```
+
+---
+
+## Things about the hardware that will catch you out
+
+These are not Catalyst decisions. They are properties of Systemcore that are invisible from robot
+code, and each one has a failure mode that does not look like its cause.
+
+### The five CAN buses are three controllers
+
+`can_s0`+`can_s1` share an SPI controller, `can_s3`+`can_s4` share another, `can_s2` is alone.
+Splitting a drivetrain across `can_s0` and `can_s1` therefore buys much less than splitting it
+across `can_s0` and `can_s3`, and two buses at 55% each can overload their shared controller while
+both look fine individually.
+
+```java
+CANBusPlanner.validate().forEach(System.out::println);   // problems with the plan you have
+CANBusPlanner.suggest();                                 // a plan that respects the pairing
+```
+
+The load model is an estimate. Measure with `CANBusHealth` on a real robot under load and feed the
+numbers back with `CANBusPlanner.calibrate(bus, utilization)`.
+
+### Servos do not work on Systemcore
+
+Systemcore's IO pins output 3.3 V and nowhere near enough current to turn a servo. This is not a
+software limitation and no library can work around it — WPILib removed the `Servo` class for exactly
+this reason. Use a CAN servo hub.
+
+`ServoMechanism` drives a raw PWM channel, which is the correct *signal* for a servo through a hub.
+
+**Also**: Systemcore returns every PWM output to centre when the robot is disabled, in IO-chip
+firmware, with no override. A mechanism that must hold position through a disable cannot hold it on
+PWM.
+
+### I²C cables need two wires swapped
+
+Systemcore's I²C pinout swaps SCL and SDA relative to the roboRIO. An existing FRC I²C cable will
+find nothing and fail silently, which reads as a dead sensor. Systemcore matches the Qwiic and REV
+Control/Expansion Hub pinout, so a Qwiic cable is correct as-is.
+
+```java
+CatalystI2C.scan();   // empty result raises an alert telling you to check the cable
+```
+
+### IO pins are typed on the device
+
+A pin is `digital_in` or `analog_in` because someone set it that way in the Systemcore web UI, and
+that survives every code deploy. Declare what you expect so it is written down where a human can
+compare it:
+
+```java
+SmartIO.declare(0, SmartIO.Type.DIGITAL_IN, "IntakeBeamBreak");
+```
+
+Published to `/Catalyst/IO/Pins`.
+
+---
+
+## What you get that you did not have
+
+### The machine reports on itself
+
+Systemcore measures its own CPU, RAM, storage and power. On a roboRIO there was nothing to read, so
+a robot that browned out because logs filled the disk failed in a way that pointed at nothing.
+
+```java
+HealthMonitor.systemCoreChecks();     // brownout, CPU, memory, storage, team number mismatch
+SystemCoreStatus.getInstance().publish();   // every loop
+```
+
+`BrownoutMonitor` now takes its floor from the hardware rather than the roboRIO's 6.8 V.
+
+### A free second IMU
+
+Systemcore has an onboard IMU — no CAN id, no wiring, no bus load. Keep the Pigeon for swerve; this
+is worth having as an independent second opinion that shares no failure mode with it, and as a
+fallback if the Pigeon leaves the bus mid-match.
+
+```java
+CatalystIMU backup = new SystemCoreIMU(OnboardIMU.MountOrientation.FLAT);
+```
+
+The mount orientation must match what is set in the Systemcore web UI. Getting it wrong silently
+swaps which axis reports as yaw.
+
+### Four cameras, no switch
+
+Systemcore runs four independent vision instances on its USB ports.
+
+```java
+LimelightSource front = LimelightSource.usb(0, robotToFrontCamera);
+```
+
+With a Hailo accelerator on ports 0–1, object detection runs alongside AprilTag tracking:
+
+```java
+GamePieceDetector detector = new GamePieceDetector(front);
+detector.best("note").ifPresent(piece -> drive.turnTo(piece.bearing()));
+```
+
+### Autos on the Driver Station
+
+The 2027 Driver Station selects op modes directly, so the auto can be chosen on the screen the drive
+team already has open:
+
+```java
+autos.publishAsOpModes();
+```
+
+---
+
+## If vision stops working
+
+**Check this first.** Limelight OS 2027.0 publishes results as a single MessagePack topic and
+disables the classic per-key NetworkTables API by default. Code written against the old keys compiles
+perfectly and sees nothing at all.
+
+Catalyst 2.x uses LimelightLib 2 and is fine. What is *not* automatically fine is your camera
+transform: 2027.0 unified every 3D space on NWU right-handed, so a transform carried over from 2026
+may need its mount side and pitch signs flipped. A wrong sign produces a confidently wrong pose, not
+an error.
+
+Catalyst publishes each camera's transform at construction to
+`/Catalyst/Vision/<camera>/RobotToCamera` so you can check it against the robot.
+
+---
+
+## What is deliberately not done yet
+
+Stated so nobody assumes otherwise:
+
+- **`ignoringDisable()` is a no-op.** Commands v3's disabled-mode behaviour could not be confirmed
+  against the alpha jars, and guessing at what runs while disabled is not something to do quietly.
+- **`PhysicsProfile.SYSTEMCORE` behaves as `BALANCED`.** The compute and the solver both exist now,
+  but Physics Core has never run on a robot. Shadow mode on carpet first.
+- **PhotonVision and ChoreoLib have no 2027 build.** `PhotonSource` is excluded from the compile
+  rather than deleted, and `followChoreoPath()` has no path forward until ChoreoLib ships.
+- **PathPlanner is still commands v2.** Catalyst bridges it with `LegacyCommands.fromV2(...)`; the
+  bridge and the v2 dependency both go away when PathPlanner ships for v3.

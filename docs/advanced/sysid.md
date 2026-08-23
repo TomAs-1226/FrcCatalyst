@@ -44,7 +44,7 @@ public void robotInit() {
 ```
 
 By default `SignalLogger` writes a `.hoot` file to the USB stick mounted
-on the roboRIO (or to `/home/lvuser/logs/` if no USB is present).
+on Systemcore (or to `/home/systemcore/logs/` if no USB is present).
 
 ---
 
@@ -54,13 +54,13 @@ Each mechanism exposes both routines as Commands. Bind them to buttons
 that the driver only uses in characterization sessions:
 
 ```java
-import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
+import frc.lib.catalyst.sysid.SysIdRoutine.Direction;
 
 // Elevator
-driver.povUp()    .whileTrue(elevator.sysIdQuasistatic(Direction.kForward));
-driver.povDown()  .whileTrue(elevator.sysIdQuasistatic(Direction.kReverse));
-driver.povRight() .whileTrue(elevator.sysIdDynamic(Direction.kForward));
-driver.povLeft()  .whileTrue(elevator.sysIdDynamic(Direction.kReverse));
+driver.povUp()    .whileTrue(elevator.sysIdQuasistatic(Direction.FORWARD));
+driver.povDown()  .whileTrue(elevator.sysIdQuasistatic(Direction.REVERSE));
+driver.povRight() .whileTrue(elevator.sysIdDynamic(Direction.FORWARD));
+driver.povLeft()  .whileTrue(elevator.sysIdDynamic(Direction.REVERSE));
 ```
 
 Run each routine until the mechanism reaches its soft limit (or you
@@ -106,8 +106,8 @@ The defaults are 1 V/s ramp, 4 V dynamic step, 10 s timeout. Override
 when you need to:
 
 ```java
-import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
-import edu.wpi.first.units.Units;
+import frc.lib.catalyst.sysid.SysIdRoutine;
+import org.wpilib.units.Units;
 
 SysIdRoutine.Config slowRoutine = new SysIdRoutine.Config(
     Units.Volts.of(0.5).per(Units.Seconds.of(1)),  // 0.5 V/s ramp
@@ -117,7 +117,7 @@ SysIdRoutine.Config slowRoutine = new SysIdRoutine.Config(
 
 SysIdRoutine routine = elevator.getMotor().sysIdRoutine(elevator, slowRoutine);
 
-driver.povUp().whileTrue(routine.quasistatic(Direction.kForward));
+driver.povUp().whileTrue(routine.quasistatic(Direction.FORWARD));
 ```
 
 Useful when the default 4 V step would slam the mechanism into a hard

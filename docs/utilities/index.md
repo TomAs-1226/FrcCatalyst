@@ -85,7 +85,7 @@ One-line SysId characterization setup. Pass the mechanism and its motor — the 
 ```java
 CharacterizationHelper charHelper = new CharacterizationHelper(
     "Elevator",          // name for SysId logging
-    elevator,            // subsystem (extends SubsystemBase)
+    elevator,            // subsystem (implements CatalystSubsystem)
     elevator.getMotor()  // CatalystMotor for voltage control
 );
 
