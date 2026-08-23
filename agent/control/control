@@ -1,0 +1,11 @@
+Package: catalyst-agent
+Version: 2.0.0
+Description: Read-only system telemetry for Catalyst Console. Reports what NetworkTables cannot: per-core CPU, thermal zones, process load, CAN interface counters, filesystem breakdown, and the robot program's own log.
+Section: development
+Priority: optional
+Maintainer: FRC 5805
+Architecture: all
+Source: local
+X-Port: 9010
+X-Has-UI: false
+X-Auto-Start: true

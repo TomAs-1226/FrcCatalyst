@@ -1,0 +1,33 @@
+[Unit]
+Description=Catalyst Agent - read-only system telemetry for Catalyst Console
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/catalyst-agent/catalyst_agent.py
+Restart=always
+RestartSec=5
+TimeoutStartSec=3
+TimeoutStopSec=3
+
+# A diagnostic tool must never be the thing that costs a match. The robot program runs at real-time
+# priority under PREEMPT_RT; this is explicitly the opposite, so a poll from the pit cannot take
+# cycles from the control loop no matter how many people are refreshing the page.
+Nice=10
+CPUSchedulingPolicy=idle
+IOSchedulingClass=idle
+
+# It reads /proc, /sys and the journal, and writes nothing anywhere. Locked down to match: the
+# filesystem is read-only to this unit, so a bug here cannot damage a robot mid-competition.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target
