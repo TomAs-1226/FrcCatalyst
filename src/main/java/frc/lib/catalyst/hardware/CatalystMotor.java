@@ -241,6 +241,11 @@ public class CatalystMotor {
         // bus utilization. Opt-in (default off) so it never silently starves a
         // signal a team depends on.
         if (builder.optimizeCanBus) {
+            // Record the achieved rate so CANBusPlanner can price this device honestly. A motor
+            // whose signals were cut to 50 Hz costs a fraction of one left on Phoenix defaults, and
+            // a planner that treats them alike will send a team rewiring a bus that was fine.
+            CANBusPlanner.noteOptimizedDevice(this.name, builder.canUpdateHz);
+
             BaseStatusSignal.setUpdateFrequencyForAll(builder.canUpdateHz,
                     motor.getPosition(), motor.getVelocity(), motor.getMotorVoltage(),
                     motor.getStatorCurrent(), motor.getSupplyCurrent(), motor.getDeviceTemp(),
@@ -630,6 +635,18 @@ public class CatalystMotor {
          * or raise them yourself first.
          *
          * @param updateHz status-signal rate (50 Hz is a good default)
+         */
+        /**
+         * Raise only the status signals Catalyst reads to {@code updateHz} and silence the rest.
+         *
+         * <p>Worth more on Systemcore than it was on a roboRIO, and for a reason that is easy to get
+         * backwards. Five buses make it tempting to solve bus load purely by spreading devices out,
+         * but the buses share three SPI controllers, so spreading has a floor. Cutting what each
+         * device says has no such floor, and the two compose: fewer frames per device <em>and</em>
+         * fewer devices per controller.
+         *
+         * <p>Still opt-in and still off by default — silencing a signal a team reads would be a
+         * silent failure, and this cannot know which those are.
          */
         public Builder optimizeCanBus(double updateHz) {
             this.optimizeCanBus = true;

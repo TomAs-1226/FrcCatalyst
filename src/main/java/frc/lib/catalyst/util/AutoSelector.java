@@ -43,6 +43,9 @@ public class AutoSelector {
     private final String dashboardKey;
     private boolean firstAdded = false;
 
+    /** Whether the autos have been offered to the Driver Station as op modes. */
+    private boolean opModesPublished = false;
+
     /** Create an auto selector published to "Auto Selector" on the dashboard. */
     public AutoSelector() {
         this("Auto Selector");
@@ -112,9 +115,14 @@ public class AutoSelector {
     /**
      * Get the currently selected auto command.
      * Returns a "Do Nothing" command if the selection fails.
+     *
+     * <p>Resolves through the same path as {@link #getSelectedName()}: the Driver Station's op mode
+     * when one is published and recognised, otherwise the dashboard selector. The two must never
+     * disagree — a robot that reports one auto and runs another is worse than one that runs the
+     * wrong auto openly.
      */
     public CatalystCommand getSelected() {
-        String selected = chooser.getSelected();
+        String selected = resolveSelection();
         if (selected == null) {
             DriverStationErrors.reportWarning("AutoSelector: No auto selected, using Do Nothing", false);
             return Commands.none();
@@ -132,8 +140,68 @@ public class AutoSelector {
 
     /** Get the name of the currently selected auto. */
     public String getSelectedName() {
-        String selected = chooser.getSelected();
+        String selected = resolveSelection();
         return selected != null ? selected : "Do Nothing";
+    }
+
+    /**
+     * The single place the selection is decided, so every caller agrees.
+     *
+     * @return the selected auto's name, or null when nothing is selected anywhere
+     */
+    private String resolveSelection() {
+        String fromDriverStation = opModesPublished ? selectedOpModeName() : null;
+        return fromDriverStation != null ? fromDriverStation : chooser.getSelected();
+    }
+
+    /**
+     * Offer every auto to the Driver Station as an autonomous op mode.
+     *
+     * <p>New in 2027. The FIRST Driver Station can select an op mode directly, which means the auto
+     * is chosen on the same screen the drive team already has open rather than on a dashboard widget
+     * that may or may not be running. Call once, after every auto has been added.
+     *
+     * <p>Once this has been called the Driver Station's choice takes priority over the dashboard
+     * selector, and only when it names an auto this selector knows. Two things follow from that,
+     * both deliberate: a Driver Station that has selected nothing falls back to the dashboard, so
+     * this is safe to call unconditionally; and an op mode named something Catalyst has never heard
+     * of is ignored rather than silently running "Do Nothing", because that would look identical to
+     * a working robot right up until autonomous started.
+     *
+     * <p>No-op off hardware — publishing op modes needs the HAL.
+     */
+    public AutoSelector publishAsOpModes() {
+        try {
+            for (String name : autos.keySet()) {
+                org.wpilib.driverstation.RobotState.addOpMode(
+                        org.wpilib.hardware.hal.RobotMode.AUTONOMOUS, name);
+            }
+            org.wpilib.driverstation.RobotState.publishOpModes();
+            opModesPublished = true;
+        } catch (Throwable ignored) {
+            // Simulation, a unit test, or a desktop build. The dashboard selector still works.
+            opModesPublished = false;
+        }
+        return this;
+    }
+
+    /** Whether the Driver Station's op modes are in use, and it has picked one this selector knows. */
+    public boolean isUsingDriverStationSelection() {
+        return opModesPublished && selectedOpModeName() != null;
+    }
+
+    /**
+     * The Driver Station's chosen op mode, if it names an auto this selector knows about.
+     *
+     * @return the name, or null to fall back to the dashboard selector
+     */
+    private String selectedOpModeName() {
+        try {
+            String name = org.wpilib.driverstation.RobotState.getOpMode();
+            return name != null && autos.containsKey(name) ? name : null;
+        } catch (Throwable ignored) {
+            return null;
+        }
     }
 
     /**

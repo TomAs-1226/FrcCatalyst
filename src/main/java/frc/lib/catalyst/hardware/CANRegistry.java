@@ -221,6 +221,65 @@ public final class CANRegistry {
      * Drop every registration. Mostly useful in unit tests — production
      * code shouldn't need this.
      */
+    /**
+     * The wiring plan as a DBC file, for Systemcore's CAN Bus Monitor.
+     *
+     * <p>Systemcore's web UI decodes live CAN traffic if you upload a DBC or REV JSON spec. Without
+     * one it shows numbers: an id and some bytes. Catalyst already knows every device's name, id,
+     * bus and type, so it can emit the file and turn that display into names.
+     *
+     * <p>Scope, stated plainly: this maps <b>identity</b>, not payloads. Each device becomes a DBC
+     * message named the way robot code names it, so the monitor shows {@code FrontLeftDrive} rather
+     * than an id. It does not describe Phoenix's signal layout inside those frames - that is CTRE's
+     * to publish, it is firmware-dependent, and guessing at it would produce a file that decodes
+     * confidently and wrongly, which is worse than one that decodes nothing.
+     *
+     * <pre>{@code
+     * java.nio.file.Files.writeString(java.nio.file.Path.of("catalyst.dbc"), CANRegistry.toDbc());
+     * }</pre>
+     *
+     * @return DBC file content, one message per registered device
+     */
+    public static synchronized String toDbc() {
+        StringBuilder out = new StringBuilder();
+        out.append("VERSION \"\"\n\n");
+        out.append("NS_ :\n\n");
+        out.append("BS_:\n\n");
+
+        // One node per bus, so the monitor groups devices the way the robot is actually wired.
+        out.append("BU_:");
+        for (String bus : byBus().keySet()) {
+            out.append(' ').append(nodeName(bus));
+        }
+        out.append("\n\n");
+
+        for (Entry e : all()) {
+            // Phoenix device ids are not CAN arbitration ids, and that mapping is CTRE's business.
+            // The id is used here only to keep messages distinct; the name is the part teams read.
+            String message = dbcSafe(e.name());
+            String node = nodeName(e.bus());
+            out.append(String.format("BO_ %d %s: 8 %s%n", e.canId(), message, node));
+            out.append(String.format("  SG_ %s_raw : 0|64@1+ (1,0) [0|0] \"\" %s%n%n", message, node));
+        }
+        return out.toString();
+    }
+
+    /** DBC node name for a bus. */
+    private static String nodeName(String bus) {
+        return dbcSafe(bus == null || bus.isEmpty()
+                ? CatalystCANBus.DEFAULT.name()
+                : CatalystCANBus.of(bus).name());
+    }
+
+    /** DBC identifiers allow letters, digits and underscores, and cannot start with a digit. */
+    private static String dbcSafe(String raw) {
+        String cleaned = raw == null ? "" : raw.replaceAll("[^A-Za-z0-9_]", "_");
+        if (cleaned.isEmpty()) {
+            return "Unnamed";
+        }
+        return Character.isDigit(cleaned.charAt(0)) ? "_" + cleaned : cleaned;
+    }
+
     public static synchronized void clear() {
         byKey.clear();
         republish();

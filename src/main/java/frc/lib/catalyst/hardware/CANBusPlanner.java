@@ -84,11 +84,26 @@ public final class CANBusPlanner {
      */
     public static final int CONCENTRATION_ADVICE_THRESHOLD = 10;
 
+    /** Status signals CatalystMotor raises on a primary motor when optimising. */
+    private static final int PRIMARY_SIGNALS = 9;
+
+    /** Status signals CatalystMotor raises on a follower when optimising. */
+    private static final int FOLLOWER_SIGNALS = 2;
+
     /** Per-device-type frame rate estimates, keyed by the type string the registry stores. */
     private static final Map<String, Double> FRAME_RATES = new LinkedHashMap<>();
 
     /** Measured utilisation, when a team has supplied real numbers. */
     private static final Map<String, Double> CALIBRATED = new LinkedHashMap<>();
+
+    /**
+     * Devices whose status-signal rates were cut, and the rate they were cut to.
+     *
+     * <p>Populated by {@code CatalystMotor} when {@code optimizeCanBus(...)} is used. A device on
+     * default Phoenix rates and one trimmed to 50 Hz differ by several times in bus cost, and a
+     * planner that prices them the same will recommend rewiring a bus that was never the problem.
+     */
+    private static final Map<String, Double> OPTIMIZED = new LinkedHashMap<>();
 
     static {
         // Conservative estimates. A motor talks far more than a sensor: it publishes position,
@@ -123,9 +138,39 @@ public final class CANBusPlanner {
         CALIBRATED.put(CatalystCANBus.of(busName).name(), utilization);
     }
 
-    /** Estimated frames per second for one device type. */
+    /** Estimated frames per second for one device type, ignoring any per-device optimisation. */
     public static synchronized double framesPerSecond(String deviceType) {
         return FRAME_RATES.getOrDefault(deviceType, DEFAULT_FRAMES_PER_SECOND);
+    }
+
+    /**
+     * Record that a device's status signals were trimmed to a fixed rate.
+     *
+     * <p>Called by {@code CatalystMotor.Builder.optimizeCanBus(...)}. Not something robot code needs
+     * to call directly.
+     *
+     * @param deviceName registry name of the device
+     * @param updateHz   rate its signals were set to
+     */
+    public static synchronized void noteOptimizedDevice(String deviceName, double updateHz) {
+        OPTIMIZED.put(deviceName, updateHz);
+    }
+
+    /**
+     * Frames per second for one specific registered device.
+     *
+     * <p>An optimised device is priced from the signals Catalyst actually raises rather than from
+     * the type default. {@code CatalystMotor} raises nine signals on a primary and two on a
+     * follower, so the cost is that count multiplied by the configured rate — which is both a
+     * better estimate and one whose derivation is visible.
+     */
+    public static synchronized double framesPerSecondFor(CANRegistry.Entry device) {
+        Double optimisedHz = OPTIMIZED.get(device.name());
+        if (optimisedHz == null) {
+            return framesPerSecond(device.type());
+        }
+        int signals = device.type().contains("follower") ? FOLLOWER_SIGNALS : PRIMARY_SIGNALS;
+        return signals * optimisedHz;
     }
 
     /**
@@ -142,7 +187,7 @@ public final class CANBusPlanner {
         }
         double frames = 0;
         for (CANRegistry.Entry e : CANRegistry.byBus().getOrDefault(busName, List.of())) {
-            frames += framesPerSecond(e.type());
+            frames += framesPerSecondFor(e);
         }
         return frames * BITS_PER_FRAME / BUS_BITS_PER_SECOND;
     }
@@ -232,7 +277,7 @@ public final class CANBusPlanner {
     public static synchronized Map<String, List<String>> suggest() {
         List<CANRegistry.Entry> devices = new ArrayList<>(CANRegistry.all());
         devices.sort(Comparator.comparingDouble(
-                (CANRegistry.Entry e) -> framesPerSecond(e.type())).reversed());
+                CANBusPlanner::framesPerSecondFor).reversed());
 
         List<CatalystCANBus> buses = new ArrayList<>();
         for (int i = 0; i < CatalystCANBus.SYSTEMCORE_BUS_COUNT; i++) {
@@ -248,7 +293,7 @@ public final class CANBusPlanner {
         }
 
         for (CANRegistry.Entry device : devices) {
-            double load = framesPerSecond(device.type());
+            double load = framesPerSecondFor(device);
 
             CatalystCANBus target = buses.get(0);
             double bestGroupLoad = Double.MAX_VALUE;
