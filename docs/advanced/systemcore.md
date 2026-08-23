@@ -184,15 +184,72 @@ Published to `/Catalyst/IO/Pins`.
 
 ### The machine reports on itself
 
-Systemcore measures its own CPU, RAM, storage and power. On a roboRIO there was nothing to read, so
-a robot that browned out because logs filled the disk failed in a way that pointed at nothing.
+Systemcore measures its own processor, memory, storage, temperature and power, and publishes all of
+it on its own NetworkTables server. On a roboRIO there was nothing to read, so a robot that browned
+out because four seasons of match logs had filled the disk failed in a way that pointed at nothing
+at all.
 
 ```java
-HealthMonitor.systemCoreChecks();     // brownout, CPU, memory, storage, team number mismatch
-SystemCoreStatus.getInstance().publish();   // every loop
+HealthMonitor.systemCoreChecks();           // brownout, CPU, memory, storage, team number mismatch
+SystemCoreStatus.getInstance().publish();   // once per loop
 ```
 
 `BrownoutMonitor` now takes its floor from the hardware rather than the roboRIO's 6.8 V.
+
+#### What you can read
+
+Every one of these is an `Optional` and comes back empty when the machine did not report it. That is
+deliberate and worth honouring in your own code: absent and zero are different facts, and only one of
+them is good news.
+
+| | |
+|---|---|
+| `batteryVolts()`, `isBrownedOut()` | supply, and whether the device says it browned out |
+| `brownoutVolts()`, `recoveryVolts()` | the device's own thresholds, not the roboRIO's constants |
+| `rail3v3Amps()` | current on the rail that feeds the IO pins |
+| `cpuUtilization()`, `cpuTemperatureCelsius()` | load and SoC temperature |
+| `ramFraction()`, `ramUsed()`, `ramTotal()` | memory, as a ratio and in bytes |
+| `storageFraction()`, `storageUsed()`, `storageTotal()` | storage, likewise |
+| `emmcLifeUsedFraction()`, `emmcPreEol()`, `emmcNeedsAttention()` | flash wear |
+| `canBusUtilization()`, `canBusUtilization(int)` | **per bus**, measured rather than estimated |
+| `canBusDown()`, `canBusDownCount()`, `canBusUnavailableCount()` | CAN faults, live and since boot |
+| `networkInterfaces()`, `teamNumber()`, `hardwareSubRevision()` | what and where the machine is |
+
+Two of those deserve a note.
+
+**Per-bus CAN utilisation is measured.** `CANBusPlanner` predicts it from a device list; this is what
+the machine actually saw. Comparing the two is how a plan gets corrected:
+
+```java
+SystemCoreStatus.getInstance().canBusUtilization(0)
+        .ifPresent(u -> CANBusPlanner.calibrate("can_s0", u));
+```
+
+**Flash wear does not recover.** Deleting logs frees space and gives back none of the write life
+already spent, and four seasons of match logs is exactly the workload that spends it. The device
+reports its estimate in 10% bands rather than as a percentage, so `emmcLifeUsedFraction()` returns
+the midpoint of the band it reported — treat it as "roughly", because that is all the flash said.
+`emmcPreEol()` is the device's separate opinion based on blocks actually retired, and is usually the
+earlier of the two signals.
+
+#### Two publishing rates
+
+`publish()` puts everything under `/Catalyst/Systemcore/`, on the same connection as the rest of
+Catalyst's telemetry, so Console, AdvantageScope and a `.wpilog` replay all get it.
+
+There are twenty-two readings and about a third of them move loop to loop. Publishing all of them at
+50 Hz would put roughly 1100 NetworkTables writes per second on a link shared with everything else
+the robot reports, to say over and over that the team number is still the same. So the ones that
+move go out every loop, and the rest go out about once a second. Both go out on the first call, so a
+dashboard connecting mid-match fills in immediately.
+
+Nothing about that is tunable, and it should not need to be — call it once per loop and forget it.
+
+#### Seeing it
+
+Catalyst Console has a **Systemcore** page in Settings showing all of it: the four live figures,
+per-bus CAN grouped by the controller each bus shares, flash wear, power, and the network
+interfaces. It needs no configuration — a robot calling `publish()` fills it in.
 
 ### A free second IMU
 
@@ -296,6 +353,10 @@ Stated so nobody assumes otherwise:
 Separate from the list above, which is about work not done. These are things where the answer was
 not available and a guess would have looked exactly like knowledge.
 
+Two came off this list by being found rather than assumed. The `/sys` topic names, including
+`vbrownout` and `vrecovery`, were read out of the OS image; so were the eMMC, thermal and per-bus
+CAN topics that the readings above are built on.
+
 - **Whether Systemcore terminates its own CAN buses.** The roboRIO had a 120 Ohm terminator built
   in. Nothing in Limelight's or WPILib's documentation says whether Systemcore does, on any of its
   five buses. The wiring tool asks you to check rather than assuming either way.
@@ -305,8 +366,12 @@ not available and a guess would have looked exactly like knowledge.
   It could not be tested, because GradleRIO 2027 alpha-6 ships only inside the WPILib installer.
   If VS Code complains about the season on install, this is why, and the fix is to match your
   project's `projectYear` exactly.
-- **`/sys` topic names for the brownout thresholds.** `vbrownout` and `vrecovery` are read as
-  millivolts. The conversion is tested; the topic names are not confirmed against a running machine.
+- **Whether the eMMC health topics carry raw JEDEC codes.** The OS reads Linux's
+  `/sys/class/mmc_host/*/life_time` and `/pre_eol_info`, which expose the raw registers, and Catalyst
+  reads `emmc/lifetime_a`, `emmc/lifetime_b` and `emmc/pre_eol` as those codes: lifetime in ten 10%
+  steps, pre-EOL as 1 normal / 2 warning / 3 urgent. That the daemon passes them through unchanged is
+  read off the sysfs paths it opens, not off a running machine. If a real Systemcore reports a
+  percentage instead, wear will read as roughly a tenth of its true value.
 - **The camera NWU transform signs.** Reasoned from the coordinate conventions, not measured. Check
   against a known target before trusting pose estimates from a camera that is not centred.
 - **`Models.singleJointedArmFromPhysicalConstants` as the successor to `createDCMotorSystem`.** It

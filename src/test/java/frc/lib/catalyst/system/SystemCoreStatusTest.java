@@ -143,6 +143,134 @@ class SystemCoreStatusTest {
                 .cpuUtilization().orElseThrow(), 1e-9);
     }
 
+    // --- eMMC wear, which is the failure nobody watches for ------------------
+
+    @Test
+    void eMmcLifeIsReadAsBandsBecauseThatIsAllTheDeviceReports() {
+        // JEDEC gives a code in 10% steps, not a percentage. Band 1 is 0-10% used, so the honest
+        // answer is the middle of the band - claiming 10% or 0% would be inventing a digit the
+        // device never provided.
+        assertEquals(0.05, with(SystemCoreSim.healthy().withEmmc(1, 1, 1))
+                .emmcLifeUsedFraction().orElseThrow(), 1e-9);
+        assertEquals(0.55, with(SystemCoreSim.healthy().withEmmc(6, 6, 1))
+                .emmcLifeUsedFraction().orElseThrow(), 1e-9);
+        assertEquals(0.95, with(SystemCoreSim.healthy().withEmmc(10, 10, 1))
+                .emmcLifeUsedFraction().orElseThrow(), 1e-9);
+    }
+
+    @Test
+    void theWorseOfTheTwoRegionsIsTheOneThatMatters() {
+        // Two regions with different wear. The flash fails when the worse one does, so averaging
+        // them would report a healthy device right up until it stopped writing.
+        assertEquals(0.85, with(SystemCoreSim.healthy().withEmmc(2, 9, 1))
+                .emmcLifeUsedFraction().orElseThrow(), 1e-9);
+    }
+
+    @Test
+    void aDeviceBeyondItsRatedLifeReportsFullyUsed() {
+        assertEquals(1.0, with(SystemCoreSim.healthy().withEmmc(11, 11, 3))
+                .emmcLifeUsedFraction().orElseThrow(), 1e-9);
+    }
+
+    @Test
+    void jedecZeroMeansUnknownNotBrandNew() {
+        // 0 is "not defined". Reading it as 0% used would report a worn-out card as factory fresh.
+        assertTrue(with(SystemCoreSim.healthy().withEmmc(0, 0, 0))
+                .emmcLifeUsedFraction().isEmpty());
+    }
+
+    @Test
+    void preEolIsPassedThroughAsItsCode() {
+        assertEquals(2, with(SystemCoreSim.healthy().withEmmc(3, 3, 2)).emmcPreEol().orElseThrow());
+    }
+
+    @Test
+    void attentionIsFlaggedByEitherSignalIndependently() {
+        // The two are independent: pre-EOL reflects blocks actually retired, lifetime reflects
+        // writes estimated. Either alone is worth acting on, so requiring both would mean waiting
+        // for the second one.
+        assertFalse(with(SystemCoreSim.healthy().withEmmc(2, 2, 1)).emmcNeedsAttention(),
+                "a healthy card should not nag");
+        assertTrue(with(SystemCoreSim.healthy().withEmmc(2, 2, 2)).emmcNeedsAttention(),
+                "pre-EOL warning alone");
+        assertTrue(with(SystemCoreSim.healthy().withEmmc(9, 9, 1)).emmcNeedsAttention(),
+                "high wear alone");
+    }
+
+    @Test
+    void aMachineThatReportsNoEmmcDataSaysNothingRatherThanFine() {
+        SystemCoreStatus s = with(SystemCoreSim.healthy()
+                .clear("emmc/lifetime_a").clear("emmc/lifetime_b").clear("emmc/pre_eol"));
+        assertTrue(s.emmcLifeUsedFraction().isEmpty());
+        assertTrue(s.emmcPreEol().isEmpty());
+        assertFalse(s.emmcNeedsAttention(), "unknown is not the same as bad");
+    }
+
+    // --- per-bus CAN ---------------------------------------------------------
+
+    @Test
+    void canUtilizationComesBackPerBus() {
+        SystemCoreStatus s = with(SystemCoreSim.healthy().withCanUtilization(0.5, 0.1, 0, 0, 0));
+
+        assertEquals(5, s.canBusUtilization().orElseThrow().length);
+        assertEquals(0.5, s.canBusUtilization(0).orElseThrow(), 1e-9);
+        assertEquals(0.1, s.canBusUtilization(1).orElseThrow(), 1e-9);
+    }
+
+    @Test
+    void anIndexOutsideTheReadingIsEmptyNotZero() {
+        // A CANivore is not can_s5. Reporting 0% for a bus that was never measured would read as an
+        // idle bus rather than as no bus.
+        SystemCoreStatus s = with(SystemCoreSim.healthy().withCanUtilization(0.5, 0.1));
+        assertTrue(s.canBusUtilization(4).isEmpty());
+        assertTrue(s.canBusUtilization(-1).isEmpty());
+    }
+
+    @Test
+    void noCanReadingAtAllIsEmpty() {
+        assertTrue(with(SystemCoreSim.healthy().clear("/diagnostics/canbusutil"))
+                .canBusUtilization().isEmpty());
+    }
+
+    @Test
+    void canFaultsAreCountsSinceBootNotACurrentState() {
+        SystemCoreStatus s = with(SystemCoreSim.healthy().withCanFaults(3, 1, false));
+
+        assertEquals(3, s.canBusDownCount().orElseThrow(), 1e-9);
+        assertEquals(1, s.canBusUnavailableCount().orElseThrow(), 1e-9);
+        assertFalse(s.canBusDown(), "three drops earlier does not mean it is down now");
+
+        assertTrue(with(SystemCoreSim.healthy().withCanFaults(3, 1, true)).canBusDown());
+    }
+
+    // --- thermal, rail, interfaces -------------------------------------------
+
+    @Test
+    void temperatureAndRailAreReadStraightThrough() {
+        SystemCoreStatus s = with(SystemCoreSim.healthy().withTemperature(71.5).withRail3v3(0.9));
+        assertEquals(71.5, s.cpuTemperatureCelsius().orElseThrow(), 1e-9);
+        assertEquals(0.9, s.rail3v3Amps().orElseThrow(), 1e-9);
+    }
+
+    @Test
+    void networkInterfacesArePassedThroughUnparsed() {
+        String[] got = with(SystemCoreSim.healthy().withNetworkInterfaces("eth0", "wlan0"))
+                .networkInterfaces().orElseThrow();
+        assertEquals(2, got.length);
+        assertEquals("eth0", got[0]);
+    }
+
+    @Test
+    void anAbsentMachineReportsNoneOfTheNewReadings() {
+        SystemCoreStatus s = with(SystemCoreSim.healthy().withAvailable(false));
+
+        assertTrue(s.cpuTemperatureCelsius().isEmpty());
+        assertTrue(s.emmcLifeUsedFraction().isEmpty());
+        assertTrue(s.canBusUtilization().isEmpty());
+        assertTrue(s.networkInterfaces().isEmpty());
+        assertFalse(s.canBusDown());
+    }
+
     // --- identity ------------------------------------------------------------
 
     @Test
