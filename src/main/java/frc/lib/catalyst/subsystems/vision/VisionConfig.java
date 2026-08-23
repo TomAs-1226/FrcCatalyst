@@ -1,7 +1,6 @@
 package frc.lib.catalyst.subsystems.vision;
 
-import edu.wpi.first.apriltag.AprilTagFieldLayout;
-import edu.wpi.first.math.geometry.Transform3d;
+import org.wpilib.math.geometry.Transform3d;
 import frc.lib.catalyst.subsystems.swerve.SwerveSubsystem;
 
 import java.util.ArrayList;
@@ -118,17 +117,14 @@ public class VisionConfig {
             return this;
         }
 
-        /**
-         * Add a PhotonVision camera.
-         * @param name PhotonVision camera name
-         * @param robotToCamera transform from robot center to camera
-         * @param fieldLayout AprilTag field layout
-         */
-        public Builder addPhotonCamera(String name, Transform3d robotToCamera,
-                                       AprilTagFieldLayout fieldLayout) {
-            cameras.add(new PhotonSource(name, robotToCamera, fieldLayout));
-            return this;
-        }
+        // addPhotonCamera(...) was removed in 2.0.0.
+        //
+        // PhotonVision has no 2027 vendordep, so PhotonSource cannot be built on this branch, and
+        // the AprilTagFieldLayout it took no longer exists either - WPILib 2027 replaced it with
+        // org.wpilib.fields.Field. Catalyst is Limelight-first on Systemcore because the pipeline
+        // is built into the hardware; use addLimelight(...) or addCamera(...) with your own
+        // CameraSource. The PhotonSource file is kept out of the compile rather than deleted, so
+        // this can come back if PhotonVision ships for 2027.
 
         /** Add a custom camera source. */
         public Builder addCamera(CameraSource camera) {

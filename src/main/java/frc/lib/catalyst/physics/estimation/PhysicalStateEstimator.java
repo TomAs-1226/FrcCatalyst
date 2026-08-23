@@ -2,10 +2,10 @@ package frc.lib.catalyst.physics.estimation;
 
 import java.util.Locale;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.kinematics.ChassisVelocities;
 
 import frc.lib.catalyst.physics.LocalizationQuality;
 import frc.lib.catalyst.physics.PhysicalRobotState;
@@ -139,16 +139,16 @@ public final class PhysicalStateEstimator {
     public PhysicalRobotState update(
             double timestampSeconds,
             Pose2d pose,
-            ChassisSpeeds kinematicRobotRelativeSpeeds,
+            ChassisVelocities kinematicRobotRelativeSpeeds,
             Translation2d robotRelativeAcceleration,
             double yawRateRadPerSec,
             double slipFactor) {
 
         Rotation2d heading = pose.getRotation();
-        ChassisSpeeds kinematicField =
-                ChassisSpeeds.fromRobotRelativeSpeeds(kinematicRobotRelativeSpeeds, heading);
+        ChassisVelocities kinematicField =
+                kinematicRobotRelativeSpeeds.toFieldRelative(heading);
         Translation2d wheelVelocity =
-                new Translation2d(kinematicField.vxMetersPerSecond, kinematicField.vyMetersPerSecond);
+                new Translation2d(kinematicField.vx, kinematicField.vy);
         Translation2d measuredAccelField = robotRelativeAcceleration == null
                 ? Translation2d.kZero
                 : robotRelativeAcceleration.rotateBy(heading);
@@ -179,7 +179,7 @@ public final class PhysicalStateEstimator {
                     slipSeconds + (slipFactor > 0.3 ? dt : -dt)));
 
             Translation2d previousVelocity = new Translation2d(
-                    state.fieldVelocity().vxMetersPerSecond, state.fieldVelocity().vyMetersPerSecond);
+                    state.fieldVelocity().vx, state.fieldVelocity().vy);
             Translation2d imuVelocity = previousVelocity.plus(measuredAccelField.times(dt));
 
             // Availability is per sample: the configured flag can veto the IMU, but it cannot conjure
@@ -201,7 +201,7 @@ public final class PhysicalStateEstimator {
         state = new PhysicalRobotState(
                 timestampSeconds,
                 pose,
-                new ChassisSpeeds(fusedVelocity.getX(), fusedVelocity.getY(), yawRateRadPerSec),
+                new ChassisVelocities(fusedVelocity.getX(), fusedVelocity.getY(), yawRateRadPerSec),
                 fusedAccel,
                 fusedAngularAccel,
                 quality);
@@ -331,7 +331,7 @@ public final class PhysicalStateEstimator {
         double weight = estimateVariance / (estimateVariance + observationVariance);
 
         Translation2d current = new Translation2d(
-                state.fieldVelocity().vxMetersPerSecond, state.fieldVelocity().vyMetersPerSecond);
+                state.fieldVelocity().vx, state.fieldVelocity().vy);
         Translation2d fused = current.plus(fieldVelocity.minus(current).times(weight));
 
         observedVelocityVariance =
@@ -340,8 +340,8 @@ public final class PhysicalStateEstimator {
         state = new PhysicalRobotState(
                 state.timestampSeconds(),
                 state.pose(),
-                new ChassisSpeeds(fused.getX(), fused.getY(),
-                        state.fieldVelocity().omegaRadiansPerSecond),
+                new ChassisVelocities(fused.getX(), fused.getY(),
+                        state.fieldVelocity().omega),
                 state.fieldAcceleration(),
                 state.angularAccelerationRadPerSecSq(),
                 rebuildQualityWithVelocity(state.quality()));

@@ -1,7 +1,11 @@
 package frc.lib.catalyst.subsystems.swerve;
 
-import static edu.wpi.first.units.Units.MetersPerSecond;
-import static edu.wpi.first.units.Units.RadiansPerSecond;
+import frc.lib.catalyst.command.LegacyCommands;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.driverstation.MatchState;
+import org.wpilib.driverstation.DriverStationErrors;
+import static org.wpilib.units.Units.MetersPerSecond;
+import static org.wpilib.units.Units.RadiansPerSecond;
 
 import java.util.Set;
 import java.util.function.DoubleSupplier;
@@ -18,22 +22,22 @@ import com.pathplanner.lib.controllers.PPHolonomicDriveController;
 import com.pathplanner.lib.path.PathConstraints;
 import com.pathplanner.lib.path.PathPlannerPath;
 
-import edu.wpi.first.math.MathUtil;
-import edu.wpi.first.math.controller.PIDController;
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
-import edu.wpi.first.math.kinematics.SwerveModuleState;
-import edu.wpi.first.wpilibj.DriverStation;
-import edu.wpi.first.wpilibj.DriverStation.Alliance;
-import edu.wpi.first.wpilibj.Notifier;
-import edu.wpi.first.wpilibj.RobotBase;
-import edu.wpi.first.wpilibj.RobotController;
-import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
-import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import org.wpilib.math.util.MathUtil;
+import org.wpilib.math.controller.PIDController;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.kinematics.ChassisVelocities;
+import org.wpilib.math.kinematics.SwerveModuleVelocity;
+import org.wpilib.driverstation.DriverStation;
+import org.wpilib.driverstation.Alliance;
+import org.wpilib.system.Notifier;
+import org.wpilib.framework.RobotBase;
+import org.wpilib.system.RobotController;
+import org.wpilib.system.Timer;
+import org.wpilib.command3.Command;
+import frc.lib.catalyst.command.Commands;
+import org.wpilib.command3.Mechanism;
 import frc.lib.catalyst.identity.RobotIdentity;
 import frc.lib.catalyst.logging.CatalystLog;
 import frc.lib.catalyst.physics.RobotStateSource;
@@ -70,7 +74,7 @@ import frc.lib.catalyst.util.SlewRateLimiter;
  * can take the interface and work equally well with a plain drivetrain or with
  * {@code PhysicsCore}.
  */
-public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
+public class SwerveSubsystem implements frc.lib.catalyst.command.CatalystSubsystem, RobotStateSource {
 
     private final SwerveDrivetrain drivetrain;
     private final double maxSpeedMPS;
@@ -112,8 +116,8 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
     private final SwerveRequest.Idle idleRequest = new SwerveRequest.Idle();
     // Closed-loop request for path following: velocity control + wheel force
     // feedforwards from PathPlanner (both are dropped by the open-loop teleop path).
-    private final SwerveRequest.ApplyRobotSpeeds pathApplyRequest =
-            new SwerveRequest.ApplyRobotSpeeds().withDriveRequestType(DriveRequestType.Velocity);
+    private final SwerveRequest.ApplyRobotVelocity pathApplyRequest =
+            new SwerveRequest.ApplyRobotVelocity().withDriveRequestType(DriveRequestType.Velocity);
 
     // Simulation: a high-rate thread that actually advances the Phoenix sim so the
     // drivetrain moves in the simulator (without it, status signals stay stale).
@@ -139,6 +143,10 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
                            PathPlannerConfig pathPlannerConfig) {
         this.drivetrain = drivetrain;
         this.maxSpeedMPS = maxSpeedMPS;
+        // Commands v3's Mechanism has no constructor to hook, so periodic() is registered
+        // explicitly. Without this the method compiles and is simply never called - see
+        // CatalystSubsystem#registerPeriodic.
+        registerPeriodic();
         final double RadiusRobot = drivetrain.getModuleLocations()[0].getNorm();
         this.maxAngularRate = maxSpeedMPS / RadiusRobot;
 
@@ -194,7 +202,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
                     // Closed-loop velocity control, forwarding PathPlanner's wheel
                     // force feedforwards (both dropped by the open-loop teleop path).
                     (speeds, feedforwards) -> drivetrain.setControl(
-                            pathApplyRequest.withSpeeds(speeds)
+                            pathApplyRequest.withVelocity(speeds)
                                     .withWheelForceFeedforwardsX(feedforwards.robotRelativeForcesXNewtons())
                                     .withWheelForceFeedforwardsY(feedforwards.robotRelativeForcesYNewtons())),
                     new PPHolonomicDriveController(
@@ -202,15 +210,14 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
                             new PIDConstants(config.rotationKP, config.rotationKI, config.rotationKD)),
                     RobotConfig.fromGUISettings(),
                     () -> {
-                        var alliance = DriverStation.getAlliance();
-                        return alliance.isPresent() && alliance.get() == DriverStation.Alliance.Red;
-                    },
-                    this);
+                        var alliance = MatchState.getAlliance();
+                        return alliance.isPresent() && alliance.get() == Alliance.RED;
+                    });
         } catch (Exception e) {
             // Loud + persistent: AutoBuilder is left unconfigured, so autos won't
             // path. A quiet reportError is too easy to miss until a match.
             String msg = "PathPlanner failed to configure (autos will not path): " + e.getMessage();
-            DriverStation.reportError(msg, e.getStackTrace());
+            DriverStationErrors.reportError(msg, e.getStackTrace());
             AlertManager.getInstance().error("Swerve", msg);
         }
     }
@@ -242,7 +249,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * #disableInternalSim()} yourself.
      */
     public void setSimPose(Pose2d simPose) {
-        if (edu.wpi.first.wpilibj.RobotBase.isSimulation() && simPose != null) {
+        if (org.wpilib.framework.RobotBase.isSimulation() && simPose != null) {
             disableInternalSim();
             drivetrain.resetPose(simPose);
         }
@@ -282,8 +289,8 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * Robot-relative chassis speeds (the convention PathPlanner's
      * {@code robotRelativeSpeedsSupplier} expects).
      */
-    public ChassisSpeeds getChassisSpeeds() {
-        return drivetrain.getState().Speeds;
+    public ChassisVelocities getChassisSpeeds() {
+        return drivetrain.getState().Velocity;
     }
 
     /**
@@ -299,7 +306,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * @return the commanded module states, or {@code null} if none have been issued yet
      * @since 1.2.1
      */
-    public SwerveModuleState[] getModuleTargets() {
+    public SwerveModuleVelocity[] getModuleTargets() {
         return drivetrain.getState().ModuleTargets;
     }
 
@@ -309,8 +316,8 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * @return the measured module states, or {@code null} if unavailable
      * @since 1.2.1
      */
-    public SwerveModuleState[] getModuleStates() {
-        return drivetrain.getState().ModuleStates;
+    public SwerveModuleVelocity[] getModuleVelocities() {
+        return drivetrain.getState().ModuleVelocities;
     }
 
     /**
@@ -319,8 +326,8 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * needs for Shoot-On-The-Fly: the piece inherits the robot's velocity in
      * the field frame, not the robot frame.
      */
-    public ChassisSpeeds getFieldRelativeSpeeds() {
-        return ChassisSpeeds.fromRobotRelativeSpeeds(getChassisSpeeds(), getHeading());
+    public ChassisVelocities getFieldRelativeSpeeds() {
+        return getChassisSpeeds().toFieldRelative(getHeading());
     }
 
     public Rotation2d getHeading() {
@@ -349,7 +356,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * @since 1.5.0
      */
     @Override
-    public ChassisSpeeds fieldVelocity() {
+    public ChassisVelocities fieldVelocity() {
         return getFieldRelativeSpeeds();
     }
 
@@ -364,7 +371,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      */
     @Override
     public double timestampSeconds() {
-        return Timer.getFPGATimestamp();
+        return Timer.getTimestamp();
     }
 
     /** Max translational speed in m/s (as configured). */
@@ -406,9 +413,9 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
                         .withRotationalRate(RadiansPerSecond.of(rotSpeedRadPerSec)));
     }
 
-    /** Drive robot-centric with a ChassisSpeeds object. */
-    public void driveRobotCentric(ChassisSpeeds speeds) {
-        driveRobotCentric(speeds.vxMetersPerSecond, speeds.vyMetersPerSecond, speeds.omegaRadiansPerSecond);
+    /** Drive robot-centric with a ChassisVelocities object. */
+    public void driveRobotCentric(ChassisVelocities speeds) {
+        driveRobotCentric(speeds.vx, speeds.vy, speeds.omega);
     }
 
     /** Set X-brake (wheels pointed inward to resist pushing). */
@@ -418,7 +425,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
 
     /** Add a vision measurement for pose estimation. */
     public void addVisionMeasurement(Pose2d visionPose, double timestampSeconds,
-                                     edu.wpi.first.math.Matrix<edu.wpi.first.math.numbers.N3, edu.wpi.first.math.numbers.N1> stdDevs) {
+                                     org.wpilib.math.linalg.Matrix<org.wpilib.math.numbers.N3, org.wpilib.math.numbers.N1> stdDevs) {
         drivetrain.addVisionMeasurement(visionPose, timestampSeconds, stdDevs);
     }
 
@@ -433,7 +440,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * Field-centric drive command for teleop.
      * Inputs are -1 to 1 (joystick axes). Automatically scales to max speed.
      */
-    public Command fieldCentricDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
+    public CatalystCommand fieldCentricDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
                                      DoubleSupplier rotSupplier) {
         return run(() -> {
             double x = xSupplier.getAsDouble() * maxSpeedMPS;
@@ -444,7 +451,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
     }
 
     /** Field-centric drive with a deadband applied. */
-    public Command fieldCentricDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
+    public CatalystCommand fieldCentricDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
                                      DoubleSupplier rotSupplier, double deadband) {
         return run(() -> {
             double x = applyDeadband(xSupplier.getAsDouble(), deadband) * maxSpeedMPS;
@@ -455,7 +462,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
     }
 
     /** Robot-centric drive command for teleop. */
-    public Command robotCentricDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
+    public CatalystCommand robotCentricDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
                                      DoubleSupplier rotSupplier) {
         return run(() -> {
             double x = xSupplier.getAsDouble() * maxSpeedMPS;
@@ -476,7 +483,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * @param rotSupplier rotation input (-1 to 1)
      * @param deadband deadband applied to all axes
      */
-    public Command headingLockDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
+    public CatalystCommand headingLockDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
                                      DoubleSupplier rotSupplier, double deadband) {
         return run(() -> {
             double x = applyDeadband(xSupplier.getAsDouble(), deadband) * maxSpeedMPS;
@@ -511,7 +518,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * @param targetHeading the heading to lock to
      * @param deadband deadband for translation axes
      */
-    public Command driveWithHeading(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
+    public CatalystCommand driveWithHeading(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
                                      Supplier<Rotation2d> targetHeading, double deadband) {
         return run(() -> {
             double x = applyDeadband(xSupplier.getAsDouble(), deadband) * maxSpeedMPS;
@@ -532,7 +539,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * @param targetPoint field position to point at (e.g., speaker location)
      * @param deadband deadband for translation axes
      */
-    public Command pointAtTarget(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
+    public CatalystCommand pointAtTarget(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
                                   Supplier<Translation2d> targetPoint, double deadband) {
         return run(() -> {
             double x = applyDeadband(xSupplier.getAsDouble(), deadband) * maxSpeedMPS;
@@ -541,7 +548,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
             // Calculate angle from robot to target
             Translation2d robotPos = getPose().getTranslation();
             Translation2d toTarget = targetPoint.get().minus(robotPos);
-            Rotation2d targetAngle = toTarget.getAngle();
+            Rotation2d targetAngle = toTarget.getAngle().orElse(Rotation2d.kZero);
 
             double rot = headingPID.calculate(
                     getHeading().getRadians(), targetAngle.getRadians());
@@ -615,7 +622,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
 
     /** Set a speed multiplier for slow/turbo mode (0.0 to 1.0). */
     public void setSpeedMultiplier(double multiplier) {
-        this.speedMultiplier = MathUtil.clamp(multiplier, 0.0, 1.0);
+        this.speedMultiplier = Math.clamp(multiplier, 0.0, 1.0);
     }
 
     /**
@@ -634,7 +641,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * {@link #headingLockDrive}, {@link #driveWithHeading}, {@link #pointAtTarget})
      * intentionally do not apply them.
      */
-    public Command advancedDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
+    public CatalystCommand advancedDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
                                   DoubleSupplier rotSupplier, double deadband) {
         return run(() -> {
             // Apply deadband and scaling
@@ -722,7 +729,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      *
      * @param slowFactor speed multiplier when slow (e.g. 0.3 for 30%)
      */
-    public Command slowModeWhileHeld(double slowFactor) {
+    public CatalystCommand slowModeWhileHeld(double slowFactor) {
         return Commands.startEnd(
                 () -> setSpeedMultiplier(slowFactor),
                 () -> setSpeedMultiplier(1.0)
@@ -740,7 +747,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * @param targetPose target pose (robot aligns to match its rotation)
      * @param deadband input deadband
      */
-    public Command autoAlignDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
+    public CatalystCommand autoAlignDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
                                    Supplier<Pose2d> targetPose, double deadband) {
         return run(() -> {
             double x = applyDeadband(xSupplier.getAsDouble(), deadband) * maxSpeedMPS * speedMultiplier;
@@ -760,7 +767,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * @param translationKP proportional gain for XY (try 2.0-5.0)
      * @param toleranceMeters position tolerance for "arrived"
      */
-    public Command driveToPose(Supplier<Pose2d> targetPose, double translationKP,
+    public CatalystCommand driveToPose(Supplier<Pose2d> targetPose, double translationKP,
                                 double toleranceMeters) {
         PIDController xController = new PIDController(translationKP, 0, 0);
         PIDController yController = new PIDController(translationKP, 0, 0);
@@ -776,11 +783,11 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
 
             // Clamp speeds
             double maxTranslation = maxSpeedMPS * 0.5;
-            xSpeed = MathUtil.clamp(xSpeed, -maxTranslation, maxTranslation);
-            ySpeed = MathUtil.clamp(ySpeed, -maxTranslation, maxTranslation);
+            xSpeed = Math.clamp(xSpeed, -maxTranslation, maxTranslation);
+            ySpeed = Math.clamp(ySpeed, -maxTranslation, maxTranslation);
 
             driveFieldCentric(xSpeed, ySpeed, rotSpeed);
-        }).until(() -> {
+        }).untilTrue(() -> {
             Pose2d current = getPose();
             Pose2d target = targetPose.get();
             return current.getTranslation().getDistance(target.getTranslation()) < toleranceMeters
@@ -804,7 +811,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * @param toleranceMeters position tolerance for "arrived"
      * @param constraints     pathfinding constraints (max vel / accel, etc.)
      */
-    public Command pathfindToPose(Supplier<Pose2d> targetPose, double translationKP,
+    public CatalystCommand pathfindToPose(Supplier<Pose2d> targetPose, double translationKP,
                                   double toleranceMeters, PathConstraints constraints) {
         // Defer so the pose is read when the command is scheduled, not when it is
         // constructed (usually once, at RobotContainer time). The Supplier
@@ -812,10 +819,10 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
         // already live, so both legs now track a moving target.
         return Commands.defer(() -> {
             try {
-                return AutoBuilder.pathfindToPose(targetPose.get(), constraints)
-                        .andThen(driveToPose(targetPose, translationKP, toleranceMeters));
+                return LegacyCommands.fromV2(AutoBuilder.pathfindToPose(targetPose.get(), constraints))
+                        .then(driveToPose(targetPose, translationKP, toleranceMeters));
             } catch (Exception e) {
-                DriverStation.reportError(
+                DriverStationErrors.reportError(
                         "AutoBuilder not configured for pathfindToPose — falling back to PID align: "
                                 + e.getMessage(), true);
                 return driveToPose(targetPose, translationKP, toleranceMeters);
@@ -827,19 +834,19 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * Pathfind to a pose with unlimited constraints (use only when you
      * trust your own velocity / accel limits elsewhere).
      */
-    public Command pathfindToPose(Supplier<Pose2d> targetPose, double translationKP,
+    public CatalystCommand pathfindToPose(Supplier<Pose2d> targetPose, double translationKP,
                                   double toleranceMeters) {
         return pathfindToPose(targetPose, translationKP, toleranceMeters,
                 PathConstraints.unlimitedConstraints(12.0));
     }
 
     /** Pathfind-and-align with sensible defaults (kP=4.0, tolerance=0.02 m). */
-    public Command pathfindToPose(Supplier<Pose2d> targetPose) {
+    public CatalystCommand pathfindToPose(Supplier<Pose2d> targetPose) {
         return pathfindToPose(targetPose, 4.0, 0.02);
     }
 
     /** Pathfind-and-align with sensible defaults plus custom constraints. */
-    public Command pathfindToPose(Supplier<Pose2d> targetPose, PathConstraints constraints) {
+    public CatalystCommand pathfindToPose(Supplier<Pose2d> targetPose, PathConstraints constraints) {
         return pathfindToPose(targetPose, 4.0, 0.02, constraints);
     }
 
@@ -855,12 +862,12 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      *
      * @param trajectoryName file name without the {@code .traj} extension
      */
-    public Command followChoreoPath(String trajectoryName) {
+    public CatalystCommand followChoreoPath(String trajectoryName) {
         try {
             PathPlannerPath path = PathPlannerPath.fromChoreoTrajectory(trajectoryName);
-            return AutoBuilder.followPath(path).withName("Swerve.Choreo(" + trajectoryName + ")");
+            return LegacyCommands.fromV2(AutoBuilder.followPath(path)).withName("Swerve.Choreo(" + trajectoryName + ")");
         } catch (Exception e) {
-            DriverStation.reportError(
+            DriverStationErrors.reportError(
                     "Failed to load Choreo trajectory \"" + trajectoryName + "\": " + e.getMessage(), true);
             return runOnce(() -> {}).withName("Swerve.Choreo(missing:" + trajectoryName + ")");
         }
@@ -876,12 +883,12 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * path's start, use {@link #pathfindThenFollowPath(String, PathConstraints)}
      * instead so it pathfinds back on first.
      */
-    public Command followPath(String pathName) {
+    public CatalystCommand followPath(String pathName) {
         try {
             PathPlannerPath path = PathPlannerPath.fromPathFile(pathName);
-            return AutoBuilder.followPath(path).withName("Swerve.FollowPath(" + pathName + ")");
+            return LegacyCommands.fromV2(AutoBuilder.followPath(path)).withName("Swerve.FollowPath(" + pathName + ")");
         } catch (Exception e) {
-            DriverStation.reportError("Failed to load path \"" + pathName + "\": " + e.getMessage(), true);
+            DriverStationErrors.reportError("Failed to load path \"" + pathName + "\": " + e.getMessage(), true);
             return runOnce(() -> {}).withName("Swerve.FollowPath(missing:" + pathName + ")");
         }
     }
@@ -896,20 +903,20 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * @param pathName    PathPlanner path file (no extension)
      * @param constraints pathfinding constraints for the rejoin leg
      */
-    public Command pathfindThenFollowPath(String pathName, PathConstraints constraints) {
+    public CatalystCommand pathfindThenFollowPath(String pathName, PathConstraints constraints) {
         try {
             PathPlannerPath path = PathPlannerPath.fromPathFile(pathName);
-            return AutoBuilder.pathfindThenFollowPath(path, constraints)
+            return LegacyCommands.fromV2(AutoBuilder.pathfindThenFollowPath(path, constraints))
                     .withName("Swerve.PathfindThenFollow(" + pathName + ")");
         } catch (Exception e) {
-            DriverStation.reportError(
+            DriverStationErrors.reportError(
                     "Failed to load path \"" + pathName + "\": " + e.getMessage(), true);
             return runOnce(() -> {}).withName("Swerve.PathfindThenFollow(missing:" + pathName + ")");
         }
     }
 
     /** Pathfind-then-follow with unlimited constraints (use your own limits elsewhere). */
-    public Command pathfindThenFollowPath(String pathName) {
+    public CatalystCommand pathfindThenFollowPath(String pathName) {
         return pathfindThenFollowPath(pathName, PathConstraints.unlimitedConstraints(12.0));
     }
 
@@ -927,7 +934,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * @param translationKP  proportional gain for the approach (try 2.0–5.0)
      * @param toleranceMeters arrival distance
      */
-    public Command driveToPiece(Supplier<java.util.Optional<Translation2d>> pieceFieldPose,
+    public CatalystCommand driveToPiece(Supplier<java.util.Optional<Translation2d>> pieceFieldPose,
                                 double translationKP, double toleranceMeters) {
         PIDController xCtl = new PIDController(translationKP, 0, 0);
         PIDController yCtl = new PIDController(translationKP, 0, 0);
@@ -943,16 +950,16 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
             double dist = cur.getTranslation().getDistance(target);
             arrived[0] = dist < toleranceMeters;
             double maxApproach = maxSpeedMPS * 0.6;
-            double vx = MathUtil.clamp(xCtl.calculate(cur.getX(), target.getX()), -maxApproach, maxApproach);
-            double vy = MathUtil.clamp(yCtl.calculate(cur.getY(), target.getY()), -maxApproach, maxApproach);
+            double vx = Math.clamp(xCtl.calculate(cur.getX(), target.getX()), -maxApproach, maxApproach);
+            double vy = Math.clamp(yCtl.calculate(cur.getY(), target.getY()), -maxApproach, maxApproach);
             driveFieldCentric(vx, vy, 0);
-        }).until(() -> arrived[0])
+        }).untilTrue(() -> arrived[0])
           .finallyDo(interrupted -> driveFieldCentric(0, 0, 0))
           .withName("Swerve.DriveToPiece");
     }
 
     /** Drive-to-piece with sensible defaults (kP = 3.0, tolerance = 0.2 m). */
-    public Command driveToPiece(Supplier<java.util.Optional<Translation2d>> pieceFieldPose) {
+    public CatalystCommand driveToPiece(Supplier<java.util.Optional<Translation2d>> pieceFieldPose) {
         return driveToPiece(pieceFieldPose, 3.0, 0.2);
     }
 
@@ -965,13 +972,13 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
         var positions = drivetrain.getState().ModulePositions;
         double[] out = new double[positions.length];
         for (int i = 0; i < positions.length; i++) {
-            out[i] = positions[i].distanceMeters;
+            out[i] = positions[i].distance;
         }
         return out;
     }
 
     /** X-brake command (lock wheels). Holds the brake for as long as it runs. */
-    public Command xBrake() {
+    public CatalystCommand xBrake() {
         return run(this::setBrake).withName("Swerve.XBrake");
     }
 
@@ -979,7 +986,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * Reset heading (zero the gyro). A pure odometry op — requires no
      * subsystem, so it won't interrupt the default drive command.
      */
-    public Command resetHeading() {
+    public CatalystCommand resetHeading() {
         return Commands.runOnce(() ->
                 resetPose(new Pose2d(getPose().getTranslation(), new Rotation2d())))
                 .ignoringDisable(true)
@@ -987,8 +994,8 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
     }
     
     @Override
-    public Command idle() {
-        // WPILib's Subsystem.idle() contract is a command that runs forever to
+    public CatalystCommand idle() {
+        // WPILib's Mechanism.idle() contract is a command that runs forever to
         // hold the requirement, so use run(...) not runOnce(...).
         return run(() -> drivetrain.setControl(idleRequest)).withName("Idle");
     }
@@ -997,7 +1004,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * Reset the pose. A pure odometry op — requires no subsystem, so it won't
      * interrupt the default drive command.
      */
-    public Command resetPoseCommand(Supplier<Pose2d> poseSupplier) {
+    public CatalystCommand resetPoseCommand(Supplier<Pose2d> poseSupplier) {
         return Commands.runOnce(() -> resetPose(poseSupplier.get()))
                 .ignoringDisable(true)
                 .withName("Swerve.ResetPose");
@@ -1028,8 +1035,8 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
 
     /** Get current speed magnitude in m/s. */
     public double getCurrentSpeed() {
-        ChassisSpeeds speeds = getChassisSpeeds();
-        return Math.hypot(speeds.vxMetersPerSecond, speeds.vyMetersPerSecond);
+        ChassisVelocities speeds = getChassisSpeeds();
+        return Math.hypot(speeds.vx, speeds.vy);
     }
 
     @Override
@@ -1047,25 +1054,25 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
         if (!hasAppliedOperatorPerspective || RobotState.isDisabled()) {
             RobotState.allianceOpt()
             .ifPresent(AllianceColor -> {
-                drivetrain.setOperatorPerspectiveForward(AllianceColor == Alliance.Red ? Rotation2d.k180deg : Rotation2d.kZero);
+                drivetrain.setOperatorPerspectiveForward(AllianceColor == Alliance.RED ? Rotation2d.k180deg : Rotation2d.kZero);
                 hasAppliedOperatorPerspective = true;
             });
         }
         Pose2d pose = getPose();
         CatalystLog.log(SWERVE + "Pose", Pose2d.struct, pose);
-        CatalystLog.log(SWERVE + "ChassisSpeeds", ChassisSpeeds.struct, getChassisSpeeds());
+        CatalystLog.log(SWERVE + "ChassisVelocities", ChassisVelocities.struct, getChassisSpeeds());
         var state = drivetrain.getState();
-        if (state.ModuleStates != null) {
-            CatalystLog.log(SWERVE + "ModuleStates", SwerveModuleState.struct, state.ModuleStates);
+        if (state.ModuleVelocities != null) {
+            CatalystLog.log(SWERVE + "ModuleVelocities", SwerveModuleVelocity.struct, state.ModuleVelocities);
         }
         if (state.ModuleTargets != null) {
-            CatalystLog.log(SWERVE + "ModuleTargets", SwerveModuleState.struct, state.ModuleTargets);
+            CatalystLog.log(SWERVE + "ModuleTargets", SwerveModuleVelocity.struct, state.ModuleTargets);
         }
         CatalystLog.log(SWERVE + "HeadingDeg", pose.getRotation().getDegrees());
-        ChassisSpeeds speeds = getChassisSpeeds();
-        double speed = Math.hypot(speeds.vxMetersPerSecond, speeds.vyMetersPerSecond);
+        ChassisVelocities speeds = getChassisSpeeds();
+        double speed = Math.hypot(speeds.vx, speeds.vy);
         CatalystLog.log(SWERVE + "SpeedMPS", speed);
-        CatalystLog.log(SWERVE + "OmegaRadPerSec", speeds.omegaRadiansPerSecond);
+        CatalystLog.log(SWERVE + "OmegaRadPerSec", speeds.omega);
         CatalystLog.log(SWERVE + "SpeedMultiplier", speedMultiplier);
     }
 

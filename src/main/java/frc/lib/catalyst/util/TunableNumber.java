@@ -1,9 +1,9 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableEntry;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.wpilibj.RobotBase;
+import org.wpilib.networktables.NetworkTable;
+import org.wpilib.networktables.NetworkTableEntry;
+import org.wpilib.networktables.NetworkTableInstance;
+import org.wpilib.framework.RobotBase;
 
 /**
  * A numeric constant that can be edited live from the dashboard via NetworkTables.
@@ -42,7 +42,7 @@ public class TunableNumber {
     /**
      * Create a tunable number.
      *
-     * @param key unique key (use "Subsystem/Name" format)
+     * @param key unique key (use "Mechanism/Name" format)
      * @param defaultValue the default value
      */
     public TunableNumber(String key, double defaultValue) {

@@ -142,6 +142,82 @@ public final class CANRegistry {
     }
 
     /**
+     * Claim a CAN ID on a typed bus. Equivalent to the string overload, and clearer at the call
+     * site now that there are five buses to choose between.
+     */
+    public static void register(String name, int canId, CatalystCANBus bus, String type) {
+        register(name, canId, bus == null ? "" : bus.name(), type);
+    }
+
+    /**
+     * Wiring problems the registry can see from the plan alone, before the robot is ever enabled.
+     *
+     * <p>Two kinds, both specific to Systemcore:
+     *
+     * <ul>
+     *   <li><b>Everything on one bus.</b> Five buses exist; putting every device on {@code can_s0}
+     *       wastes four of them and is the single easiest way to run out of bandwidth. Reported
+     *       once the count passes what a 1 Mbit/s CAN 2.0 bus comfortably carries.</li>
+     *   <li><b>Loaded buses that share an SPI controller.</b> {@code can_s0}/{@code can_s1} and
+     *       {@code can_s3}/{@code can_s4} are paired in hardware, so splitting a heavy load across
+     *       a pair buys much less than splitting it across unpaired buses. This is the failure that
+     *       looks like a mystery at an event, because on paper the devices are on "different buses".</li>
+     * </ul>
+     *
+     * <p>Advisory only — nothing here throws. It is meant for {@code SystemCheck} and the health
+     * dashboard to surface in the pit, where it can still be acted on.
+     *
+     * @return human-readable warnings, empty when the plan looks sound
+     */
+    public static synchronized List<String> contentionWarnings() {
+        // Devices per bus is a rough proxy for load. A precise figure needs each device's status
+        // signal rates, which is the next step for the planner; this catches the obvious cases.
+        final int busyThreshold = 12;
+
+        Map<String, List<Entry>> buses = byBus();
+        List<String> warnings = new ArrayList<>();
+
+        for (var e : buses.entrySet()) {
+            if (e.getValue().size() > busyThreshold) {
+                warnings.add("Bus " + displayName(e.getKey()) + " carries " + e.getValue().size()
+                        + " devices. Systemcore has " + CatalystCANBus.SYSTEMCORE_BUS_COUNT
+                        + " buses - spreading these out will cut utilisation.");
+            }
+        }
+
+        List<String> names = new ArrayList<>(buses.keySet());
+        for (int i = 0; i < names.size(); i++) {
+            for (int j = i + 1; j < names.size(); j++) {
+                CatalystCANBus a = safeBus(names.get(i));
+                CatalystCANBus b = safeBus(names.get(j));
+                if (a == null || b == null || !a.sharesControllerWith(b)) continue;
+
+                int load = buses.get(names.get(i)).size() + buses.get(names.get(j)).size();
+                if (load > busyThreshold) {
+                    warnings.add("Buses " + a.name() + " and " + b.name()
+                            + " share an SPI controller and together carry " + load
+                            + " devices. Moving some onto an unpaired bus will help more than "
+                            + "splitting them across this pair.");
+                }
+            }
+        }
+        return warnings;
+    }
+
+    private static String displayName(String bus) {
+        return bus == null || bus.isEmpty() ? CatalystCANBus.DEFAULT.name() : bus;
+    }
+
+    /** Resolve a stored bus string, tolerating anything unparseable rather than throwing. */
+    private static CatalystCANBus safeBus(String bus) {
+        try {
+            return CatalystCANBus.of(bus);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    /**
      * Drop every registration. Mostly useful in unit tests — production
      * code shouldn't need this.
      */

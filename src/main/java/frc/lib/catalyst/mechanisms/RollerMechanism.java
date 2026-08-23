@@ -1,14 +1,15 @@
 package frc.lib.catalyst.mechanisms;
 
+import frc.lib.catalyst.command.CatalystCommand;
 import com.ctre.phoenix6.signals.GravityTypeValue;
-import edu.wpi.first.math.system.plant.DCMotor;
-import edu.wpi.first.math.system.plant.LinearSystemId;
-import edu.wpi.first.wpilibj.DigitalInput;
-import edu.wpi.first.wpilibj.RobotBase;
-import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj.simulation.FlywheelSim;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
+import org.wpilib.math.system.DCMotor;
+import org.wpilib.math.system.Models;
+import org.wpilib.hardware.discrete.DigitalInput;
+import org.wpilib.framework.RobotBase;
+import org.wpilib.system.Timer;
+import org.wpilib.simulation.FlywheelSim;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Trigger;
 import frc.lib.catalyst.hardware.CatalystMotor;
 import frc.lib.catalyst.hardware.CatalystMotor.FollowerSpec;
 import frc.lib.catalyst.io.RollerMechanismInputs;
@@ -87,7 +88,7 @@ public class RollerMechanism extends CatalystMechanism {
             // Rollers have no gear/MOI config; a light direct-drive Kraken model
             // is plenty to make the wheel spin and draw current in sim.
             DCMotor model = DCMotor.getKrakenX60(1 + config.followers.size());
-            sim = new FlywheelSim(LinearSystemId.createFlywheelSystem(model, 0.0008, 1.0), model);
+            sim = new FlywheelSim(Models.flywheelFromPhysicalConstants(model, 0.0008, 1.0), model);
         }
     }
 
@@ -97,7 +98,7 @@ public class RollerMechanism extends CatalystMechanism {
             var simState = motor.getTalonFX().getSimState();
             sim.setInput(simState.getMotorVoltage());
             sim.update(0.02);
-            simState.setRotorVelocity(sim.getAngularVelocityRPM() / 60.0);
+            simState.setRotorVelocity((sim.getAngularVelocity() / (2 * Math.PI)));
         }
     }
 
@@ -154,12 +155,12 @@ public class RollerMechanism extends CatalystMechanism {
      * If stall detection or beam break is configured, ends when game piece is detected.
      * Otherwise runs indefinitely (use whileTrue).
      */
-    public Command intake() {
+    public CatalystCommand intake() {
         return run(() -> {
             motor.setPercent(config.intakeSpeed);
             updateStallDetection();
             setState("Intaking");
-        }).until(this::hasPiece)
+        }).untilTrue(this::hasPiece)
                 .finallyDo(() -> {
                     motor.stop();
                     setState("Idle");
@@ -171,7 +172,7 @@ public class RollerMechanism extends CatalystMechanism {
      * Command to intake without auto-stopping.
      * Useful when you want manual control over when to stop.
      */
-    public Command intakeContinuous() {
+    public CatalystCommand intakeContinuous() {
         return run(() -> {
             motor.setPercent(config.intakeSpeed);
             setState("Intaking");
@@ -182,7 +183,7 @@ public class RollerMechanism extends CatalystMechanism {
     }
 
     /** Command to eject game pieces. */
-    public Command eject() {
+    public CatalystCommand eject() {
         return run(() -> {
             motor.setPercent(config.ejectSpeed);
             hasPiece = false;
@@ -194,7 +195,7 @@ public class RollerMechanism extends CatalystMechanism {
     }
 
     /** Command to run rollers at a custom speed [-1, 1]. */
-    public Command runAtSpeed(double speed) {
+    public CatalystCommand runAtSpeed(double speed) {
         return run(() -> {
             motor.setPercent(speed);
             setState("Running " + String.format("%.0f%%", speed * 100));
@@ -205,7 +206,7 @@ public class RollerMechanism extends CatalystMechanism {
     }
 
     /** Command to run rollers at a custom voltage [-12, 12]. */
-    public Command runAtVoltage(double volts) {
+    public CatalystCommand runAtVoltage(double volts) {
         return run(() -> {
             motor.setVoltage(volts);
             setState("Running " + String.format("%.1fV", volts));
@@ -216,7 +217,7 @@ public class RollerMechanism extends CatalystMechanism {
     }
 
     /** Reset the has-piece state. */
-    public Command resetPieceDetection() {
+    public CatalystCommand resetPieceDetection() {
         return runOnce(() -> {
             hasPiece = false;
             stallTimerStarted = false;
@@ -229,7 +230,7 @@ public class RollerMechanism extends CatalystMechanism {
      * Gradually increases speed to prevent wheel slip at initial contact.
      * @param rampTimeSeconds time to ramp from 0 to full intake speed
      */
-    public Command intakeWithRamp(double rampTimeSeconds) {
+    public CatalystCommand intakeWithRamp(double rampTimeSeconds) {
         final Timer rampTimer = new Timer();
         return run(() -> {
             double elapsed = rampTimer.get();
@@ -237,7 +238,7 @@ public class RollerMechanism extends CatalystMechanism {
             motor.setPercent(config.intakeSpeed * rampFraction);
             updateStallDetection();
             setState("IntakeRamp " + String.format("%.0f%%", rampFraction * 100));
-        }).until(this::hasPiece)
+        }).untilTrue(this::hasPiece)
                 .beforeStarting(rampTimer::restart)
                 .finallyDo(() -> {
                     motor.stop();
@@ -252,10 +253,10 @@ public class RollerMechanism extends CatalystMechanism {
      * @param offTimeSeconds time between pulses
      * @param speed speed during pulse [-1, 1]
      */
-    public Command pulse(double onTimeSeconds, double offTimeSeconds, double speed) {
+    public CatalystCommand pulse(double onTimeSeconds, double offTimeSeconds, double speed) {
         return run(() -> {
             double period = onTimeSeconds + offTimeSeconds;
-            double phase = Timer.getFPGATimestamp() % period;
+            double phase = Timer.getTimestamp() % period;
             if (phase < onTimeSeconds) {
                 motor.setPercent(speed);
             } else {
@@ -274,7 +275,7 @@ public class RollerMechanism extends CatalystMechanism {
      *
      * @param volts feed voltage
      */
-    public Command feedVoltage(double volts) {
+    public CatalystCommand feedVoltage(double volts) {
         return run(() -> {
             motor.setVoltage(volts);
             setState("Feeding " + String.format("%.1fV", volts));

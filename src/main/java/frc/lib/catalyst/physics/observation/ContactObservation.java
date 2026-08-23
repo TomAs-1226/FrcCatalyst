@@ -1,6 +1,6 @@
 package frc.lib.catalyst.physics.observation;
 
-import edu.wpi.first.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Rotation2d;
 
 /**
  * The robot is touching something whose position is known — squared up against a wall, seated in a

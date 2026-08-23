@@ -1,9 +1,9 @@
 package frc.lib.catalyst.physics;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
-import edu.wpi.first.math.kinematics.SwerveModuleState;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.kinematics.ChassisVelocities;
+import org.wpilib.math.kinematics.SwerveModuleVelocity;
 
 /**
  * One loop's worth of measurements, gathered at a single instant.
@@ -27,8 +27,8 @@ import edu.wpi.first.math.kinematics.SwerveModuleState;
 public record PhysicsSample(
         double timestampSeconds,
         Pose2d pose,
-        ChassisSpeeds robotRelativeSpeeds,
-        SwerveModuleState[] moduleStates,
+        ChassisVelocities robotRelativeSpeeds,
+        SwerveModuleVelocity[] moduleStates,
         Translation2d robotRelativeAcceleration,
         double yawRateRadPerSec) {
 
@@ -41,7 +41,7 @@ public record PhysicsSample(
     }
 
     /** True when module states were supplied, so slip scoring can run. */
-    public boolean hasModuleStates() {
+    public boolean hasModuleVelocities() {
         return moduleStates != null && moduleStates.length > 0;
     }
 
@@ -55,7 +55,7 @@ public record PhysicsSample(
      * Confidence tracking and prediction still work; slip and collision detection do not.
      */
     public static PhysicsSample of(double timestampSeconds, Pose2d pose,
-                                   ChassisSpeeds robotRelativeSpeeds, double yawRateRadPerSec) {
+                                   ChassisVelocities robotRelativeSpeeds, double yawRateRadPerSec) {
         return new PhysicsSample(timestampSeconds, pose, robotRelativeSpeeds, null, null, yawRateRadPerSec);
     }
 }

@@ -1,11 +1,12 @@
 package frc.lib.catalyst.mechanisms;
 
-import edu.wpi.first.math.system.plant.DCMotor;
-import edu.wpi.first.math.system.plant.LinearSystemId;
-import edu.wpi.first.wpilibj.RobotBase;
-import edu.wpi.first.wpilibj.simulation.FlywheelSim;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.math.system.DCMotor;
+import org.wpilib.math.system.Models;
+import org.wpilib.framework.RobotBase;
+import org.wpilib.simulation.FlywheelSim;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Trigger;
 import frc.lib.catalyst.hardware.CatalystMotor;
 import frc.lib.catalyst.hardware.CatalystMotor.FollowerSpec;
 import frc.lib.catalyst.hardware.MotorType;
@@ -126,12 +127,12 @@ public class FlywheelMechanism extends CatalystMechanism {
         if (RobotBase.isSimulation()) {
             DCMotor motorModel = config.motorType.getDCMotor(config.primaryFollowers.size()+1);
             primarySim = new FlywheelSim(
-                    LinearSystemId.createFlywheelSystem(motorModel, config.moi, config.gearRatio),
+                    Models.flywheelFromPhysicalConstants(motorModel, config.moi, config.gearRatio),
                     motorModel);
             if (secondaryMotor != null) {
                 motorModel = config.motorType.getDCMotor(config.secondaryFollowers.size()+1);
                 secondarySim = new FlywheelSim(
-                        LinearSystemId.createFlywheelSystem(motorModel, config.moi, config.gearRatio),
+                        Models.flywheelFromPhysicalConstants(motorModel, config.moi, config.gearRatio),
                         motorModel);
             }
         }
@@ -209,7 +210,7 @@ public class FlywheelMechanism extends CatalystMechanism {
     }
 
     /** Command to spin up to a target velocity (rotations per second). */
-    public Command spinUp(double velocityRPS) {
+    public CatalystCommand spinUp(double velocityRPS) {
         return run(() -> {
             primarySetpointRPS = velocityRPS;
             secondarySetpointRPS = velocityRPS;
@@ -231,7 +232,7 @@ public class FlywheelMechanism extends CatalystMechanism {
      * Command to spin up dual flywheels at different speeds.
      * Useful for spin control (backspin/topspin).
      */
-    public Command spinUp(double primaryRPS, double secondaryRPS) {
+    public CatalystCommand spinUp(double primaryRPS, double secondaryRPS) {
         if (secondaryMotor == null) {
             return spinUp(primaryRPS);
         }
@@ -263,7 +264,7 @@ public class FlywheelMechanism extends CatalystMechanism {
      *                 .shooterRpm() / 60.0));   // RPM -> RPS
      * }</pre>
      */
-    public Command track(DoubleSupplier velocityRpsSupplier) {
+    public CatalystCommand track(DoubleSupplier velocityRpsSupplier) {
         return run(() -> {
             double v = velocityRpsSupplier.getAsDouble();
             primarySetpointRPS = v;
@@ -289,7 +290,7 @@ public class FlywheelMechanism extends CatalystMechanism {
      * has no meaning in a voltage loop, so this throws unless the config set
      * {@code torqueCurrentFOC(true)}. Fail at wiring time, not silently on the field.
      */
-    public Command track(DoubleSupplier velocityRpsSupplier, DoubleSupplier feedforwardAmpsSupplier) {
+    public CatalystCommand track(DoubleSupplier velocityRpsSupplier, DoubleSupplier feedforwardAmpsSupplier) {
         if (!config.torqueCurrentFOC) {
             throw new IllegalStateException(
                     name + ": track(velocity, feedforwardAmps) requires torqueCurrentFOC(true) — "
@@ -318,12 +319,12 @@ public class FlywheelMechanism extends CatalystMechanism {
      * Command to spin up and end once at speed, leaving the wheel spinning.
      *
      * <p>Deliberately does <b>not</b> reuse {@link #spinUp(double)}: that command's {@code finallyDo}
-     * stops the motors and zeros the setpoint when it ends, so {@code spinUp(v).until(atSpeed)} would
+     * stops the motors and zeros the setpoint when it ends, so {@code spinUp(v).untilTrue(atSpeed)} would
      * cut the wheel the instant it reached speed — useless before a shot. This applies the velocity
      * until {@code atSpeed()} and then ends with the Phoenix velocity request still latched, so a
      * following command (a feeder, say) sees a wheel that is up to speed and staying there.
      */
-    public Command spinUpAndWait(double velocityRPS) {
+    public CatalystCommand spinUpAndWait(double velocityRPS) {
         return run(() -> {
             primarySetpointRPS = velocityRPS;
             secondarySetpointRPS = velocityRPS;
@@ -332,12 +333,12 @@ public class FlywheelMechanism extends CatalystMechanism {
                 applyVelocity(secondaryMotor, velocityRPS, 0);
             }
             setState("SpinUp " + String.format("%.0f", velocityRPS) + " RPS");
-        }).until(this::atSpeed)
+        }).untilTrue(this::atSpeed)
                 .withName(name + ".SpinUpAndWait(" + String.format("%.0f", velocityRPS) + ")");
     }
 
     /** Command to run at a set voltage (open loop). */
-    public Command runVoltage(double volts) {
+    public CatalystCommand runVoltage(double volts) {
         return run(() -> {
             primaryMotor.setVoltage(volts);
             if (secondaryMotor != null) secondaryMotor.setVoltage(volts);
@@ -410,13 +411,13 @@ public class FlywheelMechanism extends CatalystMechanism {
             var simState = primaryMotor.getTalonFX().getSimState();
             primarySim.setInput(simState.getMotorVoltage());
             primarySim.update(0.02);
-            simState.setRotorVelocity(primarySim.getAngularVelocityRPM() / 60.0 * config.gearRatio);
+            simState.setRotorVelocity((primarySim.getAngularVelocity() / (2 * Math.PI)) * config.gearRatio);
         }
         if (secondarySim != null && secondaryMotor != null) {
             var simState = secondaryMotor.getTalonFX().getSimState();
             secondarySim.setInput(simState.getMotorVoltage());
             secondarySim.update(0.02);
-            simState.setRotorVelocity(secondarySim.getAngularVelocityRPM() / 60.0 * config.gearRatio);
+            simState.setRotorVelocity((secondarySim.getAngularVelocity() / (2 * Math.PI)) * config.gearRatio);
         }
     }
 

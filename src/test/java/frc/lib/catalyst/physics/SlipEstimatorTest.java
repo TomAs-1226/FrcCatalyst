@@ -6,11 +6,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
-import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
-import edu.wpi.first.math.kinematics.SwerveModuleState;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.kinematics.ChassisVelocities;
+import org.wpilib.math.kinematics.SwerveDriveKinematics;
+import org.wpilib.math.kinematics.SwerveModuleVelocity;
 
 import frc.lib.catalyst.physics.estimation.SlipEstimator;
 
@@ -32,14 +32,14 @@ class SlipEstimatorTest {
     }
 
     /** Exactly what the kinematics predicts for these chassis speeds — a perfectly rolling robot. */
-    private static SwerveModuleState[] rolling(ChassisSpeeds speeds) {
-        return kinematics().toSwerveModuleStates(speeds);
+    private static SwerveModuleVelocity[] rolling(ChassisVelocities speeds) {
+        return kinematics().toSwerveModuleVelocities(speeds);
     }
 
     @Test
     void aCleanlyRollingRobotScoresZero() {
         SlipEstimator slip = estimator();
-        ChassisSpeeds speeds = new ChassisSpeeds(3.0, 0.0, 0.0);
+        ChassisVelocities speeds = new ChassisVelocities(3.0, 0.0, 0.0);
 
         assertEquals(0.0, slip.update(rolling(speeds), speeds), 1e-9);
         assertEquals(0.0, slip.peakSlip(), 1e-9);
@@ -49,10 +49,10 @@ class SlipEstimatorTest {
     @Test
     void oneSpinningWheelShowsUpAsPeakButBarelyMovesTheMean() {
         SlipEstimator slip = estimator();
-        ChassisSpeeds speeds = new ChassisSpeeds(3.0, 0.0, 0.0);
+        ChassisVelocities speeds = new ChassisVelocities(3.0, 0.0, 0.0);
 
-        SwerveModuleState[] measured = rolling(speeds);
-        measured[2] = new SwerveModuleState(3.0 + 2.0, measured[2].angle);   // module 2 is spinning
+        SwerveModuleVelocity[] measured = rolling(speeds);
+        measured[2] = new SwerveModuleVelocity(3.0 + 2.0, measured[2].angle);   // module 2 is spinning
 
         double mean = slip.update(measured, speeds);
 
@@ -65,11 +65,11 @@ class SlipEstimatorTest {
     @Test
     void allFourWheelsSpinningSaturatesTheMeanToo() {
         SlipEstimator slip = estimator();
-        ChassisSpeeds speeds = new ChassisSpeeds(2.0, 0.0, 0.0);
+        ChassisVelocities speeds = new ChassisVelocities(2.0, 0.0, 0.0);
 
-        SwerveModuleState[] measured = rolling(speeds);
+        SwerveModuleVelocity[] measured = rolling(speeds);
         for (int i = 0; i < measured.length; i++) {
-            measured[i] = new SwerveModuleState(measured[i].speedMetersPerSecond + 1.5, measured[i].angle);
+            measured[i] = new SwerveModuleVelocity(measured[i].velocity + 1.5, measured[i].angle);
         }
 
         assertEquals(1.0, slip.update(measured, speeds), 1e-9);
@@ -78,10 +78,10 @@ class SlipEstimatorTest {
     @Test
     void slipScalesLinearlyUpToTheThreshold() {
         SlipEstimator slip = estimator();
-        ChassisSpeeds speeds = new ChassisSpeeds(2.0, 0.0, 0.0);
+        ChassisVelocities speeds = new ChassisVelocities(2.0, 0.0, 0.0);
 
-        SwerveModuleState[] measured = rolling(speeds);
-        measured[0] = new SwerveModuleState(2.0 + 0.25, measured[0].angle);   // half of the 0.5 threshold
+        SwerveModuleVelocity[] measured = rolling(speeds);
+        measured[0] = new SwerveModuleVelocity(2.0 + 0.25, measured[0].angle);   // half of the 0.5 threshold
 
         slip.update(measured, speeds);
         assertEquals(0.5, slip.moduleScores()[0], 1e-9);
@@ -90,10 +90,10 @@ class SlipEstimatorTest {
     @Test
     void detectionIsSuppressedBelowTheMinimumSpeed() {
         SlipEstimator slip = estimator();
-        ChassisSpeeds crawling = new ChassisSpeeds(0.1, 0.0, 0.0);   // under the 0.25 m/s floor
+        ChassisVelocities crawling = new ChassisVelocities(0.1, 0.0, 0.0);   // under the 0.25 m/s floor
 
-        SwerveModuleState[] measured = rolling(crawling);
-        measured[1] = new SwerveModuleState(5.0, measured[1].angle);   // wildly wrong, but standing still
+        SwerveModuleVelocity[] measured = rolling(crawling);
+        measured[1] = new SwerveModuleVelocity(5.0, measured[1].angle);   // wildly wrong, but standing still
 
         assertEquals(0.0, slip.update(measured, crawling), 1e-9);
     }
@@ -101,12 +101,12 @@ class SlipEstimatorTest {
     @Test
     void aModuleStillRotatingTowardItsSetpointIsNotMistakenForSlip() {
         SlipEstimator slip = estimator();
-        ChassisSpeeds speeds = new ChassisSpeeds(3.0, 0.0, 0.0);
+        ChassisVelocities speeds = new ChassisVelocities(3.0, 0.0, 0.0);
 
-        SwerveModuleState[] measured = rolling(speeds);
+        SwerveModuleVelocity[] measured = rolling(speeds);
         // Module 0 is 60 degrees off; only its along-track component counts, and the wheel has sped
         // up so that component still matches the prediction.
-        measured[0] = new SwerveModuleState(3.0 / Math.cos(Math.toRadians(60.0)),
+        measured[0] = new SwerveModuleVelocity(3.0 / Math.cos(Math.toRadians(60.0)),
                 measured[0].angle.plus(Rotation2d.fromDegrees(60.0)));
 
         slip.update(measured, speeds);
@@ -116,12 +116,12 @@ class SlipEstimatorTest {
     @Test
     void smoothingMakesASingleNoisyFrameLessThanConclusive() {
         SlipEstimator slip = SlipEstimator.builder().kinematics(kinematics()).smoothing(0.3).build();
-        ChassisSpeeds speeds = new ChassisSpeeds(3.0, 0.0, 0.0);
+        ChassisVelocities speeds = new ChassisVelocities(3.0, 0.0, 0.0);
 
         slip.update(rolling(speeds), speeds);   // settle at zero first
 
-        SwerveModuleState[] spike = rolling(speeds);
-        spike[0] = new SwerveModuleState(3.0 + 2.0, spike[0].angle);
+        SwerveModuleVelocity[] spike = rolling(speeds);
+        spike[0] = new SwerveModuleVelocity(3.0 + 2.0, spike[0].angle);
         slip.update(spike, speeds);
 
         assertEquals(0.3, slip.moduleScores()[0], 1e-6);   // one frame gets 30% of the way there
@@ -131,9 +131,9 @@ class SlipEstimatorTest {
     @Test
     void resetClearsScores() {
         SlipEstimator slip = estimator();
-        ChassisSpeeds speeds = new ChassisSpeeds(3.0, 0.0, 0.0);
-        SwerveModuleState[] measured = rolling(speeds);
-        measured[0] = new SwerveModuleState(6.0, measured[0].angle);
+        ChassisVelocities speeds = new ChassisVelocities(3.0, 0.0, 0.0);
+        SwerveModuleVelocity[] measured = rolling(speeds);
+        measured[0] = new SwerveModuleVelocity(6.0, measured[0].angle);
         slip.update(measured, speeds);
         assertTrue(slip.peakSlip() > 0);
 
@@ -152,7 +152,7 @@ class SlipEstimatorTest {
 
         SlipEstimator slip = estimator();
         assertThrows(IllegalArgumentException.class,
-                () -> slip.update(new SwerveModuleState[2], new ChassisSpeeds()));
-        assertThrows(IllegalArgumentException.class, () -> slip.update(null, new ChassisSpeeds()));
+                () -> slip.update(new SwerveModuleVelocity[2], new ChassisVelocities()));
+        assertThrows(IllegalArgumentException.class, () -> slip.update(null, new ChassisVelocities()));
     }
 }

@@ -1,7 +1,8 @@
 package frc.lib.catalyst.mechanisms;
 
-import edu.wpi.first.wpilibj.Servo;
-import edu.wpi.first.wpilibj2.command.Command;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.hardware.discrete.PWM;
+import org.wpilib.command3.Command;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -39,8 +40,38 @@ import java.util.Map;
  */
 public class ServoMechanism extends CatalystMechanism {
 
+    // -------------------------------------------------------------------------
+    // Read this before wiring a servo to Systemcore.
+    //
+    // WPILib 2027 removed the Servo class, and not as tidying: Systemcore's IO pins output 3.3 V
+    // and nowhere near enough current to turn a servo. WPILib's maintainers have said directly that
+    // servos wired straight to Systemcore "just won't work", and that the game rules are unlikely
+    // to permit it either (wpilibsuite/SystemCoreTesting#179).
+    //
+    // This class therefore drives a raw PWM channel and does the pulse-width mapping itself. That
+    // is the correct signal for a servo, and it is enough to drive a servo through a CAN servo hub
+    // or a servo power module - which is the supported path. It will not drive a servo plugged
+    // directly into Systemcore, and nothing in software can make it.
+    //
+    // One more behaviour to design around: Systemcore returns every PWM output to centre when the
+    // robot is disabled. That is IO-chip firmware, not a software policy, and there is no override.
+    // A mechanism that must hold its position through a disable cannot hold it on PWM.
+    // -------------------------------------------------------------------------
+
     private final Config config;
-    private final Servo servo;
+
+    /**
+     * Raw PWM output. WPILib 2027 removed {@code Servo} — see the note on this class — so the
+     * pulse-width mapping a {@code Servo} used to do is done here instead.
+     */
+    private final PWM pwm;
+
+    /** Pulse bounds in microseconds, defaulting to the standard 1.0-2.0 ms servo range. */
+    private final int minPulseUs;
+    private final int maxPulseUs;
+
+    /** Last commanded position in [0, 1]; the PWM channel has no notion of position to read back. */
+    private double commandedFraction;
 
     /** Last angle we commanded, in degrees. Reported as the measured value (open-loop). */
     private double commandedAngleDeg;
@@ -53,11 +84,14 @@ public class ServoMechanism extends CatalystMechanism {
     public ServoMechanism(Config config) {
         super(config.name);
         this.config = config;
-        this.servo = new Servo(config.channel);
+        this.pwm = new PWM(config.channel);
         if (config.hasCustomBounds) {
-            // Non-standard PWM pulse bounds (µs) for servos that don't use the 1.0–2.0 ms default.
-            servo.setBoundsMicroseconds(config.maxUs, config.deadbandMaxUs, config.centerUs,
-                    config.deadbandMinUs, config.minUs);
+            // Non-standard PWM pulse bounds (µs) for servos that don't use the 1.0-2.0 ms default.
+            this.minPulseUs = config.minUs;
+            this.maxPulseUs = config.maxUs;
+        } else {
+            this.minPulseUs = 1000;
+            this.maxPulseUs = 2000;
         }
         this.commandedAngleDeg = config.startAngleDeg;
         applyAngle(config.startAngleDeg);
@@ -82,8 +116,8 @@ public class ServoMechanism extends CatalystMechanism {
      * configured angle range. For servos you'd rather think of as "0 to 1" than in degrees.
      */
     public void setPosition(double fraction) {
-        double f = Math.max(0.0, Math.min(1.0, fraction));
-        servo.set(f);
+        double f = Math.clamp(fraction, 0.0, 1.0);
+        applyFraction(f);
         commandedAngleDeg = config.minAngleDeg + f * (config.maxAngleDeg - config.minAngleDeg);
     }
 
@@ -92,7 +126,14 @@ public class ServoMechanism extends CatalystMechanism {
         commandedAngleDeg = clamped;
         double span = config.maxAngleDeg - config.minAngleDeg;
         double fraction = span <= 0 ? 0.0 : (clamped - config.minAngleDeg) / span;
-        servo.set(fraction);
+        applyFraction(fraction);
+    }
+
+    /** Map a 0-1 position onto the configured pulse width and drive the channel. */
+    private void applyFraction(double fraction) {
+        commandedFraction = fraction;
+        pwm.setPulseTimeMicroseconds(
+                (int) Math.round(minPulseUs + fraction * (maxPulseUs - minPulseUs)));
     }
 
     // =========================================================================
@@ -104,7 +145,7 @@ public class ServoMechanism extends CatalystMechanism {
      * position, so this simply keeps the requirement and re-asserts the setpoint), so bind it with
      * {@code onTrue} for a latch or compose it in a sequence.
      */
-    public Command goTo(double degrees) {
+    public CatalystCommand goTo(double degrees) {
         return run(() -> applyAngle(degrees)).withName(name + ".goTo(" + fmt(degrees) + ")");
     }
 
@@ -113,7 +154,7 @@ public class ServoMechanism extends CatalystMechanism {
      *
      * @throws IllegalArgumentException if {@code positionName} was never configured
      */
-    public Command goTo(String positionName) {
+    public CatalystCommand goTo(String positionName) {
         Double target = config.namedPositions.get(positionName);
         if (target == null) {
             throw new IllegalArgumentException("Unknown servo position '" + positionName
@@ -123,7 +164,7 @@ public class ServoMechanism extends CatalystMechanism {
     }
 
     /** Re-assert the last commanded angle. A no-op mover that just holds where you are. */
-    public Command hold() {
+    public CatalystCommand hold() {
         return run(() -> applyAngle(commandedAngleDeg)).withName(name + ".hold");
     }
 
@@ -138,7 +179,7 @@ public class ServoMechanism extends CatalystMechanism {
 
     /** The commanded position as a fraction of travel, {@code [0, 1]}. */
     public double getPosition() {
-        return servo.get();
+        return commandedFraction;
     }
 
     /** Minimum configured angle in degrees. */
@@ -156,9 +197,15 @@ public class ServoMechanism extends CatalystMechanism {
         return config.namedPositions;
     }
 
-    /** The underlying WPILib {@link Servo}, for advanced use. */
-    public Servo getServo() {
-        return servo;
+    /**
+     * The underlying PWM channel, for advanced use.
+     *
+     * <p><b>Changed in 2.0.0.</b> This returned a WPILib {@code Servo}, a class 2027 removed —
+     * see the note at the top of this class. It now returns the raw {@link PWM} channel this
+     * mechanism drives.
+     */
+    public PWM getPwm() {
+        return pwm;
     }
 
     @Override
@@ -175,13 +222,13 @@ public class ServoMechanism extends CatalystMechanism {
     protected void stop() {
         // Cut the PWM signal. The servo goes limp rather than fighting to hold — the safe "off"
         // for a mechanism a driver has finished with.
-        servo.setDisabled();
+        pwm.setDisabled();
     }
 
     @Override
     protected void updateTelemetry() {
         log("Angle", commandedAngleDeg);
-        log("Position", servo.get());
+        log("Position", commandedFraction);
     }
 
     private static String fmt(double v) {

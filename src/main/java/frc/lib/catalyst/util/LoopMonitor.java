@@ -3,7 +3,7 @@ package frc.lib.catalyst.util;
 import java.util.Locale;
 import java.util.function.DoubleSupplier;
 
-import edu.wpi.first.wpilibj.Timer;
+import org.wpilib.system.Timer;
 
 import frc.lib.catalyst.logging.CatalystLog;
 
@@ -24,7 +24,7 @@ import frc.lib.catalyst.logging.CatalystLog;
  * private final LoopMonitor loop = new LoopMonitor();   // "Robot", 20 ms budget
  *
  * public void robotPeriodic() {
- *     CommandScheduler.getInstance().run();
+ *     Scheduler.getDefault().run();
  *     loop.record();   // measures the time since the last call
  * }
  * }</pre>
@@ -65,7 +65,7 @@ public class LoopMonitor {
      * @param budgetSeconds the loop time you want to stay under, in seconds (20&nbsp;ms is {@code 0.020})
      */
     public LoopMonitor(String name, double budgetSeconds) {
-        this(name, budgetSeconds, 50, Timer::getFPGATimestamp);
+        this(name, budgetSeconds, 50, Timer::getTimestamp);
     }
 
     /**
@@ -75,7 +75,7 @@ public class LoopMonitor {
      * @param budgetSeconds the loop time you want to stay under, in seconds
      * @param averageWindow how many recent loops the rolling average covers (must be positive)
      * @param clock         source of the current time in seconds; the robot uses
-     *                      {@code Timer::getFPGATimestamp}, a test passes its own
+     *                      {@code Timer::getTimestamp}, a test passes its own
      */
     public LoopMonitor(String name, double budgetSeconds, int averageWindow, DoubleSupplier clock) {
         if (budgetSeconds <= 0) throw new IllegalArgumentException("budgetSeconds must be > 0");

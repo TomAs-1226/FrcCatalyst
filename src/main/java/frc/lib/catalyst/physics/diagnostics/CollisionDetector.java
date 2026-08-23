@@ -2,7 +2,7 @@ package frc.lib.catalyst.physics.diagnostics;
 
 import java.util.Optional;
 
-import edu.wpi.first.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Rotation2d;
 
 import frc.lib.catalyst.physics.estimation.DisturbanceEstimator;
 

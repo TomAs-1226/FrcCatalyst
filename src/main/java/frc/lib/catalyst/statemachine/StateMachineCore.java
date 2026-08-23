@@ -20,14 +20,14 @@ import java.util.function.Predicate;
  * The state machine engine: a real, guarded, logged finite state machine over an enum of states
  * and an arbitrary set of {@link Binding}s.
  *
- * <p>This class imports <b>nothing</b> from WPILib. It has no {@code Command}, no {@code Subsystem},
+ * <p>This class imports <b>nothing</b> from WPILib. It has no {@code Command}, no {@code Mechanism},
  * no {@code Trigger}, no {@code Timer}, no NetworkTables — it is driven by {@link #step()} and told
  * the time by a {@link DoubleSupplier}. That is what lets the whole of the machine's logic be
  * unit-tested on a laptop with no HAL, and it is also what will make the eventual port to the 2027
  * command framework a change to the thin robot-side adapter rather than to the engine.
  *
  * <p>For robot code, use {@link frc.lib.catalyst.statemachine.robot.Superstructure}, which wraps
- * this in a {@code SubsystemBase}, steps it once per loop, wires the logging, and exposes
+ * this in a {@code Mechanism}, steps it once per loop, wires the logging, and exposes
  * {@code Command} and {@code Trigger} factories.
  *
  * <h2>The invariant that matters</h2>

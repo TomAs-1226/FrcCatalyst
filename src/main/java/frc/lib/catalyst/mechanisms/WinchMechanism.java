@@ -1,13 +1,14 @@
 package frc.lib.catalyst.mechanisms;
 
-import edu.wpi.first.math.MathUtil;
-import edu.wpi.first.math.system.plant.DCMotor;
-import edu.wpi.first.math.system.plant.LinearSystemId;
-import edu.wpi.first.wpilibj.RobotBase;
-import edu.wpi.first.wpilibj.simulation.DCMotorSim;
-import edu.wpi.first.wpilibj.simulation.ElevatorSim;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.math.util.MathUtil;
+import org.wpilib.math.system.DCMotor;
+import org.wpilib.math.system.Models;
+import org.wpilib.framework.RobotBase;
+import org.wpilib.simulation.DCMotorSim;
+import org.wpilib.simulation.ElevatorSim;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Trigger;
 import frc.lib.catalyst.hardware.CatalystMotor;
 import frc.lib.catalyst.io.WinchMechanismInputs;
 import frc.lib.catalyst.util.HealthMonitor;
@@ -100,7 +101,7 @@ public class WinchMechanism extends CatalystMechanism {
                         false, config.minPosition);
             } else {
                 rotationSim = new DCMotorSim(
-                        LinearSystemId.createDCMotorSystem(model, 0.01, config.gearRatio), model);
+                        Models.singleJointedArmFromPhysicalConstants(model, 0.01, config.gearRatio), model);
             }
         }
     }
@@ -114,15 +115,15 @@ public class WinchMechanism extends CatalystMechanism {
             elevatorSim.setInputVoltage(simState.getMotorVoltage());
             elevatorSim.update(0.02);
             double circ = 2.0 * Math.PI * config.spoolRadius;
-            double spoolRot = elevatorSim.getPositionMeters() / circ;
-            double spoolRps = elevatorSim.getVelocityMetersPerSecond() / circ;
+            double spoolRot = elevatorSim.getPosition() / circ;
+            double spoolRps = elevatorSim.getVelocity() / circ;
             applyRotorSim(spoolRot, spoolRps);
         } else if (rotationSim != null) {
             var simState = motor.getTalonFX().getSimState();
             rotationSim.setInputVoltage(simState.getMotorVoltage());
             rotationSim.update(0.02);
-            applyRotorSim(rotationSim.getAngularPositionRotations(),
-                    rotationSim.getAngularVelocityRPM() / 60.0);
+            applyRotorSim((rotationSim.getAngularPosition() / (2 * Math.PI)),
+                    (rotationSim.getAngularVelocity() / (2 * Math.PI)));
         }
     }
 
@@ -201,7 +202,7 @@ public class WinchMechanism extends CatalystMechanism {
     // --- Command Factories ---
 
     /** Command to extend the mechanism at the configured extend speed. */
-    public Command extend() {
+    public CatalystCommand extend() {
         return run(() -> {
             setMotors(config.extendSpeed);
             setState("Extending");
@@ -212,7 +213,7 @@ public class WinchMechanism extends CatalystMechanism {
     }
 
     /** Command to retract the mechanism at the configured retract speed. */
-    public Command retract() {
+    public CatalystCommand retract() {
         return run(() -> {
             setMotors(config.retractSpeed);
             setState("Retracting");
@@ -223,7 +224,7 @@ public class WinchMechanism extends CatalystMechanism {
     }
 
     /** Command to run at a custom speed [-1, 1]. */
-    public Command runAtSpeed(double speed) {
+    public CatalystCommand runAtSpeed(double speed) {
         return run(() -> {
             setMotors(speed);
             setState("Running " + String.format("%.0f%%", speed * 100));
@@ -234,7 +235,7 @@ public class WinchMechanism extends CatalystMechanism {
     }
 
     /** Command to control with a joystick axis. */
-    public Command manualControl(DoubleSupplier speedSupplier) {
+    public CatalystCommand manualControl(DoubleSupplier speedSupplier) {
         return run(() -> {
             double speed = speedSupplier.getAsDouble();
             if (Math.abs(speed) < 0.05) {
@@ -251,7 +252,7 @@ public class WinchMechanism extends CatalystMechanism {
     }
 
     /** Command to zero the encoder. */
-    public Command zero() {
+    public CatalystCommand zero() {
         return runOnce(() -> {
             motor.zeroEncoder();
             if (secondMotor != null) secondMotor.zeroEncoder();

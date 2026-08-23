@@ -1,12 +1,13 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
-import edu.wpi.first.wpilibj2.command.SubsystemBase;
-import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.command3.Command;
+import frc.lib.catalyst.command.Commands;
+import org.wpilib.command3.Mechanism;
+import frc.lib.catalyst.sysid.SysIdRoutine;
 import frc.lib.catalyst.hardware.CatalystMotor;
 
-import static edu.wpi.first.units.Units.*;
+import static org.wpilib.units.Units.*;
 
 /**
  * Helper for creating WPILib SysId characterization routines for mechanisms.
@@ -36,7 +37,7 @@ public class CharacterizationHelper {
      * @param subsystem the subsystem that owns the motor (for command requirements)
      * @param motor the CatalystMotor to characterize
      */
-    public CharacterizationHelper(String name, SubsystemBase subsystem, CatalystMotor motor) {
+    public CharacterizationHelper(String name, Mechanism subsystem, CatalystMotor motor) {
         this.routine = new SysIdRoutine(
                 new SysIdRoutine.Config(
                         Volts.per(Second).of(1.0), // ramp rate: 1 V/s
@@ -65,7 +66,7 @@ public class CharacterizationHelper {
      * @param motor the CatalystMotor to characterize
      * @param isRotational if true, log as angular units instead of linear
      */
-    public CharacterizationHelper(String name, SubsystemBase subsystem, CatalystMotor motor,
+    public CharacterizationHelper(String name, Mechanism subsystem, CatalystMotor motor,
                                    boolean isRotational) {
         if (!isRotational) {
             this.routine = new SysIdRoutine(
@@ -107,23 +108,23 @@ public class CharacterizationHelper {
     }
 
     /** Quasistatic forward test — slowly ramps voltage forward. */
-    public Command quasistaticForward() {
-        return routine.quasistatic(SysIdRoutine.Direction.kForward);
+    public CatalystCommand quasistaticForward() {
+        return routine.quasistatic(SysIdRoutine.Direction.FORWARD);
     }
 
     /** Quasistatic reverse test — slowly ramps voltage backward. */
-    public Command quasistaticReverse() {
-        return routine.quasistatic(SysIdRoutine.Direction.kReverse);
+    public CatalystCommand quasistaticReverse() {
+        return routine.quasistatic(SysIdRoutine.Direction.REVERSE);
     }
 
     /** Dynamic forward test — applies step voltage forward. */
-    public Command dynamicForward() {
-        return routine.dynamic(SysIdRoutine.Direction.kForward);
+    public CatalystCommand dynamicForward() {
+        return routine.dynamic(SysIdRoutine.Direction.FORWARD);
     }
 
     /** Dynamic reverse test — applies step voltage backward. */
-    public Command dynamicReverse() {
-        return routine.dynamic(SysIdRoutine.Direction.kReverse);
+    public CatalystCommand dynamicReverse() {
+        return routine.dynamic(SysIdRoutine.Direction.REVERSE);
     }
 
     /** Get the underlying SysIdRoutine for advanced use. */

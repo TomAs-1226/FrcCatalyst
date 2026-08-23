@@ -1,6 +1,6 @@
 package frc.lib.catalyst.hardware;
 
-import edu.wpi.first.math.system.plant.DCMotor;
+import org.wpilib.math.system.DCMotor;
 
 /**
  * Specification for an FRC motor — torque, free speed, current draw.

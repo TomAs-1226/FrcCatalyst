@@ -1,6 +1,7 @@
 package frc.lib.catalyst.goal;
 
-import edu.wpi.first.wpilibj2.command.Command;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.command3.Command;
 
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
@@ -78,8 +79,8 @@ public final class Goal {
     }
 
     /** A fresh setup command for this goal, or {@code null} if none. */
-    public Command newSetupCommand() {
-        return setup == null ? null : setup.get();
+    public CatalystCommand newSetupCommand() {
+        return setup == null ? null : CatalystCommand.of(setup.get());
     }
 
     /** Whether this goal has setup work. */
@@ -142,11 +143,12 @@ public final class Goal {
 
         /**
          * Convenience overload for a setup command you can hand over directly.
-         * Internally wrapped so it can be re-pursued via
-         * {@link Command#asProxy()}.
+         * <p>Commands v2 needed {@code asProxy()} here so the command could be re-scheduled on
+         * each pursuit. v3 has no such restriction and no such method, so the supplier hands back
+         * the command directly.
          */
         public Builder with(Command setupCommand) {
-            this.setup = setupCommand == null ? null : setupCommand::asProxy;
+            this.setup = setupCommand == null ? null : () -> setupCommand;
             return this;
         }
 

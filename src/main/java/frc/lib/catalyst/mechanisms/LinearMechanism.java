@@ -1,16 +1,17 @@
 package frc.lib.catalyst.mechanisms;
 
+import frc.lib.catalyst.command.CatalystCommand;
 import com.ctre.phoenix6.signals.GravityTypeValue;
-import edu.wpi.first.math.MathUtil;
-import edu.wpi.first.math.controller.ProfiledPIDController;
-import edu.wpi.first.math.system.plant.DCMotor;
-import edu.wpi.first.math.system.plant.LinearSystemId;
-import edu.wpi.first.math.trajectory.TrapezoidProfile;
-import edu.wpi.first.wpilibj.DigitalInput;
-import edu.wpi.first.wpilibj.RobotBase;
-import edu.wpi.first.wpilibj.simulation.ElevatorSim;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
+import org.wpilib.math.util.MathUtil;
+import org.wpilib.math.controller.ProfiledPIDController;
+import org.wpilib.math.system.DCMotor;
+import org.wpilib.math.system.Models;
+import org.wpilib.math.trajectory.TrapezoidProfile;
+import org.wpilib.hardware.discrete.DigitalInput;
+import org.wpilib.framework.RobotBase;
+import org.wpilib.simulation.ElevatorSim;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Trigger;
 import frc.lib.catalyst.hardware.CatalystMotor;
 import frc.lib.catalyst.hardware.CatalystMotor.FollowerSpec;
 import frc.lib.catalyst.hardware.MotorType;
@@ -308,9 +309,9 @@ public class LinearMechanism extends CatalystMechanism {
      * use {@link #goToAndWait(double, double)} (or gate on
      * {@link #atPositionTrigger(double)}) instead.
      */
-    public Command goTo(double meters) {
+    public CatalystCommand goTo(double meters) {
         return runOnce(() -> {
-            setpointMeters = MathUtil.clamp(meters, config.minPosition, config.maxPosition);
+            setpointMeters = Math.clamp(meters, config.minPosition, config.maxPosition);
             motor.setMotionMagicPosition(metersToRotations(setpointMeters));
             setState("GoTo " + String.format("%.2f", setpointMeters) + "m");
         }).withName(name + ".GoTo(" + String.format("%.2f", meters) + ")");
@@ -320,7 +321,7 @@ public class LinearMechanism extends CatalystMechanism {
      * Command to move to a named position using Motion Magic.
      * @throws IllegalArgumentException if the position name is not defined
      */
-    public Command goTo(String positionName) {
+    public CatalystCommand goTo(String positionName) {
         Double target = config.namedPositions.get(positionName);
         if (target == null) {
             throw new IllegalArgumentException(
@@ -334,7 +335,7 @@ public class LinearMechanism extends CatalystMechanism {
      * Type-safe variant of {@link #goTo(String)} for enums implementing
      * {@link PositionEnum} — no name strings to misspell.
      */
-    public Command goTo(PositionEnum pos) {
+    public CatalystCommand goTo(PositionEnum pos) {
         return goTo(pos.getTarget())
                 .withName(name + ".GoTo(" + ((Enum<?>) pos).name() + ")");
     }
@@ -342,19 +343,19 @@ public class LinearMechanism extends CatalystMechanism {
     /**
      * Command to move to a position and wait until it arrives (within tolerance).
      */
-    public Command goToAndWait(double meters, double toleranceMeters) {
+    public CatalystCommand goToAndWait(double meters, double toleranceMeters) {
         return run(() -> {
-            setpointMeters = MathUtil.clamp(meters, config.minPosition, config.maxPosition);
+            setpointMeters = Math.clamp(meters, config.minPosition, config.maxPosition);
             motor.setMotionMagicPosition(metersToRotations(setpointMeters));
             setState("GoTo " + String.format("%.2f", setpointMeters) + "m");
-        }).until(() -> atPosition(meters, toleranceMeters))
+        }).untilTrue(() -> atPosition(meters, toleranceMeters))
                 .withName(name + ".GoToAndWait(" + String.format("%.2f", meters) + ")");
     }
 
     /**
      * Command to move to a named position and wait until it arrives.
      */
-    public Command goToAndWait(String positionName, double toleranceMeters) {
+    public CatalystCommand goToAndWait(String positionName, double toleranceMeters) {
         Double target = config.namedPositions.get(positionName);
         if (target == null) {
             throw new IllegalArgumentException(
@@ -368,7 +369,7 @@ public class LinearMechanism extends CatalystMechanism {
      * Command that continuously holds the current position.
      * Good as a default command.
      */
-    public Command holdPosition() {
+    public CatalystCommand holdPosition() {
         return run(() -> {
             motor.setMotionMagicPosition(metersToRotations(setpointMeters));
             setState("Hold " + String.format("%.2f", setpointMeters) + "m");
@@ -376,7 +377,7 @@ public class LinearMechanism extends CatalystMechanism {
     }
 
     /** Command to jog upward at a given voltage. */
-    public Command jogUp(double volts) {
+    public CatalystCommand jogUp(double volts) {
         return run(() -> {
             motor.setVoltage(Math.abs(volts));
             setpointMeters = getPosition();
@@ -388,7 +389,7 @@ public class LinearMechanism extends CatalystMechanism {
     }
 
     /** Command to jog downward at a given voltage. */
-    public Command jogDown(double volts) {
+    public CatalystCommand jogDown(double volts) {
         return run(() -> {
             motor.setVoltage(-Math.abs(volts));
             setpointMeters = getPosition();
@@ -400,7 +401,7 @@ public class LinearMechanism extends CatalystMechanism {
     }
 
     /** Command to jog with a dynamic speed supplier (e.g., joystick). */
-    public Command jog(DoubleSupplier voltsSupplier) {
+    public CatalystCommand jog(DoubleSupplier voltsSupplier) {
         return run(() -> {
             double volts = voltsSupplier.getAsDouble();
             if (Math.abs(volts) < 0.1) {
@@ -422,13 +423,13 @@ public class LinearMechanism extends CatalystMechanism {
      * Requires {@code useWPILibProfile(true)} in config.
      * Runs continuously until cancelled or another command takes over.
      */
-    public Command goToProfiled(double meters) {
+    public CatalystCommand goToProfiled(double meters) {
         if (profiledPID == null) {
             throw new IllegalStateException(
                     name + ": WPILib profile not configured. Use .useWPILibProfile(true) in config.");
         }
         return run(() -> {
-            setpointMeters = MathUtil.clamp(meters, config.minPosition, config.maxPosition);
+            setpointMeters = Math.clamp(meters, config.minPosition, config.maxPosition);
             double output = profiledPID.calculate(getPosition(), setpointMeters);
             double ff = feedforwardGains.calculateElevator(profiledPID.getSetpoint().velocity);
             motor.setVoltage(output + ff);
@@ -440,7 +441,7 @@ public class LinearMechanism extends CatalystMechanism {
     /**
      * Command to move to a named position using WPILib ProfiledPID.
      */
-    public Command goToProfiled(String positionName) {
+    public CatalystCommand goToProfiled(String positionName) {
         Double target = config.namedPositions.get(positionName);
         if (target == null) {
             throw new IllegalArgumentException(
@@ -453,7 +454,7 @@ public class LinearMechanism extends CatalystMechanism {
      * Command that holds position using WPILib ProfiledPID.
      * Alternative to the Motion Magic holdPosition() command.
      */
-    public Command holdPositionProfiled() {
+    public CatalystCommand holdPositionProfiled() {
         if (profiledPID == null) {
             throw new IllegalStateException(
                     name + ": WPILib profile not configured. Use .useWPILibProfile(true) in config.");
@@ -468,7 +469,7 @@ public class LinearMechanism extends CatalystMechanism {
     }
 
     /** Command to zero the encoder at the current position. */
-    public Command zero() {
+    public CatalystCommand zero() {
         return runOnce(() -> {
             motor.zeroEncoder();
             setpointMeters = 0;
@@ -482,13 +483,13 @@ public class LinearMechanism extends CatalystMechanism {
      * toward the stop) until the stator current reaches {@code currentThresholdAmps},
      * then seed the encoder to {@code seedMeters}, hold there, and mark the
      * mechanism zeroed. Useful when there is no limit switch. Bound it with
-     * {@code .withTimeout(...)} as a safety net in case the spike never arrives.
+     * {@code .timeoutAfter(...)} as a safety net in case the spike never arrives.
      */
-    public Command homeOnCurrent(double volts, double currentThresholdAmps, double seedMeters) {
+    public CatalystCommand homeOnCurrent(double volts, double currentThresholdAmps, double seedMeters) {
         return run(() -> {
             motor.setVoltage(volts);
             setState("Homing");
-        }).until(() -> getCurrent() >= currentThresholdAmps)
+        }).untilTrue(() -> getCurrent() >= currentThresholdAmps)
           .finallyDo(interrupted -> {
             if (!interrupted) {
                 motor.setEncoderPosition(metersToRotations(seedMeters));
@@ -504,7 +505,7 @@ public class LinearMechanism extends CatalystMechanism {
     }
 
     /** Home against a hard stop by current spike, seeding the encoder to 0. */
-    public Command homeOnCurrent(double volts, double currentThresholdAmps) {
+    public CatalystCommand homeOnCurrent(double volts, double currentThresholdAmps) {
         return homeOnCurrent(volts, currentThresholdAmps, 0.0);
     }
 
@@ -574,8 +575,8 @@ public class LinearMechanism extends CatalystMechanism {
             var simState = motor.getTalonFX().getSimState();
             sim.setInput(simState.getMotorVoltage());
             sim.update(0.02);
-            simState.setRawRotorPosition(metersToRotations(sim.getPositionMeters()) * config.gearRatio);
-            simState.setRotorVelocity(metersToRotations(sim.getVelocityMetersPerSecond()) * config.gearRatio);
+            simState.setRawRotorPosition(metersToRotations(sim.getPosition()) * config.gearRatio);
+            simState.setRotorVelocity(metersToRotations(sim.getVelocity()) * config.gearRatio);
         }
     }
 

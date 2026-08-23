@@ -1,12 +1,15 @@
 package frc.lib.catalyst.subsystems.leds;
 
-import edu.wpi.first.wpilibj.AddressableLED;
-import edu.wpi.first.wpilibj.AddressableLEDBuffer;
-import edu.wpi.first.wpilibj.DriverStation;
-import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj.util.Color;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import org.wpilib.driverstation.Alliance;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.driverstation.MatchState;
+import org.wpilib.hardware.led.AddressableLED;
+import org.wpilib.hardware.led.AddressableLEDBuffer;
+import org.wpilib.driverstation.DriverStation;
+import org.wpilib.system.Timer;
+import org.wpilib.util.Color;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Mechanism;
 
 /**
  * LED subsystem for addressable LEDs with pre-built patterns.
@@ -25,10 +28,10 @@ import edu.wpi.first.wpilibj2.command.SubsystemBase;
  * leds.setDefaultCommand(leds.allianceColor());
  *
  * // Flash green when intake has a piece
- * intake.hasPieceTrigger().whileTrue(leds.blink(Color.kGreen, 5));
+ * intake.hasPieceTrigger().whileTrue(leds.blink(Color.GREEN, 5));
  * }</pre>
  */
-public class LEDSubsystem extends SubsystemBase {
+public class LEDSubsystem implements frc.lib.catalyst.command.CatalystSubsystem {
 
     private final AddressableLED led;
     private final AddressableLEDBuffer buffer;
@@ -41,7 +44,7 @@ public class LEDSubsystem extends SubsystemBase {
         this.buffer = new AddressableLEDBuffer(config.ledCount);
 
         led.setLength(config.ledCount);
-        led.start();
+        led.setData(buffer);
 
         // Set initial color
         setSolidColor(config.defaultColor);
@@ -72,22 +75,22 @@ public class LEDSubsystem extends SubsystemBase {
     // --- Command Factories ---
 
     /** Command to set all LEDs to a solid color. */
-    public Command solid(Color color) {
+    public CatalystCommand solid(Color color) {
         return run(() -> setSolidColor(color))
                 .withName("LED.Solid");
     }
 
     /** Command to blink all LEDs at a given frequency. */
-    public Command blink(Color color, double frequencyHz) {
+    public CatalystCommand blink(Color color, double frequencyHz) {
         return run(() -> {
             double period = 1.0 / frequencyHz;
-            boolean on = (Timer.getFPGATimestamp() % period) < (period / 2.0);
-            setSolidColor(on ? color : Color.kBlack);
+            boolean on = (Timer.getTimestamp() % period) < (period / 2.0);
+            setSolidColor(on ? color : Color.BLACK);
         }).withName("LED.Blink");
     }
 
     /** Command to display a rainbow pattern. */
-    public Command rainbow() {
+    public CatalystCommand rainbow() {
         return run(() -> {
             for (int i = 0; i < ledCount; i++) {
                 int hue = (rainbowOffset + (i * 180 / ledCount)) % 180;
@@ -99,49 +102,49 @@ public class LEDSubsystem extends SubsystemBase {
     }
 
     /** Command to display a progress bar (0.0 to 1.0). */
-    public Command progress(Color color, double percent) {
+    public CatalystCommand progress(Color color, double percent) {
         return run(() -> {
             int litCount = (int) (ledCount * Math.max(0, Math.min(1, percent)));
             for (int i = 0; i < ledCount; i++) {
-                buffer.setLED(i, i < litCount ? color : Color.kBlack);
+                buffer.setLED(i, i < litCount ? color : Color.BLACK);
             }
             led.setData(buffer);
         }).withName("LED.Progress");
     }
 
     /** Command to display alliance color (red or blue, white if unknown). */
-    public Command allianceColor() {
+    public CatalystCommand allianceColor() {
         return run(() -> {
-            var alliance = DriverStation.getAlliance();
+            var alliance = MatchState.getAlliance();
             if (alliance.isPresent()) {
-                setSolidColor(alliance.get() == DriverStation.Alliance.Red
-                        ? Color.kRed : Color.kBlue);
+                setSolidColor(alliance.get() == Alliance.RED
+                        ? Color.RED : Color.BLUE);
             } else {
-                setSolidColor(Color.kWhite);
+                setSolidColor(Color.WHITE);
             }
         }).withName("LED.Alliance");
     }
 
     /** Command to turn off all LEDs. */
-    public Command off() {
-        return run(() -> setSolidColor(Color.kBlack))
+    public CatalystCommand off() {
+        return run(() -> setSolidColor(Color.BLACK))
                 .withName("LED.Off");
     }
 
     /** Command for a scrolling/chase pattern. */
-    public Command chase(Color color, int width) {
+    public CatalystCommand chase(Color color, int width) {
         return run(() -> {
-            int offset = (int) ((Timer.getFPGATimestamp() * 20) % ledCount);
+            int offset = (int) ((Timer.getTimestamp() * 20) % ledCount);
             for (int i = 0; i < ledCount; i++) {
                 boolean lit = ((i + offset) % (width * 2)) < width;
-                buffer.setLED(i, lit ? color : Color.kBlack);
+                buffer.setLED(i, lit ? color : Color.BLACK);
             }
             led.setData(buffer);
         }).withName("LED.Chase");
     }
 
     /** Command for alternating two colors. */
-    public Command alternating(Color color1, Color color2) {
+    public CatalystCommand alternating(Color color1, Color color2) {
         return run(() -> {
             for (int i = 0; i < ledCount; i++) {
                 buffer.setLED(i, i % 2 == 0 ? color1 : color2);
@@ -151,9 +154,9 @@ public class LEDSubsystem extends SubsystemBase {
     }
 
     /** Command for a breathing/fade effect. */
-    public Command breathe(Color color, double periodSeconds) {
+    public CatalystCommand breathe(Color color, double periodSeconds) {
         return run(() -> {
-            double t = (Timer.getFPGATimestamp() % periodSeconds) / periodSeconds;
+            double t = (Timer.getTimestamp() % periodSeconds) / periodSeconds;
             double brightness = (Math.sin(t * 2 * Math.PI) + 1.0) / 2.0;
             Color dimmed = new Color(
                     color.red * brightness,
@@ -167,7 +170,7 @@ public class LEDSubsystem extends SubsystemBase {
      * Command for a fire/flame effect.
      * Simulates flickering fire using heat diffusion.
      */
-    public Command fire() {
+    public CatalystCommand fire() {
         final double[] heat = new double[ledCount];
         return run(() -> {
             // Cool down each cell
@@ -201,7 +204,7 @@ public class LEDSubsystem extends SubsystemBase {
      * @param color1 start color
      * @param color2 end color
      */
-    public Command gradient(Color color1, Color color2) {
+    public CatalystCommand gradient(Color color1, Color color2) {
         return run(() -> {
             for (int i = 0; i < ledCount; i++) {
                 double t = (double) i / Math.max(1, ledCount - 1);
@@ -222,9 +225,9 @@ public class LEDSubsystem extends SubsystemBase {
      * @param color2 second color
      * @param speedHz scroll speed in cycles per second
      */
-    public Command scrollingGradient(Color color1, Color color2, double speedHz) {
+    public CatalystCommand scrollingGradient(Color color1, Color color2, double speedHz) {
         return run(() -> {
-            double offset = (Timer.getFPGATimestamp() * speedHz) % 1.0;
+            double offset = (Timer.getTimestamp() * speedHz) % 1.0;
             for (int i = 0; i < ledCount; i++) {
                 double t = ((double) i / ledCount + offset) % 1.0;
                 // Ping-pong: 0->1->0
@@ -245,11 +248,11 @@ public class LEDSubsystem extends SubsystemBase {
      * @param color strobe color
      * @param frequencyHz flash frequency (10-20 Hz is typical)
      */
-    public Command strobe(Color color, double frequencyHz) {
+    public CatalystCommand strobe(Color color, double frequencyHz) {
         return run(() -> {
             double period = 1.0 / frequencyHz;
-            boolean on = (Timer.getFPGATimestamp() % period) < (period * 0.1); // 10% duty cycle
-            setSolidColor(on ? color : Color.kBlack);
+            boolean on = (Timer.getTimestamp() % period) < (period * 0.1); // 10% duty cycle
+            setSolidColor(on ? color : Color.BLACK);
         }).withName("LED.Strobe");
     }
 
@@ -260,9 +263,9 @@ public class LEDSubsystem extends SubsystemBase {
      * @param width width of the scanning dot
      * @param speedHz back-and-forth cycles per second
      */
-    public Command larsonScanner(Color color, int width, double speedHz) {
+    public CatalystCommand larsonScanner(Color color, int width, double speedHz) {
         return run(() -> {
-            double t = (Timer.getFPGATimestamp() * speedHz) % 1.0;
+            double t = (Timer.getTimestamp() * speedHz) % 1.0;
             // Ping-pong position
             double pos = t < 0.5 ? t * 2.0 : 2.0 - t * 2.0;
             int center = (int) (pos * (ledCount - 1));
@@ -276,7 +279,7 @@ public class LEDSubsystem extends SubsystemBase {
                             color.green * brightness,
                             color.blue * brightness));
                 } else {
-                    buffer.setLED(i, Color.kBlack);
+                    buffer.setLED(i, Color.BLACK);
                 }
             }
             led.setData(buffer);
@@ -290,12 +293,12 @@ public class LEDSubsystem extends SubsystemBase {
      * @param color bar color
      * @param progressSupplier supplies progress value 0.0 to 1.0
      */
-    public Command dynamicProgress(Color color, java.util.function.DoubleSupplier progressSupplier) {
+    public CatalystCommand dynamicProgress(Color color, java.util.function.DoubleSupplier progressSupplier) {
         return run(() -> {
             double pct = Math.max(0, Math.min(1, progressSupplier.getAsDouble()));
             int litCount = (int) (ledCount * pct);
             for (int i = 0; i < ledCount; i++) {
-                buffer.setLED(i, i < litCount ? color : Color.kBlack);
+                buffer.setLED(i, i < litCount ? color : Color.BLACK);
             }
             led.setData(buffer);
         }).withName("LED.DynamicProgress");
@@ -309,7 +312,7 @@ public class LEDSubsystem extends SubsystemBase {
      * @param notReadyColor color when condition is false
      * @param condition the condition to check
      */
-    public Command statusIndicator(Color readyColor, Color notReadyColor,
+    public CatalystCommand statusIndicator(Color readyColor, Color notReadyColor,
                                     java.util.function.BooleanSupplier condition) {
         return run(() -> {
             setSolidColor(condition.getAsBoolean() ? readyColor : notReadyColor);
@@ -323,7 +326,7 @@ public class LEDSubsystem extends SubsystemBase {
      * @param alignedColor color when aligned
      * @param progressSupplier 0.0 = not aligned, 1.0 = fully aligned
      */
-    public Command alignmentIndicator(Color alignedColor,
+    public CatalystCommand alignmentIndicator(Color alignedColor,
                                        java.util.function.DoubleSupplier progressSupplier) {
         return run(() -> {
             double progress = Math.max(0, Math.min(1, progressSupplier.getAsDouble()));
@@ -339,7 +342,7 @@ public class LEDSubsystem extends SubsystemBase {
                             alignedColor.green * brightness,
                             alignedColor.blue * brightness));
                 } else {
-                    buffer.setLED(i, Color.kBlack);
+                    buffer.setLED(i, Color.BLACK);
                 }
             }
             led.setData(buffer);

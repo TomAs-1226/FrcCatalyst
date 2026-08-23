@@ -1,12 +1,14 @@
 package frc.lib.catalyst.mechanisms;
 
-import edu.wpi.first.wpilibj.Compressor;
-import edu.wpi.first.wpilibj.DoubleSolenoid;
-import edu.wpi.first.wpilibj.PneumaticsModuleType;
-import edu.wpi.first.wpilibj.Solenoid;
-import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
+import frc.lib.catalyst.hardware.CatalystCANBus;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.hardware.pneumatic.Compressor;
+import org.wpilib.hardware.pneumatic.DoubleSolenoid;
+import org.wpilib.hardware.pneumatic.PneumaticsModuleType;
+import org.wpilib.hardware.pneumatic.Solenoid;
+import org.wpilib.system.Timer;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Trigger;
 import frc.lib.catalyst.io.PneumaticMechanismInputs;
 import frc.lib.catalyst.util.AlertManager;
 import frc.lib.catalyst.util.HealthCheck;
@@ -31,8 +33,8 @@ import frc.lib.catalyst.util.HealthMonitor;
  * PneumaticMechanism climbHook = new PneumaticMechanism(
  *     PneumaticMechanism.Config.builder()
  *         .name("ClimbHook")
- *         .doubleSolenoid(PneumaticsModuleType.REVPH, 0, 1)
- *         .compressor(PneumaticsModuleType.REVPH)
+ *         .doubleSolenoid(PneumaticsModuleType.REV_PH, 0, 1)
+ *         .compressor(PneumaticsModuleType.REV_PH)
  *         .requirePressureAbove(40.0)
  *         .build());
  *
@@ -61,17 +63,23 @@ public class PneumaticMechanism extends CatalystMechanism {
         this.config = config;
 
         if (config.isDouble) {
+            // 2027 requires a CAN bus: Systemcore has no rio-attached pneumatics module, so a
+            // REVPH/CTREPCM is reached over CAN like any other device.
             this.doubleSolenoid = new DoubleSolenoid(
+                    config.canBus.wpilib(),
                     config.moduleType,
                     config.forwardChannel,
                     config.reverseChannel);
             this.singleSolenoid = null;
         } else {
             this.doubleSolenoid = null;
-            this.singleSolenoid = new Solenoid(config.moduleType, config.forwardChannel);
+            this.singleSolenoid = new Solenoid(
+                    config.canBus.wpilib(), config.moduleType, config.forwardChannel);
         }
 
-        this.compressor = config.attachCompressor ? new Compressor(config.moduleType) : null;
+        this.compressor = config.attachCompressor
+                ? new Compressor(config.canBus.wpilib(), config.moduleType)
+                : null;
 
         if (compressor != null && config.minPressurePSI > 0) {
             HealthCheck.builder(name, "LowPressure")
@@ -152,12 +160,12 @@ public class PneumaticMechanism extends CatalystMechanism {
      * first transition.
      *
      * <pre>{@code
-     * climbHook.extend().andThen(Commands.waitUntil(() -> climbHook.timeInState() > 0.25));
+     * climbHook.extend().then(Commands.waitUntil(() -> climbHook.timeInState() > 0.25));
      * }</pre>
      */
     public double timeInState() {
         if (lastTransitionTimestamp <= 0) return 0.0;
-        return Timer.getFPGATimestamp() - lastTransitionTimestamp;
+        return Timer.getTimestamp() - lastTransitionTimestamp;
     }
 
     /** Total number of state transitions since construction. */
@@ -168,7 +176,7 @@ public class PneumaticMechanism extends CatalystMechanism {
     // --- Command Factories ---
 
     /** Extend the actuator (drive solenoid forward). */
-    public Command extend() {
+    public CatalystCommand extend() {
         return runOnce(() -> applyState(State.FORWARD))
                 .withName(name + ".Extend");
     }
@@ -177,19 +185,19 @@ public class PneumaticMechanism extends CatalystMechanism {
      * Retract the actuator. On a double solenoid this commands the reverse
      * channel; on a single solenoid this de-energizes the coil.
      */
-    public Command retract() {
+    public CatalystCommand retract() {
         return runOnce(() -> applyState(config.isDouble ? State.REVERSE : State.OFF))
                 .withName(name + ".Retract");
     }
 
     /** De-energize the solenoid. */
-    public Command off() {
+    public CatalystCommand off() {
         return runOnce(() -> applyState(State.OFF))
                 .withName(name + ".Off");
     }
 
     /** Flip between forward and reverse / off based on current state. */
-    public Command toggle() {
+    public CatalystCommand toggle() {
         return runOnce(() -> {
             State target = isForward()
                     ? (config.isDouble ? State.REVERSE : State.OFF)
@@ -202,7 +210,7 @@ public class PneumaticMechanism extends CatalystMechanism {
      * Pulse the actuator forward for {@code durationSeconds}, then return to
      * the previous state. Useful for kickers and ejection mechanisms.
      */
-    public Command pulse(double durationSeconds) {
+    public CatalystCommand pulse(double durationSeconds) {
         final Timer timer = new Timer();
         final State[] previous = new State[] { State.OFF };
         return run(() -> {
@@ -213,7 +221,7 @@ public class PneumaticMechanism extends CatalystMechanism {
                     applyState(State.FORWARD);
                     timer.restart();
                 })
-                .until(() -> timer.hasElapsed(durationSeconds))
+                .untilTrue(() -> timer.hasElapsed(durationSeconds))
                 .finallyDo(() -> applyState(previous[0]))
                 .withName(name + ".Pulse(" + String.format("%.2fs", durationSeconds) + ")");
     }
@@ -231,7 +239,7 @@ public class PneumaticMechanism extends CatalystMechanism {
             }
         }
         if (state != target) {
-            lastTransitionTimestamp = Timer.getFPGATimestamp();
+            lastTransitionTimestamp = Timer.getTimestamp();
             transitionCount++;
         }
         state = target;
@@ -242,9 +250,9 @@ public class PneumaticMechanism extends CatalystMechanism {
     private void applyHardware() {
         if (config.isDouble) {
             switch (state) {
-                case FORWARD -> doubleSolenoid.set(DoubleSolenoid.Value.kForward);
-                case REVERSE -> doubleSolenoid.set(DoubleSolenoid.Value.kReverse);
-                case OFF -> doubleSolenoid.set(DoubleSolenoid.Value.kOff);
+                case FORWARD -> doubleSolenoid.set(DoubleSolenoid.Value.FORWARD);
+                case REVERSE -> doubleSolenoid.set(DoubleSolenoid.Value.REVERSE);
+                case OFF -> doubleSolenoid.set(DoubleSolenoid.Value.OFF);
             }
         } else {
             singleSolenoid.set(state == State.FORWARD);
@@ -286,6 +294,8 @@ public class PneumaticMechanism extends CatalystMechanism {
     public static class Config {
         final String name;
         final PneumaticsModuleType moduleType;
+        /** CAN bus the pneumatics module lives on. Systemcore has no rio-attached module. */
+        final CatalystCANBus canBus;
         final int forwardChannel;
         final int reverseChannel;
         final boolean isDouble;
@@ -295,6 +305,7 @@ public class PneumaticMechanism extends CatalystMechanism {
         private Config(Builder b) {
             this.name = b.name;
             this.moduleType = b.moduleType;
+            this.canBus = b.canBus;
             this.forwardChannel = b.forwardChannel;
             this.reverseChannel = b.reverseChannel;
             this.isDouble = b.isDouble;
@@ -306,7 +317,8 @@ public class PneumaticMechanism extends CatalystMechanism {
 
         public static class Builder {
             private String name = "PneumaticMechanism";
-            private PneumaticsModuleType moduleType = PneumaticsModuleType.REVPH;
+            private PneumaticsModuleType moduleType = PneumaticsModuleType.REV_PH;
+            private CatalystCANBus canBus = CatalystCANBus.DEFAULT;
             private int forwardChannel = -1;
             private int reverseChannel = -1;
             private boolean isDouble = false;
@@ -319,6 +331,15 @@ public class PneumaticMechanism extends CatalystMechanism {
              * Configure as a double solenoid with explicit forward and reverse channels.
              * Use this for FRC pistons that need both directions actively driven.
              */
+            /**
+             * CAN bus the pneumatics module is on. Defaults to {@link CatalystCANBus#DEFAULT}
+             * ({@code can_s0}), which is where a single-bus robot will have put it.
+             */
+            public Builder canBus(CatalystCANBus bus) {
+                this.canBus = bus;
+                return this;
+            }
+
             public Builder doubleSolenoid(PneumaticsModuleType moduleType, int forwardChannel, int reverseChannel) {
                 this.moduleType = moduleType;
                 this.forwardChannel = forwardChannel;

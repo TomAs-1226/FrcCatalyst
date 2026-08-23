@@ -1,6 +1,6 @@
 package frc.lib.catalyst.physics.model;
 
-import edu.wpi.first.math.util.Units;
+import org.wpilib.math.util.Units;
 
 /**
  * The handful of physical facts about your robot that the rest of Physics Core reasons from.

@@ -17,7 +17,7 @@ import java.util.OptionalDouble;
  * <pre>{@code
  * SignalBuffer yawRate = new SignalBuffer(50);   // ~1 second at 50 Hz
  *
- * yawRate.add(Timer.getFPGATimestamp(), gyro.getRate());
+ * yawRate.add(Timer.getTimestamp(), gyro.getRate());
  *
  * OptionalDouble atCapture = yawRate.sampleAt(cameraTimestamp);
  * }</pre>

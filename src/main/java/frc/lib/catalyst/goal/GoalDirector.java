@@ -1,10 +1,11 @@
 package frc.lib.catalyst.goal;
 
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.networktables.NetworkTable;
+import org.wpilib.networktables.NetworkTableInstance;
+import org.wpilib.command3.Command;
+import frc.lib.catalyst.command.Commands;
+import org.wpilib.command3.Trigger;
 import frc.lib.catalyst.mechanisms.SuperstructureCoordinator;
 import frc.lib.catalyst.statemachine.robot.SuperstructureLike;
 import frc.lib.catalyst.identity.CatalystFeatures;
@@ -81,7 +82,7 @@ public class GoalDirector {
      * continuously publishes readiness. The command holds until interrupted,
      * so bind it with {@code whileTrue} (hold) or {@code onTrue} (latch).
      */
-    public Command pursue(Goal goal) {
+    public CatalystCommand pursue(Goal goal) {
         Command transition = (coordinator != null && goal.hasSuperstructureState())
                 ? coordinator.transitionTo(goal.superstructureState())
                 : Commands.none();
@@ -96,7 +97,7 @@ public class GoalDirector {
         // and publishes live readiness / why-not telemetry every loop.
         Command monitor = Commands.run(() -> updateReadiness(goal));
 
-        return transition.alongWith(setup, monitor)
+        return CatalystCommand.of(transition).together(setup, monitor)
                 .beforeStarting(() -> onPursueStart(goal))
                 .finallyDo(interrupted -> onPursueEnd(goal))
                 .withName("Goal.Pursue(" + goal.name() + ")");
@@ -106,7 +107,7 @@ public class GoalDirector {
      * Pursue the configured default goal (the safe fallback). No-op command if
      * no default was configured.
      */
-    public Command pursueDefault() {
+    public CatalystCommand pursueDefault() {
         return defaultGoal == null
                 ? Commands.none().withName("Goal.NoDefault")
                 : pursue(defaultGoal);

@@ -1,9 +1,10 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.networktables.NetworkTable;
+import org.wpilib.networktables.NetworkTableInstance;
+import org.wpilib.command3.Command;
+import frc.lib.catalyst.command.Commands;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -112,7 +113,7 @@ public final class SystemCheck {
      * Command that runs every check in order and publishes results. Bind to
      * a pit button.
      */
-    public Command run() {
+    public CatalystCommand run() {
         NetworkTable nt = NetworkTableInstance.getDefault()
                 .getTable("Catalyst").getSubTable("SystemCheck").getSubTable(name);
 
@@ -127,7 +128,7 @@ public final class SystemCheck {
                     nt.getEntry("Ready").setBoolean(false);
                     nt.getEntry("Report").setString("(running…)");
                 })
-                .andThen(Commands.runOnce(() -> {
+                .then(Commands.runOnce(() -> {
                     nt.getEntry("Ready").setBoolean(results.ready());
                     nt.getEntry("Report").setString(results.report());
                 }))
@@ -154,7 +155,7 @@ public final class SystemCheck {
         public Builder check(String testName, BooleanSupplier pass) {
             steps.add(new Step() {
                 public String name() { return testName; }
-                public Command toCommand(Results results, NetworkTable nt) {
+                public CatalystCommand toCommand(Results results, NetworkTable nt) {
                     return Commands.runOnce(() -> {
                         boolean ok;
                         String detail = "";
@@ -185,10 +186,10 @@ public final class SystemCheck {
                              BooleanSupplier pass, Runnable cleanup) {
             steps.add(new Step() {
                 public String name() { return testName; }
-                public Command toCommand(Results results, NetworkTable nt) {
+                public CatalystCommand toCommand(Results results, NetworkTable nt) {
                     return Commands.run(() -> safe(action))
-                            .withTimeout(seconds)
-                            .andThen(Commands.runOnce(() -> {
+                            .timeoutAfter(seconds)
+                            .then(Commands.runOnce(() -> {
                                 boolean ok;
                                 String detail = "";
                                 try {

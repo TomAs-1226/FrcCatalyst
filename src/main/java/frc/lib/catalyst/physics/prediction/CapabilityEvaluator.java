@@ -3,7 +3,7 @@ package frc.lib.catalyst.physics.prediction;
 import java.util.Locale;
 import java.util.OptionalDouble;
 
-import edu.wpi.first.math.geometry.Translation2d;
+import org.wpilib.math.geometry.Translation2d;
 
 import frc.lib.catalyst.physics.PhysicalRobotState;
 import frc.lib.catalyst.physics.model.DrivetrainModel;
@@ -85,8 +85,8 @@ public final class CapabilityEvaluator {
         Translation2d direction = toTarget.div(distance);
         // Speed along the line to the target. A robot travelling sideways arrives with none of its
         // current speed helping, and the projection is what says so.
-        double approachSpeed = state.fieldVelocity().vxMetersPerSecond * direction.getX()
-                + state.fieldVelocity().vyMetersPerSecond * direction.getY();
+        double approachSpeed = state.fieldVelocity().vx * direction.getX()
+                + state.fieldVelocity().vy * direction.getY();
         double acceleration = accelerationLimit(direction, state);
 
         OptionalDouble seconds = timeToTravel(distance, Math.max(0.0, approachSpeed),

@@ -1,7 +1,7 @@
 package frc.lib.catalyst.physics.estimation;
 
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Translation2d;
 
 import frc.lib.catalyst.physics.model.DrivetrainModel;
 import frc.lib.catalyst.util.SignalProcessor;
@@ -175,7 +175,7 @@ public final class DisturbanceEstimator {
      */
     public Rotation2d direction() {
         if (residual.getNorm() < 0.05) return Rotation2d.kZero;
-        return residual.getAngle();
+        return residual.getAngle().orElse(Rotation2d.kZero);
     }
 
     /**

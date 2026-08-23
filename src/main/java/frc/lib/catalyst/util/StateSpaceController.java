@@ -1,15 +1,15 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.math.Nat;
-import edu.wpi.first.math.VecBuilder;
-import edu.wpi.first.math.controller.LinearQuadraticRegulator;
-import edu.wpi.first.math.estimator.KalmanFilter;
-import edu.wpi.first.math.numbers.N1;
-import edu.wpi.first.math.numbers.N2;
-import edu.wpi.first.math.system.LinearSystem;
-import edu.wpi.first.math.system.LinearSystemLoop;
-import edu.wpi.first.math.system.plant.DCMotor;
-import edu.wpi.first.math.system.plant.LinearSystemId;
+import org.wpilib.math.util.Nat;
+import org.wpilib.math.linalg.VecBuilder;
+import org.wpilib.math.controller.LinearQuadraticRegulator;
+import org.wpilib.math.estimator.KalmanFilter;
+import org.wpilib.math.numbers.N1;
+import org.wpilib.math.numbers.N2;
+import org.wpilib.math.system.LinearSystem;
+import org.wpilib.math.system.LinearSystemLoop;
+import org.wpilib.math.system.DCMotor;
+import org.wpilib.math.system.Models;
 
 /**
  * State-space controller wrapper for FRC mechanisms using LQR + Kalman filter.
@@ -227,7 +227,7 @@ public final class StateSpaceController {
     public static Velocity createFlywheel(DCMotor motor, double moiKgM2, double gearing,
                                            double modelStdDev, double encoderStdDev,
                                            double maxVelocityError, double maxVoltage) {
-        LinearSystem<N1, N1, N1> plant = LinearSystemId.createFlywheelSystem(motor, moiKgM2, gearing);
+        LinearSystem<N1, N1, N1> plant = Models.flywheelFromPhysicalConstants(motor, moiKgM2, gearing);
         return new Velocity(plant, modelStdDev, encoderStdDev, maxVelocityError, maxVoltage, 0.020);
     }
 
@@ -240,7 +240,7 @@ public final class StateSpaceController {
     public static Velocity createFlywheelFromGains(double kV, double kA,
                                                      double modelStdDev, double encoderStdDev,
                                                      double maxVelocityError, double maxVoltage) {
-        LinearSystem<N1, N1, N1> plant = LinearSystemId.identifyVelocitySystem(kV, kA);
+        LinearSystem<N1, N1, N1> plant = Models.flywheelFromSysId(kV, kA);
         return new Velocity(plant, modelStdDev, encoderStdDev, maxVelocityError, maxVoltage, 0.020);
     }
 
@@ -265,7 +265,7 @@ public final class StateSpaceController {
                                            double encoderPosStdDev, double encoderVelStdDev,
                                            double maxPosError, double maxVelError,
                                            double maxVoltage) {
-        LinearSystem<N2, N1, N2> plant = LinearSystemId.createElevatorSystem(
+        LinearSystem<N2, N1, N2> plant = Models.elevatorFromPhysicalConstants(
                 motor, massKg, drumRadiusMeters, gearing);
         return new Position(plant, posModelStdDev, velModelStdDev, encoderPosStdDev, encoderVelStdDev,
                 maxPosError, maxVelError, maxVoltage, 0.020);
@@ -290,7 +290,7 @@ public final class StateSpaceController {
                                       double encoderPosStdDev, double encoderVelStdDev,
                                       double maxPosError, double maxVelError,
                                       double maxVoltage) {
-        LinearSystem<N2, N1, N2> plant = LinearSystemId.createSingleJointedArmSystem(
+        LinearSystem<N2, N1, N2> plant = Models.singleJointedArmFromPhysicalConstants(
                 motor, moiKgM2, gearing);
         return new Position(plant, posModelStdDev, velModelStdDev, encoderPosStdDev, encoderVelStdDev,
                 maxPosError, maxVelError, maxVoltage, 0.020);
@@ -307,7 +307,7 @@ public final class StateSpaceController {
                                                      double encoderPosStdDev, double encoderVelStdDev,
                                                      double maxPosError, double maxVelError,
                                                      double maxVoltage) {
-        LinearSystem<N2, N1, N2> plant = LinearSystemId.identifyPositionSystem(kV, kA);
+        LinearSystem<N2, N1, N2> plant = Models.elevatorFromSysId(kV, kA);
         return new Position(plant, posModelStdDev, velModelStdDev, encoderPosStdDev, encoderVelStdDev,
                 maxPosError, maxVelError, maxVoltage, 0.020);
     }

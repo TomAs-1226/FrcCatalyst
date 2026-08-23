@@ -177,7 +177,7 @@ public final class SignalProcessor {
         /**
          * Calculate rate of change given current value and timestamp.
          * @param value current signal value
-         * @param timestampSeconds current timestamp (use Timer.getFPGATimestamp())
+         * @param timestampSeconds current timestamp (use Timer.getTimestamp())
          * @return smoothed rate of change (units per second)
          */
         public double calculate(double value, double timestampSeconds) {

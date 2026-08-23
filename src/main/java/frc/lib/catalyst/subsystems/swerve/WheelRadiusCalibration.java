@@ -1,9 +1,12 @@
 package frc.lib.catalyst.subsystems.swerve;
 
-import edu.wpi.first.math.MathUtil;
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.wpilibj2.command.Command;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.math.util.MathUtil;
+import org.wpilib.networktables.NetworkTable;
+import org.wpilib.networktables.NetworkTableInstance;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Mechanism;
+import org.wpilib.command3.Coroutine;
 
 /**
  * Measures the <b>actual</b> swerve wheel radius by spinning the robot in
@@ -68,12 +71,26 @@ public final class WheelRadiusCalibration {
         /** Spin rate in rad/s. Keep it slow for accuracy. Default 0.6. */
         public Builder omega(double radPerSec) { this.omega = radPerSec; return this; }
 
-        public Command build() {
-            return new CalCommand(drive, currentWheelRadius, driveBaseRadius, rotations, omega);
+        public CatalystCommand build() {
+            return CatalystCommand.of(
+                    new CalCommand(drive, currentWheelRadius, driveBaseRadius, rotations, omega));
         }
     }
 
-    private static final class CalCommand extends Command {
+    private static final class CalCommand implements Command {
+
+        private final java.util.Set<Mechanism> required;
+
+        @Override
+        public String name() {
+            return "WheelRadiusCalibration";
+        }
+
+        @Override
+        public java.util.Set<Mechanism> requirements() {
+            return required;
+        }
+
         private final SwerveSubsystem drive;
         private final double currentRadius;
         private final double driveBaseRadius;
@@ -94,20 +111,30 @@ public final class WheelRadiusCalibration {
             this.omega = omega;
             this.nt = NetworkTableInstance.getDefault()
                     .getTable("Catalyst").getSubTable("Calibration").getSubTable("WheelRadius");
-            addRequirements(drive);
-            setName("WheelRadiusCalibration");
+            this.required = java.util.Set.of(drive);
         }
 
+        /** v3 collapses initialize/execute/isFinished/end into a single coroutine body. */
         @Override
-        public void initialize() {
+        public void run(Coroutine coroutine) {
             startDistances = drive.getModuleDistances();
             accumHeadingRad = 0;
             lastHeadingRad = drive.getHeading().getRadians();
             nt.getEntry("Status").setString("running");
+
+            while (Math.abs(accumHeadingRad) < targetRad) {
+                step();
+                coroutine.yield();
+            }
+            finish(false);
         }
 
         @Override
-        public void execute() {
+        public void onCancel() {
+            finish(false);
+        }
+
+        private void step() {
             drive.driveFieldCentric(0, 0, omega);
             double h = drive.getHeading().getRadians();
             accumHeadingRad += MathUtil.angleModulus(h - lastHeadingRad);
@@ -115,13 +142,8 @@ public final class WheelRadiusCalibration {
             nt.getEntry("AccumRotations").setDouble(Math.abs(accumHeadingRad) / (2 * Math.PI));
         }
 
-        @Override
-        public boolean isFinished() {
-            return Math.abs(accumHeadingRad) >= targetRad;
-        }
-
-        @Override
-        public void end(boolean interrupted) {
+        /** Runs on natural completion; {@link #onCancel()} routes an interrupted run here too. */
+        private void finish(boolean interrupted) {
             drive.driveFieldCentric(0, 0, 0);
 
             double[] now = drive.getModuleDistances();

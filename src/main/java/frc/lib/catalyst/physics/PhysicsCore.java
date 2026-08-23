@@ -6,13 +6,13 @@ import java.util.Optional;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
-import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
-import edu.wpi.first.math.kinematics.SwerveModuleState;
-import edu.wpi.first.wpilibj.Timer;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.kinematics.ChassisVelocities;
+import org.wpilib.math.kinematics.SwerveDriveKinematics;
+import org.wpilib.math.kinematics.SwerveModuleVelocity;
+import org.wpilib.system.Timer;
 
 import frc.lib.catalyst.logging.CatalystLog;
 import frc.lib.catalyst.physics.diagnostics.CollisionDetector;
@@ -75,7 +75,7 @@ import frc.lib.catalyst.identity.CatalystFeatures;
  *     .kinematics(drive.getDrivetrain().getKinematics())
  *     .poseSource(drive::getPose)
  *     .chassisSpeedsSource(drive::getChassisSpeeds)          // robot-relative
- *     .moduleStatesSource(drive::getModuleStates)
+ *     .moduleStatesSource(drive::getModuleVelocities)
  *     .accelerationSource(() -> new Translation2d(imu.getAccelX(), imu.getAccelY()))
  *     .yawRateSource(() -> Units.degreesToRadians(imu.getRate()))
  *     .releaseDelaySeconds(0.12)
@@ -83,7 +83,7 @@ import frc.lib.catalyst.identity.CatalystFeatures;
  *
  * // once per loop, after the drivetrain has updated:
  * public void robotPeriodic() {
- *     CommandScheduler.getInstance().run();
+ *     Scheduler.getDefault().run();
  *     physics.update();
  * }
  *
@@ -129,8 +129,8 @@ public final class PhysicsCore implements UncertainRobotStateSource {
     private final CollisionDetector collisionDetector;
 
     private final Supplier<Pose2d> poseSource;
-    private final Supplier<ChassisSpeeds> chassisSpeedsSource;
-    private final Supplier<SwerveModuleState[]> moduleStatesSource;
+    private final Supplier<ChassisVelocities> chassisSpeedsSource;
+    private final Supplier<SwerveModuleVelocity[]> moduleStatesSource;
     private final Supplier<Translation2d> accelerationSource;
     private final DoubleSupplier yawRateSource;
     private final DoubleSupplier clock;
@@ -156,7 +156,7 @@ public final class PhysicsCore implements UncertainRobotStateSource {
     private long rejectedObservations = 0;
     private boolean alertActive = false;
     private boolean sawAcceleration = false;
-    private boolean sawModuleStates = false;
+    private boolean sawModuleVelocities = false;
 
     private PhysicsCore(Builder builder) {
         this.robotModel = builder.robotModel;
@@ -228,7 +228,7 @@ public final class PhysicsCore implements UncertainRobotStateSource {
      */
     public PhysicalRobotState update(PhysicsSample sample) {
         if (sample.hasAcceleration()) sawAcceleration = true;
-        if (sample.hasModuleStates()) sawModuleStates = true;
+        if (sample.hasModuleVelocities()) sawModuleVelocities = true;
 
         double slipFactor = updateSlip(sample);
         PhysicalRobotState updated = estimator.update(
@@ -394,7 +394,7 @@ public final class PhysicsCore implements UncertainRobotStateSource {
     }
 
     @Override
-    public ChassisSpeeds fieldVelocity() {
+    public ChassisVelocities fieldVelocity() {
         return state().fieldVelocity();
     }
 
@@ -442,7 +442,7 @@ public final class PhysicsCore implements UncertainRobotStateSource {
     }
 
     private double updateSlip(PhysicsSample sample) {
-        if (slipEstimator == null || !sample.hasModuleStates()) return 0.0;
+        if (slipEstimator == null || !sample.hasModuleVelocities()) return 0.0;
         if (sample.moduleStates().length != slipEstimator.moduleCount()) return 0.0;
         return slipEstimator.update(sample.moduleStates(), sample.robotRelativeSpeeds());
     }
@@ -457,10 +457,10 @@ public final class PhysicsCore implements UncertainRobotStateSource {
         if (disturbanceEstimator == null || !sample.hasAcceleration()) return Optional.empty();
 
         Rotation2d heading = sample.pose().getRotation();
-        ChassisSpeeds kinematicField =
-                ChassisSpeeds.fromRobotRelativeSpeeds(sample.robotRelativeSpeeds(), heading);
+        ChassisVelocities kinematicField =
+                sample.robotRelativeSpeeds().toFieldRelative(heading);
         Translation2d kinematicVelocity =
-                new Translation2d(kinematicField.vxMetersPerSecond, kinematicField.vyMetersPerSecond);
+                new Translation2d(kinematicField.vx, kinematicField.vy);
 
         double dt = sample.timestampSeconds() - lastDiagnosticsTimestamp;
         Translation2d wheelAcceleration = Translation2d.kZero;
@@ -511,7 +511,7 @@ public final class PhysicsCore implements UncertainRobotStateSource {
     private List<String> degradedInputs() {
         List<String> degraded = new ArrayList<>(2);
         if (accelerationSource != null && !sawAcceleration) degraded.add("accelerometer");
-        if (moduleStatesSource != null && !sawModuleStates) degraded.add("module states");
+        if (moduleStatesSource != null && !sawModuleVelocities) degraded.add("module states");
         return degraded;
     }
 
@@ -539,8 +539,8 @@ public final class PhysicsCore implements UncertainRobotStateSource {
         CatalystLog.log(LOG_ROOT + "PoseArray", new double[] {
             state.pose().getX(), state.pose().getY(), state.pose().getRotation().getRadians()
         });
-        CatalystLog.log(LOG_ROOT + "Velocity/X", state.fieldVelocity().vxMetersPerSecond);
-        CatalystLog.log(LOG_ROOT + "Velocity/Y", state.fieldVelocity().vyMetersPerSecond);
+        CatalystLog.log(LOG_ROOT + "Velocity/X", state.fieldVelocity().vx);
+        CatalystLog.log(LOG_ROOT + "Velocity/Y", state.fieldVelocity().vy);
         CatalystLog.log(LOG_ROOT + "Speed", state.speedMetersPerSecond());
         CatalystLog.log(LOG_ROOT + "Acceleration", state.accelerationMetersPerSecSq());
         CatalystLog.log(LOG_ROOT + "Quality/Confidence", state.quality().confidence());
@@ -579,11 +579,11 @@ public final class PhysicsCore implements UncertainRobotStateSource {
         private SwerveDriveKinematics kinematics;
         private int moduleCount = 4;
         private Supplier<Pose2d> poseSource;
-        private Supplier<ChassisSpeeds> chassisSpeedsSource;
-        private Supplier<SwerveModuleState[]> moduleStatesSource;
+        private Supplier<ChassisVelocities> chassisSpeedsSource;
+        private Supplier<SwerveModuleVelocity[]> moduleStatesSource;
         private Supplier<Translation2d> accelerationSource;
         private DoubleSupplier yawRateSource;
-        private DoubleSupplier clock = Timer::getFPGATimestamp;
+        private DoubleSupplier clock = Timer::getTimestamp;
         private double releaseDelaySeconds = 0.0;
         private double poseOutlierGateMeters = 1.0;
         private boolean loggingEnabled = true;
@@ -627,13 +627,13 @@ public final class PhysicsCore implements UncertainRobotStateSource {
          * Required for {@link #update()}. Passing field-relative speeds here will produce a quietly
          * wrong estimate, because Physics Core rotates them by the heading itself.
          */
-        public Builder chassisSpeedsSource(Supplier<ChassisSpeeds> chassisSpeedsSource) {
+        public Builder chassisSpeedsSource(Supplier<ChassisVelocities> chassisSpeedsSource) {
             this.chassisSpeedsSource = chassisSpeedsSource;
             return this;
         }
 
-        /** Where measured module states come from, e.g. {@code drive::getModuleStates}. Enables slip scoring. */
-        public Builder moduleStatesSource(Supplier<SwerveModuleState[]> moduleStatesSource) {
+        /** Where measured module states come from, e.g. {@code drive::getModuleVelocities}. Enables slip scoring. */
+        public Builder moduleStatesSource(Supplier<SwerveModuleVelocity[]> moduleStatesSource) {
             this.moduleStatesSource = moduleStatesSource;
             return this;
         }

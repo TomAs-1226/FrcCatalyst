@@ -3,7 +3,7 @@ package frc.lib.catalyst.logging;
 import java.util.Arrays;
 import java.util.List;
 
-import edu.wpi.first.util.struct.Struct;
+import org.wpilib.util.struct.Struct;
 
 /**
  * A {@link LogSink} that forwards every call to a list of underlying sinks.

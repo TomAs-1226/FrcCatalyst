@@ -1,6 +1,6 @@
 package frc.lib.catalyst.physics.contact;
 
-import edu.wpi.first.math.geometry.Translation3d;
+import org.wpilib.math.geometry.Translation3d;
 
 /**
  * Impulse-based contact resolution: what two velocities become after a collision.

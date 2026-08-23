@@ -1,7 +1,8 @@
 package frc.lib.catalyst.statemachine.mech;
 
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Subsystem;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Mechanism;
 import frc.lib.catalyst.mechanisms.MechanismView;
 import frc.lib.catalyst.mechanisms.RotationalMechanism;
 import frc.lib.catalyst.statemachine.goals.RotationalGoal;
@@ -23,7 +24,7 @@ import java.util.function.Consumer;
  * useless to a hosted actuator, because {@link frc.lib.catalyst.statemachine.robot.GoalRunner} would
  * see the command finish while the arm is still halfway through its travel. {@code holdPosition()},
  * meanwhile, re-drives Motion Magic to that same mutable field every loop and never ends. Sequencing
- * them — {@code goTo(x).andThen(holdPosition())} — therefore produces exactly the shape the
+ * them — {@code goTo(x).then(holdPosition())} — therefore produces exactly the shape the
  * {@link Actuator} contract wants: one tick that commands the move, then an unending closed-loop hold
  * on the very setpoint that tick installed. This is a genuine move-then-hold, not a no-op, precisely
  * because {@code holdPosition} reads the field rather than capturing an angle at its own
@@ -68,7 +69,7 @@ public final class RotationalBinding implements Actuator<RotationalGoal> {
     private final String key;
 
     /** Pre-built requirement set, so {@link #requirements()} allocates nothing per call. */
-    private final Set<Subsystem> requirements;
+    private final Set<Mechanism> requirements;
 
     /**
      * Goal to the angle actually commanded for it: preset resolved, soft limits applied.
@@ -138,7 +139,7 @@ public final class RotationalBinding implements Actuator<RotationalGoal> {
 
     /** Subsystems this actuator owns: exactly the one mechanism it wraps. */
     @Override
-    public Set<Subsystem> requirements() {
+    public Set<Mechanism> requirements() {
         return requirements;
     }
 
@@ -147,7 +148,7 @@ public final class RotationalBinding implements Actuator<RotationalGoal> {
     /**
      * {@inheritDoc}
      *
-     * <p>Returns {@code goTo(resolved).andThen(holdPosition())}, freshly built on every call as the
+     * <p>Returns {@code goTo(resolved).then(holdPosition())}, freshly built on every call as the
      * contract demands — {@code goTo} and {@code holdPosition} are both command factories, and
      * {@code andThen} wraps them in a new sequential group, so no instance is ever reused across
      * calls or shared between groups.
@@ -164,13 +165,13 @@ public final class RotationalBinding implements Actuator<RotationalGoal> {
      * is guarded and falls back to the same benign hold.
      */
     @Override
-    public Command pursueCommand(RotationalGoal goal) {
+    public CatalystCommand pursueCommand(RotationalGoal goal) {
         try {
             double target = resolveDegrees(goal);
             if (Double.isNaN(target)) {
                 return mechanism.holdPosition();
             }
-            return mechanism.goTo(target).andThen(mechanism.holdPosition());
+            return mechanism.goTo(target).then(mechanism.holdPosition());
         } catch (RuntimeException e) {
             return mechanism.holdPosition();
         }
@@ -185,7 +186,7 @@ public final class RotationalBinding implements Actuator<RotationalGoal> {
      * identical one and give a gravity-loaded arm a chance to sag during the handover.
      */
     @Override
-    public Command holdCommand(RotationalGoal goal) {
+    public CatalystCommand holdCommand(RotationalGoal goal) {
         return null;
     }
 

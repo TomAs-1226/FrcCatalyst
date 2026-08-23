@@ -1,10 +1,11 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.wpilibj.DriverStation;
-import edu.wpi.first.wpilibj.DriverStation.Alliance;
-import edu.wpi.first.wpilibj.RobotController;
-import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
+import org.wpilib.driverstation.MatchState;
+import org.wpilib.driverstation.DriverStation;
+import org.wpilib.driverstation.Alliance;
+import org.wpilib.system.RobotController;
+import org.wpilib.system.Timer;
+import org.wpilib.command3.Trigger;
 
 import java.util.Optional;
 
@@ -24,7 +25,7 @@ import java.util.Optional;
  * <p>Example:
  * <pre>{@code
  * if (RobotState.isAutonomous()) { ... }
- * if (RobotState.alliance() == Alliance.Red) { ... }
+ * if (RobotState.alliance() == Alliance.RED) { ... }
  * if (RobotState.matchTimeRemaining() < 10) { climber.runDefault(); }
  *
  * // As a Trigger:
@@ -52,27 +53,27 @@ public final class RobotState {
      * auto-refreshes if more than 5 ms have elapsed.
      */
     public static void refresh() {
-        DriverStation.refreshData();
-        isAuto       = DriverStation.isAutonomous();
-        isTele       = DriverStation.isTeleop();
-        isTest       = DriverStation.isTest();
-        isDisabled   = DriverStation.isDisabled();
-        isEStopped   = DriverStation.isEStopped();
-        isDsAttached = DriverStation.isDSAttached();
-        alliance     = DriverStation.getAlliance().orElse(null);
-        stationLocation = DriverStation.getLocation().orElse(1);
-        matchTime    = DriverStation.getMatchTime();
+        // DriverStation.refreshData() was removed in 2027 - the DS cache refreshes itself.
+        isAuto       = org.wpilib.driverstation.RobotState.isAutonomous();
+        isTele       = org.wpilib.driverstation.RobotState.isTeleop();
+        isTest       = org.wpilib.driverstation.RobotState.isUtility();
+        isDisabled   = org.wpilib.driverstation.RobotState.isDisabled();
+        isEStopped   = org.wpilib.driverstation.RobotState.isEStopped();
+        isDsAttached = org.wpilib.driverstation.RobotState.isDSAttached();
+        alliance     = MatchState.getAlliance().orElse(null);
+        stationLocation = MatchState.getLocation().orElse(1);
+        matchTime    = MatchState.getMatchTime();
         batteryVolts = RobotController.getBatteryVoltage();
         if (!isDisabled && enabledTimestamp < 0) {
-            enabledTimestamp = Timer.getFPGATimestamp();
+            enabledTimestamp = Timer.getTimestamp();
         } else if (isDisabled) {
             enabledTimestamp = -1;
         }
-        lastRefresh = Timer.getFPGATimestamp();
+        lastRefresh = Timer.getTimestamp();
     }
 
     private static void maybeRefresh() {
-        double t = Timer.getFPGATimestamp();
+        double t = Timer.getTimestamp();
         if (lastRefresh < 0 || (t - lastRefresh) > STALE_AFTER_S) refresh();
     }
 
@@ -93,13 +94,13 @@ public final class RobotState {
     /** Alliance, or {@link Alliance#Blue} as a safe default before the DS connects. */
     public static Alliance alliance() {
         maybeRefresh();
-        return alliance == null ? Alliance.Blue : alliance;
+        return alliance == null ? Alliance.BLUE : alliance;
     }
 
     /** True if the alliance is red. False before DS connects. */
-    public static boolean isRed()  { return alliance() == Alliance.Red; }
+    public static boolean isRed()  { return alliance() == Alliance.RED; }
     /** True if the alliance is blue. */
-    public static boolean isBlue() { return alliance() == Alliance.Blue; }
+    public static boolean isBlue() { return alliance() == Alliance.BLUE; }
 
     /** Driver station position 1, 2 or 3. */
     public static int stationLocation() { maybeRefresh(); return stationLocation; }
@@ -114,7 +115,7 @@ public final class RobotState {
     public static double timeSinceEnable() {
         maybeRefresh();
         if (enabledTimestamp < 0) return 0;
-        return Timer.getFPGATimestamp() - enabledTimestamp;
+        return Timer.getTimestamp() - enabledTimestamp;
     }
 
     // ===========================================

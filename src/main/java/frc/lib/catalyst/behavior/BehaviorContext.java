@@ -1,6 +1,6 @@
 package frc.lib.catalyst.behavior;
 
-import edu.wpi.first.wpilibj.Timer;
+import org.wpilib.system.Timer;
 import frc.lib.catalyst.util.RobotState;
 
 /**
@@ -27,7 +27,7 @@ public final class BehaviorContext {
 
     /** Seconds since this behavior started running. */
     public double elapsed() {
-        return Timer.getFPGATimestamp() - startTime;
+        return Timer.getTimestamp() - startTime;
     }
 
     public boolean isAutonomous() {

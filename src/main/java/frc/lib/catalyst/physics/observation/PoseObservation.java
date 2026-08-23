@@ -1,6 +1,6 @@
 package frc.lib.catalyst.physics.observation;
 
-import edu.wpi.first.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Pose2d;
 
 /**
  * An absolute field-relative pose measured by something outside the drivetrain — an AprilTag camera,

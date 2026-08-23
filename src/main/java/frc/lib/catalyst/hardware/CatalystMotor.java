@@ -1,5 +1,6 @@
 package frc.lib.catalyst.hardware;
 
+import frc.lib.catalyst.command.CatalystCommand;
 import com.ctre.phoenix6.BaseStatusSignal;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.configs.CurrentLimitsConfigs;
@@ -23,11 +24,11 @@ import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.SignalLogger;
 import com.ctre.phoenix6.signals.GravityTypeValue;
 import com.ctre.phoenix6.signals.InvertedValue;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.SubsystemBase;
-import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
-import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
-import static edu.wpi.first.units.Units.Volts;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Mechanism;
+import frc.lib.catalyst.sysid.SysIdRoutine;
+import frc.lib.catalyst.sysid.SysIdRoutine.Direction;
+import static org.wpilib.units.Units.Volts;
 import com.ctre.phoenix6.signals.NeutralModeValue;
 import frc.lib.catalyst.logging.CatalystLog;
 
@@ -90,7 +91,7 @@ public class CatalystMotor {
         // than waiting for Phoenix to fail later.
         CANRegistry.register(this.name, canId, builder.canBus, "TalonFX");
 
-        this.motor = new TalonFX(canId, builder.canBus);
+        this.motor = new TalonFX(canId, CatalystCANBus.of(builder.canBus).phoenix());
         this.gearRatio = builder.gearRatio;
         this.positionConversionFactor = builder.positionConversionFactor;
         this.gravityType = builder.gravityType;
@@ -211,7 +212,7 @@ public class CatalystMotor {
         // config, and a Follower control request pointing at the leader.
         for (FollowerSpec spec : builder.followerSpecs) {
             CANRegistry.register(this.name + "Follower" + spec.canId(), spec.canId(), builder.canBus, "TalonFX (follower)");
-            TalonFX follower = new TalonFX(spec.canId(), builder.canBus);
+            TalonFX follower = new TalonFX(spec.canId(), CatalystCANBus.of(builder.canBus).phoenix());
             TalonFXConfiguration followerConfig = new TalonFXConfiguration();
             followerConfig.MotorOutput.NeutralMode = builder.brakeMode
                     ? NeutralModeValue.Brake
@@ -537,12 +538,12 @@ public class CatalystMotor {
     // for the WPILib SysId tooling to find the data.
 
     /** Build a {@link SysIdRoutine} for this motor with the given subsystem requirement. */
-    public SysIdRoutine sysIdRoutine(SubsystemBase requirement) {
+    public SysIdRoutine sysIdRoutine(Mechanism requirement) {
         return sysIdRoutine(requirement, defaultSysIdConfig());
     }
 
     /** Build a {@link SysIdRoutine} for this motor with a custom config. */
-    public SysIdRoutine sysIdRoutine(SubsystemBase requirement, SysIdRoutine.Config config) {
+    public SysIdRoutine sysIdRoutine(Mechanism requirement, SysIdRoutine.Config config) {
         return new SysIdRoutine(
                 config,
                 new SysIdRoutine.Mechanism(
@@ -562,12 +563,12 @@ public class CatalystMotor {
     }
 
     /** Quasistatic SysId command — slow ramp, characterises kS / kV. */
-    public Command sysIdQuasistatic(SubsystemBase requirement, Direction dir) {
+    public CatalystCommand sysIdQuasistatic(Mechanism requirement, Direction dir) {
         return sysIdRoutine(requirement).quasistatic(dir);
     }
 
     /** Dynamic SysId command — step input, characterises kA. */
-    public Command sysIdDynamic(SubsystemBase requirement, Direction dir) {
+    public CatalystCommand sysIdDynamic(Mechanism requirement, Direction dir) {
         return sysIdRoutine(requirement).dynamic(dir);
     }
 

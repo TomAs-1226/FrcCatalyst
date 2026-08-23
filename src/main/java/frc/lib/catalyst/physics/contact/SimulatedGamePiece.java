@@ -1,8 +1,8 @@
 package frc.lib.catalyst.physics.contact;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.geometry.Translation3d;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.geometry.Translation3d;
 
 /**
  * A game piece that falls, bounces, rolls, and gets shoved by a robot.

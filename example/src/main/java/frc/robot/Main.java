@@ -1,6 +1,6 @@
 package frc.robot;
 
-import edu.wpi.first.wpilibj.RobotBase;
+import org.wpilib.framework.RobotBase;
 
 /**
  * Entry point. Do not put robot logic here — it lives in {@link Robot}.

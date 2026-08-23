@@ -1,8 +1,8 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.wpilibj.Timer;
+import org.wpilib.networktables.NetworkTable;
+import org.wpilib.networktables.NetworkTableInstance;
+import org.wpilib.system.Timer;
 import frc.lib.catalyst.hardware.CatalystMotor;
 
 import java.util.ArrayList;
@@ -62,7 +62,7 @@ public final class HealthMonitor {
      * mechanisms only pays the cost once per scheduler tick.
      */
     public synchronized void update() {
-        double now = Timer.getFPGATimestamp();
+        double now = Timer.getTimestamp();
         if (now - lastUpdateTs < 0.005) return;
         lastUpdateTs = now;
 

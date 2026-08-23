@@ -1,6 +1,6 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.math.system.plant.DCMotor;
+import org.wpilib.math.system.DCMotor;
 import frc.lib.catalyst.hardware.MotorType;
 
 /**

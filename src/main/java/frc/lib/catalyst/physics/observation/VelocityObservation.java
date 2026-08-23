@@ -1,6 +1,6 @@
 package frc.lib.catalyst.physics.observation;
 
-import edu.wpi.first.math.geometry.Translation2d;
+import org.wpilib.math.geometry.Translation2d;
 
 /**
  * A field-relative velocity measured by something other than the drive wheels.

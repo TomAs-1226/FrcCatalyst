@@ -10,13 +10,13 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.geometry.Translation3d;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
-import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
-import edu.wpi.first.math.kinematics.SwerveModuleState;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.geometry.Translation3d;
+import org.wpilib.math.kinematics.ChassisVelocities;
+import org.wpilib.math.kinematics.SwerveDriveKinematics;
+import org.wpilib.math.kinematics.SwerveModuleVelocity;
 
 import frc.lib.catalyst.physics.constraints.PhysicsConstraints;
 import frc.lib.catalyst.physics.estimation.PhysicalStateEstimator;
@@ -55,9 +55,9 @@ class PhysicsIntegrationTest {
     }
 
     private static PhysicsSample driving(double t, double vx, Translation2d accel) {
-        ChassisSpeeds speeds = new ChassisSpeeds(vx, 0.0, 0.0);
+        ChassisVelocities speeds = new ChassisVelocities(vx, 0.0, 0.0);
         return new PhysicsSample(t, Pose2d.kZero, speeds,
-                KINEMATICS.toSwerveModuleStates(speeds), accel, 0.0);
+                KINEMATICS.toSwerveModuleVelocities(speeds), accel, 0.0);
     }
 
     // ===========================================
@@ -67,13 +67,13 @@ class PhysicsIntegrationTest {
     @Test
     void aConfidentVelocityObservationPullsTheEstimateTowardItAndTightensIt() {
         PhysicalStateEstimator estimator = PhysicalStateEstimator.builder().build();
-        estimator.update(0.0, Pose2d.kZero, new ChassisSpeeds(2.0, 0, 0), Translation2d.kZero, 0, 0);
+        estimator.update(0.0, Pose2d.kZero, new ChassisVelocities(2.0, 0, 0), Translation2d.kZero, 0, 0);
         double before = estimator.state().quality().velocityStdDevMetersPerSecond();
 
         // The wheels say 2.0; an optical-flow sensor with a very tight standard deviation says 3.0.
         assertTrue(estimator.applyVelocityObservation(new Translation2d(3.0, 0.0), 0.001));
 
-        assertEquals(3.0, estimator.state().fieldVelocity().vxMetersPerSecond, 0.01);
+        assertEquals(3.0, estimator.state().fieldVelocity().vx, 0.01);
         assertTrue(estimator.state().quality().velocityStdDevMetersPerSecond() < before,
                 "fusing a measurement must reduce the uncertainty");
     }
@@ -81,12 +81,12 @@ class PhysicsIntegrationTest {
     @Test
     void aVagueObservationBarelyMovesTheEstimate() {
         PhysicalStateEstimator estimator = PhysicalStateEstimator.builder().build();
-        estimator.update(0.0, Pose2d.kZero, new ChassisSpeeds(2.0, 0, 0), Translation2d.kZero, 0, 0);
+        estimator.update(0.0, Pose2d.kZero, new ChassisVelocities(2.0, 0, 0), Translation2d.kZero, 0, 0);
 
         // A 5 m/s standard deviation against an estimate good to ~0.6 m/s: almost no information.
         estimator.applyVelocityObservation(new Translation2d(10.0, 0.0), 5.0);
 
-        assertTrue(estimator.state().fieldVelocity().vxMetersPerSecond < 2.2,
+        assertTrue(estimator.state().fieldVelocity().vx < 2.2,
                 "a vague observation must not drag the estimate to 10 m/s");
     }
 
@@ -94,7 +94,7 @@ class PhysicsIntegrationTest {
     void fusionFollowsTheInverseVarianceFormulaExactly() {
         PhysicalStateEstimator estimator = PhysicalStateEstimator.builder().build();
         estimator.recordAbsoluteFix(0.0);
-        estimator.update(0.0, Pose2d.kZero, new ChassisSpeeds(2.0, 0, 0), Translation2d.kZero, 0, 0);
+        estimator.update(0.0, Pose2d.kZero, new ChassisVelocities(2.0, 0, 0), Translation2d.kZero, 0, 0);
 
         double estimateStdDev = estimator.state().quality().velocityStdDevMetersPerSecond();
         double observationStdDev = 0.2;
@@ -104,7 +104,7 @@ class PhysicsIntegrationTest {
         estimator.applyVelocityObservation(new Translation2d(4.0, 0.0), observationStdDev);
 
         assertEquals(2.0 + expectedWeight * (4.0 - 2.0),
-                estimator.state().fieldVelocity().vxMetersPerSecond, 1e-9);
+                estimator.state().fieldVelocity().vx, 1e-9);
         double expectedVariance = estimateStdDev * estimateStdDev * observationStdDev * observationStdDev
                 / (estimateStdDev * estimateStdDev + observationStdDev * observationStdDev);
         assertEquals(Math.sqrt(expectedVariance),
@@ -115,14 +115,14 @@ class PhysicsIntegrationTest {
     void theBenefitOfAnObservationDecaysAsTheRobotKeepsMoving() {
         PhysicalStateEstimator estimator = PhysicalStateEstimator.builder().build();
         estimator.recordAbsoluteFix(0.0);
-        estimator.update(0.0, Pose2d.kZero, new ChassisSpeeds(2.0, 0, 0), Translation2d.kZero, 0, 0);
+        estimator.update(0.0, Pose2d.kZero, new ChassisVelocities(2.0, 0, 0), Translation2d.kZero, 0, 0);
         estimator.applyVelocityObservation(new Translation2d(2.0, 0.0), 0.01);
 
         double tightened = estimator.state().quality().velocityStdDevMetersPerSecond();
         assertTrue(tightened < 0.02);
 
         for (int i = 1; i <= 100; i++) {
-            estimator.update(i * 0.02, Pose2d.kZero, new ChassisSpeeds(2.0, 0, 0), Translation2d.kZero, 0, 0);
+            estimator.update(i * 0.02, Pose2d.kZero, new ChassisVelocities(2.0, 0, 0), Translation2d.kZero, 0, 0);
         }
 
         assertTrue(estimator.state().quality().velocityStdDevMetersPerSecond() > tightened * 5,
@@ -143,7 +143,7 @@ class PhysicsIntegrationTest {
 
         assertTrue(physics.observe(new VelocityObservation(
                 new Translation2d(3.0, 0.0), 0.0, 0.005, "flow")));
-        assertEquals(3.0, physics.state().fieldVelocity().vxMetersPerSecond, 0.05);
+        assertEquals(3.0, physics.state().fieldVelocity().vx, 0.05);
     }
 
     // ===========================================
@@ -251,10 +251,10 @@ class PhysicsIntegrationTest {
         double clean = limits.speedScale();
 
         // Now corrupt the wheels so the slip estimator sees it.
-        ChassisSpeeds speeds = new ChassisSpeeds(3.0, 0.0, 0.0);
-        SwerveModuleState[] slipping = KINEMATICS.toSwerveModuleStates(speeds);
+        ChassisVelocities speeds = new ChassisVelocities(3.0, 0.0, 0.0);
+        SwerveModuleVelocity[] slipping = KINEMATICS.toSwerveModuleVelocities(speeds);
         for (int i = 0; i < slipping.length; i++) {
-            slipping[i] = new SwerveModuleState(slipping[i].speedMetersPerSecond + 2.0, slipping[i].angle);
+            slipping[i] = new SwerveModuleVelocity(slipping[i].velocity + 2.0, slipping[i].angle);
         }
         for (int i = 1; i <= 6; i++) {
             physics.observe(frc.lib.catalyst.physics.observation.PoseObservation.of(
@@ -320,8 +320,8 @@ class PhysicsIntegrationTest {
 
         assertEquals(first.meanConfidence(), second.meanConfidence(), 1e-15);
         assertEquals(first.peakSlipFactor(), second.peakSlipFactor(), 1e-15);
-        assertEquals(first.finalState().fieldVelocity().vxMetersPerSecond,
-                second.finalState().fieldVelocity().vxMetersPerSecond, 1e-15);
+        assertEquals(first.finalState().fieldVelocity().vx,
+                second.finalState().fieldVelocity().vx, 1e-15);
     }
 
     @Test
@@ -436,8 +436,8 @@ class PhysicsIntegrationTest {
         PhysicsSample clean = driving(0.0, 3.0, new Translation2d(1, 0));
 
         PhysicsSample same = injector.apply(clean);
-        assertEquals(clean.robotRelativeSpeeds().vxMetersPerSecond,
-                same.robotRelativeSpeeds().vxMetersPerSecond, 1e-12);
+        assertEquals(clean.robotRelativeSpeeds().vx,
+                same.robotRelativeSpeeds().vx, 1e-12);
         assertEquals(clean.robotRelativeAcceleration(), same.robotRelativeAcceleration());
     }
 

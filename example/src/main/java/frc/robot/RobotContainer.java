@@ -1,22 +1,22 @@
 package frc.robot;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
-import edu.wpi.first.wpilibj.RobotBase;
-import edu.wpi.first.wpilibj.Filesystem;
-import edu.wpi.first.wpilibj.RobotController;
-import edu.wpi.first.wpilibj.simulation.DriverStationSim;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.CommandScheduler;
-import edu.wpi.first.wpilibj2.command.Commands;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.kinematics.ChassisVelocities;
+import org.wpilib.framework.RobotBase;
+import org.wpilib.system.Filesystem;
+import org.wpilib.system.RobotController;
+import org.wpilib.simulation.DriverStationSim;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Scheduler;
+import frc.lib.catalyst.command.Commands;
 
 import frc.lib.catalyst.behavior.Action;
 import frc.lib.catalyst.behavior.Strategist;
 import frc.lib.catalyst.goal.Goal;
 import frc.lib.catalyst.goal.GoalDirector;
-import edu.wpi.first.math.geometry.Translation3d;
+import org.wpilib.math.geometry.Translation3d;
 
 import frc.lib.catalyst.hardware.MotorType;
 import frc.lib.catalyst.identity.RobotIdentity;
@@ -479,7 +479,7 @@ public class RobotContainer {
             DriverStationSim.setAutonomous(false);
             DriverStationSim.setEnabled(true);
             DriverStationSim.notifyNewData();
-            CommandScheduler.getInstance().schedule(director.pursue(IDLE));
+            Scheduler.getDefault().schedule(director.pursue(IDLE));
             autoEnabledOnce = true;
         }
         simClock += 0.02;
@@ -526,20 +526,20 @@ public class RobotContainer {
                     copilotOn = !copilotOn;
                     if (copilotOn) {
                         copilotMode = null; copilotGoal = "";
-                        CommandScheduler.getInstance().schedule(copilotCmd);
+                        Scheduler.getDefault().schedule(copilotCmd);
                     } else if (copilotCmd != null) {
-                        CommandScheduler.getInstance().cancel(copilotCmd);
+                        Scheduler.getDefault().cancel(copilotCmd);
                         copilotMode = null;
                     }
                 }
                 case "climb" -> {
                     climbOn = !climbOn;
-                    if (!climbOn) { climbing = false; CommandScheduler.getInstance().schedule(climber.goTo("DOWN")); }
+                    if (!climbOn) { climbing = false; Scheduler.getDefault().schedule(climber.goTo("DOWN")); }
                 }
                 case "opponent" -> { opponentOn = !opponentOn; if (opponentOn) { oppX = 7.0; oppY = 2.0; oppVx = 0; oppVy = 0; } }
                 case "ghost" -> {
                     ghostOn = !ghostOn;
-                    CommandScheduler.getInstance().schedule(ghostOn ? ghost.startReplay("auto") : ghost.stopReplay());
+                    Scheduler.getDefault().schedule(ghostOn ? ghost.startReplay("auto") : ghost.stopReplay());
                 }
                 default -> { }
             }
@@ -553,7 +553,7 @@ public class RobotContainer {
         if (g != null && !autoRunning) {
             Goal goal = goalsByName.get(g);
             if (goal != null) {
-                CommandScheduler.getInstance().schedule(director.pursue(goal));
+                Scheduler.getDefault().schedule(director.pursue(goal));
             }
         }
 
@@ -569,8 +569,8 @@ public class RobotContainer {
             if (simClock - autoT0 > AUTO_SECONDS) {
                 autoRunning = false;
                 cmdVx = 0; cmdVy = 0; cmdOmega = 0;
-                CommandScheduler.getInstance().schedule(director.pursue(IDLE));
-                CommandScheduler.getInstance().schedule(ghost.stopRecording());   // save the run
+                Scheduler.getDefault().schedule(director.pursue(IDLE));
+                Scheduler.getDefault().schedule(ghost.stopRecording());   // save the run
             }
         } else if (climbOn) {
             runClimb();                 // endgame Tower climb
@@ -682,7 +682,7 @@ public class RobotContainer {
         // Recompute the SOTF solution from the live pose + ACTUAL field velocity.
         solution = solver.solve(
                 new Pose2d(poseX, poseY, new Rotation2d(heading)),
-                new ChassisSpeeds(velX, velY, omega));
+                new ChassisVelocities(velX, velY, omega));
 
         // Game logic. True SOTF: while Aim&Shoot is held and the flywheel is
         // spinning, we KEEP firing on the move — we do not wait for a perfect
@@ -814,7 +814,7 @@ public class RobotContainer {
     private String buildStateJson() {
         AimingSolver.Solution s = solution;
         Translation2d vg = s.virtualGoal();
-        boolean enabled = edu.wpi.first.wpilibj.DriverStation.isEnabled();
+        boolean enabled = org.wpilib.driverstation.org.wpilib.driverstation.RobotState.isEnabled();
         StringBuilder sb = new StringBuilder(700);
         sb.append('{');
         sb.append("\"enabled\":").append(enabled).append(',');
@@ -927,8 +927,8 @@ public class RobotContainer {
         recentShots.clear();
         trail.clear();
         matchStart = simClock;                      // match clock starts at auto
-        CommandScheduler.getInstance().schedule(director.pursue(INTAKE));
-        CommandScheduler.getInstance().schedule(ghost.startRecording("auto"));   // record for replay
+        Scheduler.getDefault().schedule(director.pursue(INTAKE));
+        Scheduler.getDefault().schedule(ghost.startRecording("auto"));   // record for replay
     }
 
     /** One step of the planned autonomous path: drive to the waypoint, then act. */
@@ -950,8 +950,8 @@ public class RobotContainer {
             cmdVx = 0; cmdVy = 0; cmdOmega = 0;
             if (autoWpReachedT < 0) {
                 autoWpReachedT = simClock;
-                if (mode == 1) CommandScheduler.getInstance().schedule(director.pursue(INTAKE));
-                else if (mode == 2) CommandScheduler.getInstance().schedule(director.pursue(AIM_SHOOT));
+                if (mode == 1) Scheduler.getDefault().schedule(director.pursue(INTAKE));
+                else if (mode == 2) Scheduler.getDefault().schedule(director.pursue(AIM_SHOOT));
             }
             double dwell = (mode == 0) ? 0.1 : 1.1;     // linger to intake / shoot
             if (simClock - autoWpReachedT > dwell) {
@@ -1003,7 +1003,7 @@ public class RobotContainer {
     private void scheduleCopilotGoal(Goal g, String name) {
         if (!name.equals(copilotGoal)) {
             copilotGoal = name;
-            CommandScheduler.getInstance().schedule(director.pursue(g));
+            Scheduler.getDefault().schedule(director.pursue(g));
         }
     }
 
@@ -1018,7 +1018,7 @@ public class RobotContainer {
             cmdVx = 0; cmdVy = 0; cmdOmega = 0;
             if (!climbing) {
                 climbing = true;
-                CommandScheduler.getInstance().schedule(climber.goTo("UP"));
+                Scheduler.getDefault().schedule(climber.goTo("UP"));
             }
         }
     }
@@ -1088,8 +1088,8 @@ public class RobotContainer {
 
     public Command getAutonomousCommand() {
         return Commands.sequence(
-                director.pursue(INTAKE).withTimeout(1.5),
-                director.pursue(AIM_SHOOT).withTimeout(3.0),
+                director.pursue(INTAKE).timeoutAfter(1.5),
+                director.pursue(AIM_SHOOT).timeoutAfter(3.0),
                 director.pursue(IDLE)).withName("Auto.Demo");
     }
 

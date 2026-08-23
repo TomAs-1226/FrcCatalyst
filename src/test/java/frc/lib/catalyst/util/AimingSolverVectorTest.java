@@ -1,10 +1,10 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.interpolation.InterpolatingDoubleTreeMap;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.interpolation.InterpolatingDoubleTreeMap;
+import org.wpilib.math.kinematics.ChassisVelocities;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -35,7 +35,7 @@ class AimingSolverVectorTest {
         // From (4,4), the target at (8,4) is due +X, so the field-relative yaw is 0 degrees.
         AimingSolverVector.TargetState s = solver().calculate(
                 new Pose2d(4.0, 4.0, Rotation2d.fromDegrees(123.0)),
-                new ChassisSpeeds(0, 0, 0));
+                new ChassisVelocities(0, 0, 0));
         assertEquals(0.0, s.yaw().getDegrees(), 1e-6,
                 "a stationary robot must aim straight at the target");
         assertEquals(40.0, s.hoodPitch().getDegrees(), 1e-6, "fixed hood stays at its angle");
@@ -45,12 +45,12 @@ class AimingSolverVectorTest {
     @Test
     void drivingLeftOfTheTargetLeadsTheShotAndNeedsMoreSpeed() {
         Pose2d pose = new Pose2d(4.0, 4.0, Rotation2d.fromDegrees(0.0));
-        double stationaryRps = solver().calculate(pose, new ChassisSpeeds(0, 0, 0)).rps();
+        double stationaryRps = solver().calculate(pose, new ChassisVelocities(0, 0, 0)).rps();
 
         // Strafing in +Y (perpendicular to the shot) must swing the aim off the straight bearing
         // and require a faster wheel to keep the same range.
         AimingSolverVector.TargetState moving = solver().calculate(
-                pose, new ChassisSpeeds(0.0, 2.0, 0.0));
+                pose, new ChassisVelocities(0.0, 2.0, 0.0));
         assertTrue(Math.abs(moving.yaw().getDegrees()) > 1.0,
                 "crossing velocity must lead the aim off the straight bearing, got "
                         + moving.yaw().getDegrees());

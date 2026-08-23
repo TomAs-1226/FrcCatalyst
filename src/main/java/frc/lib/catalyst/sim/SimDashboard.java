@@ -3,9 +3,9 @@ package frc.lib.catalyst.sim;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
-import edu.wpi.first.wpilibj.RobotBase;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.CommandScheduler;
+import org.wpilib.framework.RobotBase;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Scheduler;
 
 import frc.lib.catalyst.mechanisms.CatalystMechanism;
 import frc.lib.catalyst.mechanisms.MechanismView;
@@ -215,7 +215,7 @@ public final class SimDashboard {
          * The factory is invoked on the main thread each press.
          */
         public Handle command(String label, Supplier<Command> factory) {
-            return button(label, () -> CommandScheduler.getInstance().schedule(factory.get()));
+            return button(label, () -> Scheduler.getDefault().schedule(factory.get()));
         }
 
         /**

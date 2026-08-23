@@ -1,7 +1,7 @@
 package frc.lib.catalyst.statemachine.goals;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Translation2d;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Translation2d;
 import frc.lib.catalyst.util.AimingSolver;
 
 import java.util.function.BooleanSupplier;
@@ -223,7 +223,7 @@ public sealed interface TurretGoal
      * @param headingDegrees   live robot heading supplier, degrees
      * @param yawRateDps       live chassis yaw rate supplier, degrees per second. With a swerve
      *                         drive this is
-     *                         {@code () -> Math.toDegrees(drive.getChassisSpeeds().omegaRadiansPerSecond)}.
+     *                         {@code () -> Math.toDegrees(drive.getChassisSpeeds().omega)}.
      * @param toleranceDegrees arrival band in degrees
      * @param label            stable name for this goal, e.g. {@code "TrackGoal"}
      */

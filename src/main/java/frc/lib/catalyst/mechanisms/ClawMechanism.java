@@ -1,13 +1,14 @@
 package frc.lib.catalyst.mechanisms;
 
-import edu.wpi.first.math.system.plant.DCMotor;
-import edu.wpi.first.math.system.plant.LinearSystemId;
-import edu.wpi.first.wpilibj.DigitalInput;
-import edu.wpi.first.wpilibj.RobotBase;
-import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj.simulation.DCMotorSim;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.math.system.DCMotor;
+import org.wpilib.math.system.Models;
+import org.wpilib.hardware.discrete.DigitalInput;
+import org.wpilib.framework.RobotBase;
+import org.wpilib.system.Timer;
+import org.wpilib.simulation.DCMotorSim;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Trigger;
 import frc.lib.catalyst.hardware.CatalystMotor;
 import frc.lib.catalyst.hardware.CatalystMotor.FollowerSpec;
 import frc.lib.catalyst.io.ClawMechanismInputs;
@@ -121,7 +122,7 @@ public class ClawMechanism extends CatalystMechanism {
 
         if (RobotBase.isSimulation()) {
             DCMotor model = DCMotor.getKrakenX60(1 + config.followers.size());
-            sim = new DCMotorSim(LinearSystemId.createDCMotorSystem(model, 0.002, 1.0), model);
+            sim = new DCMotorSim(Models.singleJointedArmFromPhysicalConstants(model, 0.002, 1.0), model);
         }
     }
 
@@ -131,8 +132,8 @@ public class ClawMechanism extends CatalystMechanism {
             var simState = motor.getTalonFX().getSimState();
             sim.setInputVoltage(simState.getMotorVoltage());
             sim.update(0.02);
-            simState.setRawRotorPosition(sim.getAngularPositionRotations());
-            simState.setRotorVelocity(sim.getAngularVelocityRPM() / 60.0);
+            simState.setRawRotorPosition((sim.getAngularPosition() / (2 * Math.PI)));
+            simState.setRotorVelocity((sim.getAngularVelocity() / (2 * Math.PI)));
         }
     }
 
@@ -190,7 +191,7 @@ public class ClawMechanism extends CatalystMechanism {
      * Does not auto-stop on stall — pair with {@link #closeUntilGripped()}
      * if you want hands-off piece detection.
      */
-    public Command close() {
+    public CatalystCommand close() {
         return run(() -> {
             motor.setVoltage(config.closeVoltage);
             gripState = "CLOSING";
@@ -207,7 +208,7 @@ public class ClawMechanism extends CatalystMechanism {
      * then transition to a low passive hold voltage and continue holding
      * until the command is interrupted.
      */
-    public Command closeUntilGripped() {
+    public CatalystCommand closeUntilGripped() {
         return run(() -> {
             if (hasPiece()) {
                 motor.setVoltage(config.holdVoltage);
@@ -232,7 +233,7 @@ public class ClawMechanism extends CatalystMechanism {
      * command after {@link #closeUntilGripped()} succeeds and the scheduler
      * has moved on, so the piece doesn't drop.
      */
-    public Command hold() {
+    public CatalystCommand hold() {
         return run(() -> {
             motor.setVoltage(config.holdVoltage);
             gripState = "HOLDING";
@@ -245,7 +246,7 @@ public class ClawMechanism extends CatalystMechanism {
     }
 
     /** Open the claw at the configured open voltage. Clears the has-piece state. */
-    public Command open() {
+    public CatalystCommand open() {
         return run(() -> {
             motor.setVoltage(config.openVoltage);
             hasPiece = false;
@@ -260,7 +261,7 @@ public class ClawMechanism extends CatalystMechanism {
     }
 
     /** Run the claw at a custom voltage. Does not touch grip-state tracking. */
-    public Command runAtVoltage(double volts) {
+    public CatalystCommand runAtVoltage(double volts) {
         return run(() -> {
             motor.setVoltage(volts);
             setState("Voltage " + String.format("%.1fV", volts));
@@ -271,7 +272,7 @@ public class ClawMechanism extends CatalystMechanism {
     }
 
     /** Manually reset the {@code hasPiece} state — useful after a drop / fault. */
-    public Command resetPieceDetection() {
+    public CatalystCommand resetPieceDetection() {
         return runOnce(() -> {
             hasPiece = false;
             stallTimerStarted = false;

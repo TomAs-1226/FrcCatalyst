@@ -1,10 +1,13 @@
 package frc.lib.catalyst.behavior;
 
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.CommandScheduler;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.networktables.NetworkTable;
+import org.wpilib.networktables.NetworkTableInstance;
+import org.wpilib.system.Timer;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Coroutine;
+import org.wpilib.command3.Mechanism;
+import org.wpilib.command3.Scheduler;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -79,9 +82,9 @@ public final class Strategist {
             return this;
         }
 
-        public Command build() {
+        public CatalystCommand build() {
             CatalystFeatures.record(CatalystFeatures.STRATEGIST, name);
-            return new SelectorCommand(name, List.copyOf(behaviors), minScore);
+            return CatalystCommand.of(new SelectorCommand(name, List.copyOf(behaviors), minScore));
         }
     }
 
@@ -90,10 +93,11 @@ public final class Strategist {
      * winning behaviour's command (which reserves its own subsystems) and
      * cancels it when a different behaviour takes over.
      */
-    private static final class SelectorCommand extends Command {
+    private static final class SelectorCommand implements Command {
         private final List<Behavior> behaviors;
         private final double minScore;
         private final NetworkTable nt;
+        private final String commandName;
         private BehaviorContext ctx;
 
         private String activeName = "";
@@ -104,20 +108,43 @@ public final class Strategist {
             this.minScore = minScore;
             this.nt = NetworkTableInstance.getDefault()
                     .getTable("Catalyst").getSubTable("Behavior").getSubTable(name);
-            setName("Strategist:" + name);
+            this.commandName = "Strategist:" + name;
         }
 
         @Override
-        public void initialize() {
-            ctx = new BehaviorContext(Timer.getFPGATimestamp());
+        public String name() {
+            return commandName;
+        }
+
+        /**
+         * The selector reserves nothing itself. It schedules the winning behaviour's command,
+         * which reserves its own mechanisms, and cancels it when a different behaviour wins.
+         */
+        @Override
+        public java.util.Set<Mechanism> requirements() {
+            return java.util.Set.of();
+        }
+
+        /**
+         * Commands v3 replaces initialize/execute/end with one coroutine body. The former
+         * {@code isFinished()} returned false, so this loops until cancelled; the former
+         * {@code end(boolean)} became {@link #onCancel()}.
+         */
+        @Override
+        public void run(Coroutine coroutine) {
+            ctx = new BehaviorContext(Timer.getTimestamp());
             activeName = "";
             activeCommand = null;
+
+            while (true) {
+                evaluate();
+                coroutine.yield();
+            }
         }
 
-        @Override
-        public void execute() {
+        private void evaluate() {
             // Clear a finished behaviour so it can be re-evaluated next loop.
-            if (activeCommand != null && !activeCommand.isScheduled()) {
+            if (activeCommand != null && !Scheduler.getDefault().isScheduledOrRunning(activeCommand)) {
                 activeCommand = null;
                 activeName = "";
             }
@@ -136,7 +163,7 @@ public final class Strategist {
             if (best == null) {
                 // Nothing wants to run — release whatever was running.
                 if (activeCommand != null) {
-                    activeCommand.cancel();
+                    Scheduler.getDefault().cancel(activeCommand);
                     activeCommand = null;
                 }
                 activeName = "";
@@ -145,25 +172,20 @@ public final class Strategist {
             }
 
             if (!best.name().equals(activeName)) {
-                if (activeCommand != null) activeCommand.cancel();
+                if (activeCommand != null) Scheduler.getDefault().cancel(activeCommand);
                 activeCommand = best.action().toCommand();
                 activeName = best.name();
-                CommandScheduler.getInstance().schedule(activeCommand);
+                Scheduler.getDefault().schedule(activeCommand);
                 nt.getEntry("Active").setString(activeName);
             }
         }
 
         @Override
-        public void end(boolean interrupted) {
-            if (activeCommand != null) activeCommand.cancel();
+        public void onCancel() {
+            if (activeCommand != null) Scheduler.getDefault().cancel(activeCommand);
             activeCommand = null;
             activeName = "";
             nt.getEntry("Active").setString("(stopped)");
-        }
-
-        @Override
-        public boolean isFinished() {
-            return false; // runs until cancelled (e.g. end of auto, or whileTrue release)
         }
 
         private double safeScore(Behavior b) {

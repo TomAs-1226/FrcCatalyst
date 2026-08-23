@@ -1,11 +1,12 @@
 package frc.lib.catalyst.mechanisms;
 
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.SubsystemBase;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
-import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.networktables.NetworkTable;
+import org.wpilib.networktables.NetworkTableInstance;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Mechanism;
+import org.wpilib.command3.Trigger;
+import frc.lib.catalyst.sysid.SysIdRoutine.Direction;
 import frc.lib.catalyst.hardware.CatalystMotor;
 import frc.lib.catalyst.logging.CatalystInputs;
 import frc.lib.catalyst.logging.CatalystLog;
@@ -15,7 +16,7 @@ import frc.lib.catalyst.util.RumbleEvents;
  * Base class for all Catalyst mechanisms. Provides automatic telemetry,
  * subsystem registration, and shared command factories.
  *
- * <p>Each mechanism extends {@link SubsystemBase} so it participates in
+ * <p>Each mechanism extends {@link Mechanism} so it participates in
  * WPILib's command scheduler for mutual exclusion and default commands.
  *
  * <p>Telemetry is published through {@link CatalystLog} — by default a
@@ -24,7 +25,7 @@ import frc.lib.catalyst.util.RumbleEvents;
  * working unchanged. Teams that want AdvantageKit (or any other framework)
  * just swap the sink at robot init; no mechanism code changes.
  */
-public abstract class CatalystMechanism extends SubsystemBase {
+public abstract class CatalystMechanism implements frc.lib.catalyst.command.CatalystSubsystem {
 
     protected final String name;
     /**
@@ -38,7 +39,6 @@ public abstract class CatalystMechanism extends SubsystemBase {
     protected final String logPrefix;
 
     protected CatalystMechanism(String name) {
-        super(name);
         this.name = name;
         this.telemetryTable = NetworkTableInstance.getDefault()
                 .getTable("Catalyst").getSubTable(name);
@@ -46,6 +46,10 @@ public abstract class CatalystMechanism extends SubsystemBase {
         // NetworkTablesSink root table, so the prefix here is just the
         // mechanism name (no leading "Catalyst/").
         this.logPrefix = name;
+        // Commands v3's Mechanism has no constructor to hook, so periodic() is registered
+        // explicitly. Without this the method compiles and is simply never called - see
+        // CatalystSubsystem#registerPeriodic.
+        registerPeriodic();
     }
 
     /** Publish a {@code double} under this mechanism's prefix. */
@@ -100,7 +104,7 @@ public abstract class CatalystMechanism extends SubsystemBase {
     }
 
     /** Command to stop the mechanism. */
-    public Command stopCommand() {
+    public CatalystCommand stopCommand() {
         return runOnce(this::stop).withName(name + ".Stop");
     }
 
@@ -116,7 +120,7 @@ public abstract class CatalystMechanism extends SubsystemBase {
      * <p>Teams must call {@code SignalLogger.start()} from {@code robotInit()}
      * for the WPILib SysId tooling to find the captured data.
      */
-    public Command sysIdQuasistatic(Direction dir) {
+    public CatalystCommand sysIdQuasistatic(Direction dir) {
         CatalystMotor m = primaryMotorForSysId();
         if (m == null) throw new UnsupportedOperationException(
                 name + " does not expose a motor for SysId. Override sysIdQuasistatic(...).");
@@ -124,7 +128,7 @@ public abstract class CatalystMechanism extends SubsystemBase {
     }
 
     /** Dynamic SysId command — step input characterising kA. */
-    public Command sysIdDynamic(Direction dir) {
+    public CatalystCommand sysIdDynamic(Direction dir) {
         CatalystMotor m = primaryMotorForSysId();
         if (m == null) throw new UnsupportedOperationException(
                 name + " does not expose a motor for SysId. Override sysIdDynamic(...).");

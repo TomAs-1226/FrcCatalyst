@@ -1,8 +1,9 @@
 package frc.lib.catalyst.statemachine.mech;
 
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
-import edu.wpi.first.wpilibj2.command.Subsystem;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.command3.Command;
+import frc.lib.catalyst.command.Commands;
+import org.wpilib.command3.Mechanism;
 import frc.lib.catalyst.mechanisms.CatalystMechanism;
 import frc.lib.catalyst.mechanisms.ClawMechanism;
 import frc.lib.catalyst.mechanisms.DifferentialWristMechanism;
@@ -639,7 +640,7 @@ public final class Mechanisms {
      * @return an actuator that applies {@code apply} and immediately reports arrival
      * @throws NullPointerException if {@code key} or {@code apply} is {@code null}
      */
-    public static <G> Actuator<G> instant(String key, Consumer<G> apply, Subsystem... requires) {
+    public static <G> Actuator<G> instant(String key, Consumer<G> apply, Mechanism... requires) {
         Objects.requireNonNull(apply, "apply");
         return Mechanisms.<G>build(key, requires)
                 .pursue(goal -> Commands.runOnce(() -> apply.accept(goal), requires))
@@ -671,7 +672,7 @@ public final class Mechanisms {
      * @throws NullPointerException if {@code key}, {@code apply} or {@code atGoal} is {@code null}
      */
     public static <G> Actuator<G> custom(String key, Consumer<G> apply, Predicate<G> atGoal,
-                                         Subsystem... requires) {
+                                         Mechanism... requires) {
         return Mechanisms.<G>build(key, requires)
                 .apply(apply)
                 .atGoal(atGoal)
@@ -706,7 +707,7 @@ public final class Mechanisms {
      * @throws NullPointerException if {@code key}, {@code factory} or {@code atGoal} is {@code null}
      */
     public static <G> Actuator<G> commands(String key, Function<G, Command> factory,
-                                           Predicate<G> atGoal, Subsystem... requires) {
+                                           Predicate<G> atGoal, Mechanism... requires) {
         return Mechanisms.<G>build(key, requires)
                 .pursue(factory)
                 .atGoal(atGoal)
@@ -740,7 +741,7 @@ public final class Mechanisms {
      * @throws NullPointerException if {@code key} is {@code null}, or {@code requires} contains
      *                              {@code null}
      */
-    public static <G> CustomBuilder<G> build(String key, Subsystem... requires) {
+    public static <G> CustomBuilder<G> build(String key, Mechanism... requires) {
         return new CustomBuilder<>(key, requires);
     }
 
@@ -786,14 +787,14 @@ public final class Mechanisms {
         private final String key;
 
         /** Owned subsystems, in declaration order, deduplicated. Never {@code null}. */
-        private final Set<Subsystem> requirements;
+        private final Set<Mechanism> requirements;
 
         /**
          * The same subsystems as an array, kept because {@code Commands.run} and friends take
          * varargs and rebuilding the array on every {@code pursueCommand} call would allocate on a
          * path that runs whenever a goal changes.
          */
-        private final Subsystem[] requiresArray;
+        private final Mechanism[] requiresArray;
 
         /** {@code MechanismView} kind string. Defaults to {@code "custom"}. */
         private String kind = "custom";
@@ -848,7 +849,7 @@ public final class Mechanisms {
         private final List<RangeCheck<G>> ranges = new ArrayList<>();
 
         /**
-         * Starts a builder. Use {@link Mechanisms#build(String, Subsystem...)} rather than calling
+         * Starts a builder. Use {@link Mechanisms#build(String, Mechanism...)} rather than calling
          * this directly.
          *
          * @param key      stable, unique, log-safe telemetry key
@@ -856,15 +857,15 @@ public final class Mechanisms {
          * @throws NullPointerException if {@code key} is {@code null}, or any element of
          *                              {@code requires} is {@code null}
          */
-        private CustomBuilder(String key, Subsystem... requires) {
+        private CustomBuilder(String key, Mechanism... requires) {
             this.key = Objects.requireNonNull(key, "key");
-            Subsystem[] source = requires == null ? new Subsystem[0] : requires;
-            Set<Subsystem> unique = new LinkedHashSet<>();
+            Mechanism[] source = requires == null ? new Mechanism[0] : requires;
+            Set<Mechanism> unique = new LinkedHashSet<>();
             for (int i = 0; i < source.length; i++) {
                 unique.add(Objects.requireNonNull(source[i], "requires[" + i + "]"));
             }
             this.requirements = Collections.unmodifiableSet(unique);
-            this.requiresArray = unique.toArray(new Subsystem[0]);
+            this.requiresArray = unique.toArray(new Mechanism[0]);
         }
 
         /**
@@ -955,7 +956,7 @@ public final class Mechanisms {
          * <p>The second argument is {@code secondsSinceApplied}, exactly as described on
          * {@link Binding#atGoal} — seconds since this goal was first applied, or {@code 0.0} when
          * it is not currently applied. It is the only sanctioned source of elapsed time; calling
-         * {@code Timer.getFPGATimestamp()} from inside the predicate makes the binding untestable
+         * {@code Timer.getTimestamp()} from inside the predicate makes the binding untestable
          * and breaks disabled-mode accounting.
          *
          * <p>The test must be a <b>pure function</b> of live sensors, the goal and the elapsed
@@ -1297,7 +1298,7 @@ public final class Mechanisms {
         private final String unit;
 
         /** Owned subsystems, unmodifiable. */
-        private final Set<Subsystem> requirements;
+        private final Set<Mechanism> requirements;
 
         /** Pursue command factory. Never {@code null} — {@code done()} guarantees it. */
         private final Function<G, Command> pursue;
@@ -1395,12 +1396,14 @@ public final class Mechanisms {
          * scheduler.
          */
         @Override
-        public Command pursueCommand(G goal) {
+        public CatalystCommand pursueCommand(G goal) {
             if (goal == null) {
                 return Commands.none().withName(key + ".NoGoal");
             }
             Command command = pursue.apply(goal);
-            return command == null ? Commands.none().withName(key + ".NoPursue") : command;
+            return command == null
+                    ? Commands.none().withName(key + ".NoPursue")
+                    : CatalystCommand.of(command);
         }
 
         /**
@@ -1409,16 +1412,16 @@ public final class Mechanisms {
          * <p>{@code null} when no hold factory was configured, meaning "keep pursuing".
          */
         @Override
-        public Command holdCommand(G goal) {
+        public CatalystCommand holdCommand(G goal) {
             if (hold == null || goal == null) {
                 return null;
             }
-            return hold.apply(goal);
+            return CatalystCommand.of(hold.apply(goal));
         }
 
         /** {@inheritDoc} */
         @Override
-        public Set<Subsystem> requirements() {
+        public Set<Mechanism> requirements() {
             return requirements;
         }
 

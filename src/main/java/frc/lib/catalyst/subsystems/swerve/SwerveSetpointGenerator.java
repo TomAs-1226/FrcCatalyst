@@ -1,12 +1,12 @@
 package frc.lib.catalyst.subsystems.swerve;
 
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
-import edu.wpi.first.wpilibj.Timer;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.kinematics.ChassisVelocities;
+import org.wpilib.system.Timer;
 
 /**
  * Light-weight chassis-aware setpoint generator. Clamps requested
- * {@link ChassisSpeeds} by:
+ * {@link ChassisVelocities} by:
  * <ol>
  *   <li>Limiting the rate of change of the translational velocity vector
  *       so the wheels don't break friction (skid).</li>
@@ -25,12 +25,12 @@ import edu.wpi.first.wpilibj.Timer;
  * SwerveSetpointGenerator gen = new SwerveSetpointGenerator(
  *     drive.getMaxSpeedMPS(), drive.getMaxAngularRate(), 8.0); // 8 m/s² accel cap
  *
- * void drive(ChassisSpeeds requested) {
- *     ChassisSpeeds limited = gen.generate(requested);
+ * void drive(ChassisVelocities requested) {
+ *     ChassisVelocities limited = gen.generate(requested);
  *     drivetrain.setControl(fieldCentricRequest
- *         .withVelocityX(limited.vxMetersPerSecond)
- *         .withVelocityY(limited.vyMetersPerSecond)
- *         .withRotationalRate(limited.omegaRadiansPerSecond));
+ *         .withVelocityX(limited.vx)
+ *         .withVelocityY(limited.vy)
+ *         .withRotationalRate(limited.omega));
  * }
  * }</pre>
  */
@@ -41,7 +41,7 @@ public final class SwerveSetpointGenerator {
     private final double maxTranslationalAccel;
     private final double maxAngularAccel;
 
-    private ChassisSpeeds prev = new ChassisSpeeds();
+    private ChassisVelocities prev = new ChassisVelocities();
     private double lastTs = -1;
 
     /**
@@ -66,7 +66,7 @@ public final class SwerveSetpointGenerator {
 
     /** Reset the internal "previous" state. Call when re-enabling. */
     public void reset() {
-        prev = new ChassisSpeeds();
+        prev = new ChassisVelocities();
         lastTs = -1;
     }
 
@@ -74,25 +74,25 @@ public final class SwerveSetpointGenerator {
      * Clamp the requested speeds against the configured limits, using
      * the elapsed wall time since the last call as {@code dt}.
      */
-    public ChassisSpeeds generate(ChassisSpeeds desired) {
-        double now = Timer.getFPGATimestamp();
+    public ChassisVelocities generate(ChassisVelocities desired) {
+        double now = Timer.getTimestamp();
         double dt = (lastTs < 0) ? 0.02 : Math.max(0.001, now - lastTs);
         lastTs = now;
         return generate(desired, dt);
     }
 
     /** Variant where the caller provides {@code dt} explicitly (e.g. for tests). */
-    public ChassisSpeeds generate(ChassisSpeeds desired, double dt) {
+    public ChassisVelocities generate(ChassisVelocities desired, double dt) {
         // 1. Cap target translation magnitude.
         Translation2d targetV = new Translation2d(
-                desired.vxMetersPerSecond, desired.vyMetersPerSecond);
+                desired.vx, desired.vy);
         if (targetV.getNorm() > maxTranslationMPS) {
             targetV = targetV.times(maxTranslationMPS / targetV.getNorm());
         }
 
         // 2. Limit translational acceleration (delta-v cap).
         Translation2d prevV = new Translation2d(
-                prev.vxMetersPerSecond, prev.vyMetersPerSecond);
+                prev.vx, prev.vy);
         Translation2d deltaV = targetV.minus(prevV);
         double maxDeltaV = maxTranslationalAccel * dt;
         if (deltaV.getNorm() > maxDeltaV) {
@@ -101,15 +101,15 @@ public final class SwerveSetpointGenerator {
         Translation2d nextV = prevV.plus(deltaV);
 
         // 3. Cap rotation and rotational accel.
-        double targetOmega = clamp(desired.omegaRadiansPerSecond,
+        double targetOmega = clamp(desired.omega,
                 -maxAngularRPS, maxAngularRPS);
         double maxDeltaOmega = maxAngularAccel * dt;
         double nextOmega = clamp(
                 targetOmega,
-                prev.omegaRadiansPerSecond - maxDeltaOmega,
-                prev.omegaRadiansPerSecond + maxDeltaOmega);
+                prev.omega - maxDeltaOmega,
+                prev.omega + maxDeltaOmega);
 
-        ChassisSpeeds out = new ChassisSpeeds(nextV.getX(), nextV.getY(), nextOmega);
+        ChassisVelocities out = new ChassisVelocities(nextV.getX(), nextV.getY(), nextOmega);
         prev = out;
         return out;
     }

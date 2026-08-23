@@ -7,10 +7,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.kinematics.ChassisVelocities;
 
 import frc.lib.catalyst.physics.prediction.LaunchState;
 import frc.lib.catalyst.physics.prediction.LaunchStatePredictor;
@@ -28,7 +28,7 @@ class StatePredictorTest {
         return new PhysicalRobotState(
                 0.0,
                 Pose2d.kZero,
-                new ChassisSpeeds(vx, 0.0, omega),
+                new ChassisVelocities(vx, 0.0, omega),
                 new Translation2d(ax, 0.0),
                 0.0,
                 new LocalizationQuality(1.0, 0.02, 0.01, 0.05, 0.0, "nominal"));
@@ -40,7 +40,7 @@ class StatePredictorTest {
 
         PhysicalRobotState at1s = predictor.predict(moving(2.0, 1.0), 1.0);
 
-        assertEquals(3.0, at1s.fieldVelocity().vxMetersPerSecond, 1e-9);   // v + at
+        assertEquals(3.0, at1s.fieldVelocity().vx, 1e-9);   // v + at
         assertEquals(2.5, at1s.pose().getX(), 1e-9);                        // vt + at^2/2
         assertEquals(1.0, at1s.fieldAcceleration().getX(), 1e-9);           // held constant
         assertEquals(1.0, at1s.timestampSeconds(), 1e-9);
@@ -56,7 +56,7 @@ class StatePredictorTest {
         PhysicalRobotState held = constant.predict(start, 1.0);
 
         assertTrue(decayed.pose().getX() < held.pose().getX());
-        assertTrue(decayed.fieldVelocity().vxMetersPerSecond < held.fieldVelocity().vxMetersPerSecond);
+        assertTrue(decayed.fieldVelocity().vx < held.fieldVelocity().vx);
         assertTrue(decayed.fieldAcceleration().getX() < held.fieldAcceleration().getX());
     }
 
@@ -72,7 +72,7 @@ class StatePredictorTest {
 
         double velocityGain = tau * (1.0 - Math.exp(-h / tau));
         double positionGain = tau * (h - tau * (1.0 - Math.exp(-h / tau)));
-        assertEquals(v0 + a0 * velocityGain, at.fieldVelocity().vxMetersPerSecond, 1e-9);
+        assertEquals(v0 + a0 * velocityGain, at.fieldVelocity().vx, 1e-9);
         assertEquals(v0 * h + a0 * positionGain, at.pose().getX(), 1e-9);
         assertEquals(a0 * Math.exp(-h / tau), at.fieldAcceleration().getX(), 1e-9);
     }
@@ -115,7 +115,7 @@ class StatePredictorTest {
         PhysicalRobotState turned = predictor.predict(moving(0.0, 0.0, Math.PI / 2.0), 1.0);
 
         assertEquals(90.0, turned.pose().getRotation().getDegrees(), 1e-6);
-        assertEquals(Math.PI / 2.0, turned.fieldVelocity().omegaRadiansPerSecond, 1e-9);
+        assertEquals(Math.PI / 2.0, turned.fieldVelocity().omega, 1e-9);
     }
 
     @Test
@@ -160,7 +160,7 @@ class StatePredictorTest {
     void missRadiusGrowsWithFlightTimeAndGatesTheShot() {
         LaunchState launch = new LaunchState(
                 Pose2d.kZero,
-                new ChassisSpeeds(3.0, 0.0, 0.0),
+                new ChassisVelocities(3.0, 0.0, 0.0),
                 0.12,
                 0.12,
                 new LocalizationQuality(0.9, 0.05, 0.01, 0.20, 0.1, "nominal"));
@@ -175,9 +175,9 @@ class StatePredictorTest {
 
     @Test
     void anUncertainRobotProducesAWiderMissRadius() {
-        LaunchState confident = new LaunchState(Pose2d.kZero, new ChassisSpeeds(), 0.1, 0.1,
+        LaunchState confident = new LaunchState(Pose2d.kZero, new ChassisVelocities(), 0.1, 0.1,
                 new LocalizationQuality(0.95, 0.02, 0.01, 0.05, 0.0, "nominal"));
-        LaunchState lost = new LaunchState(Pose2d.kZero, new ChassisSpeeds(), 0.1, 0.1,
+        LaunchState lost = new LaunchState(Pose2d.kZero, new ChassisVelocities(), 0.1, 0.1,
                 new LocalizationQuality(0.10, 0.90, 0.30, 1.40, 8.0, "vision stale 8.0 s"));
 
         assertTrue(lost.missRadiusMeters(1.0) > confident.missRadiusMeters(1.0));

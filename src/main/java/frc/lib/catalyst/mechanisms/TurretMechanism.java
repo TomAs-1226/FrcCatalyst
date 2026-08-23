@@ -1,14 +1,15 @@
 package frc.lib.catalyst.mechanisms;
 
-import edu.wpi.first.math.MathUtil;
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.system.plant.LinearSystemId;
-import edu.wpi.first.wpilibj.RobotBase;
-import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj.simulation.DCMotorSim;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.math.util.MathUtil;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.system.Models;
+import org.wpilib.framework.RobotBase;
+import org.wpilib.system.Timer;
+import org.wpilib.simulation.DCMotorSim;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Trigger;
 import frc.lib.catalyst.hardware.CatalystMotor;
 import frc.lib.catalyst.hardware.MotorType;
 import frc.lib.catalyst.io.TurretMechanismInputs;
@@ -124,7 +125,7 @@ public class TurretMechanism extends CatalystMechanism {
 
         if (RobotBase.isSimulation()) {
             sim = new DCMotorSim(
-                    LinearSystemId.createDCMotorSystem(
+                    Models.singleJointedArmFromPhysicalConstants(
                             config.motorType.getDCMotor(1), config.simMOI, config.gearRatio),
                     config.motorType.getDCMotor(1));
         }
@@ -138,8 +139,8 @@ public class TurretMechanism extends CatalystMechanism {
             var simState = motor.getTalonFX().getSimState();
             sim.setInputVoltage(simState.getMotorVoltage());
             sim.update(0.02);
-            simState.setRawRotorPosition(sim.getAngularPositionRotations() * config.gearRatio);
-            simState.setRotorVelocity(sim.getAngularVelocityRPM() / 60.0 * config.gearRatio);
+            simState.setRawRotorPosition((sim.getAngularPosition() / (2 * Math.PI)) * config.gearRatio);
+            simState.setRotorVelocity((sim.getAngularVelocity() / (2 * Math.PI)) * config.gearRatio);
         }
     }
 
@@ -204,7 +205,7 @@ public class TurretMechanism extends CatalystMechanism {
                     closest = cand;
                 }
             }
-            best = MathUtil.clamp(closest, minDeg, maxDeg);
+            best = Math.clamp(closest, minDeg, maxDeg);
         }
         return best;
     }
@@ -225,14 +226,14 @@ public class TurretMechanism extends CatalystMechanism {
         // unwrap makes the command jump (the derivative would be garbage), and
         // skip when kV isn't configured.
         double ffVolts = 0.0;
-        double now = Timer.getFPGATimestamp();
+        double now = Timer.getTimestamp();
         if (config.kV > 0 && !Double.isNaN(lastResolvedDeg)) {
             double dt = now - lastCommandTs;
             double delta = resolved - lastResolvedDeg;
             if (dt > 1e-4 && dt < 0.5 && Math.abs(delta) < 180.0) {
                 double rps = (delta / dt) / 360.0;
                 ffVolts = config.kV * rps;
-                ffVolts = MathUtil.clamp(ffVolts, -2.0, 2.0); // FF shouldn't dominate
+                ffVolts = Math.clamp(ffVolts, -2.0, 2.0); // FF shouldn't dominate
             }
         }
         lastResolvedDeg = resolved;
@@ -257,10 +258,10 @@ public class TurretMechanism extends CatalystMechanism {
 
         double ffVolts = 0.0;
         if (config.kV > 0 && !unwrapping && !Double.isNaN(ffDegPerSec)) {
-            ffVolts = MathUtil.clamp(config.kV * (ffDegPerSec / 360.0), -2.0, 2.0);
+            ffVolts = Math.clamp(config.kV * (ffDegPerSec / 360.0), -2.0, 2.0);
         }
         lastResolvedDeg = resolved;
-        lastCommandTs = Timer.getFPGATimestamp();
+        lastCommandTs = Timer.getTimestamp();
 
         motor.setMotionMagicPosition(resolved / 360.0, ffVolts);
     }
@@ -343,7 +344,7 @@ public class TurretMechanism extends CatalystMechanism {
     // ============================================================
 
     /** Drive to a raw robot-relative turret angle (degrees), wrap-resolved. */
-    public Command goToAngle(double robotRelativeDeg) {
+    public CatalystCommand goToAngle(double robotRelativeDeg) {
         return runOnce(() -> {
             aimFieldAngleDegrees = Double.NaN;
             commandResolved(robotRelativeDeg);
@@ -352,12 +353,12 @@ public class TurretMechanism extends CatalystMechanism {
     }
 
     /** Point the turret straight forward (robot-relative 0°). */
-    public Command lockForward() {
+    public CatalystCommand lockForward() {
         return goToAngle(0).withName(name + ".LockForward");
     }
 
     /** Hold the current setpoint. Good as a default command when not tracking. */
-    public Command holdAngle() {
+    public CatalystCommand holdAngle() {
         return run(() -> motor.setMotionMagicPosition(setpointDegrees / 360.0))
                 .withName(name + ".Hold");
     }
@@ -370,7 +371,7 @@ public class TurretMechanism extends CatalystMechanism {
      * @param fieldAngleDeg   field-relative bearing supplier (degrees)
      * @param robotHeadingDeg robot heading supplier (degrees, same convention)
      */
-    public Command aimAtFieldAngle(DoubleSupplier fieldAngleDeg, DoubleSupplier robotHeadingDeg) {
+    public CatalystCommand aimAtFieldAngle(DoubleSupplier fieldAngleDeg, DoubleSupplier robotHeadingDeg) {
         return run(() -> {
             double field = fieldAngleDeg.getAsDouble();
             aimFieldAngleDegrees = field;
@@ -383,7 +384,7 @@ public class TurretMechanism extends CatalystMechanism {
      * Continuously aim at a fixed field point given the live robot pose.
      * Ignores robot velocity — for shoot-while-moving use {@link #track}.
      */
-    public Command aimAtTarget(Supplier<Pose2d> robotPose, Translation2d target) {
+    public CatalystCommand aimAtTarget(Supplier<Pose2d> robotPose, Translation2d target) {
         return run(() -> {
             Pose2d p = robotPose.get();
             Translation2d v = target.minus(p.getTranslation());
@@ -401,7 +402,7 @@ public class TurretMechanism extends CatalystMechanism {
      * @param solution        supplier of the latest solve (call the solver in the lambda)
      * @param robotHeadingDeg robot heading supplier (degrees)
      */
-    public Command track(Supplier<AimingSolver.Solution> solution, DoubleSupplier robotHeadingDeg) {
+    public CatalystCommand track(Supplier<AimingSolver.Solution> solution, DoubleSupplier robotHeadingDeg) {
         return track(solution, robotHeadingDeg, () -> 0.0);
     }
 
@@ -411,13 +412,13 @@ public class TurretMechanism extends CatalystMechanism {
      * {@code fieldAngle - heading}, so its rate is
      * {@code fieldBearingRate - yawRate}. Passing the live yaw rate keeps the
      * velocity feedforward exact while the robot spins; with a swerve this is
-     * {@code () -> Math.toDegrees(drive.getChassisSpeeds().omegaRadiansPerSecond)}.
+     * {@code () -> Math.toDegrees(drive.getChassisSpeeds().omega)}.
      *
      * @param solution         supplier of the latest solve
      * @param robotHeadingDeg  robot heading supplier (degrees)
      * @param robotYawRateDps  robot yaw rate supplier (degrees/second)
      */
-    public Command track(Supplier<AimingSolver.Solution> solution,
+    public CatalystCommand track(Supplier<AimingSolver.Solution> solution,
                          DoubleSupplier robotHeadingDeg,
                          DoubleSupplier robotYawRateDps) {
         return run(() -> {
@@ -448,7 +449,7 @@ public class TurretMechanism extends CatalystMechanism {
      *                  drive the turret positive — flip with
      *                  {@link Config.Builder#visionInverted(boolean)} if not.
      */
-    public Command aimWithVision(BooleanSupplier hasTarget, DoubleSupplier errorDeg) {
+    public CatalystCommand aimWithVision(BooleanSupplier hasTarget, DoubleSupplier errorDeg) {
         return run(() -> {
             if (!hasTarget.getAsBoolean()) {
                 motor.setMotionMagicPosition(setpointDegrees / 360.0);
@@ -463,7 +464,7 @@ public class TurretMechanism extends CatalystMechanism {
     }
 
     /** Seed the encoder so the current physical position reads {@code angleDeg}. */
-    public Command zero(double angleDeg) {
+    public CatalystCommand zero(double angleDeg) {
         return runOnce(() -> {
             motor.setEncoderPosition(angleDeg / 360.0);
             setpointDegrees = angleDeg;
@@ -473,7 +474,7 @@ public class TurretMechanism extends CatalystMechanism {
     }
 
     /** Seed the encoder to 0°. */
-    public Command zero() {
+    public CatalystCommand zero() {
         return zero(0);
     }
 

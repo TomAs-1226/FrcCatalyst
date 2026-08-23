@@ -3,10 +3,10 @@ package frc.lib.catalyst.physics.model;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 
-import edu.wpi.first.math.VecBuilder;
-import edu.wpi.first.math.geometry.Rotation3d;
-import edu.wpi.first.math.geometry.Transform3d;
-import edu.wpi.first.math.geometry.Translation3d;
+import org.wpilib.math.linalg.VecBuilder;
+import org.wpilib.math.geometry.Rotation3d;
+import org.wpilib.math.geometry.Transform3d;
+import org.wpilib.math.geometry.Translation3d;
 
 /**
  * One moving link of the robot: how much it weighs, where its mass sits, and how it moves.

@@ -1,9 +1,9 @@
 package frc.lib.catalyst.physics.prediction;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.kinematics.ChassisVelocities;
 
 import frc.lib.catalyst.physics.LocalizationQuality;
 import frc.lib.catalyst.physics.PhysicalRobotState;
@@ -74,9 +74,9 @@ public final class StatePredictor {
         if (h == 0.0) return from;
 
         Translation2d v0 = new Translation2d(
-                from.fieldVelocity().vxMetersPerSecond, from.fieldVelocity().vyMetersPerSecond);
+                from.fieldVelocity().vx, from.fieldVelocity().vy);
         Translation2d a0 = from.fieldAcceleration();
-        double omega0 = from.fieldVelocity().omegaRadiansPerSecond;
+        double omega0 = from.fieldVelocity().omega;
         double alpha0 = from.angularAccelerationRadPerSecSq();
 
         double velocityGain = velocityIntegral(h);
@@ -96,7 +96,7 @@ public final class StatePredictor {
         return new PhysicalRobotState(
                 from.timestampSeconds() + h,
                 pose,
-                new ChassisSpeeds(velocity.getX(), velocity.getY(), omega),
+                new ChassisVelocities(velocity.getX(), velocity.getY(), omega),
                 acceleration,
                 alpha0 * accelerationDecay(h),
                 degrade(from.quality(), h, v0, a0, omega0));

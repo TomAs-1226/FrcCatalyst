@@ -1,12 +1,13 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.wpilibj.Filesystem;
-import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.system.Filesystem;
+import org.wpilib.system.Timer;
+import org.wpilib.command3.Command;
+import frc.lib.catalyst.command.Commands;
 import frc.lib.catalyst.logging.CatalystLog;
 
 import java.io.BufferedReader;
@@ -79,11 +80,11 @@ public final class GhostReplay {
     // ----- Recording -----
 
     /** Command that begins recording under the given name. Idempotent. */
-    public Command startRecording(String name) {
+    public CatalystCommand startRecording(String name) {
         return Commands.runOnce(() -> {
             recordBuffer.clear();
             activeRecordingName = name;
-            recordStartTs = Timer.getFPGATimestamp();
+            recordStartTs = Timer.getTimestamp();
             recording = true;
         }).ignoringDisable(true).withName("Ghost.StartRecording(" + name + ")");
     }
@@ -92,7 +93,7 @@ public final class GhostReplay {
      * Command that stops recording and flushes the buffer to disk under
      * the most recently-active recording name.
      */
-    public Command stopRecording() {
+    public CatalystCommand stopRecording() {
         return Commands.runOnce(() -> {
             if (!recording) return;
             recording = false;
@@ -117,7 +118,7 @@ public final class GhostReplay {
      * back at its original timing. Reports a driver-station error and
      * does nothing if the file is missing.
      */
-    public Command startReplay(String name) {
+    public CatalystCommand startReplay(String name) {
         return Commands.runOnce(() -> {
             try {
                 replayBuffer = load(name);
@@ -125,7 +126,7 @@ public final class GhostReplay {
                     System.err.println("[GhostReplay] empty ghost \"" + name + "\"");
                     return;
                 }
-                replayStartTs = Timer.getFPGATimestamp();
+                replayStartTs = Timer.getTimestamp();
                 replaying = true;
                 lastGhost = replayBuffer.get(0).pose();
             } catch (IOException e) {
@@ -135,7 +136,7 @@ public final class GhostReplay {
     }
 
     /** Stop replay. The ghost pose freezes at its last value. */
-    public Command stopReplay() {
+    public CatalystCommand stopReplay() {
         return Commands.runOnce(() -> replaying = false).ignoringDisable(true).withName("Ghost.StopReplay");
     }
 
@@ -160,7 +161,7 @@ public final class GhostReplay {
      * replay clock, and publishes the ghost pose through CatalystLog.
      */
     public void update() {
-        double now = Timer.getFPGATimestamp();
+        double now = Timer.getTimestamp();
         if (recording) {
             double t = now - recordStartTs;
             recordBuffer.add(new Sample(t, liveSource.get()));

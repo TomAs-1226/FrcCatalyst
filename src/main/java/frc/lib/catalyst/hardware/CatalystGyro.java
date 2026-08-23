@@ -2,7 +2,7 @@ package frc.lib.catalyst.hardware;
 
 import com.ctre.phoenix6.configs.Pigeon2Configuration;
 import com.ctre.phoenix6.hardware.Pigeon2;
-import edu.wpi.first.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Rotation2d;
 
 /**
  * Simple Pigeon2 IMU wrapper for heading, pitch, and roll.
@@ -27,7 +27,7 @@ public class CatalystGyro {
 
     public CatalystGyro(int canId, String canBus) {
         this.canId = canId;
-        this.pigeon = new Pigeon2(canId, canBus);
+        this.pigeon = new Pigeon2(canId, CatalystCANBus.of(canBus).phoenix());
         claimCanId(canId, canBus);
         // Intentionally do NOT apply a configuration here. Applying a default
         // Pigeon2Configuration would erase whatever is on the device — most
@@ -42,7 +42,7 @@ public class CatalystGyro {
      */
     public CatalystGyro(int canId, String canBus, Pigeon2Configuration config) {
         this.canId = canId;
-        this.pigeon = new Pigeon2(canId, canBus);
+        this.pigeon = new Pigeon2(canId, CatalystCANBus.of(canBus).phoenix());
         claimCanId(canId, canBus);
         for (int i = 0; i < 5; i++) {
             var status = pigeon.getConfigurator().apply(config);

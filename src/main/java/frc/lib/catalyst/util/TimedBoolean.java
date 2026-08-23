@@ -1,6 +1,6 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.wpilibj.Timer;
+import org.wpilib.system.Timer;
 
 /**
  * A boolean that must be true for a specified duration before it triggers.

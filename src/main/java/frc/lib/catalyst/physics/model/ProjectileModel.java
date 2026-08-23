@@ -4,7 +4,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.OptionalDouble;
 
-import edu.wpi.first.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Rotation2d;
 
 /**
  * Closed-form ballistics for a launched game piece — mainly so a shot gate can stop guessing at time

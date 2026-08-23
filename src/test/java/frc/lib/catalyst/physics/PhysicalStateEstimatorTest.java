@@ -7,10 +7,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.kinematics.ChassisVelocities;
 
 import frc.lib.catalyst.physics.estimation.PhysicalStateEstimator;
 
@@ -22,8 +22,8 @@ class PhysicalStateEstimatorTest {
 
     private static final Pose2d ORIGIN = Pose2d.kZero;
 
-    private static ChassisSpeeds forward(double vx) {
-        return new ChassisSpeeds(vx, 0.0, 0.0);
+    private static ChassisVelocities forward(double vx) {
+        return new ChassisVelocities(vx, 0.0, 0.0);
     }
 
     @Test
@@ -32,7 +32,7 @@ class PhysicalStateEstimatorTest {
 
         PhysicalRobotState state = estimator.update(0.0, ORIGIN, forward(2.0), Translation2d.kZero, 0.0, 0.0);
 
-        assertEquals(2.0, state.fieldVelocity().vxMetersPerSecond, 1e-9);
+        assertEquals(2.0, state.fieldVelocity().vx, 1e-9);
         assertEquals(0.0, state.accelerationMetersPerSecSq(), 1e-9);   // nothing to differentiate yet
         assertTrue(estimator.isInitialized());
     }
@@ -99,8 +99,8 @@ class PhysicalStateEstimatorTest {
                 estimator.update(0.02, ORIGIN, forward(4.0), Translation2d.kZero, 0.0, 1.0);
 
         // 0.005 * 4.0 + 0.995 * 2.0 - the wheels barely get a vote, which is the whole point.
-        assertEquals(2.01, slipping.fieldVelocity().vxMetersPerSecond, 1e-9);
-        assertTrue(slipping.fieldVelocity().vxMetersPerSecond < 2.5);
+        assertEquals(2.01, slipping.fieldVelocity().vx, 1e-9);
+        assertTrue(slipping.fieldVelocity().vx < 2.5);
     }
 
     @Test
@@ -111,7 +111,7 @@ class PhysicalStateEstimatorTest {
         PhysicalRobotState rolling =
                 estimator.update(0.02, ORIGIN, forward(4.0), Translation2d.kZero, 0.0, 0.0);
 
-        assertEquals(3.96, rolling.fieldVelocity().vxMetersPerSecond, 1e-9);   // 0.98 * 4 + 0.02 * 2
+        assertEquals(3.96, rolling.fieldVelocity().vx, 1e-9);   // 0.98 * 4 + 0.02 * 2
     }
 
     @Test
@@ -124,7 +124,7 @@ class PhysicalStateEstimatorTest {
 
         estimator.update(0.00, ORIGIN, forward(2.0), null, 0.0, 0.0);
         PhysicalRobotState state = estimator.update(0.02, ORIGIN, forward(4.0), null, 0.0, 1.0);
-        assertEquals(3.96, state.fieldVelocity().vxMetersPerSecond, 1e-9);
+        assertEquals(3.96, state.fieldVelocity().vx, 1e-9);
     }
 
     @Test
@@ -136,8 +136,8 @@ class PhysicalStateEstimatorTest {
         PhysicalRobotState state =
                 estimator.update(0.0, facingLeft, forward(3.0), Translation2d.kZero, 0.0, 0.0);
 
-        assertEquals(0.0, state.fieldVelocity().vxMetersPerSecond, 1e-9);
-        assertEquals(3.0, state.fieldVelocity().vyMetersPerSecond, 1e-9);
+        assertEquals(0.0, state.fieldVelocity().vx, 1e-9);
+        assertEquals(3.0, state.fieldVelocity().vy, 1e-9);
     }
 
     @Test
@@ -212,7 +212,7 @@ class PhysicalStateEstimatorTest {
         PhysicalRobotState afterGap =
                 estimator.update(1.02, ORIGIN, forward(0.5), new Translation2d(5.0, 0.0), 0.0, 0.0);
 
-        assertEquals(0.5, afterGap.fieldVelocity().vxMetersPerSecond, 1e-9);   // wheels, not integration
+        assertEquals(0.5, afterGap.fieldVelocity().vx, 1e-9);   // wheels, not integration
         assertEquals(0.0, afterGap.accelerationMetersPerSecSq(), 1e-9);        // no bogus spike
     }
 

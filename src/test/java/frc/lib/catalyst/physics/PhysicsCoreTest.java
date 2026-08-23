@@ -7,12 +7,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
-import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
-import edu.wpi.first.math.kinematics.SwerveModuleState;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.kinematics.ChassisVelocities;
+import org.wpilib.math.kinematics.SwerveDriveKinematics;
+import org.wpilib.math.kinematics.SwerveModuleVelocity;
 
 import frc.lib.catalyst.physics.model.RobotModel;
 import frc.lib.catalyst.physics.observation.PoseObservation;
@@ -52,13 +52,13 @@ class PhysicsCoreTest {
                 .build();
     }
 
-    private static SwerveModuleState[] rolling(ChassisSpeeds speeds) {
-        return KINEMATICS.toSwerveModuleStates(speeds);
+    private static SwerveModuleVelocity[] rolling(ChassisVelocities speeds) {
+        return KINEMATICS.toSwerveModuleVelocities(speeds);
     }
 
     /** A loop's worth of measurements for a robot driving straight and rolling cleanly. */
     private static PhysicsSample driving(double t, double vx, Translation2d acceleration) {
-        ChassisSpeeds speeds = new ChassisSpeeds(vx, 0.0, 0.0);
+        ChassisVelocities speeds = new ChassisVelocities(vx, 0.0, 0.0);
         return new PhysicsSample(t, Pose2d.kZero, speeds, rolling(speeds), acceleration, 0.0);
     }
 
@@ -81,7 +81,7 @@ class PhysicsCoreTest {
 
         PhysicalRobotState state = physics.update(driving(0.0, 3.0, Translation2d.kZero));
 
-        assertEquals(3.0, state.fieldVelocity().vxMetersPerSecond, 1e-9);
+        assertEquals(3.0, state.fieldVelocity().vx, 1e-9);
         assertTrue(physics.health().running());
         assertTrue(physics.health().isHealthy());
         assertEquals(0.0, physics.analyze().slipFactor(), 1e-9);
@@ -106,9 +106,9 @@ class PhysicsCoreTest {
         PhysicsCore physics = core(clock);
         physics.update(driving(0.00, 3.0, Translation2d.kZero));
 
-        ChassisSpeeds speeds = new ChassisSpeeds(3.0, 0.0, 0.0);
-        SwerveModuleState[] measured = rolling(speeds);
-        measured[1] = new SwerveModuleState(6.0, measured[1].angle);   // module 1 is spinning
+        ChassisVelocities speeds = new ChassisVelocities(3.0, 0.0, 0.0);
+        SwerveModuleVelocity[] measured = rolling(speeds);
+        measured[1] = new SwerveModuleVelocity(6.0, measured[1].angle);   // module 1 is spinning
 
         for (int i = 1; i <= 5; i++) {   // let the smoothing settle
             physics.update(new PhysicsSample(i * 0.02, Pose2d.kZero, speeds, measured,
@@ -146,11 +146,11 @@ class PhysicsCoreTest {
         PhysicsCore physics = core(clock);
 
         for (int i = 0; i <= 5; i++) {
-            ChassisSpeeds speeds = new ChassisSpeeds(2.0, 0.0, 0.0);
+            ChassisVelocities speeds = new ChassisVelocities(2.0, 0.0, 0.0);
             physics.update(new PhysicsSample(i * 0.02, Pose2d.kZero, speeds, rolling(speeds), null, 0.0));
         }
 
-        assertEquals(2.0, physics.state().fieldVelocity().vxMetersPerSecond, 1e-9);
+        assertEquals(2.0, physics.state().fieldVelocity().vx, 1e-9);
         assertEquals(0.0, physics.analyze().disturbanceMpsSq(), 1e-9);
         assertTrue(physics.analyze().lastCollision().isEmpty());
     }
@@ -164,7 +164,7 @@ class PhysicsCoreTest {
         physics.update(driving(0.00, 1.0, Translation2d.kZero));
         physics.update(driving(0.02, 1.0, Translation2d.kZero));
         for (int i = 2; i <= 50; i++) {
-            ChassisSpeeds speeds = new ChassisSpeeds(1.0 + i * 0.05, 0.0, 0.0);
+            ChassisVelocities speeds = new ChassisVelocities(1.0 + i * 0.05, 0.0, 0.0);
             physics.update(new PhysicsSample(i * 0.02, Pose2d.kZero, speeds, rolling(speeds), null, 0.0));
         }
         physics.update(driving(1.02, 3.5, Translation2d.kZero));
@@ -187,9 +187,9 @@ class PhysicsCoreTest {
                 .withAlerts(false)
                 .build();
 
-        ChassisSpeeds speeds = new ChassisSpeeds(3.0, 0.0, 0.0);
-        SwerveModuleState[] measured = rolling(speeds);
-        measured[0] = new SwerveModuleState(9.0, measured[0].angle);   // wildly slipping
+        ChassisVelocities speeds = new ChassisVelocities(3.0, 0.0, 0.0);
+        SwerveModuleVelocity[] measured = rolling(speeds);
+        measured[0] = new SwerveModuleVelocity(9.0, measured[0].angle);   // wildly slipping
 
         for (int i = 0; i <= 5; i++) {
             physics.update(new PhysicsSample(i * 0.02, Pose2d.kZero, speeds, measured,
@@ -199,7 +199,7 @@ class PhysicsCoreTest {
         assertEquals(0.0, physics.analyze().slipFactor(), 1e-9);
         assertEquals(-1, physics.analyze().worstModule());
         assertTrue(physics.analyze().lastCollision().isEmpty());
-        assertEquals(3.0, physics.state().fieldVelocity().vxMetersPerSecond, 1e-9);
+        assertEquals(3.0, physics.state().fieldVelocity().vx, 1e-9);
     }
 
     @Test
@@ -223,7 +223,7 @@ class PhysicsCoreTest {
         PhysicsCore physics = core(clock);
         Pose2d truth = new Pose2d(2.0, 1.0, Rotation2d.fromDegrees(30));
 
-        ChassisSpeeds speeds = new ChassisSpeeds(1.0, 0.0, 0.0);
+        ChassisVelocities speeds = new ChassisVelocities(1.0, 0.0, 0.0);
         physics.update(new PhysicsSample(0.0, truth, speeds, rolling(speeds), Translation2d.kZero, 0.0));
         double before = physics.state().quality().confidence();
 
@@ -288,13 +288,13 @@ class PhysicsCoreTest {
         PhysicsCore physics = core(clock);
         Pose2d pose = new Pose2d(1.0, 2.0, Rotation2d.fromDegrees(45));
 
-        ChassisSpeeds speeds = new ChassisSpeeds(2.0, 0.0, 0.0);
+        ChassisVelocities speeds = new ChassisVelocities(2.0, 0.0, 0.0);
         physics.update(new PhysicsSample(1.5, pose, speeds, rolling(speeds), Translation2d.kZero, 0.0));
 
         UncertainRobotStateSource source = physics;
         assertEquals(pose, source.pose());
         assertEquals(1.5, source.timestampSeconds(), 1e-9);
-        assertTrue(source.fieldVelocity().vxMetersPerSecond > 0);
+        assertTrue(source.fieldVelocity().vx > 0);
         assertTrue(source.quality().confidence() > 0);
 
         // The default covariance is diagonal, built from the quality's standard deviations.
@@ -341,7 +341,7 @@ class PhysicsCoreTest {
         assertThrows(IllegalStateException.class,
                 () -> PhysicsCore.builder().robotModel(model()).clock(null).build());
         assertThrows(IllegalArgumentException.class,
-                () -> new PhysicsSample(0.0, null, new ChassisSpeeds(), null, null, 0.0));
+                () -> new PhysicsSample(0.0, null, new ChassisVelocities(), null, null, 0.0));
         assertThrows(IllegalArgumentException.class,
                 () -> new PoseObservation(Pose2d.kZero, 0.0, 0.0, "cam"));
     }

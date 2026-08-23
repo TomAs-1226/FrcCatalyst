@@ -1,11 +1,12 @@
 package frc.lib.catalyst.behavior;
 
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
-import edu.wpi.first.wpilibj2.command.Subsystem;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.networktables.NetworkTable;
+import org.wpilib.networktables.NetworkTableInstance;
+import org.wpilib.system.Timer;
+import org.wpilib.command3.Command;
+import frc.lib.catalyst.command.Commands;
+import org.wpilib.command3.Mechanism;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -144,7 +145,7 @@ public final class BehaviorEngine {
             return steps.get(steps.size() - 1);
         }
 
-        public Command build() {
+        public CatalystCommand build() {
             CatalystFeatures.record(CatalystFeatures.SEQUENCE, name);
 
             NetworkTable nt = NetworkTableInstance.getDefault()
@@ -159,7 +160,7 @@ public final class BehaviorEngine {
 
             // Union of all requirements so each deferred step reserves the
             // right subsystems regardless of which branch it takes.
-            Set<Subsystem> reqs = new HashSet<>();
+            Set<Mechanism> reqs = new HashSet<>();
             for (Step s : steps) {
                 reqs.addAll(s.action.requirements());
                 if (s.substitute != null) reqs.addAll(s.substitute.requirements());
@@ -201,29 +202,29 @@ public final class BehaviorEngine {
             }
 
             Command main = Commands.sequence(stepCommands.toArray(new Command[0]))
-                    .andThen(Commands.runOnce(() -> completed.set(true)));
+                    .then(Commands.runOnce(() -> completed.set(true)));
 
             // End the sequence early on bail OR abort. The deadline (if set) is
             // measured from schedule time via startTime.
-            Command guarded = main.until(() ->
+            Command guarded = CatalystCommand.of(main).untilTrue(() ->
                     abort.get()
                             || safeBool(bailCondition)
                             || (deadlineSeconds > 0
-                                && Timer.getFPGATimestamp() - startTime[0] > deadlineSeconds));
+                                && Timer.getTimestamp() - startTime[0] > deadlineSeconds));
 
             // After the (possibly interrupted) sequence, run the bail action
             // only if we didn't finish cleanly.
             Command bailCmd = bailAction != null ? bailAction.toCommand() : Commands.none();
-            Command full = guarded.andThen(Commands.either(
+            Command full = CatalystCommand.of(guarded).then(Commands.either(
                     Commands.none(),
-                    bailCmd.beforeStarting(() -> nt.getEntry("Bailed").setBoolean(true)),
+                    CatalystCommand.of(bailCmd).beforeStarting(() -> nt.getEntry("Bailed").setBoolean(true)),
                     completed::get));
 
-            return full.beforeStarting(() -> {
+            return CatalystCommand.of(full).beforeStarting(() -> {
                 abort.set(false);
                 completed.set(false);
                 stepIndex.set(0);
-                startTime[0] = Timer.getFPGATimestamp();
+                startTime[0] = Timer.getTimestamp();
                 nt.getEntry("Bailed").setBoolean(false);
                 nt.getEntry("Step").setInteger(-1);
                 nt.getEntry("Action").setString("(start)");

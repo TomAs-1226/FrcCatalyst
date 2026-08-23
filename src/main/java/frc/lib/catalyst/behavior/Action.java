@@ -1,8 +1,9 @@
 package frc.lib.catalyst.behavior;
 
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
-import edu.wpi.first.wpilibj2.command.Subsystem;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.command3.Command;
+import frc.lib.catalyst.command.Commands;
+import org.wpilib.command3.Mechanism;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -32,8 +33,8 @@ import java.util.function.Supplier;
  * Action grabNearestPiece = Action.named("GrabNearestPiece")
  *     .when(() -> vision.hasGamePieceTarget())          // precondition
  *     .run(() -> drive.driveToDetectedPiece()
- *                     .andThen(intake.intakeUntilPiece()))
- *     .until(claw::hasPiece)                             // success
+ *                     .then(intake.intakeUntilPiece()))
+ *     .untilTrue(claw::hasPiece)                             // success
  *     .estimatedSeconds(2.5)
  *     .build();
  * }</pre>
@@ -45,7 +46,7 @@ public final class Action {
     private final Supplier<Command> commandFactory;
     private final BooleanSupplier successCondition;
     private final double estimatedSeconds;
-    private final Set<Subsystem> requirements;
+    private final Set<Mechanism> requirements;
 
     private Action(Builder b) {
         this.name = b.name;
@@ -61,7 +62,7 @@ public final class Action {
      * layers need these to build deferred commands correctly — declare every
      * subsystem the command touches.
      */
-    public Set<Subsystem> requirements() {
+    public Set<Mechanism> requirements() {
         return requirements;
     }
 
@@ -100,7 +101,7 @@ public final class Action {
      * condition is met, whichever comes first — so an action whose command
      * loops forever (e.g. "run intake") still terminates once it succeeds.
      */
-    public Command toCommand() {
+    public CatalystCommand toCommand() {
         Command work;
         try {
             work = commandFactory.get();
@@ -116,7 +117,7 @@ public final class Action {
         // called from a Commands.defer supplier in Autopilot/Strategist), so it degrades to a no-op
         // instead of taking the robot loop down. Use run(Supplier) for anything invoked more than once.
         try {
-            return work.until(successCondition).withName("Action:" + name);
+            return CatalystCommand.of(work).untilTrue(successCondition).withName("Action:" + name);
         } catch (RuntimeException alreadyComposed) {
             System.err.println("[Catalyst] Action '" + name + "': command is already composed — use "
                     + "run(Supplier<Command>) instead of run(Command) for an action run more than once.");
@@ -139,7 +140,7 @@ public final class Action {
         private Supplier<Command> commandFactory = Commands::none;
         private BooleanSupplier successCondition = () -> false;
         private double estimatedSeconds = 1.0;
-        private final Set<Subsystem> requirements = new HashSet<>();
+        private final Set<Mechanism> requirements = new HashSet<>();
 
         private Builder(String name) {
             this.name = name;
@@ -195,8 +196,8 @@ public final class Action {
          * {@link Autopilot}) can build deferred commands that reserve them
          * correctly. List every subsystem the command touches.
          */
-        public Builder requires(Subsystem... subsystems) {
-            for (Subsystem s : subsystems) this.requirements.add(s);
+        public Builder requires(Mechanism... subsystems) {
+            for (Mechanism s : subsystems) this.requirements.add(s);
             return this;
         }
 

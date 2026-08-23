@@ -1,7 +1,9 @@
 package frc.lib.catalyst.statemachine.robot;
 
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Subsystem;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Coroutine;
+import org.wpilib.command3.Scheduler;
+import org.wpilib.command3.Mechanism;
 import frc.lib.catalyst.statemachine.Handle;
 import frc.lib.catalyst.statemachine.StateMachineCore;
 
@@ -32,7 +34,7 @@ import java.util.function.DoubleSupplier;
  * @param <G> the goal type of the bound mechanism
  * @since 1.2.0
  */
-public final class GoalRunner<S extends Enum<S>, G> extends Command {
+public final class GoalRunner<S extends Enum<S>, G> implements Command {
 
     /** Distinct goals whose commands are cached. Small, because a state machine has few goals per mechanism. */
     private static final int COMMAND_CACHE_SIZE = 4;
@@ -52,6 +54,9 @@ public final class GoalRunner<S extends Enum<S>, G> extends Command {
 
     private final Map<G, Command> pursueCache = boundedCache();
     private final Map<G, Command> holdCache = boundedCache();
+
+    private final Set<Mechanism> required;
+    private final String commandName;
 
     private G activeGoal;
     private Command inner;
@@ -73,24 +78,47 @@ public final class GoalRunner<S extends Enum<S>, G> extends Command {
             period = 0;
         }
         this.reassertPeriod = Math.max(0, period);
-        Set<Subsystem> requirements = actuator.requirements();
-        if (requirements != null) {
-            for (Subsystem s : requirements) addRequirements(s);
-        }
-        setName("SM/" + core.name() + "/" + key);
+        Set<Mechanism> declared = actuator.requirements();
+        this.required = declared == null ? Set.of() : Set.copyOf(declared);
+        this.commandName = "SM/" + core.name() + "/" + key;
     }
 
     @Override
-    public void initialize() {
+    public String name() {
+        return commandName;
+    }
+
+    @Override
+    public Set<Mechanism> requirements() {
+        return required;
+    }
+
+    /**
+     * Commands v3 collapses initialize/execute/isFinished/end into one coroutine body.
+     *
+     * <p>This also retires the hazard the class comment above described. Under v2 this runner drove
+     * the hosted command's {@code initialize}/{@code execute}/{@code isFinished}/{@code end} by
+     * hand, and had to guarantee it never executed a finished command or ended one twice. In v3 the
+     * hosted command is {@link Coroutine#fork(Command...) forked}: the scheduler owns its lifecycle,
+     * and a forked child's requirements are covered by its parent, so forking one that reserves the
+     * same mechanisms as this runner does not cancel this runner. The bookkeeping that made the
+     * manual version correct is no longer needed, because the manual version is gone.
+     */
+    @Override
+    public void run(Coroutine coroutine) {
         activeGoal = null;
         stopInner();
         arrived = false;
         loopsSinceInit = 0;
         core.noteOwned(key, true);
+
+        while (true) {
+            drive(coroutine);
+            coroutine.yield();
+        }
     }
 
-    @Override
-    public void execute() {
+    private void drive(Coroutine coroutine) {
         G want = core.activeGoalOf(handle);
 
         if (want == null) {
@@ -111,7 +139,7 @@ public final class GoalRunner<S extends Enum<S>, G> extends Command {
             loopsSinceInit = 0;
             appliedAtSeconds = clock.getAsDouble();
             inner = cached(pursueCache, want, true);
-            startInner();
+            startInner(coroutine);
         }
 
         double since = clock.getAsDouble() - appliedAtSeconds;
@@ -123,7 +151,7 @@ public final class GoalRunner<S extends Enum<S>, G> extends Command {
             if (hold != null) {
                 stopInner();
                 inner = hold;
-                startInner();
+                startInner(coroutine);
             }
         } else if (!atGoalNow && arrived) {
             // Drifted back out of tolerance — go back to pursuing.
@@ -132,43 +160,31 @@ public final class GoalRunner<S extends Enum<S>, G> extends Command {
             if (hold != null) {
                 stopInner();
                 inner = cached(pursueCache, activeGoal, true);
-                startInner();
+                startInner(coroutine);
             }
         }
 
         loopsSinceInit++;
         if (inner == null) return;
 
-        if (!innerFinished) {
-            safeExecute();
-            if (safeIsFinished()) {
-                safeEnd(false);
-                innerFinished = true;
-            }
-        } else if (!atGoalNow && reassertPeriod > 0 && loopsSinceInit % reassertPeriod == 0) {
+        // The scheduler owns the forked command now, so "finished" is a question we ask it.
+        innerFinished = !Scheduler.getDefault().isScheduledOrRunning(inner);
+
+        if (innerFinished && !atGoalNow && reassertPeriod > 0
+                && loopsSinceInit % reassertPeriod == 0) {
             // The command completed but the mechanism never got there — a solenoid refused for low
             // pressure, say. Re-fire it rather than sitting silently on an actuation that never happened.
-            startInner();
+            startInner(coroutine);
         }
     }
 
     @Override
-    public boolean isFinished() {
-        return false;
-    }
-
-    @Override
-    public void end(boolean interrupted) {
+    public void onCancel() {
         stopInner();
         safeRelease();
         activeGoal = null;
         arrived = false;
         core.noteOwned(key, false);
-    }
-
-    @Override
-    public boolean runsWhenDisabled() {
-        return false;
     }
 
     /** The binding key this runner drives. */
@@ -179,9 +195,9 @@ public final class GoalRunner<S extends Enum<S>, G> extends Command {
     private void stopInner() {
         if (inner != null && !innerFinished) {
             try {
-                inner.end(true);
+                Scheduler.getDefault().cancel(inner);
             } catch (RuntimeException ex) {
-                report("end", ex);
+                report("cancel", ex);
             }
         }
         inner = null;
@@ -189,53 +205,26 @@ public final class GoalRunner<S extends Enum<S>, G> extends Command {
     }
 
     /**
-     * Initialise {@link #inner}, guarded. If the hosted command throws from {@code initialize()} it
-     * is dropped rather than left half-started, and — like every other user-code call in this class —
-     * the exception is swallowed so it can never escape into {@code CommandScheduler.run()}.
+     * Fork {@link #inner} as a child of this runner, guarded. A fork that fails or throws drops the
+     * command rather than leaving it half-started, and the exception is swallowed so it can never
+     * escape into the scheduler.
      */
-    private void startInner() {
+    private void startInner(Coroutine coroutine) {
         if (inner == null) {
             innerFinished = false;
             return;
         }
         try {
-            inner.initialize();
+            var result = coroutine.fork(inner);
             innerFinished = false;
+            if (result.failed()) {
+                report("fork", new IllegalStateException("scheduler refused the command"));
+                inner = null;
+            }
         } catch (RuntimeException ex) {
-            report("initialize", ex);
+            report("fork", ex);
             inner = null;
             innerFinished = false;
-        }
-    }
-
-    private void safeExecute() {
-        try {
-            inner.execute();
-        } catch (RuntimeException ex) {
-            report("execute", ex);
-            // A command that threw mid-run is not safe to keep driving; drop it and let the next
-            // goal change or reassert rebuild a fresh one.
-            inner = null;
-            innerFinished = false;
-        }
-    }
-
-    private boolean safeIsFinished() {
-        if (inner == null) return false;
-        try {
-            return inner.isFinished();
-        } catch (RuntimeException ex) {
-            report("isFinished", ex);
-            return true;   // treat a throwing predicate as finished, so we stop calling execute() on it
-        }
-    }
-
-    private void safeEnd(boolean interrupted) {
-        if (inner == null) return;
-        try {
-            inner.end(interrupted);
-        } catch (RuntimeException ex) {
-            report("end", ex);
         }
     }
 

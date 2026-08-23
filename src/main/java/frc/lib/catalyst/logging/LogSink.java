@@ -1,6 +1,6 @@
 package frc.lib.catalyst.logging;
 
-import edu.wpi.first.util.struct.Struct;
+import org.wpilib.util.struct.Struct;
 
 /**
  * Pluggable destination for everything Catalyst logs.
@@ -57,7 +57,7 @@ public interface LogSink {
 
     /**
      * Record an array of WPILib struct-serializable values under {@code key}
-     * (e.g. {@code SwerveModuleState[]} with {@code SwerveModuleState.struct}).
+     * (e.g. {@code SwerveModuleVelocity[]} with {@code SwerveModuleVelocity.struct}).
      * The array should be treated as read-only.
      *
      * <p>Defaults to a no-op for the same compatibility reason as the scalar

@@ -1,9 +1,10 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.wpilibj.smartdashboard.Field2d;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.networktables.NetworkTableInstance;
+import org.wpilib.smartdashboard.Field2d;
+import frc.lib.catalyst.logging.CatalystLog;
+import org.wpilib.telemetry.Telemetry;
 
 /**
  * Utility class for common telemetry operations.
@@ -21,7 +22,8 @@ public final class TelemetryUtil {
      */
     public static Field2d getField() {
         if (!fieldInitialized) {
-            SmartDashboard.putData("Catalyst/Field", field);
+            // Field2d implements TelemetryLoggable in 2027, so it logs itself.
+            Telemetry.getTable("Catalyst").log("Field", field);
             fieldInitialized = true;
         }
         return field;
@@ -34,16 +36,16 @@ public final class TelemetryUtil {
 
     /** Log a value to SmartDashboard under the Catalyst namespace. */
     public static void log(String key, double value) {
-        SmartDashboard.putNumber("Catalyst/" + key, value);
+        CatalystLog.log(key, value);
     }
 
     /** Log a value to SmartDashboard under the Catalyst namespace. */
     public static void log(String key, boolean value) {
-        SmartDashboard.putBoolean("Catalyst/" + key, value);
+        CatalystLog.log(key, value);
     }
 
     /** Log a value to SmartDashboard under the Catalyst namespace. */
     public static void log(String key, String value) {
-        SmartDashboard.putString("Catalyst/" + key, value);
+        CatalystLog.log(key, value);
     }
 }

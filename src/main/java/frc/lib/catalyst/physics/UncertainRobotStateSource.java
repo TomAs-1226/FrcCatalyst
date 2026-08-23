@@ -1,8 +1,8 @@
 package frc.lib.catalyst.physics;
 
-import edu.wpi.first.math.Matrix;
-import edu.wpi.first.math.Nat;
-import edu.wpi.first.math.numbers.N3;
+import org.wpilib.math.linalg.Matrix;
+import org.wpilib.math.util.Nat;
+import org.wpilib.math.numbers.N3;
 
 /**
  * A {@link RobotStateSource} that also reports how much to believe itself.

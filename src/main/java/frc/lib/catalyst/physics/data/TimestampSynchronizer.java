@@ -18,7 +18,7 @@ import java.util.OptionalDouble;
  * sync.register("moduleSpeed", 0.010);    // CAN status frame, ~10 ms late
  *
  * // each loop, at the time you read them:
- * double now = Timer.getFPGATimestamp();
+ * double now = Timer.getTimestamp();
  * sync.record("yawRate", gyro.getRate(), now);
  * sync.record("moduleSpeed", module.getVelocity(), now);
  *

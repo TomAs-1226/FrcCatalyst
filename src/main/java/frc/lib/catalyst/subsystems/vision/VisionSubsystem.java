@@ -1,16 +1,15 @@
 package frc.lib.catalyst.subsystems.vision;
 
-import edu.wpi.first.apriltag.AprilTagFieldLayout;
-import edu.wpi.first.math.Matrix;
-import edu.wpi.first.math.VecBuilder;
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Transform3d;
-import edu.wpi.first.math.numbers.N1;
-import edu.wpi.first.math.numbers.N3;
-import edu.wpi.first.wpilibj.DriverStation;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
-import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import org.wpilib.math.linalg.Matrix;
+import org.wpilib.math.linalg.VecBuilder;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Transform3d;
+import org.wpilib.math.numbers.N1;
+import org.wpilib.math.numbers.N3;
+import org.wpilib.driverstation.DriverStation;
+import org.wpilib.math.kinematics.ChassisVelocities;
+import org.wpilib.system.Timer;
+import org.wpilib.command3.Mechanism;
 import frc.lib.catalyst.identity.RobotIdentity;
 import frc.lib.catalyst.logging.CatalystLog;
 import frc.lib.catalyst.subsystems.swerve.SwerveSubsystem;
@@ -64,7 +63,7 @@ import java.util.Optional;
  *     .build());
  * }</pre>
  */
-public class VisionSubsystem extends SubsystemBase {
+public class VisionSubsystem implements frc.lib.catalyst.command.CatalystSubsystem {
 
     private final VisionConfig config;
     private final List<CameraSource> cameras;
@@ -80,6 +79,10 @@ public class VisionSubsystem extends SubsystemBase {
         this.config = config;
         this.cameras = config.cameras;
         this.driveSubsystem = config.driveSubsystem;
+        // Commands v3's Mechanism has no constructor to hook, so periodic() is registered
+        // explicitly. Without this the method compiles and is simply never called - see
+        // CatalystSubsystem#registerPeriodic.
+        registerPeriodic();
 
         // Surface a loud warning if vision is constructed without a drive subsystem.
         // Previously this silently no-op'd in periodic(), which made the issue
@@ -117,7 +120,7 @@ public class VisionSubsystem extends SubsystemBase {
 
         Pose2d currentPose = driveSubsystem.getPose();
         double yaw = currentPose.getRotation().getDegrees();
-        double yawRate = driveSubsystem.getChassisSpeeds().omegaRadiansPerSecond;
+        double yawRate = driveSubsystem.getChassisSpeeds().omega;
 
         // ---- Phase 1: snapshot every camera once, filter independently ----
         // Snapshotting up front means an async NT update mid-loop can't make
@@ -234,14 +237,14 @@ public class VisionSubsystem extends SubsystemBase {
         }
 
         // Reject if timestamp is too old (stale data degrades Kalman filter accuracy)
-        double latency = Timer.getFPGATimestamp() - pe.timestampSeconds();
+        double latency = Timer.getTimestamp() - pe.timestampSeconds();
         if (latency > config.maxLatencySeconds) {
             return "StaleData(" + String.format("%.0fms", latency * 1000) + ")";
         }
 
         // Reject during high angular velocity (motion blur)
         if (config.rejectDuringSpinThreshold > 0) {
-            double spinRate = Math.abs(driveSubsystem.getChassisSpeeds().omegaRadiansPerSecond);
+            double spinRate = Math.abs(driveSubsystem.getChassisSpeeds().omega);
             if (spinRate > config.rejectDuringSpinThreshold) {
                 return "Spinning(" + String.format("%.1frad/s", spinRate) + ")";
             }
@@ -249,8 +252,8 @@ public class VisionSubsystem extends SubsystemBase {
 
         // Reject during high translational speed (configurable)
         if (config.rejectDuringHighSpeedThreshold > 0) {
-            ChassisSpeeds speeds = driveSubsystem.getChassisSpeeds();
-            double speed = Math.hypot(speeds.vxMetersPerSecond, speeds.vyMetersPerSecond);
+            ChassisVelocities speeds = driveSubsystem.getChassisSpeeds();
+            double speed = Math.hypot(speeds.vx, speeds.vy);
             if (speed > config.rejectDuringHighSpeedThreshold) {
                 return "HighSpeed(" + String.format("%.1fm/s", speed) + ")";
             }

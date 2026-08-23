@@ -1,7 +1,7 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.math.controller.ProfiledPIDController;
-import edu.wpi.first.math.trajectory.TrapezoidProfile;
+import org.wpilib.math.controller.ProfiledPIDController;
+import org.wpilib.math.trajectory.TrapezoidProfile;
 
 /**
  * Helper for creating WPILib trapezoidal motion profiles.

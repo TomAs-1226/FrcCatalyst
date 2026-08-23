@@ -4,8 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.command3.Trigger;
 
 import frc.lib.catalyst.physics.LocalizationQuality;
 import frc.lib.catalyst.physics.PhysicsCore;

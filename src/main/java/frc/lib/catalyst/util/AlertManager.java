@@ -1,8 +1,9 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.wpilibj.DriverStation;
+import org.wpilib.driverstation.DriverStationErrors;
+import org.wpilib.networktables.NetworkTable;
+import org.wpilib.networktables.NetworkTableInstance;
+import org.wpilib.driverstation.DriverStation;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -64,7 +65,7 @@ public class AlertManager {
         String full = "[" + subsystem + "] " + message;
         if (!errors.contains(full)) {
             errors.add(full);
-            DriverStation.reportError("Catalyst ERROR: " + full, false);
+            DriverStationErrors.reportError("Catalyst ERROR: " + full, false);
             publishAlerts();
         }
     }
@@ -78,7 +79,7 @@ public class AlertManager {
         String full = "[" + subsystem + "] " + message;
         if (!warnings.contains(full)) {
             warnings.add(full);
-            DriverStation.reportWarning("Catalyst WARNING: " + full, false);
+            DriverStationErrors.reportWarning("Catalyst WARNING: " + full, false);
             publishAlerts();
         }
     }

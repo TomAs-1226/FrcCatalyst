@@ -1,10 +1,11 @@
 package frc.lib.catalyst.mechanisms;
 
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.networktables.NetworkTable;
+import org.wpilib.networktables.NetworkTableInstance;
+import org.wpilib.command3.Command;
+import frc.lib.catalyst.command.Commands;
+import org.wpilib.command3.Trigger;
 import frc.lib.catalyst.util.AlertManager;
 
 import java.util.ArrayList;
@@ -42,7 +43,7 @@ import java.util.Map;
  * SuperstructureCoordinator coord = new SuperstructureCoordinator()
  *     .withLinear("elevator", elevator)
  *     .withRotational("arm", arm)
- *     .withTimeout(3.0) // 3 second safety timeout
+ *     .timeoutAfter(3.0) // 3 second safety timeout
  *     .defineState("STOW")
  *         .setLinear("elevator", 0.0)
  *         .setRotational("arm", 0.0)
@@ -58,8 +59,8 @@ import java.util.Map;
  *     })
  *     .addTransitionRule("STOW", "SCORE_HIGH", (from, to) -> {
  *         return to.goToLinear("elevator")
- *             .andThen(Commands.waitUntil(elevator.atPositionTrigger(1.1, 0.1)))
- *             .andThen(to.goToRotational("arm"));
+ *             .then(Commands.waitUntil(elevator.atPositionTrigger(1.1, 0.1)))
+ *             .then(to.goToRotational("arm"));
  *     });
  * }</pre>
  *
@@ -165,7 +166,7 @@ public class SuperstructureCoordinator implements frc.lib.catalyst.statemachine.
      * Otherwise, all mechanisms move simultaneously (parallel).
      * Includes timeout safety and telemetry.
      */
-    public Command transitionTo(String targetStateName) {
+    public CatalystCommand transitionTo(String targetStateName) {
         StateDefinition target = states.get(targetStateName);
         if (target == null) {
             throw new IllegalArgumentException(
@@ -188,8 +189,8 @@ public class SuperstructureCoordinator implements frc.lib.catalyst.statemachine.
         }
 
         // Wrap with timeout, telemetry, and entry/exit actions
-        return transition
-                .withTimeout(transitionTimeoutSeconds)
+        return CatalystCommand.of(transition)
+                .timeoutAfter(transitionTimeoutSeconds)
                 .beforeStarting(() -> {
                     // Run exit action of current state
                     StateDefinition currentStateDef = states.get(currentState);
@@ -226,7 +227,7 @@ public class SuperstructureCoordinator implements frc.lib.catalyst.statemachine.
      * @param targetState the state to transition to
      * @param condition the condition that must be true
      */
-    public Command transitionToIf(String targetState, java.util.function.BooleanSupplier condition) {
+    public CatalystCommand transitionToIf(String targetState, java.util.function.BooleanSupplier condition) {
         return Commands.either(
                 transitionTo(targetState),
                 Commands.none(),
@@ -331,13 +332,13 @@ public class SuperstructureCoordinator implements frc.lib.catalyst.statemachine.
         for (var entry : target.linearPositions.entrySet()) {
             LinearMechanism mech = linearMechanisms.get(entry.getKey());
             if (mech != null) {
-                combined = combined.alongWith(mech.goTo(entry.getValue()));
+                combined = CatalystCommand.of(combined).together(mech.goTo(entry.getValue()));
             }
         }
         for (var entry : target.rotationalPositions.entrySet()) {
             RotationalMechanism mech = rotationalMechanisms.get(entry.getKey());
             if (mech != null) {
-                combined = combined.alongWith(mech.goTo(entry.getValue()));
+                combined = CatalystCommand.of(combined).together(mech.goTo(entry.getValue()));
             }
         }
         return combined;
@@ -358,7 +359,7 @@ public class SuperstructureCoordinator implements frc.lib.catalyst.statemachine.
         }
 
         /** Create a goTo command for a linear mechanism in this state. */
-        public Command goToLinear(String key, Map<String, LinearMechanism> mechanisms) {
+        public CatalystCommand goToLinear(String key, Map<String, LinearMechanism> mechanisms) {
             Double pos = linearPositions.get(key);
             LinearMechanism mech = mechanisms.get(key);
             if (pos == null || mech == null) return Commands.none();
@@ -366,7 +367,7 @@ public class SuperstructureCoordinator implements frc.lib.catalyst.statemachine.
         }
 
         /** Create a goTo command for a rotational mechanism in this state. */
-        public Command goToRotational(String key, Map<String, RotationalMechanism> mechanisms) {
+        public CatalystCommand goToRotational(String key, Map<String, RotationalMechanism> mechanisms) {
             Double pos = rotationalPositions.get(key);
             RotationalMechanism mech = mechanisms.get(key);
             if (pos == null || mech == null) return Commands.none();

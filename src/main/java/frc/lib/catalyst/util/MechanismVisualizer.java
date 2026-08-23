@@ -1,11 +1,11 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.wpilibj.smartdashboard.Mechanism2d;
-import edu.wpi.first.wpilibj.smartdashboard.MechanismLigament2d;
-import edu.wpi.first.wpilibj.smartdashboard.MechanismRoot2d;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
-import edu.wpi.first.wpilibj.util.Color;
-import edu.wpi.first.wpilibj.util.Color8Bit;
+import org.wpilib.smartdashboard.Mechanism2d;
+import org.wpilib.smartdashboard.MechanismLigament2d;
+import org.wpilib.smartdashboard.MechanismRoot2d;
+import org.wpilib.telemetry.Telemetry;
+import org.wpilib.util.Color;
+import org.wpilib.util.Color8Bit;
 
 /**
  * Helper for creating Mechanism2d visualizations of robot mechanisms.
@@ -17,10 +17,10 @@ import edu.wpi.first.wpilibj.util.Color8Bit;
  * MechanismVisualizer viz = new MechanismVisualizer("Superstructure", 3, 3);
  *
  * // Create an elevator visualization
- * var elevatorViz = viz.addElevator("Elevator", 0.5, 0.5, 1.2, Color.kBlue);
+ * var elevatorViz = viz.addElevator("Elevator", 0.5, 0.5, 1.2, Color.BLUE);
  *
  * // Create an arm on top of the elevator
- * var armViz = viz.addArm("Arm", elevatorViz, 0.5, Color.kRed);
+ * var armViz = viz.addArm("Arm", elevatorViz, 0.5, Color.RED);
  *
  * // In periodic:
  * elevatorViz.setLength(elevator.getPosition());
@@ -41,7 +41,9 @@ public class MechanismVisualizer {
     public MechanismVisualizer(String name, double width, double height) {
         this.name = name;
         this.mechanism = new Mechanism2d(width, height);
-        SmartDashboard.putData("Catalyst/" + name, mechanism);
+        // Mechanism2d implements TelemetryLoggable in 2027. Unlike the old Sendable it is
+        // written rather than polled, so call this every loop to keep the view live.
+        Telemetry.getTable("Catalyst").log(name, mechanism);
     }
 
     /**

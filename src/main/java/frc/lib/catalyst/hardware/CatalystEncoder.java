@@ -18,7 +18,7 @@ public class CatalystEncoder {
 
     public CatalystEncoder(int canId, String canBus, double magnetOffset, boolean inverted) {
         this.canId = canId;
-        this.encoder = new CANcoder(canId, canBus);
+        this.encoder = new CANcoder(canId, CatalystCANBus.of(canBus).phoenix());
 
         CANcoderConfiguration config = new CANcoderConfiguration();
         config.MagnetSensor.MagnetOffset = magnetOffset;

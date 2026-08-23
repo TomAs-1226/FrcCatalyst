@@ -1,10 +1,10 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.wpilibj.GenericHID;
-import edu.wpi.first.wpilibj.GenericHID.RumbleType;
-import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj2.command.Commands;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
+import org.wpilib.driverstation.GenericHID;
+import org.wpilib.driverstation.GenericHID.RumbleType;
+import org.wpilib.system.Timer;
+import frc.lib.catalyst.command.Commands;
+import org.wpilib.command3.Trigger;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -116,11 +116,14 @@ public final class RumbleEvents {
     }
 
     private void setStrength(GenericHID hid, double strength) {
-        hid.setRumble(RumbleType.kBothRumble, Math.max(0, Math.min(1, strength)));
+        // 2027 dropped the combined "both" rumble type, so drive the two sides explicitly.
+        double clamped = Math.clamp(strength, 0.0, 1.0);
+        hid.setRumble(RumbleType.LEFT_RUMBLE, clamped);
+        hid.setRumble(RumbleType.RIGHT_RUMBLE, clamped);
     }
 
     private static double now() {
-        return Timer.getFPGATimestamp();
+        return Timer.getTimestamp();
     }
 
     // ----- Internals -----

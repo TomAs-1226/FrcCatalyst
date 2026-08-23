@@ -1,7 +1,8 @@
 package frc.lib.catalyst.statemachine.mech;
 
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Subsystem;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Mechanism;
 import frc.lib.catalyst.mechanisms.ClawMechanism;
 import frc.lib.catalyst.statemachine.goals.ClawGoal;
 import frc.lib.catalyst.statemachine.robot.Actuator;
@@ -111,7 +112,7 @@ public final class ClawBinding implements Actuator<ClawGoal> {
      * consulted on hot paths, and the state machine is expected to be allocation-free in steady
      * state so that garbage collection never contributes to a loop overrun.
      */
-    private final Set<Subsystem> requirements;
+    private final Set<Mechanism> requirements;
 
     /**
      * Wraps a claw mechanism as a state-machine actuator.
@@ -133,7 +134,7 @@ public final class ClawBinding implements Actuator<ClawGoal> {
     public ClawBinding(ClawMechanism mechanism, String key) {
         this.mechanism = Objects.requireNonNull(mechanism, "mechanism");
         this.key = Objects.requireNonNull(key, "key");
-        this.requirements = Set.<Subsystem>of(mechanism);
+        this.requirements = Set.<Mechanism>of(mechanism);
     }
 
     /** {@inheritDoc} */
@@ -183,7 +184,7 @@ public final class ClawBinding implements Actuator<ClawGoal> {
      * @param goal                the goal to test; a {@code null} or unrecognised goal is
      *                            reported as not arrived
      * @param secondsSinceApplied elapsed time supplied by the engine — the only sanctioned clock
-     *                            here. {@code Timer.getFPGATimestamp()} is never called from this
+     *                            here. {@code Timer.getTimestamp()} is never called from this
      *                            file, which is what keeps the binding unit-testable off-robot
      *                            and keeps disabled-mode accounting correct.
      */
@@ -400,7 +401,7 @@ public final class ClawBinding implements Actuator<ClawGoal> {
      * exception raised here would escape {@code CommandScheduler.run()} and end the match.
      */
     @Override
-    public Command pursueCommand(ClawGoal goal) {
+    public CatalystCommand pursueCommand(ClawGoal goal) {
         if (goal instanceof ClawGoal.Close) {
             return mechanism.close();
         }
@@ -440,13 +441,13 @@ public final class ClawBinding implements Actuator<ClawGoal> {
      * is persistent, so there is nothing left to keep running.
      */
     @Override
-    public Command holdCommand(ClawGoal goal) {
+    public CatalystCommand holdCommand(ClawGoal goal) {
         return null;
     }
 
     /** {@inheritDoc} */
     @Override
-    public Set<Subsystem> requirements() {
+    public Set<Mechanism> requirements() {
         return requirements;
     }
 

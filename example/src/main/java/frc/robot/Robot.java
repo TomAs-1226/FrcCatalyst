@@ -1,8 +1,8 @@
 package frc.robot;
 
-import edu.wpi.first.wpilibj.TimedRobot;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.CommandScheduler;
+import org.wpilib.framework.TimedRobot;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Scheduler;
 
 /**
  * TimedRobot shell. All wiring lives in {@link RobotContainer}; this class just
@@ -17,7 +17,7 @@ public class Robot extends TimedRobot {
     public void robotPeriodic() {
         // Runs every mechanism's periodic() and simulationPeriodic(), plus the
         // SuperstructureCoordinator + GoalDirector commands.
-        CommandScheduler.getInstance().run();
+        Scheduler.getDefault().run();
     }
 
     @Override
@@ -30,14 +30,14 @@ public class Robot extends TimedRobot {
     public void autonomousInit() {
         autonomousCommand = container.getAutonomousCommand();
         if (autonomousCommand != null) {
-            CommandScheduler.getInstance().schedule(autonomousCommand);
+            Scheduler.getDefault().schedule(autonomousCommand);
         }
     }
 
     @Override
     public void teleopInit() {
         if (autonomousCommand != null) {
-            CommandScheduler.getInstance().cancel(autonomousCommand);
+            Scheduler.getDefault().cancel(autonomousCommand);
         }
     }
 }

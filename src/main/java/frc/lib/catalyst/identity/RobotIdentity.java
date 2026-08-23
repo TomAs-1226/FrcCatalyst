@@ -5,11 +5,11 @@ import com.ctre.phoenix6.swerve.SwerveDrivetrain;
 import com.ctre.phoenix6.swerve.SwerveModuleConstants;
 import com.pathplanner.lib.config.RobotConfig;
 
-import edu.wpi.first.hal.HALUtil;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.wpilibj.PowerDistribution;
-import edu.wpi.first.wpilibj.RobotController;
-import edu.wpi.first.wpilibj.util.WPILibVersion;
+import org.wpilib.hardware.hal.HALUtil;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.hardware.power.PowerDistribution;
+import org.wpilib.system.RobotController;
+import org.wpilib.system.WPILibVersion;
 
 import frc.lib.catalyst.hardware.CANRegistry;
 import frc.lib.catalyst.hardware.CatalystGyro;
@@ -428,7 +428,8 @@ public final class RobotIdentity {
         sheet.putText("Software/WPILibVersion", SpecSheet.text(WPILibVersion.Version));
         sheet.putText("Software/JavaVersion", SpecSheet.text(System.getProperty("java.version")));
         sheet.putText("Software/RioImage", rioImage());
-        sheet.putInt("Software/FpgaVersion", positiveInt(RobotController::getFPGAVersion));
+        // Software/FpgaVersion is gone: Systemcore has no FPGA, and 2027 removed
+        // RobotController.getFPGAVersion() along with the rest of the FPGA surface.
 
         // Phoenix, PathPlanner and PhotonVision are deliberately not here. Their versions are pinned
         // in Catalyst's build.gradle and nowhere else - none of the three publishes a runtime
@@ -513,7 +514,10 @@ public final class RobotIdentity {
     }
 
     private static void addPower(SpecSheet sheet, RobotIdentity id) {
-        sheet.putNumber("Power/BrownoutVolts", number(RobotController::getBrownoutVoltage));
+        // Power/BrownoutVolts is no longer readable from RobotController - 2027 only exposes
+        // setBrownoutVoltages(). Systemcore publishes the live values on its own system
+        // NetworkTables server at /sys/vbrownout and /sys/vrecovery; wiring that up is
+        // tracked as the SystemServer work, not something to guess at here.
         sheet.putText("Power/Battery", id.battery);
 
         if (id.power != null) {
@@ -691,8 +695,8 @@ public final class RobotIdentity {
     private static Optional<String> controller() {
         try {
             return switch (HALUtil.getHALRuntimeType()) {
-                case HALUtil.RUNTIME_ROBORIO -> Optional.of("roboRIO");
-                case HALUtil.RUNTIME_ROBORIO2 -> Optional.of("roboRIO 2");
+                // 2027 dropped both roboRIO runtime types; Systemcore is the only real target.
+                case HALUtil.RUNTIME_SYSTEMCORE -> Optional.of("Systemcore");
                 case HALUtil.RUNTIME_SIMULATION -> Optional.of("Simulation");
                 default -> Optional.empty();
             };
@@ -786,8 +790,8 @@ public final class RobotIdentity {
     private static Optional<String> moduleName(PowerDistribution power) {
         try {
             return switch (power.getType()) {
-                case kCTRE -> Optional.of("CTRE PDP");
-                case kRev -> Optional.of("REV PDH");
+                case CTRE -> Optional.of("CTRE PDP");
+                case REV -> Optional.of("REV PDH");
                 default -> Optional.empty();
             };
         } catch (Throwable ignored) {

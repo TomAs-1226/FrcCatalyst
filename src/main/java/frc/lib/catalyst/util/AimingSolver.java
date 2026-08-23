@@ -1,8 +1,8 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.kinematics.ChassisVelocities;
 
 /**
  * Hardware-independent aiming math for a turreted shooter, including
@@ -125,7 +125,7 @@ public final class AimingSolver {
      * fallback when you don't trust the velocity estimate.
      */
     public Solution solveStatic(Pose2d robotPose) {
-        return solve(robotPose, new ChassisSpeeds());
+        return solve(robotPose, new ChassisVelocities());
     }
 
     /**
@@ -135,19 +135,19 @@ public final class AimingSolver {
      *                             via {@link PoseHistory} if you have it).
      * @param fieldRelativeSpeeds  chassis speeds in the FIELD frame. If you only
      *                             have robot-relative speeds, rotate them first
-     *                             with {@link ChassisSpeeds#fromRobotRelativeSpeeds}.
+     *                             with {@link ChassisVelocities#fromRobotRelativeSpeeds}.
      */
-    public Solution solve(Pose2d robotPose, ChassisSpeeds fieldRelativeSpeeds) {
+    public Solution solve(Pose2d robotPose, ChassisVelocities fieldRelativeSpeeds) {
         Translation2d robotXY = robotPose.getTranslation();
         Translation2d goal = target;
 
         // Condition the velocity used for motion comp: deadband out noise,
         // clamp collision spikes, scale by the SOTF aggressiveness knob. With
         // no compensation object this is the raw field velocity.
-        double vx = (comp != null) ? comp.conditionVelocity(fieldRelativeSpeeds.vxMetersPerSecond)
-                                   : fieldRelativeSpeeds.vxMetersPerSecond;
-        double vy = (comp != null) ? comp.conditionVelocity(fieldRelativeSpeeds.vyMetersPerSecond)
-                                   : fieldRelativeSpeeds.vyMetersPerSecond;
+        double vx = (comp != null) ? comp.conditionVelocity(fieldRelativeSpeeds.vx)
+                                   : fieldRelativeSpeeds.vx;
+        double vy = (comp != null) ? comp.conditionVelocity(fieldRelativeSpeeds.vy)
+                                   : fieldRelativeSpeeds.vy;
 
         // A NaN/Inf velocity (e.g. a momentary pose-estimator glitch) must never
         // poison the aim. Fall back to a stationary solve for that axis.

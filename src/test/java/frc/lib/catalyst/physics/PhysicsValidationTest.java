@@ -6,9 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
-import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.kinematics.ChassisVelocities;
+import org.wpilib.math.kinematics.SwerveDriveKinematics;
 
 import frc.lib.catalyst.physics.model.RobotModel;
 import frc.lib.catalyst.physics.sim.PhysicsValidator;
@@ -89,7 +89,7 @@ class PhysicsValidationTest {
         SimulatedRobot sim = SimulatedRobot.builder()
                 .robotModel(robot()).kinematics(KINEMATICS).build();
 
-        sim.command(new ChassisSpeeds(10.0, 0, 0));   // far more than grip allows
+        sim.command(new ChassisVelocities(10.0, 0, 0));   // far more than grip allows
         double peakAcceleration = 0.0;
         for (int i = 0; i < 30; i++) {
             sim.step();
@@ -107,7 +107,7 @@ class PhysicsValidationTest {
         SimulatedRobot sim = SimulatedRobot.builder()
                 .robotModel(robot()).kinematics(KINEMATICS).build();
 
-        sim.command(new ChassisSpeeds(2.0, 0, 0));
+        sim.command(new ChassisVelocities(2.0, 0, 0));
         sim.step(40);
         // Not exactly zero: the wheels re-sync with ground speed over a few loops rather than
         // snapping to it, so accelerating up to speed leaves a small permanent offset - which is
@@ -116,7 +116,7 @@ class PhysicsValidationTest {
                 "clean driving should barely drift, got " + sim.odometryErrorMeters());
 
         sim.setFrictionScale(0.2);
-        sim.command(new ChassisSpeeds(6.0, 0, 0));
+        sim.command(new ChassisVelocities(6.0, 0, 0));
         sim.step(30);
 
         assertTrue(sim.wheelVelocity().getNorm() > sim.trueSpeed() + 0.5,
@@ -130,7 +130,7 @@ class PhysicsValidationTest {
         SimulatedRobot sim = SimulatedRobot.builder()
                 .robotModel(robot()).kinematics(KINEMATICS).build();
         sim.setFrictionScale(0.2);
-        sim.command(new ChassisSpeeds(6.0, 0, 0));
+        sim.command(new ChassisVelocities(6.0, 0, 0));
         sim.step(30);
         assertTrue(sim.odometryErrorMeters() > 0.05);
 
@@ -143,7 +143,7 @@ class PhysicsValidationTest {
         SimulatedRobot sim = SimulatedRobot.builder()
                 .robotModel(robot()).kinematics(KINEMATICS).wheelRadiusError(1.05).build();
 
-        sim.command(new ChassisSpeeds(3.0, 0, 0));
+        sim.command(new ChassisVelocities(3.0, 0, 0));
         sim.step(100);
 
         // The robot really travels at 3.0; the encoders insist it is 5% faster.
@@ -155,7 +155,7 @@ class PhysicsValidationTest {
     void perModuleBiasIsIndependentOfUniformGripLoss() {
         SimulatedRobot sim = SimulatedRobot.builder()
                 .robotModel(robot()).kinematics(KINEMATICS).build();
-        sim.command(new ChassisSpeeds(3.0, 0, 0));
+        sim.command(new ChassisVelocities(3.0, 0, 0));
         sim.step(40);
 
         assertFalse(sim.hasModuleSlip());
@@ -167,11 +167,11 @@ class PhysicsValidationTest {
 
         assertTrue(sim.hasModuleSlip());
         assertEquals(1.5,
-                biased.moduleStates()[1].speedMetersPerSecond
-                        - clean.moduleStates()[1].speedMetersPerSecond, 0.15);
+                biased.moduleStates()[1].velocity
+                        - clean.moduleStates()[1].velocity, 0.15);
         assertEquals(0.0,
-                biased.moduleStates()[0].speedMetersPerSecond
-                        - clean.moduleStates()[0].speedMetersPerSecond, 0.15);
+                biased.moduleStates()[0].velocity
+                        - clean.moduleStates()[0].velocity, 0.15);
     }
 
     @Test
@@ -193,7 +193,7 @@ class PhysicsValidationTest {
     void resetReturnsTheSimulationToTheOrigin() {
         SimulatedRobot sim = SimulatedRobot.builder()
                 .robotModel(robot()).kinematics(KINEMATICS).build();
-        sim.command(new ChassisSpeeds(3.0, 1.0, 0.5));
+        sim.command(new ChassisVelocities(3.0, 1.0, 0.5));
         sim.step(50);
         assertTrue(sim.truePose().getTranslation().getNorm() > 1.0);
 

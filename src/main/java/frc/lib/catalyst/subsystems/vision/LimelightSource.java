@@ -1,11 +1,11 @@
 package frc.lib.catalyst.subsystems.vision;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Pose3d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Transform3d;
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Pose3d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Transform3d;
+import org.wpilib.networktables.NetworkTable;
+import org.wpilib.networktables.NetworkTableInstance;
 
 import java.util.Optional;
 
@@ -89,7 +89,7 @@ public class LimelightSource implements CameraSource {
         double avgDist = botposeBlue.length > 9 ? botposeBlue[9] : 3.0;
 
         // Timestamp
-        double timestampSeconds = (edu.wpi.first.wpilibj.Timer.getFPGATimestamp())
+        double timestampSeconds = (org.wpilib.system.Timer.getTimestamp())
                 - (latency / 1000.0);
 
         Pose2d pose = new Pose2d(x, y, Rotation2d.fromDegrees(yaw));

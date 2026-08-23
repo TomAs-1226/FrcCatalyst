@@ -1,7 +1,8 @@
 package frc.lib.catalyst.statemachine.mech;
 
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Subsystem;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Mechanism;
 import frc.lib.catalyst.mechanisms.DifferentialWristMechanism;
 import frc.lib.catalyst.statemachine.goals.WristGoal;
 import frc.lib.catalyst.statemachine.robot.Actuator;
@@ -75,7 +76,7 @@ public final class WristBinding implements Actuator<WristGoal> {
     private final BooleanSupplier zeroedSupplier;
 
     /** Pre-built requirement set, so {@link #requirements()} allocates nothing per loop. */
-    private final Set<Subsystem> requirements;
+    private final Set<Mechanism> requirements;
 
     /**
      * Per-goal clamp displacement in degrees, resolved once by {@link #validate} and read by
@@ -181,12 +182,12 @@ public final class WristBinding implements Actuator<WristGoal> {
      * out of {@code CommandScheduler.run()} and take the robot loop down with it.
      */
     @Override
-    public Command pursueCommand(WristGoal goal) {
+    public CatalystCommand pursueCommand(WristGoal goal) {
         if (goal == null || !Double.isFinite(goal.pitchDegrees()) || !Double.isFinite(goal.rollDegrees())) {
             return mechanism.holdPosition();
         }
         return mechanism.goTo(goal.pitchDegrees(), goal.rollDegrees())
-                .andThen(mechanism.holdPosition());
+                .then(mechanism.holdPosition());
     }
 
     /**
@@ -199,12 +200,12 @@ public final class WristBinding implements Actuator<WristGoal> {
      * state machine oscillate between arrived and not.
      */
     @Override
-    public Command holdCommand(WristGoal goal) {
+    public CatalystCommand holdCommand(WristGoal goal) {
         return null;
     }
 
     @Override
-    public Set<Subsystem> requirements() {
+    public Set<Mechanism> requirements() {
         return requirements;
     }
 

@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
  * over. Both write the same module rotor states, and at 200 Hz {@code updateSimState()} wins — the
  * external physics stops reaching the robot, silently.
  *
- * <p>These tests stay away from {@link edu.wpi.first.wpilibj.Notifier} and the HAL on purpose: a
+ * <p>These tests stay away from {@link org.wpilib.system.Notifier} and the HAL on purpose: a
  * real {@link SwerveSubsystem} needs a Phoenix {@code SwerveDrivetrain}, which needs CAN hardware,
  * and {@code Notifier} needs the HAL JNI. Neither is available in a plain unit test. The behaviour
  * that matters here is the yield bookkeeping, which needs neither.

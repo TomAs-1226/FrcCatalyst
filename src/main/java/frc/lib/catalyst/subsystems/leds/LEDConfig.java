@@ -1,6 +1,6 @@
 package frc.lib.catalyst.subsystems.leds;
 
-import edu.wpi.first.wpilibj.util.Color;
+import org.wpilib.util.Color;
 
 /**
  * Configuration for the LED subsystem.
@@ -10,7 +10,7 @@ import edu.wpi.first.wpilibj.util.Color;
  * LEDConfig config = LEDConfig.builder()
  *     .pwmPort(0)
  *     .ledCount(60)
- *     .defaultColor(Color.kGreen)
+ *     .defaultColor(Color.GREEN)
  *     .build();
  * }</pre>
  */
@@ -33,7 +33,7 @@ public class LEDConfig {
     public static class Builder {
         private int pwmPort = 0;
         private int ledCount = 60;
-        private Color defaultColor = Color.kBlack;
+        private Color defaultColor = Color.BLACK;
 
         /** PWM port the LED strip is connected to. */
         public Builder pwmPort(int port) { this.pwmPort = port; return this; }

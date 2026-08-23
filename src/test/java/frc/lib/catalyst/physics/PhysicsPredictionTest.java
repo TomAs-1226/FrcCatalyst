@@ -9,10 +9,10 @@ import java.util.OptionalDouble;
 
 import org.junit.jupiter.api.Test;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.geometry.Translation3d;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.geometry.Translation3d;
+import org.wpilib.math.kinematics.ChassisVelocities;
 
 import frc.lib.catalyst.physics.model.ArticulatedRobotModel;
 import frc.lib.catalyst.physics.model.DrivetrainModel;
@@ -41,7 +41,7 @@ class PhysicsPredictionTest {
 
     private static PhysicalRobotState moving(double vx) {
         return new PhysicalRobotState(0.0, Pose2d.kZero,
-                new ChassisSpeeds(vx, 0.0, 0.0), Translation2d.kZero, 0.0,
+                new ChassisVelocities(vx, 0.0, 0.0), Translation2d.kZero, 0.0,
                 new LocalizationQuality(0.95, 0.03, 0.01, 0.06, 0.2, "nominal"));
     }
 
@@ -258,7 +258,7 @@ class PhysicsPredictionTest {
     @Test
     void aLongMoveWithAnUncertainEstimateIsOnlyModeratelyRisky() {
         PhysicalRobotState unsure = new PhysicalRobotState(0.0, Pose2d.kZero,
-                new ChassisSpeeds(), Translation2d.kZero, 0.0,
+                new ChassisVelocities(), Translation2d.kZero, 0.0,
                 new LocalizationQuality(0.5, 0.10, 0.05, 0.5, 3.0, "vision stale 3.0 s"));
 
         var capability = evaluator(StabilityModel.ofChassisOnly(chassis()))

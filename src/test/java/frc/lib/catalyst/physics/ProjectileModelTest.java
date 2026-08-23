@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-import edu.wpi.first.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Rotation2d;
 
 import frc.lib.catalyst.physics.model.ProjectileModel;
 import frc.lib.catalyst.physics.model.RobotModel;

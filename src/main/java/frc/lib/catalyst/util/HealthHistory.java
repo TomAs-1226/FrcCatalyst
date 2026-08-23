@@ -1,6 +1,6 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.wpilibj.Timer;
+import org.wpilib.system.Timer;
 
 import frc.lib.catalyst.logging.CatalystLog;
 
@@ -66,7 +66,7 @@ public final class HealthHistory {
     /** Record an event. Called by {@link HealthMonitor} on every FIRED / CLEARED transition. */
     static synchronized void record(HealthCheck check, Kind kind) {
         Event e = new Event(
-                Timer.getFPGATimestamp(),
+                Timer.getTimestamp(),
                 check.subsystem(),
                 check.id(),
                 check.severity(),

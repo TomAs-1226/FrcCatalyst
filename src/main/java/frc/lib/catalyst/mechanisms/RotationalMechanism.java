@@ -1,15 +1,16 @@
 package frc.lib.catalyst.mechanisms;
 
+import frc.lib.catalyst.command.CatalystCommand;
 import com.ctre.phoenix6.signals.GravityTypeValue;
-import edu.wpi.first.math.MathUtil;
-import edu.wpi.first.math.controller.ProfiledPIDController;
-import edu.wpi.first.math.system.plant.DCMotor;
-import edu.wpi.first.math.trajectory.TrapezoidProfile;
-import edu.wpi.first.wpilibj.DigitalInput;
-import edu.wpi.first.wpilibj.RobotBase;
-import edu.wpi.first.wpilibj.simulation.SingleJointedArmSim;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
+import org.wpilib.math.util.MathUtil;
+import org.wpilib.math.controller.ProfiledPIDController;
+import org.wpilib.math.system.DCMotor;
+import org.wpilib.math.trajectory.TrapezoidProfile;
+import org.wpilib.hardware.discrete.DigitalInput;
+import org.wpilib.framework.RobotBase;
+import org.wpilib.simulation.SingleJointedArmSim;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Trigger;
 import frc.lib.catalyst.hardware.CatalystMotor;
 import frc.lib.catalyst.hardware.CatalystMotor.FollowerSpec;
 import frc.lib.catalyst.hardware.MotorType;
@@ -264,9 +265,9 @@ public class RotationalMechanism extends CatalystMechanism {
      * use {@link #goToAndWait(double, double)} (or gate on
      * {@link #atAngleTrigger(double)}) instead.
      */
-    public Command goTo(double degrees) {
+    public CatalystCommand goTo(double degrees) {
         return runOnce(() -> {
-            setpointDegrees = MathUtil.clamp(degrees, config.minAngle, config.maxAngle);
+            setpointDegrees = Math.clamp(degrees, config.minAngle, config.maxAngle);
             motor.setMotionMagicPosition(degreesToRotations(setpointDegrees));
             setState("GoTo " + String.format("%.1f", setpointDegrees) + "deg");
         }).withName(name + ".GoTo(" + String.format("%.1f", degrees) + ")");
@@ -284,9 +285,9 @@ public class RotationalMechanism extends CatalystMechanism {
      *                 .hoodDegrees()));
      * }</pre>
      */
-    public Command track(DoubleSupplier degreesSupplier) {
+    public CatalystCommand track(DoubleSupplier degreesSupplier) {
         return run(() -> {
-            setpointDegrees = MathUtil.clamp(
+            setpointDegrees = Math.clamp(
                     degreesSupplier.getAsDouble(), config.minAngle, config.maxAngle);
             motor.setMotionMagicPosition(degreesToRotations(setpointDegrees));
             setState("Track");
@@ -294,7 +295,7 @@ public class RotationalMechanism extends CatalystMechanism {
     }
 
     /** Command to move to a named position. */
-    public Command goTo(String positionName) {
+    public CatalystCommand goTo(String positionName) {
         Double target = config.namedPositions.get(positionName);
         if (target == null) {
             throw new IllegalArgumentException(
@@ -308,23 +309,23 @@ public class RotationalMechanism extends CatalystMechanism {
      * Type-safe variant of {@link #goTo(String)} for enums implementing
      * {@link PositionEnum} — no name strings to misspell.
      */
-    public Command goTo(PositionEnum pos) {
+    public CatalystCommand goTo(PositionEnum pos) {
         return goTo(pos.getTarget())
                 .withName(name + ".GoTo(" + ((Enum<?>) pos).name() + ")");
     }
 
     /** Command to move to an angle and wait until it arrives. */
-    public Command goToAndWait(double degrees, double toleranceDegrees) {
+    public CatalystCommand goToAndWait(double degrees, double toleranceDegrees) {
         return run(() -> {
-            setpointDegrees = MathUtil.clamp(degrees, config.minAngle, config.maxAngle);
+            setpointDegrees = Math.clamp(degrees, config.minAngle, config.maxAngle);
             motor.setMotionMagicPosition(degreesToRotations(setpointDegrees));
             setState("GoTo " + String.format("%.1f", setpointDegrees) + "deg");
-        }).until(() -> atAngle(degrees, toleranceDegrees))
+        }).untilTrue(() -> atAngle(degrees, toleranceDegrees))
                 .withName(name + ".GoToAndWait(" + String.format("%.1f", degrees) + ")");
     }
 
     /** Command to move to a named position and wait until it arrives. */
-    public Command goToAndWait(String positionName, double toleranceDegrees) {
+    public CatalystCommand goToAndWait(String positionName, double toleranceDegrees) {
         Double target = config.namedPositions.get(positionName);
         if (target == null) {
             throw new IllegalArgumentException(
@@ -335,7 +336,7 @@ public class RotationalMechanism extends CatalystMechanism {
     }
 
     /** Command that continuously holds the current setpoint. Good as default command. */
-    public Command holdPosition() {
+    public CatalystCommand holdPosition() {
         return run(() -> {
             motor.setMotionMagicPosition(degreesToRotations(setpointDegrees));
             setState("Hold " + String.format("%.1f", setpointDegrees) + "deg");
@@ -343,7 +344,7 @@ public class RotationalMechanism extends CatalystMechanism {
     }
 
     /** Command to jog clockwise at a given voltage. */
-    public Command jogCW(double volts) {
+    public CatalystCommand jogCW(double volts) {
         return run(() -> {
             motor.setVoltage(Math.abs(volts));
             setpointDegrees = getAngle();
@@ -355,7 +356,7 @@ public class RotationalMechanism extends CatalystMechanism {
     }
 
     /** Command to jog counter-clockwise at a given voltage. */
-    public Command jogCCW(double volts) {
+    public CatalystCommand jogCCW(double volts) {
         return run(() -> {
             motor.setVoltage(-Math.abs(volts));
             setpointDegrees = getAngle();
@@ -367,7 +368,7 @@ public class RotationalMechanism extends CatalystMechanism {
     }
 
     /** Command to jog with a dynamic speed supplier (e.g., joystick). */
-    public Command jog(DoubleSupplier voltsSupplier) {
+    public CatalystCommand jog(DoubleSupplier voltsSupplier) {
         return run(() -> {
             double volts = voltsSupplier.getAsDouble();
             if (Math.abs(volts) < 0.1) {
@@ -388,13 +389,13 @@ public class RotationalMechanism extends CatalystMechanism {
      * Alternative to Motion Magic — runs the trapezoidal profile on the roboRIO.
      * Requires {@code useWPILibProfile(true)} in config.
      */
-    public Command goToProfiled(double degrees) {
+    public CatalystCommand goToProfiled(double degrees) {
         if (profiledPID == null) {
             throw new IllegalStateException(
                     name + ": WPILib profile not configured. Use .useWPILibProfile() in config.");
         }
         return run(() -> {
-            setpointDegrees = MathUtil.clamp(degrees, config.minAngle, config.maxAngle);
+            setpointDegrees = Math.clamp(degrees, config.minAngle, config.maxAngle);
             double posRotations = degreesToRotations(getAngle());
             double targetRotations = degreesToRotations(setpointDegrees);
             double output = profiledPID.calculate(posRotations, targetRotations);
@@ -413,7 +414,7 @@ public class RotationalMechanism extends CatalystMechanism {
     /**
      * Command to move to a named position using WPILib ProfiledPID.
      */
-    public Command goToProfiled(String positionName) {
+    public CatalystCommand goToProfiled(String positionName) {
         Double target = config.namedPositions.get(positionName);
         if (target == null) {
             throw new IllegalArgumentException(
@@ -425,7 +426,7 @@ public class RotationalMechanism extends CatalystMechanism {
     /**
      * Command that holds position using WPILib ProfiledPID.
      */
-    public Command holdPositionProfiled() {
+    public CatalystCommand holdPositionProfiled() {
         if (profiledPID == null) {
             throw new IllegalStateException(
                     name + ": WPILib profile not configured. Use .useWPILibProfile() in config.");
@@ -447,7 +448,7 @@ public class RotationalMechanism extends CatalystMechanism {
     }
 
     /** Command to zero the encoder at the current position. */
-    public Command zero() {
+    public CatalystCommand zero() {
         return runOnce(() -> {
             motor.zeroEncoder();
             setpointDegrees = 0;
@@ -461,13 +462,13 @@ public class RotationalMechanism extends CatalystMechanism {
      * toward the stop) until the stator current reaches {@code currentThresholdAmps},
      * then seed the encoder to {@code seedDegrees}, hold there, and mark the
      * mechanism zeroed. Useful when there is no hard-stop limit switch. Bound it
-     * with {@code .withTimeout(...)} as a safety net.
+     * with {@code .timeoutAfter(...)} as a safety net.
      */
-    public Command homeOnCurrent(double volts, double currentThresholdAmps, double seedDegrees) {
+    public CatalystCommand homeOnCurrent(double volts, double currentThresholdAmps, double seedDegrees) {
         return run(() -> {
             motor.setVoltage(volts);
             setState("Homing");
-        }).until(() -> getCurrent() >= currentThresholdAmps)
+        }).untilTrue(() -> getCurrent() >= currentThresholdAmps)
           .finallyDo(interrupted -> {
             if (!interrupted) {
                 motor.setEncoderPosition(degreesToRotations(seedDegrees));
@@ -483,7 +484,7 @@ public class RotationalMechanism extends CatalystMechanism {
     }
 
     /** Home against a hard stop by current spike, seeding the encoder to 0 degrees. */
-    public Command homeOnCurrent(double volts, double currentThresholdAmps) {
+    public CatalystCommand homeOnCurrent(double volts, double currentThresholdAmps) {
         return homeOnCurrent(volts, currentThresholdAmps, 0.0);
     }
 
@@ -548,9 +549,9 @@ public class RotationalMechanism extends CatalystMechanism {
             var simState = motor.getTalonFX().getSimState();
             sim.setInput(simState.getMotorVoltage());
             sim.update(0.02);
-            double mechanismRotations = Math.toDegrees(sim.getAngleRads()) / 360.0;
+            double mechanismRotations = Math.toDegrees(sim.getAngle()) / 360.0;
             simState.setRawRotorPosition(mechanismRotations * config.gearRatio);
-            double mechanismVelRPS = Math.toDegrees(sim.getVelocityRadPerSec()) / 360.0;
+            double mechanismVelRPS = Math.toDegrees(sim.getVelocity()) / 360.0;
             simState.setRotorVelocity(mechanismVelRPS * config.gearRatio);
         }
     }

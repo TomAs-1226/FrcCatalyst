@@ -1,14 +1,14 @@
 package frc.lib.catalyst.statemachine.robot;
 
-import edu.wpi.first.util.sendable.Sendable;
-import edu.wpi.first.util.sendable.SendableBuilder;
-import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj.shuffleboard.Shuffleboard;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
-import edu.wpi.first.wpilibj2.command.Subsystem;
-import edu.wpi.first.wpilibj2.command.SubsystemBase;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.driverstation.DriverStationErrors;
+import org.wpilib.system.Timer;
+import org.wpilib.command3.Command;
+import org.wpilib.telemetry.Telemetry;
+import org.wpilib.telemetry.TelemetryTable;
+import frc.lib.catalyst.command.Commands;
+import org.wpilib.command3.Mechanism;
+import org.wpilib.command3.Trigger;
 import frc.lib.catalyst.statemachine.Binding;
 import frc.lib.catalyst.statemachine.FaultPolicy;
 import frc.lib.catalyst.statemachine.Handle;
@@ -148,24 +148,36 @@ import java.util.function.Predicate;
  * // bindings
  * operator.a().onTrue(superstructure.goTo(SuperState.INTAKE, "op.a"));
  * operator.y().onTrue(superstructure.goTo(SuperState.AIM,    "op.y"));
- * superstructure.arrivedAt(SuperState.CARRY).onTrue(leds.flash(Color.kGreen));
+ * superstructure.arrivedAt(SuperState.CARRY).onTrue(leds.flash(Color.GREEN));
  * }</pre>
  *
  * @param <S> the enum of superstructure states
  * @since 1.2.0
  */
-public final class Superstructure<S extends Enum<S>> extends SubsystemBase implements SuperstructureLike {
+public final class Superstructure<S extends Enum<S>> implements frc.lib.catalyst.command.CatalystSubsystem, SuperstructureLike {
 
     private final StateMachineCore<S> engine;
     private final Class<S> stateType;
     private final List<Command> runners;
 
+    /** Mechanism is an interface in v3, so the name this used to pass to super() lives here. */
+    private final String mechanismName;
+
     private Superstructure(String name, StateMachineCore<S> engine, Class<S> stateType,
                            List<Command> runners) {
-        super(name);
+        this.mechanismName = name;
         this.engine = engine;
         this.stateType = stateType;
         this.runners = runners;
+        // Commands v3's Mechanism has no constructor to hook, so periodic() is registered
+        // explicitly. Without this the method compiles and is simply never called - see
+        // CatalystSubsystem#registerPeriodic.
+        registerPeriodic();
+    }
+
+    @Override
+    public String getName() {
+        return mechanismName;
     }
 
     /** Start building a superstructure over {@code stateType}. */
@@ -176,13 +188,13 @@ public final class Superstructure<S extends Enum<S>> extends SubsystemBase imple
     /**
      * Steps the engine exactly once per scheduler loop.
      *
-     * <p>{@code CommandScheduler.run()} runs every {@code Subsystem.periodic()} before it polls
+     * <p>{@code CommandScheduler.run()} runs every {@code Mechanism.periodic()} before it polls
      * triggers and before it runs any command, so the engine always evaluates arrival against
      * inputs that every mechanism has already refreshed this loop.
      */
     @Override
     public void periodic() {
-        engine.setEnabled(edu.wpi.first.wpilibj.DriverStation.isEnabled());
+        engine.setEnabled(org.wpilib.driverstation.RobotState.isEnabled());
         engine.step();
     }
 
@@ -196,7 +208,7 @@ public final class Superstructure<S extends Enum<S>> extends SubsystemBase imple
     // ==================================================================
 
     /** {@link #goTo(Enum, String)} attributed to {@code "code"}. */
-    public Command goTo(S target) {
+    public CatalystCommand goTo(S target) {
         return goTo(target, "code");
     }
 
@@ -212,19 +224,19 @@ public final class Superstructure<S extends Enum<S>> extends SubsystemBase imple
      * result in a field and re-binding it every match works correctly — which is precisely what
      * the old coordinator got wrong.
      *
-     * <p><b>In autonomous, do not write {@code goTo(A).andThen(next)}</b>: a self-detected fault
+     * <p><b>In autonomous, do not write {@code goTo(A).then(next)}</b>: a self-detected fault
      * cannot make a command end "interrupted", so {@code next} would run anyway. Use
      * {@link #onlyIfSettled(Enum, Command)}.
      *
      * @param triggerSource recorded in the transition history, so the log says who asked
      */
-    public Command goTo(S target, String triggerSource) {
+    public CatalystCommand goTo(S target, String triggerSource) {
         return Commands.defer(() -> {
             TransitionResult<S> result = engine.request(target, triggerSource);
             if (result.rejected()) return Commands.none();
             final long seq = result.seq();
             return Commands.idle(this)
-                    .until(() -> engine.isSettledAt(target)
+                    .untilTrue(() -> engine.isSettledAt(target)
                             || engine.isFaulted()
                             || engine.lastAcceptedSeq() != seq)
                     .finallyDo(interrupted -> {
@@ -236,7 +248,7 @@ public final class Superstructure<S extends Enum<S>> extends SubsystemBase imple
     }
 
     /** {@link #goToAndHold(Enum, String)} attributed to {@code "code"}. */
-    public Command goToAndHold(S target) {
+    public CatalystCommand goToAndHold(S target) {
         return goToAndHold(target, "code");
     }
 
@@ -244,13 +256,13 @@ public final class Superstructure<S extends Enum<S>> extends SubsystemBase imple
      * Like {@link #goTo}, but never ends on arrival — it keeps holding the state until interrupted.
      * The natural shape for {@code whileTrue}.
      */
-    public Command goToAndHold(S target, String triggerSource) {
+    public CatalystCommand goToAndHold(S target, String triggerSource) {
         return Commands.defer(() -> {
             TransitionResult<S> result = engine.request(target, triggerSource);
             if (result.rejected()) return Commands.none();
             final long seq = result.seq();
             return Commands.idle(this)
-                    .until(() -> engine.isFaulted() || engine.lastAcceptedSeq() != seq)
+                    .untilTrue(() -> engine.isFaulted() || engine.lastAcceptedSeq() != seq)
                     .finallyDo(interrupted -> {
                         if (interrupted && engine.activeSeq() == seq) {
                             engine.abort("driving command interrupted");
@@ -260,13 +272,13 @@ public final class Superstructure<S extends Enum<S>> extends SubsystemBase imple
     }
 
     /** Request {@code target} and return immediately, without waiting or holding a requirement. */
-    public Command requestOnly(S target) {
+    public CatalystCommand requestOnly(S target) {
         return Commands.runOnce(() -> engine.request(target, "requestOnly"))
                 .withName(getName() + ".Request(" + target.name() + ")");
     }
 
     /** Wait until settled at {@code target}. Holds no requirement, so it composes freely. */
-    public Command waitUntilSettled(S target) {
+    public CatalystCommand waitUntilSettled(S target) {
         return Commands.waitUntil(() -> engine.isSettledAt(target))
                 .withName(getName() + ".WaitFor(" + target.name() + ")");
     }
@@ -274,28 +286,28 @@ public final class Superstructure<S extends Enum<S>> extends SubsystemBase imple
     /**
      * Run {@code next} only if the machine is settled at {@code state} when this is reached.
      *
-     * <p>The safe autonomous idiom: {@code goTo(AIM).andThen(sm.onlyIfSettled(AIM, shoot()))} will
+     * <p>The safe autonomous idiom: {@code goTo(AIM).then(sm.onlyIfSettled(AIM, shoot()))} will
      * not shoot into the floor because the arm never made it.
      */
-    public Command onlyIfSettled(S state, Command next) {
+    public CatalystCommand onlyIfSettled(S state, Command next) {
         return Commands.either(next, Commands.none(), () -> engine.isSettledAt(state))
                 .withName(getName() + ".IfSettled(" + state.name() + ")");
     }
 
     /** Tell the machine where the robot physically is. Call once at robot init. */
-    public Command seed(S assumedState) {
+    public CatalystCommand seed(S assumedState) {
         return Commands.runOnce(() -> engine.seed(assumedState))
                 .ignoringDisable(true)
                 .withName(getName() + ".Seed(" + assumedState.name() + ")");
     }
 
     /** Cancel any in-flight transition. */
-    public Command abort(String reason) {
+    public CatalystCommand abort(String reason) {
         return Commands.runOnce(() -> engine.abort(reason)).withName(getName() + ".Abort");
     }
 
     /** Clear a latched fault. */
-    public Command clearFault() {
+    public CatalystCommand clearFault() {
         return Commands.runOnce(engine::clearFault).ignoringDisable(true)
                 .withName(getName() + ".ClearFault");
     }
@@ -387,7 +399,7 @@ public final class Superstructure<S extends Enum<S>> extends SubsystemBase imple
     // ==================================================================
 
     @Override
-    public Command transitionTo(String stateName) {
+    public CatalystCommand transitionTo(String stateName) {
         // Resolution happens inside the deferred supplier, and a bad name is logged as a rejection
         // rather than thrown — an exception escaping here would propagate out of
         // CommandScheduler.run() and take the robot loop with it.
@@ -396,7 +408,7 @@ public final class Superstructure<S extends Enum<S>> extends SubsystemBase imple
             try {
                 target = Enum.valueOf(stateType, stateName);
             } catch (IllegalArgumentException | NullPointerException ex) {
-                edu.wpi.first.wpilibj.DriverStation.reportWarning(
+                org.wpilib.driverstation.DriverStationErrors.reportWarning(
                         "[" + getName() + "] unknown state '" + stateName + "'; known states are "
                                 + getStateNames(), false);
                 return Commands.none();
@@ -437,20 +449,30 @@ public final class Superstructure<S extends Enum<S>> extends SubsystemBase imple
     // ==================================================================
 
     /**
-     * Publish state, phase, blocker, summary and progress as a single {@link Sendable}, so one drag
-     * onto Elastic or Shuffleboard gives a working pit display with no layout work.
+     * Publish state, phase, blocker, summary and progress under one table, so a pit display is a
+     * matter of pointing a dashboard at it rather than laying out seven widgets.
+     *
+     * <p><b>Changed in 2.0.0.</b> This used to build a {@code Sendable} and hand it to
+     * {@code Shuffleboard}. WPILib 2027 removed both, so it now writes to {@link Telemetry} — the
+     * facade that replaced SmartDashboard and that Elastic, AdvantageScope and the FIRST Driver
+     * Station all read. The published keys are the same, so an existing layout keeps working.
+     *
+     * <p>One real difference: a {@code Sendable} was polled by the dashboard, so it stayed current
+     * on its own. Telemetry is written, not polled, so this must be called every loop to keep
+     * updating. Calling it once in {@code robotInit} publishes a snapshot that never changes.
+     *
+     * @param tab table to publish beneath, e.g. {@code "Pit"}
      */
     public void addToDashboard(String tab) {
-        Shuffleboard.getTab(tab).add(getName(), (Sendable) builder -> {
-            builder.setSmartDashboardType("Superstructure");
-            builder.addStringProperty("State", this::getCurrentState, null);
-            builder.addBooleanProperty("Confirmed", this::stateConfirmed, null);
-            builder.addStringProperty("Phase", () -> phase().name(), null);
-            builder.addStringProperty("Blocker", this::blocker, null);
-            builder.addStringProperty("Summary", this::summary, null);
-            builder.addDoubleProperty("Progress", this::progress, null);
-            builder.addBooleanProperty("Faulted", this::isFaulted, null);
-        });
+        TelemetryTable table = Telemetry.getTable(tab).getTable(getName());
+        table.setType("Superstructure");
+        table.log("State", getCurrentState());
+        table.log("Confirmed", stateConfirmed());
+        table.log("Phase", phase().name());
+        table.log("Blocker", blocker());
+        table.log("Summary", summary());
+        table.log("Progress", progress());
+        table.log("Faulted", isFaulted());
     }
 
     /** The default commands installed on each bound mechanism, for teams managing them by hand. */
@@ -474,7 +496,7 @@ public final class Superstructure<S extends Enum<S>> extends SubsystemBase imple
         private final String name;
         private final StateMachineCore.Builder<S> core;
         private final Map<Handle<?>, Actuator<?>> actuators = new LinkedHashMap<>();
-        private DoubleSupplier clock = Timer::getFPGATimestamp;
+        private DoubleSupplier clock = Timer::getTimestamp;
         private String logPrefix;
         private String alertSubsystem;
         private boolean logging = true;
@@ -512,7 +534,7 @@ public final class Superstructure<S extends Enum<S>> extends SubsystemBase imple
 
         /** Time source. Defaults to the FPGA timestamp. */
         public Builder<S> clock(DoubleSupplier clock) {
-            this.clock = clock == null ? Timer::getFPGATimestamp : clock;
+            this.clock = clock == null ? Timer::getTimestamp : clock;
             return this;
         }
 
@@ -528,7 +550,7 @@ public final class Superstructure<S extends Enum<S>> extends SubsystemBase imple
             return this;
         }
 
-        /** Subsystem name used for {@link frc.lib.catalyst.util.AlertManager} entries. */
+        /** Mechanism name used for {@link frc.lib.catalyst.util.AlertManager} entries. */
         public Builder<S> alertSubsystem(String subsystem) {
             this.alertSubsystem = subsystem;
             return this;
@@ -636,7 +658,7 @@ public final class Superstructure<S extends Enum<S>> extends SubsystemBase imple
                 for (Map.Entry<Handle<?>, Actuator<?>> e : actuators.entrySet()) {
                     Command runner = makeRunner(engine, e.getKey(), e.getValue());
                     runners.add(runner);
-                    for (Subsystem s : e.getValue().requirements()) {
+                    for (Mechanism s : e.getValue().requirements()) {
                         s.setDefaultCommand(runner);
                     }
                 }
@@ -651,13 +673,13 @@ public final class Superstructure<S extends Enum<S>> extends SubsystemBase imple
 
         private void checkExistingDefaults(List<String> problems) {
             for (Map.Entry<Handle<?>, Actuator<?>> e : actuators.entrySet()) {
-                Set<Subsystem> required = e.getValue().requirements();
+                Set<Mechanism> required = e.getValue().requirements();
                 if (required == null) continue;
-                for (Subsystem s : required) {
+                for (Mechanism s : required) {
                     Command existing = s.getDefaultCommand();
                     if (existing != null) {
                         problems.add("'" + e.getKey().key() + "' already has a default command ("
-                                + existing.getName() + "). The state machine provides hold behaviour "
+                                + existing.name() + "). The state machine provides hold behaviour "
                                 + "itself — remove that setDefaultCommand(...) call, or use "
                                 + ".manageDefaults(false) and schedule the GoalRunners yourself.");
                     }
@@ -679,10 +701,10 @@ public final class Superstructure<S extends Enum<S>> extends SubsystemBase imple
          * {@code .manageDefaults(false)}.
          */
         private void checkDefaultManageable(List<String> problems) {
-            Map<Subsystem, String> owner = new java.util.HashMap<>();
+            Map<Mechanism, String> owner = new java.util.HashMap<>();
             for (Map.Entry<Handle<?>, Actuator<?>> e : actuators.entrySet()) {
                 String key = e.getKey().key();
-                Set<Subsystem> required = e.getValue().requirements();
+                Set<Mechanism> required = e.getValue().requirements();
                 if (required == null || required.isEmpty()) continue;   // reported by checkRequirements
                 if (required.size() != 1) {
                     problems.add("'" + key + "' owns " + required.size() + " subsystems, but a "
@@ -690,7 +712,7 @@ public final class Superstructure<S extends Enum<S>> extends SubsystemBase imple
                             + "into one binding per subsystem, or use .manageDefaults(false) and drive "
                             + "the GoalRunners yourself.");
                 }
-                for (Subsystem s : required) {
+                for (Mechanism s : required) {
                     String prior = owner.putIfAbsent(s, key);
                     if (prior != null) {
                         problems.add("bindings '" + prior + "' and '" + key + "' both own the same "
@@ -715,7 +737,7 @@ public final class Superstructure<S extends Enum<S>> extends SubsystemBase imple
         private void checkRequirements(List<String> problems) {
             for (Map.Entry<Handle<?>, Actuator<?>> e : actuators.entrySet()) {
                 Actuator<?> a = e.getValue();
-                Set<Subsystem> declared = a.requirements();
+                Set<Mechanism> declared = a.requirements();
                 if (declared == null || declared.isEmpty()) {
                     problems.add("'" + e.getKey().key() + "' declares no requirements; a binding must "
                             + "own the subsystem it drives");

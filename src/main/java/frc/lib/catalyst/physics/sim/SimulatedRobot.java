@@ -3,13 +3,13 @@ package frc.lib.catalyst.physics.sim;
 import java.util.Optional;
 import java.util.Random;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.geometry.Translation3d;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
-import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
-import edu.wpi.first.math.kinematics.SwerveModuleState;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.geometry.Translation3d;
+import org.wpilib.math.kinematics.ChassisVelocities;
+import org.wpilib.math.kinematics.SwerveDriveKinematics;
+import org.wpilib.math.kinematics.SwerveModuleVelocity;
 
 import frc.lib.catalyst.physics.PhysicsSample;
 import frc.lib.catalyst.physics.contact.CollisionField;
@@ -56,11 +56,11 @@ import frc.lib.catalyst.physics.model.RobotModel;
  *     .seed(42)
  *     .build();
  *
- * sim.command(new ChassisSpeeds(3.0, 0, 0));
+ * sim.command(new ChassisVelocities(3.0, 0, 0));
  * for (int i = 0; i < 100; i++) {
  *     sim.step();
  *     physics.update(sim.sample());
- *     double error = physics.state().speedMetersPerSecond() - sim.trueSpeed();
+ *     double error = physics.state().velocity() - sim.trueSpeed();
  * }
  * }</pre>
  *
@@ -135,7 +135,7 @@ public final class SimulatedRobot {
     /** The pose a drivetrain estimator would report, integrated from wheel velocity. */
     private Pose2d odometryPose = Pose2d.kZero;
 
-    private ChassisSpeeds commandedRobotRelative = new ChassisSpeeds();
+    private ChassisVelocities commandedRobotRelative = new ChassisVelocities();
     private Translation2d externalAcceleration = Translation2d.kZero;
     /** Per-module over-reporting, for the differential slip a uniform model cannot produce. */
     private final double[] moduleSlipBias;
@@ -173,13 +173,13 @@ public final class SimulatedRobot {
     // ===========================================
 
     /** Ask the robot to travel at these robot-relative speeds. It gets there as fast as grip allows. */
-    public void command(ChassisSpeeds robotRelative) {
-        this.commandedRobotRelative = robotRelative == null ? new ChassisSpeeds() : robotRelative;
+    public void command(ChassisVelocities robotRelative) {
+        this.commandedRobotRelative = robotRelative == null ? new ChassisVelocities() : robotRelative;
     }
 
     /** Ask the robot to stop. */
     public void stop() {
-        command(new ChassisSpeeds());
+        command(new ChassisVelocities());
     }
 
     /**
@@ -248,10 +248,10 @@ public final class SimulatedRobot {
      */
     public void step() {
         Rotation2d heading = truePose.getRotation();
-        ChassisSpeeds commandedField =
-                ChassisSpeeds.fromRobotRelativeSpeeds(commandedRobotRelative, heading);
+        ChassisVelocities commandedField =
+                commandedRobotRelative.toFieldRelative(heading);
         Translation2d targetVelocity =
-                new Translation2d(commandedField.vxMetersPerSecond, commandedField.vyMetersPerSecond);
+                new Translation2d(commandedField.vx, commandedField.vy);
 
         Translation2d desiredAcceleration = targetVelocity.minus(trueVelocity).div(velocityTimeConstant);
         double tractionLimit = drivetrain.maxTractionAccelerationMpsSq() * frictionScale;
@@ -288,7 +288,7 @@ public final class SimulatedRobot {
                     .times(timestamp < slipUntil ? 0.35 : 0.6));
         }
 
-        trueOmega = commandedField.omegaRadiansPerSecond;
+        trueOmega = commandedField.omega;
         double heading2 = heading.getRadians() + trueOmega * dt;
 
         truePose = new Pose2d(truePose.getTranslation().plus(trueVelocity.times(dt)),
@@ -488,18 +488,19 @@ public final class SimulatedRobot {
         // Encoders measure wheel rotations and the code multiplies by the radius it was told. Get
         // that radius wrong and every speed is wrong by the same factor.
         Translation2d reported = wheelVelocity.times(wheelRadiusError);
-        ChassisSpeeds robotRelative = ChassisSpeeds.fromFieldRelativeSpeeds(
-                reported.getX(), reported.getY(), trueOmega + noise(gyroNoise), heading);
+        ChassisVelocities robotRelative = new ChassisVelocities(
+                reported.getX(), reported.getY(), trueOmega + noise(gyroNoise))
+                .toFieldRelative(heading);
 
-        SwerveModuleState[] states = kinematics.toSwerveModuleStates(robotRelative);
+        SwerveModuleVelocity[] states = kinematics.toSwerveModuleVelocities(robotRelative);
         if (states.length > moduleCount) {
-            SwerveModuleState[] trimmed = new SwerveModuleState[moduleCount];
+            SwerveModuleVelocity[] trimmed = new SwerveModuleVelocity[moduleCount];
             System.arraycopy(states, 0, trimmed, 0, moduleCount);
             states = trimmed;
         }
         for (int i = 0; i < states.length; i++) {
-            states[i] = new SwerveModuleState(
-                    states[i].speedMetersPerSecond + moduleSlipBias[i] + noise(moduleSpeedNoise),
+            states[i] = new SwerveModuleVelocity(
+                    states[i].velocity + moduleSlipBias[i] + noise(moduleSpeedNoise),
                     states[i].angle);
         }
 
@@ -509,7 +510,7 @@ public final class SimulatedRobot {
                 .plus(new Translation2d(noise(accelerometerNoise), noise(accelerometerNoise)));
 
         return new PhysicsSample(timestamp, odometryPose, robotRelative, states,
-                measuredAcceleration, robotRelative.omegaRadiansPerSecond);
+                measuredAcceleration, robotRelative.omega);
     }
 
     /** The pose a drivetrain estimator would be reporting — drifted by any slip that has happened. */
@@ -532,8 +533,8 @@ public final class SimulatedRobot {
     }
 
     /** How fast it really is going, field-relative. */
-    public ChassisSpeeds trueFieldVelocity() {
-        return new ChassisSpeeds(trueVelocity.getX(), trueVelocity.getY(), trueOmega);
+    public ChassisVelocities trueFieldVelocity() {
+        return new ChassisVelocities(trueVelocity.getX(), trueVelocity.getY(), trueOmega);
     }
 
     /** Ground speed, m/s. */
@@ -589,7 +590,7 @@ public final class SimulatedRobot {
         slipUntil = Double.NEGATIVE_INFINITY;
         frictionScale = 1.0;
         externalAcceleration = Translation2d.kZero;
-        commandedRobotRelative = new ChassisSpeeds();
+        commandedRobotRelative = new ChassisVelocities();
         lastContact = null;
         collisions = 0;
         touching = false;

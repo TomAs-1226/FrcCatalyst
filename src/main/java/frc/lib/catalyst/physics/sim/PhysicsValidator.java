@@ -6,10 +6,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
-import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.kinematics.ChassisVelocities;
+import org.wpilib.math.kinematics.SwerveDriveKinematics;
 
 import frc.lib.catalyst.physics.PhysicalRobotState;
 import frc.lib.catalyst.physics.PhysicsCore;
@@ -95,21 +95,21 @@ public final class PhysicsValidator {
         SimulatedRobot sim = sim();
         PhysicsCore physics = core(sim);
 
-        settle(sim, physics, new ChassisSpeeds(2.0, 0, 0), 40);
+        settle(sim, physics, new ChassisVelocities(2.0, 0, 0), 40);
 
         double fusedSquaredError = 0.0;
         double wheelSquaredError = 0.0;
         int samples = 0;
 
         sim.setFrictionScale(0.25);                       // hit a slick patch
-        sim.command(new ChassisSpeeds(4.5, 0, 0));        // and floor it
+        sim.command(new ChassisVelocities(4.5, 0, 0));        // and floor it
         for (int i = 0; i < 30; i++) {
             sim.step();
             PhysicalRobotState state = physics.update(sim.sample());
             Translation2d truth = sim.trueVelocityVector();
             fusedSquaredError += squaredError(
-                    new Translation2d(state.fieldVelocity().vxMetersPerSecond,
-                            state.fieldVelocity().vyMetersPerSecond), truth);
+                    new Translation2d(state.fieldVelocity().vx,
+                            state.fieldVelocity().vy), truth);
             wheelSquaredError += squaredError(sim.wheelVelocity(), truth);
             samples++;
         }
@@ -131,7 +131,7 @@ public final class PhysicsValidator {
     private ScenarioResult differentialSlipIsDetected() {
         SimulatedRobot sim = sim();
         PhysicsCore physics = core(sim);
-        settle(sim, physics, new ChassisSpeeds(3.0, 0, 0), 40);
+        settle(sim, physics, new ChassisVelocities(3.0, 0, 0), 40);
 
         sim.setModuleSlipBias(2, 2.0);
         double peak = 0.0;
@@ -161,7 +161,7 @@ public final class PhysicsValidator {
         int loops = 0;
         int falsePositives = 0;
         for (double speed : new double[]{1.0, 3.0, 4.0, 2.0, 0.5}) {
-            sim.command(new ChassisSpeeds(speed, 0, 0));
+            sim.command(new ChassisVelocities(speed, 0, 0));
             for (int i = 0; i < 40; i++) {
                 sim.step();
                 physics.update(sim.sample());
@@ -184,10 +184,10 @@ public final class PhysicsValidator {
     private ScenarioResult uniformSlipShowsUpAsDisturbance() {
         SimulatedRobot sim = sim();
         PhysicsCore physics = core(sim);
-        settle(sim, physics, new ChassisSpeeds(2.0, 0, 0), 40);
+        settle(sim, physics, new ChassisVelocities(2.0, 0, 0), 40);
 
         sim.setFrictionScale(0.2);
-        sim.command(new ChassisSpeeds(5.0, 0, 0));
+        sim.command(new ChassisVelocities(5.0, 0, 0));
         double peakDisturbance = 0.0;
         double peakModuleSlip = 0.0;
         for (int i = 0; i < 25; i++) {
@@ -210,7 +210,7 @@ public final class PhysicsValidator {
     private ScenarioResult collisionsAreReportedOnceAndQuickly() {
         SimulatedRobot sim = sim();
         PhysicsCore physics = core(sim);
-        settleGently(sim, physics, new ChassisSpeeds(2.5, 0, 0));
+        settleGently(sim, physics, new ChassisVelocities(2.5, 0, 0));
 
         int events = 0;
         double detectedAt = Double.NaN;
@@ -240,7 +240,7 @@ public final class PhysicsValidator {
     private ScenarioResult confidenceTracksVisionAvailability() {
         SimulatedRobot sim = sim();
         PhysicsCore physics = core(sim);
-        sim.command(new ChassisSpeeds(1.5, 0, 0));
+        sim.command(new ChassisVelocities(1.5, 0, 0));
 
         for (int i = 0; i < 25; i++) {
             sim.step();
@@ -278,7 +278,7 @@ public final class PhysicsValidator {
     private ScenarioResult releaseStatePredictionBeatsAimingAtNow() {
         SimulatedRobot sim = sim();
         PhysicsCore physics = core(sim);
-        settle(sim, physics, new ChassisSpeeds(3.5, 0.8, 0), 40);
+        settle(sim, physics, new ChassisVelocities(3.5, 0.8, 0), 40);
 
         int delayLoops = (int) Math.round(releaseDelaySeconds / 0.02);
         double predictedError = 0.0;
@@ -287,7 +287,7 @@ public final class PhysicsValidator {
 
         for (int shot = 0; shot < 12; shot++) {
             // Vary the motion so the prediction is not trivially right.
-            sim.command(new ChassisSpeeds(3.5 - shot * 0.15, 0.8, 0.3));
+            sim.command(new ChassisVelocities(3.5 - shot * 0.15, 0.8, 0.3));
             sim.step();
             PhysicsSample sample = sim.sample();
             physics.update(sample);
@@ -351,7 +351,7 @@ public final class PhysicsValidator {
         SimulatedRobot sim = sim();
         PhysicsCore physics = core(sim);
 
-        sim.command(new ChassisSpeeds(3.0, 0, 0));
+        sim.command(new ChassisVelocities(3.0, 0, 0));
         double worstError = 0.0;
         for (int i = 0; i < 100; i++) {
             sim.step();
@@ -399,10 +399,10 @@ public final class PhysicsValidator {
      * a step change slips by construction - the controller asks for more acceleration than grip allows
      * - and a scenario that wants a clean baseline must not start by breaking traction.
      */
-    private static void settleGently(SimulatedRobot sim, PhysicsCore physics, ChassisSpeeds target) {
+    private static void settleGently(SimulatedRobot sim, PhysicsCore physics, ChassisVelocities target) {
         for (int i = 1; i <= 25; i++) {
-            sim.command(new ChassisSpeeds(target.vxMetersPerSecond * i / 25.0,
-                    target.vyMetersPerSecond * i / 25.0, target.omegaRadiansPerSecond * i / 25.0));
+            sim.command(new ChassisVelocities(target.vx * i / 25.0,
+                    target.vy * i / 25.0, target.omega * i / 25.0));
             sim.step();
             PhysicsSample sample = sim.sample();
             physics.observe(PoseObservation.of(sim.truePose(), sample.timestampSeconds(), "sim-cam"));
@@ -412,7 +412,7 @@ public final class PhysicsValidator {
     }
 
     /** Drive at a steady speed until the filters have settled. */
-    private static void settle(SimulatedRobot sim, PhysicsCore physics, ChassisSpeeds speeds, int loops) {
+    private static void settle(SimulatedRobot sim, PhysicsCore physics, ChassisVelocities speeds, int loops) {
         sim.command(speeds);
         for (int i = 0; i < loops; i++) {
             sim.step();
@@ -427,7 +427,7 @@ public final class PhysicsValidator {
         PhysicsCore physics = core(sim);
         ModelResidualMonitor monitor = new ModelResidualMonitor("wheels vs IMU", 0.05);
         for (double speed : new double[]{1.0, 3.0, 4.5, 2.0}) {
-            sim.command(new ChassisSpeeds(speed, 0, 0));
+            sim.command(new ChassisVelocities(speed, 0, 0));
             for (int i = 0; i < 60; i++) {
                 sim.step();
                 physics.update(sim.sample());

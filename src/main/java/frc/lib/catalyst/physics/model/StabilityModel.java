@@ -2,9 +2,9 @@ package frc.lib.catalyst.physics.model;
 
 import java.util.Locale;
 
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.geometry.Translation3d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.geometry.Translation3d;
 
 /**
  * How close the robot is to going over, computed from where its mass actually is right now.

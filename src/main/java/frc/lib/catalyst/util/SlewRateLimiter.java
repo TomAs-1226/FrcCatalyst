@@ -1,6 +1,6 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.wpilibj.Timer;
+import org.wpilib.system.Timer;
 
 /**
  * A rate limiter that smooths sudden changes in a value.
@@ -44,7 +44,7 @@ public class SlewRateLimiter {
         this.positiveRateLimit = positiveRateLimit;
         this.negativeRateLimit = negativeRateLimit;
         this.previousValue = 0;
-        this.previousTimestamp = Timer.getFPGATimestamp();
+        this.previousTimestamp = Timer.getTimestamp();
     }
 
     /**
@@ -53,7 +53,7 @@ public class SlewRateLimiter {
      * @return the rate-limited value
      */
     public double calculate(double input) {
-        double currentTimestamp = Timer.getFPGATimestamp();
+        double currentTimestamp = Timer.getTimestamp();
         double dt = currentTimestamp - previousTimestamp;
         previousTimestamp = currentTimestamp;
 
@@ -75,7 +75,7 @@ public class SlewRateLimiter {
     /** Reset the limiter to a specific value. */
     public void reset(double value) {
         previousValue = value;
-        previousTimestamp = Timer.getFPGATimestamp();
+        previousTimestamp = Timer.getTimestamp();
     }
 
     /** Reset the limiter to zero. */

@@ -1,9 +1,9 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
+import org.wpilib.system.Timer;
+import org.wpilib.command3.Command;
+import frc.lib.catalyst.command.Commands;
+import org.wpilib.command3.Trigger;
 import frc.lib.catalyst.logging.CatalystLog;
 
 /**
@@ -133,7 +133,7 @@ public final class RobotSafety {
     public static synchronized void tick(int errorCount, int warnCount) {
         if (config == null) return;
 
-        double now = Timer.getFPGATimestamp();
+        double now = Timer.getTimestamp();
         boolean over =
                 errorCount >= config.maxConcurrentErrors
                         || (config.maxConcurrentWarns > 0 && warnCount >= config.maxConcurrentWarns);

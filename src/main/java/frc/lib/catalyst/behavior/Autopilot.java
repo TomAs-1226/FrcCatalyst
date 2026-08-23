@@ -1,10 +1,11 @@
 package frc.lib.catalyst.behavior;
 
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
-import edu.wpi.first.wpilibj2.command.Subsystem;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.networktables.NetworkTable;
+import org.wpilib.networktables.NetworkTableInstance;
+import org.wpilib.command3.Command;
+import frc.lib.catalyst.command.Commands;
+import org.wpilib.command3.Mechanism;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -55,7 +56,7 @@ public final class Autopilot {
     private final Action acquire;
     private final Action score;
     private final BooleanSupplier hasPiece;
-    private final Set<Subsystem> requirements;
+    private final Set<Mechanism> requirements;
     private final NetworkTable nt;
 
     private Autopilot(Builder b) {
@@ -74,7 +75,7 @@ public final class Autopilot {
      * The co-pilot command. Bind with {@code whileTrue(...)} so it engages
      * while a button is held and cancels cleanly on release.
      */
-    public Command run() {
+    public CatalystCommand run() {
         Command step = Commands.defer(() -> {
             boolean holding = safeHasPiece();
             if (holding) {

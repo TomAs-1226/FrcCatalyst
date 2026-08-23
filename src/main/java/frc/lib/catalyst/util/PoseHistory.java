@@ -1,10 +1,10 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.interpolation.TimeInterpolatableBuffer;
-import edu.wpi.first.wpilibj.Timer;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.interpolation.TimeInterpolatableBuffer;
+import org.wpilib.system.Timer;
 
 /**
  * Temporal pose tracking with interpolation for latency compensation.
@@ -62,7 +62,7 @@ public class PoseHistory {
      * Call this every robot periodic cycle.
      */
     public void addSample(Pose2d pose) {
-        addSample(pose, Timer.getFPGATimestamp());
+        addSample(pose, Timer.getTimestamp());
     }
 
     /**

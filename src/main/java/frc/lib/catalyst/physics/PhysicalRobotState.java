@@ -1,9 +1,9 @@
 package frc.lib.catalyst.physics;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.kinematics.ChassisVelocities;
 
 /**
  * Everything Physics Core knows about the robot's motion at one instant.
@@ -27,14 +27,14 @@ import edu.wpi.first.math.kinematics.ChassisSpeeds;
 public record PhysicalRobotState(
         double timestampSeconds,
         Pose2d pose,
-        ChassisSpeeds fieldVelocity,
+        ChassisVelocities fieldVelocity,
         Translation2d fieldAcceleration,
         double angularAccelerationRadPerSecSq,
         LocalizationQuality quality) implements UncertainRobotStateSource {
 
     /** Ground speed in metres per second, ignoring rotation. */
     public double speedMetersPerSecond() {
-        return Math.hypot(fieldVelocity.vxMetersPerSecond, fieldVelocity.vyMetersPerSecond);
+        return Math.hypot(fieldVelocity.vx, fieldVelocity.vy);
     }
 
     /** Magnitude of {@link #fieldAcceleration()} in metres per second squared. */
@@ -48,7 +48,7 @@ public record PhysicalRobotState(
      */
     public Rotation2d headingOfTravel() {
         if (speedMetersPerSecond() < 0.01) return Rotation2d.kZero;
-        return new Rotation2d(fieldVelocity.vxMetersPerSecond, fieldVelocity.vyMetersPerSecond);
+        return new Rotation2d(fieldVelocity.vx, fieldVelocity.vy);
     }
 
     /** The same snapshot with a different quality attached — used when a prediction degrades it. */
@@ -63,7 +63,7 @@ public record PhysicalRobotState(
      * to trust it, rather than a {@code NullPointerException} on the first loop.
      */
     public static PhysicalRobotState unknown() {
-        return new PhysicalRobotState(0.0, Pose2d.kZero, new ChassisSpeeds(),
+        return new PhysicalRobotState(0.0, Pose2d.kZero, new ChassisVelocities(),
                 Translation2d.kZero, 0.0, LocalizationQuality.unknown());
     }
 }

@@ -53,7 +53,7 @@ public final class SimCockpit {
             // Deploy resolves differently under `simulateJava` than on the roboRIO, and a silent 404
             // just makes the map quietly wrong. Look in the places it can be, and say which failed.
             java.nio.file.Path[] candidates = {
-                edu.wpi.first.wpilibj.Filesystem.getDeployDirectory().toPath()
+                org.wpilib.system.Filesystem.getDeployDirectory().toPath()
                         .resolve("field-collision.json"),
                 java.nio.file.Path.of("src", "main", "deploy", "field-collision.json"),
                 java.nio.file.Path.of("example", "src", "main", "deploy", "field-collision.json"),

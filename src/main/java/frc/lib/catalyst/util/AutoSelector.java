@@ -1,11 +1,14 @@
 package frc.lib.catalyst.util;
 
+import frc.lib.catalyst.command.LegacyCommands;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.driverstation.DriverStationErrors;
 import com.pathplanner.lib.auto.AutoBuilder;
-import edu.wpi.first.wpilibj.DriverStation;
-import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
+import org.wpilib.driverstation.DriverStation;
+import org.wpilib.tunable.Selectable;
+import org.wpilib.tunable.Tunables;
+import org.wpilib.command3.Command;
+import frc.lib.catalyst.command.Commands;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -13,7 +16,7 @@ import java.util.Map;
 /**
  * Auto routine selector with PathPlanner integration and safe defaults.
  *
- * <p>Wraps {@link SendableChooser} to provide a clean interface for
+ * <p>Wraps {@link Selectable} to provide a clean interface for
  * selecting autonomous routines from the dashboard, with built-in
  * error handling and a "Do Nothing" fallback.
  *
@@ -35,12 +38,12 @@ import java.util.Map;
  */
 public class AutoSelector {
 
-    private final SendableChooser<String> chooser = new SendableChooser<>();
+    private final Selectable<String> chooser = new Selectable<>();
     private final Map<String, java.util.function.Supplier<Command>> autos = new LinkedHashMap<>();
     private final String dashboardKey;
     private boolean firstAdded = false;
 
-    /** Create an auto selector published to "Auto Selector" on SmartDashboard. */
+    /** Create an auto selector published to "Auto Selector" on the dashboard. */
     public AutoSelector() {
         this("Auto Selector");
     }
@@ -48,16 +51,16 @@ public class AutoSelector {
     /**
      * Create an auto selector with a custom dashboard key.
      *
-     * @param dashboardKey SmartDashboard key name
+     * @param dashboardKey dashboard key name
      */
     public AutoSelector(String dashboardKey) {
         this.dashboardKey = dashboardKey;
 
         // Always have a safe "do nothing" option
-        chooser.setDefaultOption("Do Nothing", "Do Nothing");
+        chooser.addDefault("Do Nothing", "Do Nothing");
         autos.put("Do Nothing", Commands::none);
 
-        SmartDashboard.putData(dashboardKey, chooser);
+        Tunables.publish(dashboardKey, chooser);
     }
 
     /**
@@ -70,19 +73,19 @@ public class AutoSelector {
     public AutoSelector addPathPlannerAuto(String autoName) {
         autos.put(autoName, () -> {
             try {
-                return AutoBuilder.buildAuto(autoName);
+                return LegacyCommands.fromV2(AutoBuilder.buildAuto(autoName));
             } catch (Exception e) {
-                DriverStation.reportError(
+                DriverStationErrors.reportError(
                         "AutoSelector: Failed to build '" + autoName + "' - " + e.getMessage(), false);
                 return Commands.none();
             }
         });
 
         if (!firstAdded) {
-            chooser.setDefaultOption(autoName, autoName);
+            chooser.addDefault(autoName, autoName);
             firstAdded = true;
         } else {
-            chooser.addOption(autoName, autoName);
+            chooser.add(autoName, autoName);
         }
         return this;
     }
@@ -98,10 +101,10 @@ public class AutoSelector {
         autos.put(name, commandSupplier);
 
         if (!firstAdded) {
-            chooser.setDefaultOption(name, name);
+            chooser.addDefault(name, name);
             firstAdded = true;
         } else {
-            chooser.addOption(name, name);
+            chooser.add(name, name);
         }
         return this;
     }
@@ -110,21 +113,21 @@ public class AutoSelector {
      * Get the currently selected auto command.
      * Returns a "Do Nothing" command if the selection fails.
      */
-    public Command getSelected() {
+    public CatalystCommand getSelected() {
         String selected = chooser.getSelected();
         if (selected == null) {
-            DriverStation.reportWarning("AutoSelector: No auto selected, using Do Nothing", false);
+            DriverStationErrors.reportWarning("AutoSelector: No auto selected, using Do Nothing", false);
             return Commands.none();
         }
 
         var supplier = autos.get(selected);
         if (supplier == null) {
-            DriverStation.reportWarning(
+            DriverStationErrors.reportWarning(
                     "AutoSelector: Unknown auto '" + selected + "', using Do Nothing", false);
             return Commands.none();
         }
 
-        return supplier.get().withName("Auto:" + selected);
+        return CatalystCommand.of(supplier.get()).withName("Auto:" + selected);
     }
 
     /** Get the name of the currently selected auto. */
@@ -133,8 +136,14 @@ public class AutoSelector {
         return selected != null ? selected : "Do Nothing";
     }
 
-    /** Get the underlying SendableChooser. */
-    public SendableChooser<String> getChooser() {
+    /**
+     * Get the underlying selector.
+     *
+     * <p><b>Changed in 2.0.0.</b> WPILib 2027 removed {@code SendableChooser}; this now returns
+     * {@link Selectable}, its replacement. Every other method on {@code AutoSelector} is unchanged,
+     * so this is the only call site a migrating team has to touch — and only if they used it.
+     */
+    public Selectable<String> getChooser() {
         return chooser;
     }
 }

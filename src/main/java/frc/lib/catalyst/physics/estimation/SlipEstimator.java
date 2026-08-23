@@ -2,9 +2,9 @@ package frc.lib.catalyst.physics.estimation;
 
 import java.util.Arrays;
 
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
-import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
-import edu.wpi.first.math.kinematics.SwerveModuleState;
+import org.wpilib.math.kinematics.ChassisVelocities;
+import org.wpilib.math.kinematics.SwerveDriveKinematics;
+import org.wpilib.math.kinematics.SwerveModuleVelocity;
 
 import frc.lib.catalyst.util.SignalProcessor;
 
@@ -81,12 +81,12 @@ public final class SlipEstimator {
      *                                case where one module disagrees with the other three.
      * @return the aggregate {@link #slipFactor()} after this update, 0 to 1
      */
-    public double update(SwerveModuleState[] measured, ChassisSpeeds referenceRobotRelative) {
+    public double update(SwerveModuleVelocity[] measured, ChassisVelocities referenceRobotRelative) {
         if (measured == null || measured.length != scores.length) {
             throw new IllegalArgumentException("expected " + scores.length + " module states, got "
                     + (measured == null ? "null" : measured.length));
         }
-        SwerveModuleState[] predicted = kinematics.toSwerveModuleStates(referenceRobotRelative);
+        SwerveModuleVelocity[] predicted = kinematics.toSwerveModuleVelocities(referenceRobotRelative);
         boolean movingEnough = chassisSpeed(referenceRobotRelative) >= minSpeedForDetection;
 
         for (int i = 0; i < scores.length; i++) {
@@ -96,8 +96,8 @@ public final class SlipEstimator {
                 // point. A module mid-rotation contributes its along-track component only, so
                 // steering lag does not read as slip.
                 double angleError = measured[i].angle.getRadians() - predicted[i].angle.getRadians();
-                double alongTrack = measured[i].speedMetersPerSecond * Math.cos(angleError);
-                double residual = Math.abs(alongTrack - predicted[i].speedMetersPerSecond);
+                double alongTrack = measured[i].velocity * Math.cos(angleError);
+                double residual = Math.abs(alongTrack - predicted[i].velocity);
                 raw = Math.min(1.0, residual / slipThresholdMps);
             }
             scores[i] = filters[i].calculate(raw);
@@ -151,8 +151,8 @@ public final class SlipEstimator {
         for (SignalProcessor.ExponentialMovingAverage filter : filters) filter.reset();
     }
 
-    private static double chassisSpeed(ChassisSpeeds speeds) {
-        return Math.hypot(speeds.vxMetersPerSecond, speeds.vyMetersPerSecond);
+    private static double chassisSpeed(ChassisVelocities speeds) {
+        return Math.hypot(speeds.vx, speeds.vy);
     }
 
     /** Start building a slip estimator. */

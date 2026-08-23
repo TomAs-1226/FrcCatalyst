@@ -1,8 +1,8 @@
 package frc.lib.catalyst.subsystems.vision;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.wpilibj.Timer;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.system.Timer;
 
 import java.util.Optional;
 import java.util.Random;
@@ -76,7 +76,7 @@ public final class SimCameraSource implements CameraSource {
                 truth.getX() + random.nextGaussian() * translationStdDev,
                 truth.getY() + random.nextGaussian() * translationStdDev,
                 truth.getRotation().plus(Rotation2d.fromRadians(random.nextGaussian() * rotationStdDev)));
-        double timestamp = Timer.getFPGATimestamp() - latencySeconds;
+        double timestamp = Timer.getTimestamp() - latencySeconds;
         return Optional.of(new PoseEstimate(noisy, timestamp, tagCount, averageTagDistance, ambiguity));
     }
 

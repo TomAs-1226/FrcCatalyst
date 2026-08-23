@@ -1,5 +1,6 @@
 package frc.lib.catalyst.mechanisms;
 
+import frc.lib.catalyst.command.CatalystCommand;
 import com.ctre.phoenix6.configs.DifferentialSensorsConfigs;
 import com.ctre.phoenix6.configs.Slot1Configs;
 import com.ctre.phoenix6.controls.DifferentialFollower;
@@ -7,13 +8,13 @@ import com.ctre.phoenix6.controls.DifferentialMotionMagicVoltage;
 import com.ctre.phoenix6.controls.NeutralOut;
 import com.ctre.phoenix6.signals.DifferentialSensorSourceValue;
 import com.ctre.phoenix6.signals.MotorAlignmentValue;
-import edu.wpi.first.math.MathUtil;
-import edu.wpi.first.math.system.plant.DCMotor;
-import edu.wpi.first.math.system.plant.LinearSystemId;
-import edu.wpi.first.wpilibj.RobotBase;
-import edu.wpi.first.wpilibj.simulation.DCMotorSim;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
+import org.wpilib.math.util.MathUtil;
+import org.wpilib.math.system.DCMotor;
+import org.wpilib.math.system.Models;
+import org.wpilib.framework.RobotBase;
+import org.wpilib.simulation.DCMotorSim;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Trigger;
 import frc.lib.catalyst.hardware.CatalystMotor;
 import frc.lib.catalyst.io.DifferentialWristMechanismInputs;
 import frc.lib.catalyst.util.HealthMonitor;
@@ -181,9 +182,9 @@ public class DifferentialWristMechanism extends CatalystMechanism {
         if (RobotBase.isSimulation()) {
             DCMotor model = DCMotor.getKrakenX60(1);
             leftSim = new DCMotorSim(
-                    LinearSystemId.createDCMotorSystem(model, config.momentOfInertia, config.gearRatio), model);
+                    Models.singleJointedArmFromPhysicalConstants(model, config.momentOfInertia, config.gearRatio), model);
             rightSim = new DCMotorSim(
-                    LinearSystemId.createDCMotorSystem(model, config.momentOfInertia, config.gearRatio), model);
+                    Models.singleJointedArmFromPhysicalConstants(model, config.momentOfInertia, config.gearRatio), model);
         }
     }
 
@@ -202,8 +203,8 @@ public class DifferentialWristMechanism extends CatalystMechanism {
         var simState = motor.getTalonFX().getSimState();
         sim.setInputVoltage(simState.getMotorVoltage());
         sim.update(0.02);
-        simState.setRawRotorPosition(sim.getAngularPositionRotations() * config.gearRatio);
-        simState.setRotorVelocity(sim.getAngularVelocityRPM() / 60.0 * config.gearRatio);
+        simState.setRawRotorPosition((sim.getAngularPosition() / (2 * Math.PI)) * config.gearRatio);
+        simState.setRotorVelocity((sim.getAngularVelocity() / (2 * Math.PI)) * config.gearRatio);
     }
 
     // --- Conversions ---
@@ -274,7 +275,7 @@ public class DifferentialWristMechanism extends CatalystMechanism {
     // --- Command Factories ---
 
     /** Command both axes to a (pitch, roll) target via the native differential Motion Magic. */
-    public Command goTo(double pitchDegrees, double rollDegrees) {
+    public CatalystCommand goTo(double pitchDegrees, double rollDegrees) {
         return runOnce(() -> {
             applyTargets(pitchDegrees, rollDegrees);
             setState(String.format("GoTo p=%.1f r=%.1f", pitchSetpointDegrees, rollSetpointDegrees));
@@ -282,7 +283,7 @@ public class DifferentialWristMechanism extends CatalystMechanism {
     }
 
     /** Command both axes to a named preset. */
-    public Command goTo(String positionName) {
+    public CatalystCommand goTo(String positionName) {
         double[] target = config.namedPositions.get(positionName);
         if (target == null) {
             throw new IllegalArgumentException("Unknown position '" + positionName + "' for " + name
@@ -292,16 +293,16 @@ public class DifferentialWristMechanism extends CatalystMechanism {
     }
 
     /** Command both axes to a target and end when both are within tolerance. */
-    public Command goToAndWait(double pitchDegrees, double rollDegrees) {
+    public CatalystCommand goToAndWait(double pitchDegrees, double rollDegrees) {
         return run(() -> {
             applyTargets(pitchDegrees, rollDegrees);
             setState(String.format("GoTo p=%.1f r=%.1f", pitchSetpointDegrees, rollSetpointDegrees));
-        }).until(this::atSetpoint)
+        }).untilTrue(this::atSetpoint)
                 .withName(name + String.format(".GoToAndWait(%.1f, %.1f)", pitchDegrees, rollDegrees));
     }
 
     /** Command that continuously holds the current setpoints. Good as a default command. */
-    public Command holdPosition() {
+    public CatalystCommand holdPosition() {
         return run(() -> {
             applyTargets(pitchSetpointDegrees, rollSetpointDegrees);
             setState("Hold");
@@ -309,7 +310,7 @@ public class DifferentialWristMechanism extends CatalystMechanism {
     }
 
     /** Command to seed both motor encoders so that {@code (pitch=0, roll=0)} corresponds to the current position. */
-    public Command zero() {
+    public CatalystCommand zero() {
         return runOnce(() -> {
             leftMotor.zeroEncoder();
             rightMotor.zeroEncoder();
@@ -323,8 +324,8 @@ public class DifferentialWristMechanism extends CatalystMechanism {
     // --- Helpers ---
 
     private void applyTargets(double pitchDegrees, double rollDegrees) {
-        pitchSetpointDegrees = MathUtil.clamp(pitchDegrees, config.minPitch, config.maxPitch);
-        rollSetpointDegrees = MathUtil.clamp(rollDegrees, config.minRoll, config.maxRoll);
+        pitchSetpointDegrees = Math.clamp(pitchDegrees, config.minPitch, config.maxPitch);
+        rollSetpointDegrees = Math.clamp(rollDegrees, config.minRoll, config.maxRoll);
         double avgRot = pitchDegreesToAvgRotations(pitchSetpointDegrees);
         double diffRot = rollDegreesToDiffRotations(rollSetpointDegrees);
         leftMotor.getTalonFX().setControl(diffMMRequest
