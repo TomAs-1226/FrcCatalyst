@@ -47,7 +47,7 @@
 **Easiest:** in WPILib VS Code, run **Manage Vendor Libraries → Install new libraries (online)** and paste:
 
 ```
-https://tomas-1226.github.io/FrcCatalyst/vendordep/FrcCatalyst.json
+https://tomas-1226.github.io/FrcCatalyst/beta/vendordep/FrcCatalyst.json
 ```
 
 Make sure the **Phoenix 6**, **PathPlanner**, and **PhotonVision** vendordeps are installed too (Catalyst builds on them).

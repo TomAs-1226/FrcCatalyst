@@ -11,7 +11,7 @@
     "https://limelightvision.github.io/limelightlib-public/maven/",
     "https://frcmaven.wpi.edu/artifactory/development/"
   ],
-  "jsonUrl": "https://tomas-1226.github.io/FrcCatalyst/vendordep/FrcCatalyst.json",
+  "jsonUrl": "https://tomas-1226.github.io/FrcCatalyst/beta/vendordep/FrcCatalyst.json",
   "javaDependencies": [
     {
       "groupId": "com.github.TomAs-1226",

@@ -290,3 +290,26 @@ Stated so nobody assumes otherwise:
   rather than deleted, and `followChoreoPath()` has no path forward until ChoreoLib ships.
 - **PathPlanner is still commands v2.** Catalyst bridges it with `LegacyCommands.fromV2(...)`; the
   bridge and the v2 dependency both go away when PathPlanner ships for v3.
+
+## Facts we could not verify
+
+Separate from the list above, which is about work not done. These are things where the answer was
+not available and a guess would have looked exactly like knowledge.
+
+- **Whether Systemcore terminates its own CAN buses.** The roboRIO had a 120 Ohm terminator built
+  in. Nothing in Limelight's or WPILib's documentation says whether Systemcore does, on any of its
+  five buses. The wiring tool asks you to check rather than assuming either way.
+- **The `frcYear` a 2027 vendordep should carry.** Catalyst's says `2027`. WPILib's own
+  `WPILibNewCommands.json` in the alpha test projects says `2027_alpha1` - the same string as the
+  project's `projectYear` - so an exact-match check somewhere in the toolchain would reject ours.
+  It could not be tested, because GradleRIO 2027 alpha-6 ships only inside the WPILib installer.
+  If VS Code complains about the season on install, this is why, and the fix is to match your
+  project's `projectYear` exactly.
+- **`/sys` topic names for the brownout thresholds.** `vbrownout` and `vrecovery` are read as
+  millivolts. The conversion is tested; the topic names are not confirmed against a running machine.
+- **The camera NWU transform signs.** Reasoned from the coordinate conventions, not measured. Check
+  against a known target before trusting pose estimates from a camera that is not centred.
+- **`Models.singleJointedArmFromPhysicalConstants` as the successor to `createDCMotorSystem`.** It
+  builds the same rotational double-integrator, since gravity lives in the sim classes rather than
+  the linear system, but that equivalence is reasoned rather than read off a jar. It feeds five
+  mechanism sim models, so a discrepancy shows up as simulation that does not match the robot.

@@ -8,10 +8,19 @@ permalink: /
 # FrcCatalyst
 {: .fs-9 }
 
-A Java library of pre-built mechanism building blocks for FRC robots on Phoenix 6 and WPILib 2026.
+A Java library of pre-built mechanism building blocks for FRC robots on Phoenix 6 and WPILib 2027.
 {: .fs-6 .fw-300 }
 
+{: .warning }
+> **This is the beta site.** It documents Catalyst 2.x for WPILib 2027 on Limelight Systemcore,
+> which is an alpha platform: the WPILib release is an alpha snapshot, the Systemcore OS is a beta,
+> and this library has not yet run on the hardware. Things here will move.
+>
+> For the version running on robots today - Catalyst 1.x, WPILib 2026, roboRIO - use the
+> [stable documentation](https://tomas-1226.github.io/FrcCatalyst/).
+
 [Get Started](getting-started/installation){: .btn .btn-primary .fs-5 .mb-4 .mb-md-0 .mr-2 }
+[What changed for Systemcore](advanced/systemcore){: .btn .fs-5 .mb-4 .mb-md-0 .mr-2 }
 [Tools](tools/){: .btn .fs-5 .mb-4 .mb-md-0 .mr-2 }
 [GitHub](https://github.com/TomAs-1226/FrcCatalyst){: .btn .fs-5 .mb-4 .mb-md-0 }
 

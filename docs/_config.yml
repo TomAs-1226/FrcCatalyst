@@ -1,6 +1,6 @@
-title: FrcCatalyst
-description: Pre-built FRC mechanisms and utilities for CTRE Phoenix 6 + WPILib 2026
-baseurl: "/FrcCatalyst"
+title: FrcCatalyst (beta)
+description: Pre-built FRC mechanisms and utilities for CTRE Phoenix 6 + WPILib 2027 on Limelight Systemcore
+baseurl: "/FrcCatalyst/beta"
 url: "https://tomas-1226.github.io"
 
 remote_theme: just-the-docs/just-the-docs
@@ -10,8 +10,10 @@ color_scheme: dark
 # Logo and aux links
 logo: "/assets/logo.svg"
 aux_links:
+  "Stable docs":
+    - "https://tomas-1226.github.io/FrcCatalyst/"
   "Tools":
-    - "/FrcCatalyst/tools/"
+    - "/FrcCatalyst/beta/tools/"
   "Releases":
     - "https://github.com/TomAs-1226/FrcCatalyst/releases"
   "GitHub":

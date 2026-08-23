@@ -1,11 +1,22 @@
 name: Deploy Docs
 
+# Publishes two sites from one GitHub Pages deployment.
+#
+# A repository gets exactly one Pages deployment, so the stable docs and the 2027/Systemcore beta
+# docs cannot each own one. The build below assembles both into a single artifact: `main` at the
+# root and the `systemcore` branch under /beta/. The beta branch sets its own baseurl to match.
+#
+# This file must live on `main`, because that is the branch whose workflow GitHub runs for the Pages
+# environment. Pushing docs to `systemcore` triggers it too, and it rebuilds both.
+
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, systemcore ]
     paths:
       - 'docs/**'
       - 'README.md'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -16,20 +27,45 @@ concurrency:
   group: "pages"
   cancel-in-progress: false
 
+env:
+  BETA_BRANCH: systemcore
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out the stable branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
-      - name: Build with Jekyll
+      - name: Build the stable site
         uses: actions/jekyll-build-pages@v1
         with:
           source: ./docs
           destination: ./_site
+
+      # The beta docs are built from their own branch, with their own _config.yml. Nothing is copied
+      # between the two: they are separate sites that happen to share a host.
+      - name: Check out the beta branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BETA_BRANCH }}
+          path: beta-src
+
+      - name: Build the beta site
+        uses: actions/jekyll-build-pages@v1
+        with:
+          source: ./beta-src/docs
+          destination: ./_site/beta
+
+      # The tools generate code that is compiled against the library, so a generator that drifts from
+      # CANRegistry would otherwise be found by a team at build time rather than here.
+      - name: Test the beta browser tools
+        run: node --test beta-src/docs/tools/**/*.test.mjs
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

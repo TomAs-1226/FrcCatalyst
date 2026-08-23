@@ -21,12 +21,24 @@ Add FrcCatalyst to your WPILib robot project.
 
 ## Prerequisites
 
-- **WPILib 2026** installed ([download](https://docs.wpilib.org/en/stable/docs/zero-to-robot/step-2/wpilib-setup.html))
-- A **GradleRIO robot project** (created via WPILib project generator)
-- These vendordeps installed in your project (Catalyst builds on them):
-  **CTRE Phoenix 6**, **PathPlanner**, and **PhotonVision**. Install them
-  the usual way (Manage Vendor Libraries → Install new libraries online)
-  with their official URLs.
+- **WPILib 2027 alpha** installed ([download](https://github.com/wpilibsuite/allwpilib/releases)).
+  Catalyst 2.x targets `2027.0.0-alpha-6`; the 2027 toolchain ships **Java 25**, and Gradle 9.7 or
+  later is required to read it. Gradle 8.x fails with `Unsupported class file major version 69`.
+- A **Limelight Systemcore** running the matching OS beta. The library and the OS are versioned
+  together — see [Systemcore & WPILib 2027](../advanced/systemcore) before flashing anything.
+- A **GradleRIO robot project** (created via the WPILib project generator).
+- Vendordeps: **CTRE Phoenix 6** and **PathPlanner**.
+
+  {: .warning }
+  > Neither publishes a 2027 vendordep JSON at a discoverable URL yet, so the usual
+  > *Install new libraries (online)* flow fetches a 2026 one. PathPlanner's canonical
+  > `PathplannerLib.json` still reports `frcYear 2026`, and installing it into a 2027 project
+  > produces something that looks correctly configured and fails at build with an error naming
+  > none of this. Add them by hand from the vendor's own 2027 instructions.
+
+  **PhotonVision is not used.** There is no 2027 build, and Catalyst is Limelight-first on
+  Systemcore — the pipeline is built into the hardware. If you had it installed for Catalyst 1.x,
+  remove it.
 
 ## Option 1: Vendordep (Recommended)
 
@@ -35,7 +47,7 @@ The easiest install. In WPILib VS Code, open the command palette and run
 paste:
 
 ```
-https://tomas-1226.github.io/FrcCatalyst/vendordep/FrcCatalyst.json
+https://tomas-1226.github.io/FrcCatalyst/beta/vendordep/FrcCatalyst.json
 ```
 
 That adds FrcCatalyst to your project and lets WPILib check for updates.
