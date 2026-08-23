@@ -101,8 +101,14 @@
       transition: border-color 0.12s ease, transform 0.12s ease;
     }
     .device.conflict { border-color: var(--err); background: rgba(248,113,113,0.06); }
+    /* Colour follows the SPI controller, not the bus, so a plan that piles load onto one
+       controller looks wrong before you read a single warning. */
     .device.bus-canivore { border-left: 3px solid #fbbf24; }
-    .device.bus-rio      { border-left: 3px solid #60a5fa; }
+    .device.bus-can_s0   { border-left: 3px solid #60a5fa; }
+    .device.bus-can_s1   { border-left: 3px solid #60a5fa; }
+    .device.bus-can_s2   { border-left: 3px solid #4ade80; }
+    .device.bus-can_s3   { border-left: 3px solid #c084fc; }
+    .device.bus-can_s4   { border-left: 3px solid #c084fc; }
 
     .id-chip {
       font-family: ui-monospace, monospace;
@@ -132,7 +138,11 @@
     .tag.rev       { background: rgba(74,222,128,0.18); color: var(--good); }
     .tag.wcp       { background: rgba(251,191,36,0.18); color: var(--warn); }
     .tag.canivore  { background: rgba(251,191,36,0.18); color: var(--warn); }
-    .tag.rio       { background: rgba(96,165,250,0.18); color: #60a5fa; }
+    .tag.can_s0    { background: rgba(96,165,250,0.18); color: #60a5fa; }
+    .tag.can_s1    { background: rgba(96,165,250,0.18); color: #60a5fa; }
+    .tag.can_s2    { background: rgba(74,222,128,0.18); color: #4ade80; }
+    .tag.can_s3    { background: rgba(192,132,252,0.18);color: #c084fc; }
+    .tag.can_s4    { background: rgba(192,132,252,0.18);color: #c084fc; }
 
     .summary {
       display: grid; grid-template-columns: repeat(4, 1fr);
@@ -228,8 +238,12 @@
     <div class="row compact">
       <label>Bus</label>
       <select id="dBus">
+        <option>can_s0</option>
+        <option>can_s1</option>
+        <option>can_s2</option>
+        <option>can_s3</option>
+        <option>can_s4</option>
         <option>canivore</option>
-        <option>rio</option>
       </select>
     </div>
     <button class="btn" id="addBtn">+ Add</button>
@@ -253,8 +267,8 @@
   <div class="right">
     <div class="summary">
       <div class="card"><div class="label">Devices</div><div class="val" id="sumCount">0</div></div>
-      <div class="card"><div class="label">CANivore</div><div class="val" id="sumCanivore">0</div></div>
-      <div class="card"><div class="label">roboRIO bus</div><div class="val" id="sumRio">0</div></div>
+      <div class="card"><div class="label">Buses used</div><div class="val" id="sumBuses">0</div></div>
+      <div class="card"><div class="label">Busiest bus</div><div class="val" id="sumBusiest">-</div></div>
       <div class="card" id="conflictCard"><div class="label">Conflicts</div><div class="val" id="sumConflicts">0</div></div>
     </div>
 
@@ -298,7 +312,9 @@
   function load() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) devices = JSON.parse(raw) || [];
+      // Migrate on read rather than rewriting storage: a plan saved by the 2026 tool names a bus
+      // that no longer exists, and silently dropping those devices would be worse than moving them.
+      if (raw) devices = (JSON.parse(raw) || []).map(d => ({ ...d, bus: normaliseBus(d.bus) }));
     } catch {}
   }
 
@@ -314,6 +330,48 @@
     if (t.includes("neo")) return "rev";
     if (t.includes("minion")) return "wcp";
     return "";
+  }
+
+  // Systemcore's five CAN buses, and the SPI controller each one hangs off.
+  //
+  // This is the fact that is invisible from robot code and changes what a good plan looks like:
+  // can_s0+can_s1 share a controller, can_s3+can_s4 share another, can_s2 is on its own. Splitting
+  // a drivetrain across can_s0 and can_s1 therefore buys far less than splitting it across can_s0
+  // and can_s3, and two buses at 55% each can saturate their shared controller while both look
+  // fine on their own. Read out of the OS image; mirrors CatalystCANBus.sharesControllerWith().
+  const SYSTEMCORE_BUSES = ["can_s0", "can_s1", "can_s2", "can_s3", "can_s4"];
+  const ALL_BUSES = [...SYSTEMCORE_BUSES, "canivore"];
+
+  // Plans saved before Systemcore named "rio" and "" for the one bus a roboRIO had. That bus does
+  // not exist any more; can_s0 is the closest thing and is Catalyst's default, so an imported plan
+  // keeps its devices together instead of scattering them.
+  function normaliseBus(bus) {
+    if (!bus || bus === "rio") return "can_s0";
+    return ALL_BUSES.includes(bus) ? bus : "canivore";
+  }
+
+  // Wiring mistakes visible from the plan alone, before the robot is ever enabled. Advisory only:
+  // these are judgement calls about load, not errors, and a team with a reason may ignore them.
+  function contentionWarnings() {
+    const warnings = [];
+    const count = bus => devices.filter(d => d.bus === bus).length;
+    const onCore = devices.filter(d => SYSTEMCORE_BUSES.includes(d.bus));
+
+    const used = SYSTEMCORE_BUSES.filter(b => count(b) > 0);
+    if (used.length === 1 && onCore.length >= 10) {
+      warnings.push(`All ${onCore.length} devices are on ${used[0]}. There are five buses, and `
+        + `moving the drivetrain onto can_s2 or can_s3 costs nothing but wiring.`);
+    }
+
+    // Two heavily-loaded buses that share a controller.
+    for (const [a, b] of [["can_s0", "can_s1"], ["can_s3", "can_s4"]]) {
+      if (count(a) >= 6 && count(b) >= 6) {
+        warnings.push(`${a} (${count(a)}) and ${b} (${count(b)}) share an SPI controller, so `
+          + `splitting across them buys much less than it looks. Move one group to `
+          + `${count("can_s2") === 0 ? "can_s2" : "can_s3"}, on a different controller.`);
+      }
+    }
+    return warnings;
   }
 
   function detectConflicts() {
@@ -364,8 +422,11 @@
 
     $("empty").style.display = devices.length === 0 ? "" : "none";
     $("sumCount").textContent = devices.length;
-    $("sumCanivore").textContent = devices.filter(d => d.bus === "canivore").length;
-    $("sumRio").textContent      = devices.filter(d => d.bus === "rio").length;
+    const perBus = ALL_BUSES.map(b => [b, devices.filter(d => d.bus === b).length])
+                            .filter(([, n]) => n > 0)
+                            .sort((a, b) => b[1] - a[1]);
+    $("sumBuses").textContent   = perBus.length;
+    $("sumBusiest").textContent = perBus.length ? `${perBus[0][0]} (${perBus[0][1]})` : "-";
     $("sumConflicts").textContent = conflicts.size;
     $("conflictCard").classList.toggle("err",  conflicts.size > 0);
 
@@ -424,9 +485,8 @@
   }
 
   function buildText(sorted, conflicts) {
-    const buses = ["canivore", "rio"];
     const lines = [];
-    for (const bus of buses) {
+    for (const bus of ALL_BUSES) {
       const onBus = sorted.filter(d => d.bus === bus);
       if (onBus.length === 0) continue;
       lines.push(`[${bus}]`);
@@ -439,6 +499,9 @@
     lines.push(conflicts.size > 0
         ? `# ${conflicts.size} conflicting ID(s) — same CAN ID on the same bus.`
         : `# No conflicts. ${devices.length} device(s) planned.`);
+    for (const w of contentionWarnings()) {
+      lines.push(`# note: ${w}`);
+    }
     return lines.join("\n");
   }
 
@@ -449,6 +512,19 @@
             .replace(/[^A-Za-z0-9]+/g, "_")
             .replace(/^_+|_+$/g, "")
             .toUpperCase() || "UNNAMED";
+  }
+
+  // can_s0 -> CAN_S0. CANivores keep a single constant; a robot with two is rare enough that
+  // naming them is better left to the team than guessed at here.
+  function busConst(bus) {
+    return bus === "canivore" ? "CANIVORE" : bus.toUpperCase();
+  }
+
+  // Names the other bus on the same SPI controller, so the generated file records the pairing where
+  // someone reading the constants will see it.
+  function busPairNote(bus) {
+    const pairs = { can_s0: "can_s1", can_s1: "can_s0", can_s3: "can_s4", can_s4: "can_s3" };
+    return pairs[bus] ? ` (shares a controller with ${pairs[bus]})` : "";
   }
 
   function buildJava(sorted, conflicts) {
@@ -470,17 +546,21 @@
     out.push(` */`);
     out.push(`public final class CANIds {`);
     out.push(``);
-    out.push(`    /** Bus name passed to TalonFX / CANcoder for devices on the CANivore. */`);
-    const canivoreUsed = sorted.some(d => d.bus === "canivore");
-    const rioUsed      = sorted.some(d => d.bus === "rio");
-    if (canivoreUsed) out.push(`    public static final String CANIVORE = "canivore";`);
-    if (rioUsed)      out.push(`    public static final String RIO      = "";`);
-    out.push(``);
+    // One constant per bus in use. These are the strings CatalystCANBus.of() accepts, so the
+    // generated file stays valid if a device later moves to a CatalystCANBus-typed builder.
+    const busesUsed = ALL_BUSES.filter(b => sorted.some(d => d.bus === b));
+    if (busesUsed.length) {
+      out.push(`    /** Bus names, as passed to CatalystCANBus.of() or straight to CANRegistry. */`);
+      for (const b of busesUsed) {
+        out.push(`    public static final String ${busConst(b).padEnd(9)} = "${b}";`);
+      }
+      out.push(``);
+    }
 
-    const groups = [
-      { bus: "canivore", title: "CANivore bus" },
-      { bus: "rio",      title: "roboRIO CAN bus" },
-    ];
+    const groups = ALL_BUSES.map(b => ({
+      bus: b,
+      title: b === "canivore" ? "CANivore" : `Systemcore ${b}${busPairNote(b)}`,
+    }));
     for (const g of groups) {
       const onBus = sorted.filter(d => d.bus === g.bus);
       if (onBus.length === 0) continue;
@@ -488,6 +568,15 @@
       for (const d of onBus) {
         const c = conflicts.has(d._i) ? "  // ⚠ CONFLICT — same id used twice" : "";
         out.push(`    public static final int ${toConst(d.name).padEnd(28)} = ${d.id};${c}`);
+      }
+      out.push(``);
+    }
+
+    const notes = contentionWarnings();
+    if (notes.length) {
+      out.push(`    // Notes from the planner, about load rather than correctness:`);
+      for (const n of notes) {
+        out.push(`    //   - ${n.replace(/\s+/g, " ")}`);
       }
       out.push(``);
     }
@@ -500,7 +589,7 @@
     out.push(`        // claims are idempotent, mismatched ones throw.`);
     for (const d of sorted) {
       const constName = toConst(d.name);
-      const busRef = d.bus === "canivore" ? "CANIVORE" : "RIO";
+      const busRef = busConst(d.bus);
       out.push(`        CANRegistry.register("${d.name}", ${constName}, ${busRef}, "${d.type}");`);
     }
     out.push(`    }`);
@@ -592,7 +681,7 @@
       try {
         const obj = JSON.parse(reader.result);
         if (Array.isArray(obj.devices)) {
-          devices = obj.devices;
+          devices = obj.devices.map(d => ({ ...d, bus: normaliseBus(d.bus) }));
           render();
         } else {
           alert("File doesn't look like a Catalyst CAN ID plan.");
@@ -608,30 +697,32 @@
   // Presets
   const PRESETS = {
     swerve: [
-      { name: "FrontLeftDrive",  id: 1, type: "Kraken X60", bus: "canivore" },
-      { name: "FrontLeftSteer",  id: 2, type: "Kraken X60", bus: "canivore" },
-      { name: "FrontLeftCANcoder", id: 3, type: "CANcoder", bus: "canivore" },
-      { name: "FrontRightDrive", id: 4, type: "Kraken X60", bus: "canivore" },
-      { name: "FrontRightSteer", id: 5, type: "Kraken X60", bus: "canivore" },
-      { name: "FrontRightCANcoder", id: 6, type: "CANcoder", bus: "canivore" },
-      { name: "RearLeftDrive",   id: 7, type: "Kraken X60", bus: "canivore" },
-      { name: "RearLeftSteer",   id: 8, type: "Kraken X60", bus: "canivore" },
-      { name: "RearLeftCANcoder", id: 9, type: "CANcoder", bus: "canivore" },
-      { name: "RearRightDrive",  id: 10, type: "Kraken X60", bus: "canivore" },
-      { name: "RearRightSteer",  id: 11, type: "Kraken X60", bus: "canivore" },
-      { name: "RearRightCANcoder", id: 12, type: "CANcoder", bus: "canivore" },
-      { name: "Pigeon",          id: 13, type: "Pigeon 2", bus: "canivore" },
+      { name: "FrontLeftDrive",  id: 1, type: "Kraken X60", bus: "can_s0" },
+      { name: "FrontLeftSteer",  id: 2, type: "Kraken X60", bus: "can_s0" },
+      { name: "FrontLeftCANcoder", id: 3, type: "CANcoder", bus: "can_s0" },
+      { name: "FrontRightDrive", id: 4, type: "Kraken X60", bus: "can_s0" },
+      { name: "FrontRightSteer", id: 5, type: "Kraken X60", bus: "can_s0" },
+      { name: "FrontRightCANcoder", id: 6, type: "CANcoder", bus: "can_s0" },
+      { name: "RearLeftDrive",   id: 7, type: "Kraken X60", bus: "can_s0" },
+      { name: "RearLeftSteer",   id: 8, type: "Kraken X60", bus: "can_s0" },
+      { name: "RearLeftCANcoder", id: 9, type: "CANcoder", bus: "can_s0" },
+      { name: "RearRightDrive",  id: 10, type: "Kraken X60", bus: "can_s0" },
+      { name: "RearRightSteer",  id: 11, type: "Kraken X60", bus: "can_s0" },
+      { name: "RearRightCANcoder", id: 12, type: "CANcoder", bus: "can_s0" },
+      { name: "Pigeon",          id: 13, type: "Pigeon 2", bus: "can_s0" },
     ],
+    // can_s2 rather than can_s1: can_s1 shares a controller with can_s0, so putting mechanisms
+    // there would look like a split without being one.
     "elevator-arm": [
-      { name: "ElevatorMaster",  id: 20, type: "Kraken X60", bus: "rio" },
-      { name: "ElevatorFollower", id: 21, type: "Kraken X60", bus: "rio" },
-      { name: "ArmMaster",       id: 22, type: "Kraken X60", bus: "rio" },
-      { name: "ArmCANcoder",     id: 23, type: "CANcoder", bus: "rio" },
+      { name: "ElevatorMaster",  id: 20, type: "Kraken X60", bus: "can_s2" },
+      { name: "ElevatorFollower", id: 21, type: "Kraken X60", bus: "can_s2" },
+      { name: "ArmMaster",       id: 22, type: "Kraken X60", bus: "can_s2" },
+      { name: "ArmCANcoder",     id: 23, type: "CANcoder", bus: "can_s2" },
     ],
     shooter: [
-      { name: "ShooterTop",      id: 30, type: "Kraken X60", bus: "rio" },
-      { name: "ShooterBottom",   id: 31, type: "Kraken X60", bus: "rio" },
-      { name: "Indexer",         id: 32, type: "Kraken X44", bus: "rio" },
+      { name: "ShooterTop",      id: 30, type: "Kraken X60", bus: "can_s2" },
+      { name: "ShooterBottom",   id: 31, type: "Kraken X60", bus: "can_s2" },
+      { name: "Indexer",         id: 32, type: "Kraken X44", bus: "can_s2" },
     ],
   };
   document.querySelectorAll("[data-preset]").forEach(b => {

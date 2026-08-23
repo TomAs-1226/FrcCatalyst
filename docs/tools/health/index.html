@@ -306,7 +306,7 @@
   </div>
   <div class="conn">
     <span class="status"><span class="dot" id="dot"></span><span id="statusText">disconnected</span></span>
-    <input type="text" id="host" placeholder="10.TE.AM.2 or roborio-####-frc.local" value="127.0.0.1" />
+    <input type="text" id="host" placeholder="10.TE.AM.2 or robot.local" value="127.0.0.1" />
     <button id="connectBtn">Connect</button>
   </div>
 </header>
@@ -340,9 +340,34 @@
     <button class="secondary" id="downloadReportBtn" title="Download a plain-text snapshot of the current state">Download report</button>
   </div>
 
+  <style>
+    .core-vitals {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 10px; margin: 0 0 18px;
+    }
+    .vital {
+      background: var(--panel, #16161f); border: 1px solid var(--line, #2a2a38);
+      border-radius: 10px; padding: 10px 12px;
+    }
+    .vital .k {
+      font-size: 10px; letter-spacing: 0.6px; text-transform: uppercase;
+      color: var(--muted, #8b8b9e); font-weight: 700;
+    }
+    .vital .v {
+      font-family: ui-monospace, monospace; font-size: 18px; font-weight: 700;
+      margin-top: 3px; font-variant-numeric: tabular-nums;
+    }
+    .vital.warn { border-color: var(--warn, #fbbf24); }
+    .vital.bad  { border-color: var(--err, #f87171); }
+    .vital.warn .v { color: var(--warn, #fbbf24); }
+    .vital.bad  .v { color: var(--err, #f87171); }
+  </style>
+
   <div id="empty" class="empty">
     <div>Connect to a robot to see live health status.</div>
   </div>
+  <div id="coreVitals" class="core-vitals" hidden></div>
+
   <div id="subsystems" class="subsystems"></div>
 
   <!-- Timeline of recent HealthHistory events -->
@@ -389,7 +414,10 @@ class NT4 {
       this._send({
         method: 'subscribe',
         params: {
-          topics: ['Catalyst/Health/'],
+          // Health checks are about the robot code. Catalyst/Systemcore is about the machine
+          // underneath it - a pinned core or a full disk takes a robot out in a way no subsystem
+          // check can see, because the check itself stops running.
+          topics: ['Catalyst/Health/', 'Catalyst/Systemcore/'],
           subuid: this.nextSubUid++,
           options: { prefix: true, all: true },
         },
@@ -535,8 +563,9 @@ function renderTimeline() {
     return;
   }
 
-  // Time window: from oldest event in buffer to "now" (FPGA seconds).
-  // We use max event ts as "now" since the dashboard doesn't have FPGA.
+  // Time window: from the oldest event in the buffer to "now", in robot-clock seconds.
+  // Systemcore has no FPGA - 2027 replaced that whole surface with a monotonic clock - and the
+  // dashboard has no robot clock of its own, so the newest event timestamp stands in for now.
   const tMax = Math.max(...state.history.map(e => e.ts));
   const tMin = Math.min(...state.history.map(e => e.ts));
   const span = Math.max(0.5, tMax - tMin);
@@ -613,6 +642,54 @@ nt.handlers.status = setStatus;
 // ---- Rendering ----
 
 let renderRequested = false;
+// Machine vitals from /Catalyst/Systemcore/*, published by SystemCoreStatus.
+//
+// Thresholds are deliberately loose. These are for noticing, not for diagnosing: a core at 85% or
+// a disk at 90% is worth a glance during a practice match, and a number that turns red at the
+// first sign of load gets ignored by the third match.
+function renderCoreVitals(byName) {
+  const read = key => {
+    const e = byName.get('Catalyst/Systemcore/' + key);
+    return e && e.value !== undefined ? e.value : null;
+  };
+
+  const pct = v => (v * 100).toFixed(0) + '%';
+  const rows = [];
+  const push = (label, value, level) => rows.push({ label, value, level: level || '' });
+
+  const battery = read('BatteryVolts');
+  if (battery !== null) {
+    // Against Systemcore's own brownout threshold where it has published one, rather than the
+    // roboRIO's 6.8 V. The two are not the same number and the device knows its own.
+    const floor = read('BrownoutVolts');
+    const near = floor !== null ? floor + 1.0 : 7.5;
+    push('Battery', battery.toFixed(2) + ' V',
+         battery <= (floor !== null ? floor : 6.75) ? 'bad' : battery < near ? 'warn' : '');
+  }
+  if (read('BrownedOut') === true) push('Brownout', 'ACTIVE', 'bad');
+
+  const cpu = read('CpuPercent');
+  if (cpu !== null) push('CPU', cpu.toFixed(0) + '%', cpu >= 95 ? 'bad' : cpu >= 85 ? 'warn' : '');
+
+  const ram = read('RamFraction');
+  if (ram !== null) push('Memory', pct(ram), ram >= 0.95 ? 'bad' : ram >= 0.85 ? 'warn' : '');
+
+  // The failure that takes a robot out quietly: a full disk stops logging, then stops the robot
+  // program, and nothing about the symptom points at storage.
+  const disk = read('StorageFraction');
+  if (disk !== null) push('Storage', pct(disk), disk >= 0.95 ? 'bad' : disk >= 0.90 ? 'warn' : '');
+
+  const team = read('TeamNumber');
+  if (team !== null) push('Team', String(team));
+
+  const el = document.getElementById('coreVitals');
+  el.hidden = rows.length === 0;
+  el.innerHTML = rows.map(r =>
+    `<div class="vital ${r.level}"><div class="k">${escapeHtml(r.label)}</div>`
+    + `<div class="v">${escapeHtml(String(r.value))}</div></div>`).join('');
+}
+
+
 function render() {
   if (renderRequested) return;
   renderRequested = true;
@@ -636,6 +713,7 @@ function subsystemStatus(checks) {
 
 function doRender() {
   renderRequested = false;
+  renderCoreVitals(nt.byName);
   $('errorCount').textContent = state.errorCount;
   $('warnCount').textContent = state.warnCount;
   $('infoCount').textContent = state.infoCount;

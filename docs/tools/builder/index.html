@@ -335,7 +335,7 @@
         { title: "Identity", fields: [
           { id: "name", label: "name", type: "text", placeholder: "Elevator", required: true },
           { id: "motor", label: "motor CAN ID", type: "int", placeholder: "20", required: true, builder: "motor" },
-          { id: "canBus", label: "canBus", type: "text", placeholder: "rio (or canivore)", builder: "canBus" },
+          { id: "canBus", label: "canBus", type: "text", placeholder: "can_s0 (or a CANivore name)", builder: "canBus" },
           { id: "motorType", label: "motorType", type: "motorType", builder: "motorType" },
           { id: "inverted", label: "inverted", type: "bool", builder: "inverted" },
         ]},
@@ -772,7 +772,7 @@
   const FIELD_HELP = {
     name: "Display name — also the NetworkTables key and the log/telemetry root.",
     motor: "CAN ID of the lead TalonFX / Kraken.",
-    canBus: "CAN bus name. Empty or \"rio\" = the roboRIO bus; otherwise a CANivore name.",
+    canBus: "CAN bus name. Systemcore has five: can_s0 through can_s4, with can_s0 the default. can_s0+can_s1 share an SPI controller and can_s3+can_s4 share another, so splitting across a pair buys less than splitting onto can_s2. Any other name is treated as a CANivore.",
     motorType: "Motor model. Sets the sim gearbox and stall/free curves. Default Kraken X60.",
     inverted: "Invert the lead motor's direction (so positive output moves the mechanism the way you expect).",
     followers: "Extra motors ganged on the same shaft. \"oppose\" inverts a follower relative to the lead (mirrored gearboxes).",

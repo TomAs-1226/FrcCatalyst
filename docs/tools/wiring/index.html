@@ -88,7 +88,7 @@
           <option>PH (Pneumatic Hub)</option><option>PCM</option><option>Other</option>
         </select>
       </div>
-      <div><label>CAN bus</label><select id="dBus"><option>rio</option><option>canivore</option></select></div>
+      <div><label>CAN bus</label><select id="dBus"><option>can_s0</option><option>can_s1</option><option>can_s2</option><option>can_s3</option><option>can_s4</option><option>canivore</option></select></div>
       <button class="full primary" id="add">+ Add device</button>
     </div>
     <div class="devs" id="devs"></div>
@@ -164,6 +164,12 @@ function vdrop(gauge,amps,lenFt){const r=AWG_R[gauge];return(!r||!amps)?0:amps*2
 function effBr(d,s){return(d.br!=null&&d.br!=='')?+d.br:s.br;}
 function effLen(d){return(d.len!=null&&d.len!=='')?+d.len:defLen;}
 let devices=[], pdu='PDH';
+
+// Systemcore has five CAN buses, can_s0 through can_s4, and can_s0 is the documented default.
+// Plans saved by the 2026 tool name the roboRIO's single bus, which no longer exists.
+const CORE_BUSES=['can_s0','can_s1','can_s2','can_s3','can_s4'];
+function normaliseBus(b){ if(!b||b==='rio') return 'can_s0';
+  return CORE_BUSES.includes(b)||b==='canivore' ? b : 'canivore'; }
 const KEY='catalyst-wiring-v1', CANKEY='catalyst-canids-v1';
 
 function save(){try{localStorage.setItem(KEY,JSON.stringify({pdu,devices}))}catch{}}
@@ -178,7 +184,7 @@ $('import').onclick=()=>{
     if(!o||!o.length&&!(o.devices)){alert('No CAN ID Planner data found. Open the CAN ID Planner and add devices first.');return;}
     const list=Array.isArray(o)?o:o.devices||[];
     devices=list.filter(d=>SPEC[d.type]||d.type==='PDH'? d.type!=='PDH':true)
-                .map(d=>({name:d.name||d.type,type:SPEC[d.type]?d.type:'Other',bus:d.bus||'rio'}));
+                .map(d=>({name:d.name||d.type,type:SPEC[d.type]?d.type:'Other',bus:normaliseBus(d.bus)}));
     alert('Imported '+devices.length+' device(s) from the CAN ID Planner.');render();
   }catch{alert('Could not read CAN ID Planner data.')}
 };
@@ -189,7 +195,7 @@ $('sample').onclick=()=>{
     ['BL Drive','Kraken X60'],['BL Steer','Kraken X60'],['BL Encoder','CANcoder'],
     ['BR Drive','Kraken X60'],['BR Steer','Kraken X60'],['BR Encoder','CANcoder'],
     ['Pigeon','Pigeon 2'],['Intake','Kraken X44'],['Shooter','Kraken X60'],['LEDs','CANdle'],
-  ].map(([name,type])=>({name,type,bus:'rio'}));
+  ].map(([name,type])=>({name,type,bus:'can_s0'}));
   render();
 };
 $('print').onclick=()=>window.print();
@@ -232,18 +238,34 @@ function buildValidation(){
   const typSum=pwr.reduce((s,a)=>s+(a.spec.typ||0),0)+3+(hasPneu()?COMPRESSOR_TYP:0);
   const ch=pduChannels(); let hi=0,lo=0;
   pwr.forEach(a=>{ if(a.br>=40||a.br>ch.loA) hi++; else lo++; });
-  const canivore=devices.some(d=>d.bus==='canivore'), rio=devices.some(d=>d.bus!=='canivore');
+  const canivore=devices.some(d=>d.bus==='canivore');
+  const coreBusesUsed=CORE_BUSES.filter(b=>devices.some(d=>d.bus===b));
   const vds=assigned.filter(a=>a.spec.pwr).map(a=>vdrop(a.spec.g,a.spec.typ,a.len));
   const bad=vds.filter(v=>v>0.5).length, warn=vds.filter(v=>v>0.3&&v<=0.5).length;
   const C=[
     ['pass','Main breaker & battery','120 A main between battery (+) and the '+pdu+', 6 AWG leads.'],
-    ['pass','RoboRIO & radio powered','RoboRIO on the regulated 12 V output; radio on a low-current channel.'],
+    ['warn','Systemcore power','<b>Battery voltage directly</b>, not a regulated output. '
+      + 'Limelight are explicit that a regulator such as the VRM cannot supply it under full load - '
+      + 'this is the opposite of where a roboRIO went. Beta units take power only through the '
+      + 'MicroFit Pwr/Bridge port (MicroFit-to-XT30, or Bridge to Motioncore). Radio on a '
+      + 'low-current channel as before.'],
     [hi>ch.hi?'bad':'pass', hi+' / '+ch.hi+' high-current (40 A) channels',
       hi>ch.hi?'Out of 40 A bays — add a second PDU or an MPM breakout.':'Within the '+pdu+'.'],
     [lo>ch.lo?'warn':'pass', lo+' / '+ch.lo+' low-current channels',
       lo>ch.lo?'Exceeded — share via fused breakouts.':'OK.'],
-    ['pass','CAN termination','120 Ω at both ends'+(canivore?'; the CANivore bus needs its own terminator pair too.':' (RoboRIO has one built in).')],
-    [canivore&&rio?'warn':'pass','CAN buses', canivore&&rio?'Two buses (rio + CANivore) — keep them physically separate, each terminated.':'Single CAN bus.'],
+    ['warn','CAN termination','120 Ω at both ends of <b>every</b> bus in use'
+      + (canivore?', the CANivore bus included':'')
+      + '. Whether Systemcore terminates its own end is not stated in any Limelight or WPILib '
+      + 'document we could find, so this is left as something to check against your hardware rather '
+      + 'than assumed the way the roboRIO&rsquo;s built-in terminator could be.'],
+    [coreBusesUsed.length+(canivore?1:0)>1?'pass':'warn','CAN buses',
+      coreBusesUsed.length===0 ? 'No devices placed yet.'
+      : coreBusesUsed.length+(canivore?1:0)===1
+        ? 'Everything is on '+coreBusesUsed[0]+'. Systemcore has five buses; spreading the load costs nothing but wiring.'
+        : 'Using '+coreBusesUsed.join(', ')+(canivore?' + CANivore':'')
+          + '. Keep them physically separate and terminate each. Note can_s0+can_s1 share an SPI '
+          + 'controller and can_s3+can_s4 share another, so a split across a pair buys less than a '
+          + 'split across can_s2 or an unpaired bus.'],
     [typSum>120?'warn':'pass','Running current','~'+typSum.toFixed(0)+' A est.'+(typSum>120?' — over the 120 A main on paper; the breaker is time-delayed, but watch sustained load & brownouts.':' within the 120 A main.')],
     [bad?'bad':warn?'warn':'pass','Voltage drop', bad? bad+' run(s) over 0.5 V — shorten or up-gauge.' : warn? warn+' run(s) 0.3–0.5 V — acceptable, tighten if you can.' : 'All runs under 0.3 V.'],
   ];
@@ -261,7 +283,7 @@ function buildSchedule(){
     assigned.push({...d,i,spec:s,br,len:effLen(d),chan});
   });
   const t=$('tbody'); t.innerHTML='';
-  t.innerHTML += sysRow('RoboRIO','ctrl','reg 12V/10A','—',2,3,'18 AWG','—');
+  t.innerHTML += sysRow('Systemcore','ctrl','battery direct','—',2,3,'18 AWG','—');
   t.innerHTML += sysRow('Radio','radio','low-current','15 A',1,3,'18 AWG','Eth');
   assigned.forEach(a=>{
     const vd=a.spec.pwr?vdrop(a.spec.g,a.spec.typ,a.len):0;
@@ -289,11 +311,11 @@ function buildRecs(){
   const r=[];
   r.push(['Main breaker','120 A Cooper-Bussmann between battery (+) and the PDU. 6 AWG battery leads.']);
   r.push(['Breaker sizing','Krakens / Falcons / NEOs → <b>40 A</b>; NEO 550 → <b>30 A</b>; CANdle → <b>20 A</b>. Snap-action breakers in the PDH high-current bays.']);
-  r.push(['Wire gauge','40 A motor runs → <b>12 AWG</b>; 30 A → <b>14 AWG</b>; RoboRIO / radio / LEDs → <b>18 AWG</b>.']);
-  r.push(['CAN bus','Daisy-chain CANH/CANL through all '+canCount+' device(s). <b>120 Ω termination at BOTH ends</b> — the RoboRIO has one built in; set the PDH switch (or add a resistor) at the far end. Keep CANivore on its own bus if present.']);
+  r.push(['Wire gauge','40 A motor runs &rarr; <b>12 AWG</b>; 30 A &rarr; <b>14 AWG</b>; Systemcore / radio / LEDs &rarr; <b>18 AWG</b>. Limelight recommend 18 AWG with white Weidmuller ferrules for Systemcore.']);
+  r.push(['CAN bus','Daisy-chain CANH/CANL through the device(s) on each bus. <b>120 &Omega; termination at BOTH ends of every bus</b>: set the PDH switch (or add a resistor) at one end, and check what Systemcore does at its own end rather than assuming a built-in terminator. Keep a CANivore on its own bus if present.']);
   const typSum=pwr.reduce((s,a)=>s+(a.spec.typ||0),0)+3+(hasPneu()?COMPRESSOR_TYP:0);
   const heavy=typSum>110;
-  r.push(['Estimated current','~<b>'+typSum.toFixed(0)+' A</b> typical running draw (motors at active-driving average + RoboRIO + radio'+(hasPneu()?' + compressor':'')+'). Peak if every breaker tripped at once would be <b>'+totalBr+' A</b>, but motors never all stall together. '+(heavy?'⚠ That running estimate is high — the 120 A main is time-delayed so brief bursts are fine, but watch sustained current and battery sag on the heaviest mechanisms.':'The 120 A main + an 18 Ah battery carry this comfortably.')]);
+  r.push(['Estimated current','~<b>'+typSum.toFixed(0)+' A</b> typical running draw (motors at active-driving average + Systemcore + radio'+(hasPneu()?' + compressor':'')+'). Peak if every breaker tripped at once would be <b>'+totalBr+' A</b>, but motors never all stall together. '+(heavy?'⚠ That running estimate is high — the 120 A main is time-delayed so brief bursts are fine, but watch sustained current and battery sag on the heaviest mechanisms.':'The 120 A main + an 18 Ah battery carry this comfortably.')]);
   if(hasPneu()) r.push(['Pneumatics','Compressor wires to the Pneumatic Hub compressor port (not the PDU). Add an analog pressure transducer (PH) or pressure switch (PCM); solenoids plug into the hub\'s channels.']);
   r.push(['Colors','Red = +12 V, black = ground, twisted yellow/green = CAN. Label both ends of every run.']);
   $('recs').innerHTML=r.map(([k,v])=>`<div class="r"><b style="min-width:120px">${k}</b><span>${v}</span></div>`).join('');
@@ -312,8 +334,8 @@ function buildBom(){
   rows.push([2,'Anderson SB-50 connector','Battery + main breaker leads (6 AWG)']);
   Object.keys(brk).sort((a,b)=>b-a).forEach(sz=>rows.push([brk[sz], sz+' A snap-action breaker','For the '+sz+' A motor channels']));
   Object.keys(gauge).forEach(g=>{const runs=gauge[g]; rows.push([Math.ceil(runs*12)+' ft', g+' wire (red + black)', runs+' run(s) ≈ 6 ft each, ×2 for +/−']);});
-  rows.push([Math.ceil((canCount+2)*3)+' ft','CAN wire (twisted pair)','Daisy-chain through '+canCount+' device(s) + RoboRIO']);
-  rows.push([1,'120 Ω CAN terminator','Far end of the bus (RoboRIO has one built in)']);
+  rows.push([Math.ceil((canCount+2)*3)+' ft','CAN wire (twisted pair)','Daisy-chain through '+canCount+' device(s) + Systemcore']);
+  rows.push([1,'120 &Omega; CAN terminator','Both ends of each bus in use']);
   rows.push([Math.ceil((canCount+pwr.length)*2),'Ferrules / Wago connectors','Both ends of every power + CAN run']);
   if(hasPneu()){
     const sol=devices.filter(d=>(SPEC[d.type]||{}).pneu).reduce((s,d)=>s+((SPEC[d.type]||{}).sol||0),0);
@@ -332,7 +354,7 @@ $('bomCsv').onclick=()=>{
 
 function drawDiagram(){
   const pwr=assigned.filter(a=>a.spec.pwr);
-  const sys=[{name:'RoboRIO',col:'var(--reg)'},{name:'Radio',col:'var(--reg)'}];
+  const sys=[{name:'Systemcore',col:'var(--reg)'},{name:'Radio',col:'var(--reg)'}];
   const rows=sys.length+pwr.length+(hasPneu()?1:0);
   const rowH=40, top=70, W=760, H=Math.max(420, top+rows*rowH+40);
   const pduX=250, pduY=top, pduH=rows*rowH+10, devX=470;
@@ -357,7 +379,7 @@ function drawDiagram(){
     s+=`<circle cx="${rx}" cy="${top}" r="4" fill="var(--can)"/><text x="${rx-8}" y="${top+4}" text-anchor="end" font-size="9" fill="var(--can)">120Ω</text>`;
     s+=`<circle cx="${rx}" cy="${H-30}" r="4" fill="var(--can)"/><text x="${rx-8}" y="${H-26}" text-anchor="end" font-size="9" fill="var(--can)">120Ω</text>`;
   };
-  rail(canX, hasCv?'rio CAN':'CAN bus');
+  rail(canX, hasCv?'Systemcore CAN':'CAN bus');
   if(hasCv) rail(canX2,'CANivore');
   // rows: system then powered devices
   let y=top;
@@ -369,7 +391,7 @@ function drawDiagram(){
               +`<circle cx="${railX}" cy="${cy}" r="3.5" fill="var(--can)"/>`; }
     y+=rowH;
   };
-  drawRow('RoboRIO','reg 12V · CAN','var(--reg)',canX,true);
+  drawRow('Systemcore','battery · CAN','var(--reg)',canX,true);
   drawRow('Radio','PoE / 12V','var(--reg)',null,true);
   pwr.forEach(a=>{ drawRow(a.name.slice(0,18),a.br+'A · '+a.spec.g+' · '+a.chan,'var(--pwr)', a.bus==='canivore'?canX2:canX, false); });
   if(hasPneu()) drawRow('Compressor','via PH port · '+COMPRESSOR_TYP+'A','var(--pwr)',null,false);
