@@ -31,6 +31,7 @@ ext {
     wpilibVersion = '2027.0.0-alpha-6-360-gcaf0fb2dc'
     phoenixVersion = '26.50.0-alpha-1'
     pathplannerVersion = '2027.0.0-alpha-3'
+    limelightVersion = '2.0.0-beta2'
 }
 
 repositories {
@@ -62,6 +63,9 @@ repositories {
 
     // PathPlanner
     maven { url "https://3015rangerrobotics.github.io/pathplannerlib/repo" }
+
+    // LimelightLib 2
+    maven { url "https://limelightvision.github.io/limelightlib-public/maven/" }
 }
 
 dependencies {
@@ -109,6 +113,12 @@ dependencies {
 
     // PathPlanner (commonly used with swerve)
     api "com.pathplanner.lib:PathplannerLib-java:${pathplannerVersion}"
+
+    // LimelightLib 2. Catalyst read Limelight NetworkTables by hand for years specifically to avoid
+    // this dependency, and that stopped being viable in 2027: Limelight OS now publishes results as
+    // a single MessagePack topic and disables the classic per-key API by default. Hand-decoding
+    // MessagePack to avoid a vendordep would be a worse trade than taking the vendordep.
+    api "com.limelightvision:limelightlib-java:${limelightVersion}"
 
     // PhotonVision is deliberately absent. There is no 2027 vendordep, and Catalyst is moving to
     // Limelight-first vision because the pipeline is built into Systemcore. PhotonSource is

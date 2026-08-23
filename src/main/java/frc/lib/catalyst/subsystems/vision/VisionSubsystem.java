@@ -128,9 +128,17 @@ public class VisionSubsystem implements frc.lib.catalyst.command.CatalystSubsyst
         // from fusing so 4+ cameras fuse deterministically.
         List<Accepted> accepted = new ArrayList<>(cameras.size());
 
+        // MegaTag2 needs robot yaw. Limelight OS 2027.0 added a shared orientation table that every
+        // camera reads by default, so one publish serves all of them - with four cameras that is one
+        // write per loop instead of four. Cameras that are not Limelights still get told
+        // individually below, since the shared table means nothing to them.
+        LimelightSource.setSharedRobotOrientation(yaw);
+
         for (int i = 0; i < cameras.size(); i++) {
             CameraSource camera = cameras.get(i);
-            camera.setRobotOrientation(yaw, Math.toDegrees(yawRate), 0, 0);
+            if (!(camera instanceof LimelightSource)) {
+                camera.setRobotOrientation(yaw, Math.toDegrees(yawRate), 0, 0);
+            }
 
             Optional<CameraSource.PoseEstimate> estimate = camera.getEstimatedPose();
             if (estimate.isEmpty()) continue;
