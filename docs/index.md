@@ -67,7 +67,7 @@ no transition, so every existing API works exactly as before. Even the new limit
 speed and acceleration caps — applying one is a line of your code. 214 HAL-free tests, telemetry under
 `Catalyst/Physics/…`. The validator marks the estimator against the RFC's acceptance criteria — and building it found three real defects that 300 unit tests had missed, taking the fused-velocity result from 0.08% to **48%** better than raw encoders.
 
-It follows v1.4.0's **optional** [Catalyst desktop app](https://github.com/TomAs-1226/FrcCatalyst/releases/latest)
+It follows the **optional** [Catalyst desktop app](https://github.com/TomAs-1226/FrcCatalyst/releases/latest)
 (every tool in one native window, one-click vendordep install, offline auto-update, an AI-agent
 connector) and the v1.3.x line, which made the state machine understandable and debuggable: a
 plain-language `explain()` dump of what you built and why it's stuck, a `ServoMechanism`, live sim
