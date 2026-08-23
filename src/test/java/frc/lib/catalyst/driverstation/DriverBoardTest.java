@@ -10,6 +10,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import org.wpilib.command3.Scheduler;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -188,6 +190,39 @@ class DriverBoardTest {
 
         assertEquals("error", board.valueOf("Bad"));
         assertEquals("fine", board.valueOf("Good"));
+    }
+
+    @Test
+    void startingItActuallyMakesItUpdate() {
+        // It previously did not. start() set the display mode, returned, and the javadoc claimed a
+        // periodic callback had been registered - so a board built exactly as documented would have
+        // shown its first values and then never changed again, which reads as a frozen robot rather
+        // than as a frozen display.
+        Scheduler scheduler = Scheduler.createIndependentScheduler();
+        int[] reads = {0};
+
+        DriverBoard board = DriverBoard.empty()
+                .line("Count", () -> String.valueOf(++reads[0]))
+                .start(scheduler);
+
+        assertTrue(board.isStarted());
+        scheduler.run();
+        scheduler.run();
+        assertTrue(reads[0] >= 2, "the line should be re-read each loop, saw " + reads[0]);
+    }
+
+    @Test
+    void startingTwiceDoesNotWriteEveryLineTwice() {
+        Scheduler scheduler = Scheduler.createIndependentScheduler();
+        int[] reads = {0};
+
+        DriverBoard board = DriverBoard.empty()
+                .line("Count", () -> String.valueOf(++reads[0]))
+                .start(scheduler)
+                .start(scheduler);
+
+        scheduler.run();
+        assertEquals(1, reads[0], "one callback, not two");
     }
 
     @Test

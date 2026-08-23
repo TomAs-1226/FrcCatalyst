@@ -4,6 +4,8 @@ import frc.lib.catalyst.system.SystemCoreStatus;
 import frc.lib.catalyst.util.HealthCheck;
 import frc.lib.catalyst.util.HealthMonitor;
 
+import org.wpilib.command3.Scheduler;
+
 import org.wpilib.driverstation.DriverStationDisplay;
 
 import java.util.ArrayList;
@@ -99,17 +101,36 @@ public final class DriverBoard {
     }
 
     /**
-     * Start updating the Driver Station.
+     * Start updating the Driver Station, and keep updating it.
      *
-     * <p>Registers a periodic callback, so nothing needs calling from robot code afterwards.
+     * <p>Registers a periodic callback on the command scheduler, so nothing needs calling from robot
+     * code afterwards. Calling it twice is harmless — the second call does nothing rather than
+     * registering a second callback that would write every line twice.
+     *
+     * <p>If you would rather drive it yourself, skip this and call {@link #update()} each loop.
      */
     public DriverBoard start() {
+        return start(Scheduler.getDefault());
+    }
+
+    /**
+     * As {@link #start()}, on a scheduler of your choosing.
+     *
+     * @param scheduler where the periodic callback is registered
+     */
+    public DriverBoard start(Scheduler scheduler) {
         if (started) {
             return this;
         }
         started = true;
         DriverStationDisplay.setMode(DriverStationDisplay.Mode.Line);
+        scheduler.addPeriodic(this::update);
         return this;
+    }
+
+    /** Whether {@link #start()} has been called and the board is updating itself. */
+    public boolean isStarted() {
+        return started;
     }
 
     /**
