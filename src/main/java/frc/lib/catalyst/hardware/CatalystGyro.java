@@ -7,7 +7,7 @@ import org.wpilib.math.geometry.Rotation2d;
 /**
  * Simple Pigeon2 IMU wrapper for heading, pitch, and roll.
  */
-public class CatalystGyro {
+public class CatalystGyro implements CatalystIMU {
 
     /**
      * Device type label used in the CAN registry and on the robot's spec sheet.
@@ -62,36 +62,43 @@ public class CatalystGyro {
     }
 
     /** Get heading as Rotation2d (yaw, CCW positive). */
+    @Override
     public Rotation2d getHeading() {
         return Rotation2d.fromDegrees(getYaw());
     }
 
     /** Get yaw in degrees (CCW positive, continuous). */
+    @Override
     public double getYaw() {
         return pigeon.getYaw().getValueAsDouble();
     }
 
     /** Get pitch in degrees. */
+    @Override
     public double getPitch() {
         return pigeon.getPitch().getValueAsDouble();
     }
 
     /** Get roll in degrees. */
+    @Override
     public double getRoll() {
         return pigeon.getRoll().getValueAsDouble();
     }
 
     /** Get yaw angular velocity in degrees per second. */
+    @Override
     public double getYawRate() {
         return pigeon.getAngularVelocityZWorld().getValueAsDouble();
     }
 
     /** Reset yaw to zero. */
+    @Override
     public void zeroYaw() {
         pigeon.setYaw(0);
     }
 
     /** Set yaw to a specific value in degrees. */
+    @Override
     public void setYaw(double degrees) {
         pigeon.setYaw(degrees);
     }
@@ -99,6 +106,11 @@ public class CatalystGyro {
     /** Get the underlying Pigeon2. */
     public Pigeon2 getPigeon() {
         return pigeon;
+    }
+
+    @Override
+    public String deviceType() {
+        return DEVICE_TYPE;
     }
 
     public int getCanId() {

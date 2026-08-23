@@ -43,6 +43,8 @@ public class LEDSubsystem implements frc.lib.catalyst.command.CatalystSubsystem 
         this.led = new AddressableLED(config.pwmPort);
         this.buffer = new AddressableLEDBuffer(config.ledCount);
 
+        // Systemcore shares one controller between strips via an offset plus a length.
+        led.setStart(config.startIndex);
         led.setLength(config.ledCount);
         led.setData(buffer);
 

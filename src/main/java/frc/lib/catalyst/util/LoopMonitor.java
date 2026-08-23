@@ -10,9 +10,23 @@ import frc.lib.catalyst.logging.CatalystLog;
 /**
  * Measures how long your robot loop actually takes and tells you when it runs over budget.
  *
- * <p>The RIO runs {@code robotPeriodic()} every 20&nbsp;ms (50&nbsp;Hz). When a loop takes longer
- * than that, the scheduler falls behind, controllers get stale, and driving feels laggy. This is the
- * "Loop time overrun" problem. {@code LoopMonitor} is the measurement tool: call {@link #record()}
+ * <p>The robot program runs {@code robotPeriodic()} every 20&nbsp;ms (50&nbsp;Hz). When a loop takes
+ * longer than that, the scheduler falls behind, controllers get stale, and driving feels laggy. This
+ * is the "Loop time overrun" problem.
+ *
+ * <p><b>What changed on Systemcore, and what did not.</b> The 20&nbsp;ms budget is unchanged — it is
+ * set by the control loop, not the hardware. What changed is everything around it, and mostly for
+ * the better: Systemcore runs a fully preemptible kernel (Linux 6.12 {@code PREEMPT_RT}) on four
+ * Cortex-A76 cores, and the robot program is started at real-time priority
+ * ({@code LimitRTPRIO=50} in {@code robot.service}). Overruns should be rarer and, more usefully,
+ * less random than they were on a roboRIO.
+ *
+ * <p>That cuts both ways when reading the numbers. A roboRIO overrun was usually "not enough CPU".
+ * On Systemcore, with this much headroom, a sustained overrun more often means something is
+ * blocking — a synchronous file write, a network call in a periodic method, a CAN read waiting on a
+ * saturated bus. Check {@code CANRegistry.contentionWarnings()} and the Systemcore health checks
+ * before assuming the robot simply ran out of compute; the machine will usually tell you it is idle
+ * while your loop is late. {@code LoopMonitor} is the measurement tool: call {@link #record()}
  * once every loop and it tracks the last, rolling-average, and peak loop time, publishes them under
  * {@code Catalyst/Loop/<name>/...}, and raises a single warning through {@link AlertManager} when the
  * rolling average sits over the budget. It alerts on the average, not on one-off spikes, so a single
@@ -30,7 +44,9 @@ import frc.lib.catalyst.logging.CatalystLog;
  * }</pre>
  *
  * <p>Then watch {@code Catalyst/Loop/Robot/AverageMs} in AdvantageScope. If it creeps toward 20, see
- * the loop-cost guidance in the logging docs. The engine takes an injectable clock, so the statistics
+ * the loop-cost guidance in the logging docs, and read it next to {@code Systemcore/CpuPercent}
+ * (see {@code SystemCoreStatus}) — a late loop on an idle machine is a blocking call, not a
+ * shortage of compute, and the two want opposite fixes. The engine takes an injectable clock, so the statistics
  * are unit-tested with no HAL, no NetworkTables, and no robot.
  *
  * @since 1.3.3
