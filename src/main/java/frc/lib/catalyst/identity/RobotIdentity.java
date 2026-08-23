@@ -1,5 +1,6 @@
 package frc.lib.catalyst.identity;
 
+import frc.lib.catalyst.system.SystemCoreStatus;
 import com.ctre.phoenix6.hardware.traits.CommonDevice;
 import com.ctre.phoenix6.swerve.SwerveDrivetrain;
 import com.ctre.phoenix6.swerve.SwerveModuleConstants;
@@ -514,10 +515,13 @@ public final class RobotIdentity {
     }
 
     private static void addPower(SpecSheet sheet, RobotIdentity id) {
-        // Power/BrownoutVolts is no longer readable from RobotController - 2027 only exposes
-        // setBrownoutVoltages(). Systemcore publishes the live values on its own system
-        // NetworkTables server at /sys/vbrownout and /sys/vrecovery; wiring that up is
-        // tracked as the SystemServer work, not something to guess at here.
+        // 2027 removed RobotController.getBrownoutVoltage() - it only exposes the setter now.
+        // Systemcore publishes the real thresholds on its own system NetworkTables server, so the
+        // spec sheet reports what the hardware will actually do rather than a roboRIO-era constant.
+        // Absent off-hardware, which SpecSheet renders as "unknown" rather than inventing a number.
+        SystemCoreStatus systemcore = SystemCoreStatus.getInstance();
+        sheet.putNumber("Power/BrownoutVolts", systemcore.brownoutVolts());
+        sheet.putNumber("Power/RecoveryVolts", systemcore.recoveryVolts());
         sheet.putText("Power/Battery", id.battery);
 
         if (id.power != null) {

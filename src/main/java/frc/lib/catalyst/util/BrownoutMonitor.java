@@ -1,5 +1,6 @@
 package frc.lib.catalyst.util;
 
+import frc.lib.catalyst.system.SystemCoreStatus;
 import org.wpilib.networktables.NetworkTable;
 import org.wpilib.networktables.NetworkTableInstance;
 
@@ -78,7 +79,7 @@ public final class BrownoutMonitor {
         this.tripVoltage = b.tripVoltage;
         this.throttlingEnabled = b.throttlingEnabled;
         this.tripsRobotSafety = b.tripsRobotSafety;
-        this.floorVoltage = b.floorVoltage;
+        this.floorVoltage = b.resolveFloorVoltage();
         this.nt = NetworkTableInstance.getDefault()
                 .getTable("Catalyst").getSubTable("Brownout");
     }
@@ -151,6 +152,9 @@ public final class BrownoutMonitor {
     //                        BUILDER
     // ============================================================
 
+    /** roboRIO brownout floor, and the fallback when no hardware value is available. */
+    private static final double LEGACY_FLOOR_VOLTS = 6.8;
+
     public static Builder builder() {
         return new Builder();
     }
@@ -162,7 +166,33 @@ public final class BrownoutMonitor {
         private double tripVoltage = 7.0;
         private boolean throttlingEnabled = false;
         private boolean tripsRobotSafety = false;
-        private double floorVoltage = 6.8;  // roboRIO brownout floor
+        /**
+         * Voltage at which output scale reaches zero.
+         *
+         * <p>Left unset it is resolved at build time from the hardware rather than hard-coded:
+         * Systemcore publishes its own brownout threshold, and using the real number beats a
+         * roboRIO-era constant that no longer describes anything. See {@link #floorVoltage(double)}.
+         */
+        private Double floorVoltage = null;
+
+        /**
+         * Work out the brownout floor to use.
+         *
+         * <p>Order: an explicit {@code floorVoltage(...)} call wins; otherwise Systemcore's own
+         * published threshold; otherwise the roboRIO figure of 6.8 V, which at least keeps the old
+         * behaviour on anything that is not a Systemcore.
+         *
+         * <p>The middle case is the point of this. Systemcore's default brownout is 6750 mV with
+         * recovery at 7500 mV, and those are configurable — a monitor predicting against 6.8 V while
+         * the hardware trips at something else is quietly wrong in the direction that matters.
+         */
+        private double resolveFloorVoltage() {
+            if (floorVoltage != null) {
+                return floorVoltage;
+            }
+            var fromHardware = SystemCoreStatus.getInstance().brownoutVolts();
+            return fromHardware.isPresent() ? fromHardware.getAsDouble() : LEGACY_FLOOR_VOLTS;
+        }
 
         /** Total robot current draw (A) — e.g. {@code () -> pdh.getTotalCurrent()}. */
         public Builder totalCurrent(DoubleSupplier totalCurrent) {
@@ -192,7 +222,12 @@ public final class BrownoutMonitor {
             return this;
         }
 
-        /** roboRIO brownout floor — output scale hits 0 here. Default 6.8 V. */
+        /**
+         * Brownout floor — output scale hits 0 here.
+         *
+         * <p>Setting this explicitly overrides the hardware value. Leave it alone on Systemcore and
+         * the real threshold is read from the OS instead.
+         */
         public Builder floorVoltage(double volts) {
             this.floorVoltage = volts;
             return this;

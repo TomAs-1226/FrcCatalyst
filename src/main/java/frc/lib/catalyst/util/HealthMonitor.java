@@ -1,5 +1,6 @@
 package frc.lib.catalyst.util;
 
+import frc.lib.catalyst.system.SystemCoreStatus;
 import org.wpilib.networktables.NetworkTable;
 import org.wpilib.networktables.NetworkTableInstance;
 import org.wpilib.system.Timer;
@@ -163,6 +164,85 @@ public final class HealthMonitor {
                 .debounce(0.0)
                 .clearAfter(5.0)
                 .onFire(motor::stop)
+                .register();
+    }
+
+    /**
+     * Register health checks for the Systemcore itself.
+     *
+     * <p>Everything Catalyst monitored before this was about the robot — motor temperature, current,
+     * loop time. The machine underneath was invisible, largely because on a roboRIO there was very
+     * little to see. Systemcore measures and publishes its own CPU, memory, storage and power, which
+     * turns a class of mystery into a reading: a robot that browns out because logs filled the disk,
+     * or misses loop deadlines because something else is pinning a core, now says so in the pit
+     * rather than on the field.
+     *
+     * <p>No-ops off Systemcore. In simulation or a desktop build there is no system server, nothing
+     * is registered and nothing fires — call it unconditionally from robot init.
+     *
+     * <p>Thresholds are deliberately loose. These catch a machine in trouble, they do not grade it:
+     * a Systemcore at 70% RAM is fine, one at 95% is about to have a bad match.
+     */
+    public static void systemCoreChecks() {
+        SystemCoreStatus status = SystemCoreStatus.getInstance();
+        if (!status.isAvailable()) {
+            return;
+        }
+        final String subsystem = "Systemcore";
+
+        HealthCheck.builder(subsystem, "BrownedOut")
+                .severity(HealthCheck.Severity.ERROR)
+                .description("Systemcore reports a brownout")
+                .when(status::isBrownedOut)
+                .detail(() -> String.format("battery %.2f V",
+                        status.batteryVolts().orElse(Double.NaN)))
+                .register();
+
+        HealthCheck.builder(subsystem, "HighCpu")
+                .severity(HealthCheck.Severity.WARN)
+                .description("Systemcore CPU sustained above 90%")
+                .when(() -> status.cpuUtilization().orElse(0) > 90.0)
+                // Debounced: a spike at startup or on a log flush is normal, a sustained pin is not.
+                .debounce(5.0)
+                .detail(() -> String.format("cpu %.0f%%", status.cpuUtilization().orElse(Double.NaN)))
+                .register();
+
+        HealthCheck.builder(subsystem, "LowMemory")
+                .severity(HealthCheck.Severity.WARN)
+                .description("Systemcore RAM above 90% used")
+                .when(() -> status.ramFraction().orElse(0) > 0.90)
+                .debounce(5.0)
+                .detail(() -> String.format("ram %.0f%%",
+                        status.ramFraction().orElse(Double.NaN) * 100))
+                .register();
+
+        // Storage fills up silently and takes the robot with it: a full disk stops logs, then stops
+        // the robot program, and nothing about the failure points back at the disk.
+        HealthCheck.builder(subsystem, "LowStorage")
+                .severity(HealthCheck.Severity.ERROR)
+                .description("Systemcore storage above 90% used")
+                .when(() -> status.storageFraction().orElse(0) > 0.90)
+                .detail(() -> String.format("storage %.0f%%",
+                        status.storageFraction().orElse(Double.NaN) * 100))
+                .register();
+
+        // A team number set on the device that disagrees with the code is an afternoon of
+        // "why won't the Driver Station connect".
+        HealthCheck.builder(subsystem, "TeamNumberMismatch")
+                .severity(HealthCheck.Severity.WARN)
+                .description("Systemcore team number differs from the robot program's")
+                .when(() -> {
+                    var device = status.teamNumber();
+                    if (device.isEmpty()) {
+                        return false;
+                    }
+                    try {
+                        return device.getAsInt() != org.wpilib.system.RobotController.getTeamNumber();
+                    } catch (Throwable ignored) {
+                        return false;
+                    }
+                })
+                .detail(() -> "device reports team " + status.teamNumber().orElse(-1))
                 .register();
     }
 
