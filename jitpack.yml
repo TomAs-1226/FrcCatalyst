@@ -1,4 +1,25 @@
-jdk:
-  - openjdk17
+# How JitPack builds this library.
+#
+# Catalyst 2.x needs JDK 25: WPILib 2027 ships Java 25 bytecode, and Gradle 8 cannot even read it
+# ("Unsupported class file major version 69"). JitPack's built-in `jdk:` list stops well short of
+# that, so the toolchain is installed here instead of asked for.
+#
+# Getting this wrong does not produce a clear error. The build fails somewhere inside Gradle with a
+# class-file version number, on a service nobody watches, and the first anyone knows is a team whose
+# `implementation 'com.github.TomAs-1226:FrcCatalyst:...'` will not resolve.
+
+before_install:
+  - curl -s "https://get.sdkman.io" | bash
+  - source "$HOME/.sdkman/bin/sdkman-init.sh"
+  - sdk install java 25-tem < /dev/null
+  - sdk use java 25-tem
+  - export JAVA_HOME="$HOME/.sdkman/candidates/java/current"
+
 install:
-  - ./gradlew publishToMavenLocal
+  - source "$HOME/.sdkman/bin/sdkman-init.sh"
+  - export JAVA_HOME="$HOME/.sdkman/candidates/java/current"
+  - java -version
+  # Skip the tests. They need desktop JNI natives that JitPack's container has no reason to have,
+  # and they have already run in CI on the commit this tag points at - failing the publish over them
+  # would mean the artifact never ships for a reason unrelated to the artifact.
+  - ./gradlew publishToMavenLocal -x test
