@@ -96,6 +96,42 @@ dependencies {
 }
 ```
 
+## Required: two JVM flags
+
+Add these to your robot program's launch arguments. Without them the robot boots, the dashboard
+connects, and the **first command scheduled** throws `ExceptionInInitializerError` from inside
+WPILib — naming no class of yours, at whatever moment a driver first pressed a button.
+
+```
+--add-opens java.base/jdk.internal.vm=ALL-UNNAMED
+--add-opens java.base/java.lang=ALL-UNNAMED
+```
+
+In `build.gradle`:
+
+```groovy
+frc {
+    jvmArgs.addAll([
+        "--add-opens", "java.base/jdk.internal.vm=ALL-UNNAMED",
+        "--add-opens", "java.base/java.lang=ALL-UNNAMED",
+    ])
+}
+```
+
+{: .warning }
+> **Both are needed, and the second only appears once the first is fixed.** `jdk.internal.vm` gets
+> the command scheduler *constructed*; `java.lang` gets a command *scheduled*. Add one, deploy, and
+> you meet the other on the field.
+
+Commands v3 runs on JDK continuations, which live in `jdk.internal.vm` and are reached by
+reflection — hence the flags. Catalyst checks for both when it builds a command and throws something
+legible if either is missing, so you find out at the line that built the command rather than several
+seconds later. To ask directly:
+
+```java
+CommandRuntime.isAvailable();   // false means the flags are missing
+```
+
 ## Verify Installation
 
 Create a simple test in your `RobotContainer` to confirm everything is working:

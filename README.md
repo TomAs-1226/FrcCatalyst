@@ -6,18 +6,23 @@
   <a href="https://github.com/TomAs-1226/FrcCatalyst/actions"><img src="https://img.shields.io/github/actions/workflow/status/TomAs-1226/FrcCatalyst/build.yml?style=for-the-badge&logo=github&label=Build" alt="Build Status"/></a>
   <a href="https://github.com/TomAs-1226/FrcCatalyst/releases"><img src="https://img.shields.io/github/v/release/TomAs-1226/FrcCatalyst?style=for-the-badge&logo=semanticrelease&color=e94560" alt="Release"/></a>
   <a href="https://github.com/TomAs-1226/FrcCatalyst/blob/main/LICENSE"><img src="https://img.shields.io/github/license/TomAs-1226/FrcCatalyst?style=for-the-badge&color=0f3460" alt="License"/></a>
-  <a href="https://tomas-1226.github.io/FrcCatalyst/"><img src="https://img.shields.io/badge/Docs-GitHub%20Pages-blue?style=for-the-badge&logo=github" alt="Docs"/></a>
+  <a href="https://tomas-1226.github.io/FrcCatalyst/beta/"><img src="https://img.shields.io/badge/Docs-beta-blue?style=for-the-badge&logo=github" alt="Docs"/></a>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/WPILib-2026.2.1-green?style=flat-square" alt="WPILib"/>
-  <img src="https://img.shields.io/badge/Phoenix%206-26.1.1-orange?style=flat-square" alt="Phoenix 6"/>
-  <img src="https://img.shields.io/badge/Java-17-blue?style=flat-square&logo=openjdk" alt="Java 17"/>
-  <img src="https://img.shields.io/badge/PathPlanner-2026.1.2-purple?style=flat-square" alt="PathPlanner"/>
-  <img src="https://img.shields.io/badge/PhotonVision-v2026.3.1-yellow?style=flat-square" alt="PhotonVision"/>
+  <img src="https://img.shields.io/badge/WPILib-2027%20alpha--6-green?style=flat-square" alt="WPILib"/>
+  <img src="https://img.shields.io/badge/Systemcore-OS%20beta%2014-e94560?style=flat-square" alt="Systemcore"/>
+  <img src="https://img.shields.io/badge/Phoenix%206-26.50.0--alpha--1-orange?style=flat-square" alt="Phoenix 6"/>
+  <img src="https://img.shields.io/badge/Java-25-blue?style=flat-square&logo=openjdk" alt="Java 25"/>
+  <img src="https://img.shields.io/badge/PathPlanner-2027.0.0--alpha--3-purple?style=flat-square" alt="PathPlanner"/>
 </p>
 
 ---
+
+> **This branch is Catalyst 2.x — WPILib 2027 on Limelight Systemcore.** A hard cut with no 2026
+> shims, and it has never run on hardware. For a robot that is competing on a roboRIO, use
+> [1.12.0](https://github.com/TomAs-1226/FrcCatalyst/releases/tag/v1.12.0) and the
+> [stable documentation](https://tomas-1226.github.io/FrcCatalyst/).
 
 ## What is FrcCatalyst?
 
@@ -39,6 +44,23 @@
 | A spec sheet the dashboard can read | Hand-typed and out of date by week two | **`RobotIdentity.declare("Ratchet")`** |
 
 ---
+
+## Catalyst 2.x needs two JVM flags
+
+Commands v3 runs on JDK continuations reached by reflection, so a 2027 robot program must launch
+with:
+
+```
+--add-opens java.base/jdk.internal.vm=ALL-UNNAMED
+--add-opens java.base/java.lang=ALL-UNNAMED
+```
+
+Nothing fails at build time or at startup. The robot boots, the dashboard connects, and the first
+command scheduled throws from inside WPILib. Both flags are needed, and the second only shows itself
+once the first is fixed. Full detail in
+[Systemcore & WPILib 2027](https://tomas-1226.github.io/FrcCatalyst/beta/advanced/systemcore).
+
+Also required: Java 25 and Gradle 9.7 or later.
 
 ## Quick Start
 
@@ -100,6 +122,51 @@ operatorController.b().onTrue(elevator.goTo("STOW"));
 ```
 
 ---
+
+## v2.0.0-alpha.1: WPILib 2027 and Limelight Systemcore
+
+The 2027 port. Commands v3, Java 25, five CAN buses, and a control system that reports on itself.
+
+**Required:** two JVM flags (see above), Java 25, Gradle 9.7+.
+
+New because the platform is new:
+
+- **Five CAN buses.** `CatalystCANBus` and a planner that knows `can_s0`+`can_s1` share an SPI
+  controller and `can_s3`+`can_s4` share another — so a "split" across a pair buys far less than it
+  looks, which is invisible from robot code.
+- **A machine that reports on itself.** Processor, temperature, memory, storage, eMMC wear, per-bus
+  CAN, fault counters, the 3.3 V rail, and the brownout thresholds the device holds rather than the
+  roboRIO's 6.8 V. A roboRIO reported almost none of this, which is why a robot that browned out
+  because logs filled the disk used to fail pointing at nothing.
+- **Catalyst Agent**, an optional package running on the Systemcore that answers what NetworkTables
+  cannot: which core is pinned and by what, what filled the disk, how many times the robot program
+  restarted and what it printed on the way down.
+- **OpModes.** Autos as annotated classes the Driver Station lists and selects natively.
+- **DriverBoard.** Status on the Driver Station itself — the one screen a driver is certainly
+  looking at.
+- **Dual IMU.** The Pigeon and Systemcore's onboard IMU read as one, measuring angular acceleration
+  from two accelerometers instead of differentiating a gyro.
+- Onboard IMU, typed SmartIO pins, I²C with the SCL/SDA swap handled, Hailo game-piece detection,
+  and a Systemcore simulator that makes a full disk or a pinned core reachable in a test.
+
+What changed for you — five decorators, because Commands v3 took the names and gave them
+incompatible return types:
+
+| was | now |
+|---|---|
+| `until` | `untilTrue` |
+| `andThen` | `then` |
+| `alongWith` | `together` |
+| `raceWith` | `racing` |
+| `withTimeout` | `timeoutAfter` |
+
+`AutoSelector.getChooser()` returns `Selectable` (`SendableChooser` is gone) and
+`ServoMechanism.getServo()` is `getPwm()` — servos cannot be driven from Systemcore at all, at 3.3 V
+and nowhere near the current. Everything else kept its name. PhotonVision and ChoreoLib have no 2027
+build.
+
+540 tests pass on Windows and Linux. It has **not** run on a robot, and the documentation carries a
+list of the facts that could not be verified rather than guessing at them.
 
 ## v1.12.0: the devices, not the count
 
@@ -434,7 +501,7 @@ changes wait for 2.0.0. Go build something awesome. 🚀
 - **Swerve module telemetry**: measured and target `SwerveModuleState[]` publish to `/Catalyst/Swerve/ModuleStates` and `/ModuleTargets` for the AdvantageScope swerve view.
 - **SimDashboard v2**: per-mechanism sparkline history, a pause/resume toggle, and CSV export of the live snapshot.
 - **`SimCameraSource`**: a vision source that emits noisy, latency-delayed pose estimates from a simulated pose, so the multi-camera fusion pipeline runs in the simulator with no hardware.
-- **WPILib 2027**: a `wpilib-2027` branch with a grounded migration plan (`MIGRATION_2027.md`). Main stays on WPILib 2026.
+- **WPILib 2027**: done, and it is this branch. See v2.0.0-alpha.1 below.
 
 ## What's New in v1.0.0-rc3: Configurable simulation
 
