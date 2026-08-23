@@ -251,6 +251,39 @@ Catalyst Console has a **Systemcore** page in Settings showing all of it: the fo
 per-bus CAN grouped by the controller each bus shares, flash wear, power, and the network
 interfaces. It needs no configuration — a robot calling `publish()` fills it in.
 
+### Running Catalyst on the Systemcore itself
+
+Everything above is a summary, and a summary is what it is. It cannot say *which* core is pinned,
+*what* filled the disk, or *how many times* the robot program has restarted — and after a crash the
+robot program is not there to report anything about itself, which is exactly when somebody wants to
+know what it printed.
+
+All of that is in `/proc` and `/sys` on the machine already. `agent/` in this repository builds an
+optional package that serves it:
+
+```bash
+cd agent && ./build.sh        # catalyst-agent_2.0.0.ipk
+```
+
+Install it through the Systemcore web UI's package manager. It auto-starts on port 9010 and Console
+finds it on its own — no configuration on either side, and the Systemcore page simply gains
+sections.
+
+| | |
+|---|---|
+| Per-core load and clocks | one core at 100% and three idle averages to 25%, which reads as a quiet machine |
+| Throttling flags | split into now and since-boot, so a robot that throttled last match still shows it |
+| Robot program | systemd state, uptime, **restart count**, memory, and a log tail |
+| Storage by directory | "94% full" is not actionable; "your logs are 9.4 GB" is |
+| Heaviest processes | by CPU and by resident memory |
+| CAN frame counters | errors, drops and restarts — none of which move utilisation |
+| OS build, kernel, uptime | the first question when one robot behaves unlike the one beside it |
+
+It is read-only, and that is a boundary rather than a limitation: Console is read-only by design, and
+an agent that could restart the robot program would put a restart button one mis-click from a driver
+during a match. It also runs at `Nice=10` with idle CPU and IO scheduling and no write access
+anywhere, because a diagnostic must never be the reason a match is lost.
+
 ### A free second IMU
 
 Systemcore has an onboard IMU — no CAN id, no wiring, no bus load. Keep the Pigeon for swerve; this
