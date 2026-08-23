@@ -1,5 +1,6 @@
 package frc.robot;
 
+import frc.lib.catalyst.hardware.CatalystCANBus;
 import org.wpilib.math.geometry.Pose2d;
 import org.wpilib.math.geometry.Rotation2d;
 import org.wpilib.math.geometry.Translation2d;
@@ -476,7 +477,9 @@ public class RobotContainer {
     public void simPeriodic() {
         if (!autoEnabledOnce) {
             DriverStationSim.setDsAttached(true);
-            DriverStationSim.setAutonomous(false);
+            // 2027 has no setAutonomous(): mode follows the selected op mode, so simulating
+            // "not in autonomous" means selecting no op mode.
+            DriverStationSim.setOpMode(0);
             DriverStationSim.setEnabled(true);
             DriverStationSim.notifyNewData();
             Scheduler.getDefault().schedule(director.pursue(IDLE));
@@ -739,7 +742,9 @@ public class RobotContainer {
         if (inAuto != lastAutoFlag || inMatch != lastEnabledFlag) {
             lastAutoFlag = inAuto;
             lastEnabledFlag = inMatch;
-            DriverStationSim.setAutonomous(inAuto);
+            // Op mode id 0 is "none"; any non-zero id is a selected mode. Sim only needs the
+            // distinction, not a real registered id.
+            DriverStationSim.setOpMode(inAuto ? 1 : 0);
             DriverStationSim.setEnabled(inMatch);
             DriverStationSim.notifyNewData();
         }
@@ -748,7 +753,7 @@ public class RobotContainer {
         // teleop. A single character, empty until then — the format WPILib documents.
         if (gameData.isEmpty() && elapsed > AUTO_SECONDS + 3.0) {
             gameData = scored >= 4 ? "R" : "B";
-            DriverStationSim.setGameSpecificMessage(gameData);
+            DriverStationSim.setGameData(gameData);
             DriverStationSim.notifyNewData();
         }
 
@@ -807,14 +812,17 @@ public class RobotContainer {
         CatalystLog.log("Game/TowerActive", hubActive);
         CatalystLog.log("Game/TowerSeconds", untilChange);
 
-        CatalystLog.log("Status/CanUtilization", RobotController.getCANStatus().percentBusUtilization);
+        // Systemcore has five buses, so there is no single "the CAN bus" to ask about any more.
+        // CANBusHealth publishes all of them; this reports the default bus for continuity.
+        CatalystLog.log("Status/CanUtilization",
+                RobotController.getCANStatus(CatalystCANBus.DEFAULT.wpilib()).percentBusUtilization);
         CatalystLog.log("Status/BatteryVolts", RobotController.getBatteryVoltage());
     }
 
     private String buildStateJson() {
         AimingSolver.Solution s = solution;
         Translation2d vg = s.virtualGoal();
-        boolean enabled = org.wpilib.driverstation.org.wpilib.driverstation.RobotState.isEnabled();
+        boolean enabled = org.wpilib.driverstation.RobotState.isEnabled();
         StringBuilder sb = new StringBuilder(700);
         sb.append('{');
         sb.append("\"enabled\":").append(enabled).append(',');

@@ -159,7 +159,7 @@ public final class MechanismShowcase {
     private final PneumaticMechanism solenoid = new PneumaticMechanism(
             PneumaticMechanism.Config.builder()
                     .name("Grabber")
-                    .doubleSolenoid(PneumaticsModuleType.REVPH, 6, 7)
+                    .doubleSolenoid(PneumaticsModuleType.REV_PH, 6, 7)
                     .build());
 
     // A PWM servo (new in 1.3.0). Here it is a shooter hood — no slider of its own, because a tiny

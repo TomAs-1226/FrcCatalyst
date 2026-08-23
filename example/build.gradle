@@ -1,104 +1,71 @@
 plugins {
     id "java"
-    id "edu.wpi.first.GradleRIO" version "2026.2.1"
 }
+
+// ---------------------------------------------------------------------------
+// Why this is a plain java project and not a GradleRIO one
+//
+// GradleRIO 2027 stops at alpha-2 on the Gradle Plugin Portal. The alpha-5/6 plugin ships only
+// inside the 2.6 GB WPILib 2027 installer's local maven, so this project cannot apply it on a
+// machine that has not run that installer - which includes CI.
+//
+// The example's job is to prove Catalyst's API is usable and to show teams how it is used. That
+// only needs compilation against the library, which is what this does. Deploying it needs the
+// installer, and the deploy configuration that requires is recorded at the bottom of this file so
+// it can be pasted back in rather than rediscovered.
+//
+// Switch this to a real GradleRIO project once the installer is present. Nothing in src/ changes.
+// ---------------------------------------------------------------------------
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
 }
 
-def ROBOT_MAIN_CLASS = "frc.robot.Main"
-
-// Extra repositories so the FrcCatalyst artifact (mavenLocal) and its
-// transitive vendor dependencies (CTRE, PathPlanner, PhotonVision) resolve.
 repositories {
     mavenLocal()
+    mavenCentral()
+    maven { url "https://frcmaven.wpi.edu/artifactory/development/" }
+    maven { url "https://frcmaven.wpi.edu/artifactory/release/" }
     maven { url "https://maven.ctr-electronics.com/release/" }
     maven { url "https://3015rangerrobotics.github.io/pathplannerlib/repo" }
-    // PhotonVision repo intentionally omitted — its server can be down, and we
-    // exclude the photon dependency below, so it must not be consulted for
-    // resolving core WPILib natives.
-    mavenCentral()
+    maven { url "https://limelightvision.github.io/limelightlib-public/maven/" }
 }
-
-deploy {
-    targets {
-        roborio(getTargetTypeClass('RoboRIO')) {
-            team = project.frc.getTeamNumber()
-            debug = project.frc.getDebugOrDefault(false)
-
-            artifacts {
-                frcJava(getArtifactTypeClass('FRCJavaArtifact')) {}
-
-                frcStaticFileDeploy(getArtifactTypeClass('FileTreeArtifact')) {
-                    files = project.fileTree('src/main/deploy')
-                    directory = '/home/lvuser/deploy'
-                    deleteOldFiles = false
-                }
-            }
-        }
-    }
-}
-
-def deployArtifact = deploy.targets.roborio.artifacts.frcJava
-
-wpi.java.debugJni = false
-
-def includeDesktopSupport = true
 
 dependencies {
-    annotationProcessor wpi.java.deps.wpilibAnnotations()
-    implementation wpi.java.deps.wpilib()
-    nativeDebug wpi.java.deps.wpilibJniDebug(wpi.platforms.desktop)
-    simulationDebug wpi.sim.enableDebug()
-    nativeRelease wpi.java.deps.wpilibJniRelease(wpi.platforms.desktop)
-    simulationRelease wpi.sim.enableRelease()
-
-    implementation wpi.java.vendor.java()
-    nativeDebug wpi.java.vendor.jniDebug(wpi.platforms.desktop)
-    simulationDebug wpi.java.vendor.jniDebug(wpi.platforms.desktop)
-    nativeRelease wpi.java.vendor.jniRelease(wpi.platforms.desktop)
-    simulationRelease wpi.java.vendor.jniRelease(wpi.platforms.desktop)
-
-    // FrcCatalyst (resolved from mavenLocal — run `./gradlew publishToMavenLocal`
-    // in the library root first). PhotonVision is excluded: this example never
-    // instantiates VisionSubsystem, so we don't need the photon artifacts (and
-    // their maven server can be flaky).
-    implementation("com.frccatalyst:FrcCatalyst:1.12.0") {
-        exclude group: 'org.photonvision'
-    }
-
-    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.1'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    // The library under test. Catalyst re-exports WPILib, Phoenix, PathPlanner and LimelightLib as
+    // `api` dependencies, so this one line brings the whole compile classpath with it - which is
+    // itself worth checking, since a team's project gets exactly this.
+    implementation project(':')
 }
 
-test {
-    useJUnitPlatform()
-    systemProperty 'junit.jupiter.extensions.autodetection.enabled', 'true'
-}
-
-// The browser "Sim Cockpit" (http://localhost:5805) is the interface for this
-// example, so the stock GUI is left off by default. Flip this to true if you
-// want the raw WPILib Simulation GUI as well.
-wpi.sim.addGui().defaultEnabled = false
-
-jar {
-    from { configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) } }
-    from sourceSets.main.allSource
-    manifest edu.wpi.first.gradlerio.GradleRIOPlugin.javaManifest(ROBOT_MAIN_CLASS)
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-}
-
-wpi.java.configureExecutableTasks(jar)
-wpi.java.configureTestTasks(test)
-
-tasks.withType(JavaCompile) {
-    options.compilerArgs.add '-XDstringConcat=inline'
-}
-
-// The cockpit's HTML carries em-dashes and middots. Without this javac reads them as cp1252 and
-// the served page comes out as mojibake.
-tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8'
-}
+// ---------------------------------------------------------------------------
+// Deploy configuration, for when GradleRIO 2027 is available
+//
+// Read off SystemCoreTesting/testprojects/pwmoutput rather than guessed. Restore the
+// `edu.wpi.first.GradleRIO2027` plugin above and uncomment:
+//
+//   def ROBOT_MAIN_CLASS = "frc.robot.Main"
+//
+//   deploy {
+//       targets {
+//           systemcore(getTargetTypeClass('SystemCore')) {
+//               team = project.frc.getTeamNumber()
+//               debug = project.frc.getDebugOrDefault(false)
+//               artifacts {
+//                   frcJava(getArtifactTypeClass('FRCJavaArtifact')) {}
+//                   frcStaticFileDeploy(getArtifactTypeClass('FileTreeArtifact')) {
+//                       files = project.fileTree('src/main/deploy')
+//                       directory = '/home/systemcore/deploy'
+//                       deleteOldFiles = false
+//                   }
+//               }
+//           }
+//       }
+//   }
+//
+// Note the differences from 2026: the target type is `SystemCore`, not `RoboRIO`, and the deploy
+// directory is /home/systemcore/deploy, not /home/lvuser/deploy. The robot program runs as the
+// `systemcore` user from /home/systemcore/robotCommand, and its service waits for all five CAN
+// buses to come up before starting.
+// ---------------------------------------------------------------------------
