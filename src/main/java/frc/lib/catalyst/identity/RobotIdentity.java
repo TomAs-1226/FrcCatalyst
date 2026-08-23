@@ -409,9 +409,14 @@ public final class RobotIdentity {
         sheet.putInt("Identity/TeamNumber", positiveInt(RobotController::getTeamNumber));
         sheet.putInt("Identity/Season", season());
         sheet.putText("Identity/Controller", controller());
+        // Named for the controller that is actually there. The Rio-named keys are published
+        // alongside for one season so existing dashboards and AdvantageScope layouts keep
+        // resolving; they are deprecated and go away when 2027 ships.
+        sheet.putText("Identity/ControllerSerial", text(RobotController::getSerialNumber));
         sheet.putText("Identity/RioSerial", text(RobotController::getSerialNumber));
-        // The rio's "comments" field from the Imaging Tool - the only free text the controller
-        // holds, and often where a team already wrote the robot's name.
+        // The controller's free-text "comments" field - the only free text it holds, and often
+        // where a team already wrote the robot's name.
+        sheet.putText("Identity/ControllerComment", text(RobotController::getComments));
         sheet.putText("Identity/RioComment", text(RobotController::getComments));
     }
 
@@ -428,7 +433,8 @@ public final class RobotIdentity {
         // WPILib, and Catalyst's build-time pin says nothing about which one is loaded here.
         sheet.putText("Software/WPILibVersion", SpecSheet.text(WPILibVersion.Version));
         sheet.putText("Software/JavaVersion", SpecSheet.text(System.getProperty("java.version")));
-        sheet.putText("Software/RioImage", rioImage());
+        sheet.putText("Software/ControllerImage", rioImage());
+        sheet.putText("Software/RioImage", rioImage());   // deprecated alias, see addIdentity
         // Software/FpgaVersion is gone: Systemcore has no FPGA, and 2027 removed
         // RobotController.getFPGAVersion() along with the rest of the FPGA surface.
 

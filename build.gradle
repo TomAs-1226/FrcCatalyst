@@ -167,6 +167,14 @@ dependencies {
     nativeDesktop "org.wpilib.wpimath:wpimath-cpp:${wpilibVersion}:${desktopClassifier}@zip"
     nativeDesktop "org.wpilib.ntcore:ntcore-cpp:${wpilibVersion}:${desktopClassifier}@zip"
     nativeDesktop "org.wpilib.wpinet:wpinet-cpp:${wpilibVersion}:${desktopClassifier}@zip"
+
+    // 2027 split these out of wpiutil/ntcore into their own libraries. wpimath.dll links against
+    // telemetry and tunables, and ntcore against datalog, so leaving them out makes every JNI load
+    // fail with "Can't find dependent libraries" - which names the library that failed, never the
+    // one actually missing.
+    nativeDesktop "org.wpilib.telemetry:telemetry-cpp:${wpilibVersion}:${desktopClassifier}@zip"
+    nativeDesktop "org.wpilib.tunables:tunables-cpp:${wpilibVersion}:${desktopClassifier}@zip"
+    nativeDesktop "org.wpilib.datalog:datalog-cpp:${wpilibVersion}:${desktopClassifier}@zip"
 }
 
 def nativeLibsDir = layout.buildDirectory.dir('nativeLibs')
@@ -183,22 +191,14 @@ tasks.register('extractNativeLibs', Copy) {
 
 test {
     useJUnitPlatform()
-    testLogging { showStandardStreams = true }
 
-    // RobotIdentitySheetTest is the one test that reaches the HAL (the spec sheet reads the team
-    // number). The natives are unpacked below and java.library.path points at them, but the JNI
-    // stub still cannot resolve its sibling implementation DLL on this machine, and WPILib's
-    // RuntimeLoader terminates the JVM rather than throwing - which takes the whole test worker
-    // down and loses the other 399 results with it.
-    //
-    // Excluded so `gradlew test` reports something useful. Everything it covers is exercised by
-    // SpecSheetTest and RobotIdentityGeometryTest, neither of which needs the HAL. Re-enable once
-    // the desktop native loading is sorted; run it directly with
-    //   gradlew test --tests '*RobotIdentitySheetTest'
-    // to check progress.
-    filter {
-        excludeTestsMatching 'frc.lib.catalyst.identity.RobotIdentitySheetTest'
-    }
+    // Commands v3 is built on JDK continuations, which live in jdk.internal.vm and are reached by
+    // reflection. Without this the Scheduler class fails to initialise - not at first use, but on
+    // static init, so the failure surfaces as ExceptionInInitializerError somewhere unrelated.
+    // The robot JVM needs the same flag; see docs/advanced/systemcore.md.
+    jvmArgs '--add-opens', 'java.base/jdk.internal.vm=ALL-UNNAMED',
+            '--add-opens', 'java.base/java.lang=ALL-UNNAMED'
+    testLogging { showStandardStreams = true }
 
     dependsOn tasks.named('extractNativeLibs')
 

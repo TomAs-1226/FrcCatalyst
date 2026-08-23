@@ -41,6 +41,11 @@ public final class CatalystCommand implements Command {
     private final String nameOverride;
 
     CatalystCommand(Command inner, String nameOverride) {
+        // Every Catalyst command - every factory, every decorator - is built here, which makes this
+        // the one place that can catch a JVM missing the continuation flags and say so at the line
+        // that built the command, rather than several seconds later inside WPILib. See
+        // CommandRuntime for what goes wrong without it.
+        CommandRuntime.require();
         this.inner = inner;
         this.nameOverride = nameOverride;
     }

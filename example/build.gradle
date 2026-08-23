@@ -47,6 +47,16 @@ dependencies {
 //
 //   def ROBOT_MAIN_CLASS = "frc.robot.Main"
 //
+//   // Commands v3 runs on JDK continuations, reached by reflection into jdk.internal.vm. Without
+//   // both of these the robot boots normally and then throws ExceptionInInitializerError the first
+//   // time any command is scheduled. See frc.lib.catalyst.command.CommandRuntime.
+//   frc {
+//       jvmArgs.addAll([
+//           "--add-opens", "java.base/jdk.internal.vm=ALL-UNNAMED",
+//           "--add-opens", "java.base/java.lang=ALL-UNNAMED",
+//       ])
+//   }
+//
 //   deploy {
 //       targets {
 //           systemcore(getTargetTypeClass('SystemCore')) {

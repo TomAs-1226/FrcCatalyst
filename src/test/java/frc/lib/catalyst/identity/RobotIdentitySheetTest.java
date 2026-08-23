@@ -141,7 +141,8 @@ class RobotIdentitySheetTest {
 
     @Test
     void aSheetSurvivesAMachineThatKnowsNothing() {
-        // No HAL here, so every rio-sourced fact must come back missing rather than throwing.
+        // The HAL loads in tests now, but there is no Systemcore behind it, so every fact that comes
+        // from the hardware must still come back missing rather than zero or a throw.
         Map<String, Object> sheet = sheetFor(RobotIdentity.named("Ratchet"));
         assertFalse(sheet.containsKey("Identity/TeamNumber"));
         assertFalse(sheet.containsKey("Identity/RioSerial"));
@@ -149,6 +150,7 @@ class RobotIdentitySheetTest {
         // ...and the facts that need nothing but the JVM must still be there.
         assertTrue(sheet.containsKey("Software/WPILibVersion"));
         assertTrue(sheet.containsKey("Software/JavaVersion"));
-        assertEquals(2026L, sheet.get("Identity/Season"));
+        // Read off the WPILib version string, so this tracks the dependency rather than a constant.
+        assertEquals(2027L, sheet.get("Identity/Season"));
     }
 }
