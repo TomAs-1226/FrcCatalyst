@@ -1061,9 +1061,22 @@ public class SwerveSubsystem implements frc.lib.catalyst.command.CatalystSubsyst
         Pose2d pose = getPose();
         CatalystLog.log(SWERVE + "Pose", Pose2d.struct, pose);
         CatalystLog.log(SWERVE + "ChassisVelocities", ChassisVelocities.struct, getChassisSpeeds());
+        // Deprecated alias for the same reason as ModuleStates below. Remove after 2027.
+        CatalystLog.log(SWERVE + "ChassisSpeeds", ChassisVelocities.struct, getChassisSpeeds());
+
         var state = drivetrain.getState();
         if (state.ModuleVelocities != null) {
             CatalystLog.log(SWERVE + "ModuleVelocities", SwerveModuleVelocity.struct, state.ModuleVelocities);
+
+            // Deprecated alias, published for one season.
+            //
+            // WPILib renamed SwerveModuleState to SwerveModuleVelocity, and this topic followed it
+            // so the name matches the type it carries. But a topic name is part of Catalyst's
+            // telemetry contract: teams have AdvantageScope layouts, Console panels and dashboard
+            // widgets pointed at the old path, and silently renaming it breaks every one of them
+            // with no error anywhere. One extra struct-array write per loop is a cheap price for
+            // not doing that. Remove after the 2027 season.
+            CatalystLog.log(SWERVE + "ModuleStates", SwerveModuleVelocity.struct, state.ModuleVelocities);
         }
         if (state.ModuleTargets != null) {
             CatalystLog.log(SWERVE + "ModuleTargets", SwerveModuleVelocity.struct, state.ModuleTargets);
