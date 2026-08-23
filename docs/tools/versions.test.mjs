@@ -75,6 +75,29 @@ test("the hero does not call a beta build stable", () => {
   }
 });
 
+test("the README banner names the current version", () => {
+  // It had drifted to v1.9.2 while the library was on 1.12.0 - the first thing anyone sees on the
+  // repository page, and two releases out of date. Nothing reads it, so nothing caught it.
+  const version = libraryVersion();
+  const svg = fs.readFileSync(path.join(docsDir, "assets", "banner.svg"), "utf8");
+  const m = svg.match(/>v([0-9][^<]*)</);
+
+  assert.ok(m, "the banner should carry a version badge");
+  assert.equal(m[1], version);
+});
+
+test("the banner does not advertise the wrong season", () => {
+  // It said WPILib 2026 on a branch that targets 2027. A banner is the one piece of documentation
+  // read by people who read no documentation.
+  const svg = fs.readFileSync(path.join(docsDir, "assets", "banner.svg"), "utf8");
+  const seasons = [...svg.matchAll(/WPILib (\d{4})/g)].map(x => x[1]);
+
+  assert.ok(seasons.length, "the banner should say which WPILib it is for");
+  for (const season of seasons) {
+    assert.equal(season, "2027", `banner says WPILib ${season}`);
+  }
+});
+
 test("the AdvantageScope bundles name the version whose topics they match", () => {
   // Not cosmetic. 2.x renamed the swerve topics, so a bundle still claiming 1.7.0 tells the reader
   // its layout predates that rename - which would mean the layout resolves nothing.
