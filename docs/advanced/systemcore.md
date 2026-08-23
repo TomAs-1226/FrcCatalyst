@@ -314,13 +314,41 @@ Heading still comes from the primary alone. Yaw is an integrated quantity, and a
 integrals that drift at different rates gives a third drifting integral while hiding which sensor
 moved — so odometry and drivetrain carry on exactly as before.
 
-What the second sensor buys is measured, not averaged:
+**Yaw rate also comes from the primary.** This is worth being explicit about, because the obvious
+thing to do is average them and the obvious thing is wrong. Averaging two gyros only beats the
+better one when they are of *similar* quality: the lowest-variance blend weights each by the inverse
+of its variance, and a plain mean is that formula with the noise assumed equal. A Pigeon 2 and a
+board-mounted IMU are not equal, so averaging drags a good rate toward a worse one.
+
+If you have measured both — hold the robot still, take the standard deviation of each reported rate
+over a few seconds — you can ask for a proper weighting:
+
+```java
+imu.withYawRateNoise(0.10, 0.30);    // deg/s at rest: primary, secondary
+```
+
+Expect less than you might. Inverse-variance weighting gives a sensor three times noisier a ninth of
+the weight, so the combined figure moves by about 5%. Two *equal* sensors buy a factor of 1/√2, and
+these are not equal. If you have not measured, leave it alone — the primary is the right answer.
+
+So what does the second sensor actually buy?
 
 | | |
 |---|---|
-| `getYawRate()` | averaged across both — rate is a direct measurement, so this is straightforwardly better, and the two share no failure mode since the Pigeon is on CAN and Systemcore is not |
-| `angularAccelerationRadPerSecSq(a1, a2)` | measured from the difference between the two accelerometers instead of by differentiating a gyro, which amplifies noise |
-| `yawRateDisagreementDegPerSec()` | two gyros on one rigid body must agree; a persistent gap means a sensor failed, drifted, or physically moved, and shows up long before the pose error does |
+| `angularAccelerationRadPerSecSq()` | **the real reason.** Measured from the difference between two accelerometers instead of by differentiating a gyro. Physics Core uses it automatically when `dualIMU()` is set. |
+| `yawRateDisagreementDegPerSec()` | two gyros on one rigid body must agree; a persistent gap means a sensor failed, drifted, or physically moved, and shows up long before the pose error does. The two share no failure mode — the Pigeon is on the CAN bus and Systemcore is not. |
+
+### Why the angular acceleration matters
+
+Without two sensors, Physics Core gets angular acceleration by differencing the gyro rate across a
+loop and smoothing the result. On a clean signal that is exact. On a real one it is not:
+differentiating scales noise by `1/dt`, so at 50 Hz a rate wobbling a tenth of a degree per second
+becomes several degrees per second squared of acceleration that is not happening — and the smoothing
+that hides it is hiding real signal too.
+
+A difference of two accelerometers does not amplify noise the way a derivative does. Physics Core
+falls back to the derived value on any loop where either sensor is not reporting, so a dropout
+degrades rather than stops.
 
 Angular acceleration reads both sensors itself:
 

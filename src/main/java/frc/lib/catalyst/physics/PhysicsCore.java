@@ -134,6 +134,9 @@ public final class PhysicsCore implements UncertainRobotStateSource {
     private final Supplier<SwerveModuleVelocity[]> moduleStatesSource;
     private final Supplier<Translation2d> accelerationSource;
     private final DoubleSupplier yawRateSource;
+
+    /** Set only when two IMUs are configured; supplies measured angular acceleration. */
+    private final DualIMU dualIMU;
     private final DoubleSupplier clock;
     private final double poseOutlierGateMeters;
     private final boolean loggingEnabled;
@@ -168,6 +171,7 @@ public final class PhysicsCore implements UncertainRobotStateSource {
         this.moduleStatesSource = builder.moduleStatesSource;
         this.accelerationSource = builder.accelerationSource;
         this.yawRateSource = builder.yawRateSource;
+        this.dualIMU = builder.dualIMU;
         this.clock = builder.clock;
         this.poseOutlierGateMeters = builder.poseOutlierGateMeters;
         this.loggingEnabled = builder.loggingEnabled;
@@ -232,13 +236,25 @@ public final class PhysicsCore implements UncertainRobotStateSource {
         if (sample.hasModuleVelocities()) sawModuleVelocities = true;
 
         double slipFactor = updateSlip(sample);
+        // Measured if two IMUs can supply it, derived otherwise. Read here rather than at sample
+        // construction so a sensor that drops out mid-match falls back on the next loop instead of
+        // being decided once at startup.
+        Double measuredAlpha = null;
+        if (dualIMU != null) {
+            var alpha = dualIMU.angularAccelerationRadPerSecSq();
+            if (alpha.isPresent()) {
+                measuredAlpha = alpha.getAsDouble();
+            }
+        }
+
         PhysicalRobotState updated = estimator.update(
                 sample.timestampSeconds(),
                 sample.pose(),
                 sample.robotRelativeSpeeds(),
                 sample.robotRelativeAcceleration(),
                 sample.yawRateRadPerSec(),
-                wheelDistrust(slipFactor));
+                wheelDistrust(slipFactor),
+                measuredAlpha);
 
         Optional<CollisionEvent> collision = updateDiagnostics(sample, updated);
         analysis = buildAnalysis(updated, slipFactor, collision);
@@ -657,36 +673,29 @@ public final class PhysicsCore implements UncertainRobotStateSource {
         }
 
         /**
-         * Use two IMUs at known points on the robot instead of one.
+         * Take the yaw rate and, more importantly, the angular acceleration from two IMUs.
          *
-         * <p>Wires {@link DualIMU} in as the yaw-rate source. Normal robot motion is unaffected —
-         * drivetrain and odometry keep using whichever IMU you gave as primary, because heading is
-         * an integrated quantity and mixing two integrals hides which one drifted. What changes is
-         * what Physics Core has to work with:
+         * <p>The angular acceleration is the reason to do this. Without it, Physics Core differences
+         * the gyro rate across a loop and smooths the result — exact on a clean signal, and on a
+         * real one a way of turning gyro noise into acceleration that is not happening, because
+         * differentiating scales noise by 1/dt. Two accelerometers at known points measure the same
+         * quantity directly, with no differentiation involved.
          *
-         * <ul>
-         *   <li>Yaw rate is averaged across both gyros, so it carries less noise and survives one
-         *       sensor failing. The Pigeon is on the CAN bus and Systemcore's IMU is not, so no
-         *       single fault takes both.</li>
-         *   <li>The two sensors sit at different points on a rigid body, which makes their
-         *       disagreement measurable rather than merely suspected — and disagreement is the
-         *       signal Physics Core is built around.</li>
-         * </ul>
+         * <p>The yaw rate keeps coming from the <em>primary</em> sensor. Averaging two gyros of
+         * unequal quality is worse than using the better one, and the Pigeon is the better one — see
+         * {@link DualIMU#withYawRateNoise(double, double)} if you have measured both and want a
+         * proper weighting.
          *
-         * <p>The natural pairing on Systemcore is the Pigeon as primary and the onboard IMU as
-         * secondary, since the Pigeon is better placed for odometry and drifts less.
+         * <p>Falls back to the derived value on any loop where either sensor is not reporting
+         * acceleration, so a dropout degrades rather than stops.
          *
          * <pre>{@code
-         * .dualIMU(new DualIMU(pigeon, new SystemCoreIMU(),
-         *         new Translation2d(0.2, 0.0),     // where the Pigeon sits
-         *         new Translation2d(-0.15, 0.1))); // where the Systemcore sits
+         * .dualIMU(new DualIMU(pigeon, new SystemCoreIMU(OnboardIMU.MountOrientation.FLAT),
+         *                      new Translation2d(0.25, 0.0),      // where the Pigeon is
+         *                      new Translation2d(-0.15, 0.10)))   // where Systemcore is
          * }</pre>
-         *
-         * <p>Positions are measured on the robot in metres, robot coordinates. They matter: the
-         * angular-acceleration solve divides by the distance between them, so a wrong offset gives a
-         * confidently wrong answer rather than an error.
          */
-        public Builder dualIMU(DualIMU dual) {
+public Builder dualIMU(DualIMU dual) {
             this.dualIMU = dual;
             return this.yawRateSource(() -> Math.toRadians(dual.getYawRate()));
         }

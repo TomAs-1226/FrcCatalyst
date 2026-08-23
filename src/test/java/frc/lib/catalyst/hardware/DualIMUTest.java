@@ -7,6 +7,7 @@ import org.wpilib.math.geometry.Translation2d;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -60,13 +61,57 @@ class DualIMUTest {
     }
 
     @Test
-    void yawRateIsAveragedBecauseItIsAMeasurementNotAnIntegral() {
+    void yawRateComesFromThePrimaryUnlessToldOtherwise() {
+        // Not an average. Averaging two gyros only beats the better one when they are of similar
+        // quality - the optimal blend weights by inverse variance, and a plain mean is that with the
+        // noise assumed equal. A Pigeon and a board-mounted IMU are not equal, so averaging drags a
+        // good rate toward a worse one.
+        FakeIMU pigeon = new FakeIMU();
+        FakeIMU onboard = new FakeIMU();
+        pigeon.yawRateDegPerSec = 100;
+        onboard.yawRateDegPerSec = 90;
+
+        assertEquals(100, oneMetreApart(pigeon, onboard).getYawRate(), 1e-9);
+        assertEquals(1.0, oneMetreApart(pigeon, onboard).primaryYawRateWeight(), 1e-9);
+    }
+
+    @Test
+    void equalNoiseWeightsThemEqually() {
+        // The case where a plain average is right, reached by measuring rather than by assuming.
         FakeIMU a = new FakeIMU();
         FakeIMU b = new FakeIMU();
         a.yawRateDegPerSec = 100;
         b.yawRateDegPerSec = 90;
 
-        assertEquals(95, oneMetreApart(a, b).getYawRate(), 1e-9);
+        DualIMU dual = oneMetreApart(a, b).withYawRateNoise(0.2, 0.2);
+        assertEquals(0.5, dual.primaryYawRateWeight(), 1e-9);
+        assertEquals(95, dual.getYawRate(), 1e-9);
+    }
+
+    @Test
+    void aNoisierSecondSensorBarelyMovesTheAnswer() {
+        // Inverse-variance weighting, so a sensor three times noisier gets a ninth of the weight.
+        // Worth knowing before wiring one up: the gain is far smaller than "two sensors" suggests.
+        FakeIMU pigeon = new FakeIMU();
+        FakeIMU onboard = new FakeIMU();
+        pigeon.yawRateDegPerSec = 100;
+        onboard.yawRateDegPerSec = 10;
+
+        DualIMU dual = oneMetreApart(pigeon, onboard).withYawRateNoise(0.1, 0.3);
+        assertEquals(0.9, dual.primaryYawRateWeight(), 1e-9);
+        assertEquals(91, dual.getYawRate(), 1e-9);
+    }
+
+    @Test
+    void aNoiselessSensorIsRefusedRatherThanTrusted() {
+        // Zero noise means infinite weight, which silently discards the other sensor entirely. No
+        // gyro is noiseless, so a zero here is a measurement that was not taken.
+        FakeIMU a = new FakeIMU();
+        FakeIMU b = new FakeIMU();
+        DualIMU dual = oneMetreApart(a, b);
+
+        assertThrows(IllegalArgumentException.class, () -> dual.withYawRateNoise(0, 0.2));
+        assertThrows(IllegalArgumentException.class, () -> dual.withYawRateNoise(0.2, -1));
     }
 
     @Test

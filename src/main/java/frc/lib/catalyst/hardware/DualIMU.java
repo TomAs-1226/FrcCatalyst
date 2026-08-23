@@ -17,9 +17,17 @@ import java.util.OptionalDouble;
  *
  * <h2>What the second sensor actually buys</h2>
  *
- * <p><b>A better yaw rate.</b> Two independent gyros averaged have roughly {@code 1/sqrt(2)} the
- * noise of one, and — more usefully — no shared failure mode. The Pigeon lives on the CAN bus and
- * the Systemcore IMU does not, so a bus problem cannot take both.
+ * <p><b>A second opinion on yaw rate.</b> Not, by default, an average. Averaging two gyros only
+ * beats the better one when they are of <em>similar</em> quality: the optimal blend weights each by
+ * the inverse of its variance, and a plain mean is that formula with the noise assumed equal. A
+ * Pigeon 2 and a board-mounted IMU are not equal, so averaging them drags a good rate toward a worse
+ * one — which is the opposite of the intent.
+ *
+ * <p>So {@link #getYawRate()} reports the primary, exactly as heading does, and a team that has
+ * <em>measured</em> both sensors can opt into a proper weighting with
+ * {@link #withYawRateNoise(double, double)}. The second sensor still earns its place: it shares no
+ * failure mode with the first — the Pigeon is on the CAN bus and the Systemcore IMU is not — so the
+ * disagreement below catches a failure that a single gyro reports as truth.
  *
  * <p><b>Angular acceleration, measured rather than differentiated.</b> This is the part that is only
  * possible with two. For a rigid body rotating in the plane, a point at offset {@code r} from
@@ -69,6 +77,14 @@ public final class DualIMU implements CatalystIMU {
     private final Translation2d leverArm;
 
     /**
+     * How much of the yaw rate comes from the primary, 0–1.
+     *
+     * <p>One by default: the primary alone. Anything else has to be earned by measuring both
+     * sensors, because a blend chosen by feel is a blend that can only make the better sensor worse.
+     */
+    private double primaryRateWeight = 1.0;
+
+    /**
      * Combine two IMUs.
      *
      * @param primary       the sensor whose heading is authoritative — normally the Pigeon, which is
@@ -99,15 +115,61 @@ public final class DualIMU implements CatalystIMU {
     }
 
     /**
-     * Yaw rate, averaged across both gyros.
+     * Yaw rate.
      *
-     * <p>Unlike yaw, rate is a direct measurement rather than an integral, so averaging is
-     * straightforwardly better: uncorrelated noise falls by about {@code 1/sqrt(2)} and neither
-     * sensor's failure takes the reading out on its own.
+     * <p>The primary's, unless {@link #withYawRateNoise(double, double)} has been told what the two
+     * sensors' noise actually is. See the class notes: averaging sensors of unequal quality produces
+     * something worse than the better one, and the Pigeon is the better one here.
      */
     @Override
     public double getYawRate() {
-        return (primary.getYawRate() + secondary.getYawRate()) / 2.0;
+        if (primaryRateWeight >= 1.0) {
+            return primary.getYawRate();
+        }
+        return primaryRateWeight * primary.getYawRate()
+                + (1.0 - primaryRateWeight) * secondary.getYawRate();
+    }
+
+    /**
+     * Blend the two yaw rates, weighted by how noisy each sensor actually is.
+     *
+     * <p>For two independent measurements of the same quantity, the lowest-variance combination
+     * weights each by the inverse of its variance:
+     *
+     * <pre>
+     *   w₁ = (1/σ₁²) / (1/σ₁² + 1/σ₂²)
+     * </pre>
+     *
+     * <p>A plain average is that with σ₁ = σ₂ assumed. When they differ it is strictly worse than
+     * using the better sensor alone, which is why it is not the default.
+     *
+     * <p>The gain is also smaller than it looks. Two equal sensors buy a factor of {@code 1/√2}; a
+     * sensor three times noisier than its partner moves the combined figure by about 5%. If you have
+     * not measured, do not set this — the primary alone is the right answer and costs nothing.
+     *
+     * <p>Measure by holding the robot still and taking the standard deviation of each sensor's
+     * reported rate over a few seconds, in degrees per second.
+     *
+     * @param primaryNoiseDegPerSec   standard deviation of the primary at rest
+     * @param secondaryNoiseDegPerSec standard deviation of the secondary at rest
+     * @throws IllegalArgumentException if either figure is not positive — a noiseless sensor does not
+     *                                  exist, and treating one as noiseless silently discards the other
+     */
+    public DualIMU withYawRateNoise(double primaryNoiseDegPerSec, double secondaryNoiseDegPerSec) {
+        if (!(primaryNoiseDegPerSec > 0) || !(secondaryNoiseDegPerSec > 0)) {
+            throw new IllegalArgumentException(
+                    "noise must be positive, got " + primaryNoiseDegPerSec
+                            + " and " + secondaryNoiseDegPerSec);
+        }
+        double p = 1.0 / (primaryNoiseDegPerSec * primaryNoiseDegPerSec);
+        double q = 1.0 / (secondaryNoiseDegPerSec * secondaryNoiseDegPerSec);
+        this.primaryRateWeight = p / (p + q);
+        return this;
+    }
+
+    /** How much of the yaw rate is coming from the primary, 0–1. One unless you changed it. */
+    public double primaryYawRateWeight() {
+        return primaryRateWeight;
     }
 
     @Override
@@ -236,6 +298,7 @@ public final class DualIMU implements CatalystIMU {
         CatalystLog.log("IMU/YawDisagreementDeg", yawDisagreementDegrees());
         CatalystLog.log("IMU/YawRateDisagreementDegPerSec", yawRateDisagreementDegPerSec());
         CatalystLog.log("IMU/LeverArmMeters", leverArmMeters());
+        CatalystLog.log("IMU/PrimaryRateWeight", primaryRateWeight);
         angularAccelerationRadPerSecSq()
                 .ifPresent(a -> CatalystLog.log("IMU/AngularAccelRadPerSecSq", a));
     }

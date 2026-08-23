@@ -143,6 +143,33 @@ public final class PhysicalStateEstimator {
             Translation2d robotRelativeAcceleration,
             double yawRateRadPerSec,
             double slipFactor) {
+        return update(timestampSeconds, pose, kinematicRobotRelativeSpeeds,
+                robotRelativeAcceleration, yawRateRadPerSec, slipFactor, null);
+    }
+
+    /**
+     * As above, with angular acceleration supplied rather than derived.
+     *
+     * <p>Without it, angular acceleration is the gyro rate differenced across a loop and smoothed.
+     * On a clean signal that is exact. On a real one it is not: differentiating scales noise by
+     * 1/dt, so at 50 Hz a rate wobbling by a tenth of a degree per second becomes several degrees
+     * per second squared of acceleration that is not happening, and the smoothing that hides it is
+     * hiding a real signal too.
+     *
+     * <p>Two accelerometers at known points on the rigid body measure the same quantity directly. A
+     * difference of two measurements does not amplify noise the way a derivative does. See
+     * {@code DualIMU}.
+     *
+     * @param measuredAngularAccelRadPerSecSq measured value, or null to derive it as before
+     */
+    public PhysicalRobotState update(
+            double timestampSeconds,
+            Pose2d pose,
+            ChassisVelocities kinematicRobotRelativeSpeeds,
+            Translation2d robotRelativeAcceleration,
+            double yawRateRadPerSec,
+            double slipFactor,
+            Double measuredAngularAccelRadPerSecSq) {
 
         Rotation2d heading = pose.getRotation();
         ChassisVelocities kinematicField =
@@ -193,7 +220,11 @@ public final class PhysicalStateEstimator {
             Translation2d rawAccel = fusedVelocity.minus(previousVelocity).div(dt);
             fusedAccel = new Translation2d(
                     accelX.calculate(rawAccel.getX()), accelY.calculate(rawAccel.getY()));
-            fusedAngularAccel = angularAccel.calculate((yawRateRadPerSec - lastYawRate) / dt);
+            // A measured value goes in unsmoothed. The filter exists to make a derivative usable;
+            // applying it to something that was never differentiated only adds lag.
+            fusedAngularAccel = measuredAngularAccelRadPerSecSq != null
+                    ? measuredAngularAccelRadPerSecSq
+                    : angularAccel.calculate((yawRateRadPerSec - lastYawRate) / dt);
             growObservedVelocityVariance(dt);
         }
 
