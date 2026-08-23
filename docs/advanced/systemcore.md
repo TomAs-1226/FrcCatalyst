@@ -381,6 +381,67 @@ Stated so nobody assumes otherwise:
 - **PathPlanner is still commands v2.** Catalyst bridges it with `LegacyCommands.fromV2(...)`; the
   bridge and the v2 dependency both go away when PathPlanner ships for v3.
 
+## Two things 2027 puts where the driver is looking
+
+### Autos the Driver Station lists
+
+2027 replaced "autonomous is whatever `autonomousInit` does" with named **OpModes** that the Driver
+Station shows and selects. A routine is a class with an annotation:
+
+```java
+@Autonomous(name = "Three Piece Left", group = "Competition")
+public class ThreePieceLeft extends CommandOpMode {
+    public ThreePieceLeft() {
+        super(() -> RobotContainer.get().auto().threePieceLeft());
+    }
+}
+```
+
+and it appears on the Driver Station, grouped, ready to pick. No chooser to publish, no dashboard to
+configure, and nothing to remember when a routine is added — which was the old way's failure mode: an
+auto written on Friday that nobody could select on Saturday because the chooser was never updated.
+
+Register them in one line:
+
+```java
+public class Robot extends OpModeRobot {
+    public Robot() {
+        addAnnotatedOpModeClasses(getClass().getPackage());
+    }
+}
+```
+
+`CommandOpMode` takes a **supplier**, not a command, and that is not a style preference. An OpMode is
+constructed when the Driver Station lists the modes, which is at startup. A command built then
+captures the pose the robot had at boot and the alliance before the FMS said — it runs, it looks
+entirely plausible, and it drives the wrong way. Ending the mode also cancels what it scheduled,
+without which a fifteen-second auto keeps driving into teleop while the driver wonders why the robot
+will not respond.
+
+`CatalystOpMode` is the base for anything that is not just one command. It runs the scheduler and
+publishes machine status, which an OpMode does not do on its own — a mode that does not tick the
+scheduler compiles, runs, and does nothing at all: no command, no default command, no subsystem
+periodic, and nothing anywhere saying why.
+
+### Status on the Driver Station itself
+
+Everything Catalyst reports lands somewhere the driver is not looking: Console is on another screen,
+AdvantageScope is for afterwards, the health dashboard is a browser tab. In the thirty seconds before
+a match the driver is looking at exactly one thing, and 2027 finally allows writing to it.
+
+```java
+DriverBoard.standard()                       // what is wrong, and the battery
+    .line("Auto", () -> selectedAutoName)
+    .start();
+```
+
+Deliberately short. A display that scrolls is a display nobody reads, and this one competes with a
+match for attention — a line earns its place only if a driver would do something differently because
+of it in the next minute. Failing health checks are named while there are few enough to name and
+counted after that, because a robot with nine problems has one problem and it is not any of the nine.
+Battery is judged against the thresholds the machine itself publishes rather than the roboRIO's
+6.8 V, which is a different number.
+
 ## Facts we could not verify
 
 Separate from the list above, which is about work not done. These are things where the answer was
