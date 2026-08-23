@@ -187,6 +187,36 @@ public final class DualIMU implements CatalystIMU {
         return OptionalDouble.of(projected);
     }
 
+    /**
+     * Angular acceleration, read from both sensors directly.
+     *
+     * <p>The form worth using. The two-argument version exists for callers holding accelerations
+     * from somewhere else, but fetching them by hand means going through a Pigeon's API and
+     * Systemcore's onboard IMU separately, in two unit conventions, and getting the frames right —
+     * which is enough work that the measurement does not get taken.
+     *
+     * @return angular acceleration in rad/s², or empty if either sensor is not reporting
+     *         acceleration or the two sit too close together to measure it
+     */
+    public OptionalDouble angularAccelerationRadPerSecSq() {
+        var a = primary.getAcceleration();
+        var b = secondary.getAcceleration();
+        if (a.isEmpty() || b.isEmpty()) {
+            // One sensor silent is no measurement. Substituting zero for the missing one would
+            // produce a confident number from a single accelerometer, which is exactly the thing
+            // this class exists to avoid.
+            return OptionalDouble.empty();
+        }
+        return angularAccelerationRadPerSecSq(a.get(), b.get());
+    }
+
+    /** Whether both sensors are reporting acceleration, so the reading above is available. */
+    public boolean canMeasureAngularAcceleration() {
+        return leverArm.getNorm() >= MIN_LEVER_ARM_METERS
+                && primary.getAcceleration().isPresent()
+                && secondary.getAcceleration().isPresent();
+    }
+
     /** The authoritative sensor. */
     public CatalystIMU primary() {
         return primary;
@@ -206,5 +236,7 @@ public final class DualIMU implements CatalystIMU {
         CatalystLog.log("IMU/YawDisagreementDeg", yawDisagreementDegrees());
         CatalystLog.log("IMU/YawRateDisagreementDegPerSec", yawRateDisagreementDegPerSec());
         CatalystLog.log("IMU/LeverArmMeters", leverArmMeters());
+        angularAccelerationRadPerSecSq()
+                .ifPresent(a -> CatalystLog.log("IMU/AngularAccelRadPerSecSq", a));
     }
 }

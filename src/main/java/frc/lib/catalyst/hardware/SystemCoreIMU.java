@@ -2,6 +2,7 @@ package frc.lib.catalyst.hardware;
 
 import org.wpilib.hardware.imu.OnboardIMU;
 import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Translation2d;
 
 /**
  * Systemcore's built-in IMU, as a Catalyst heading source.
@@ -110,6 +111,17 @@ public final class SystemCoreIMU implements CatalystIMU {
     /** Full 3D attitude, which the Pigeon wrapper does not expose. Useful for a 3D robot view. */
     public org.wpilib.math.geometry.Rotation3d getRotation3d() {
         return imu.getRotation3d();
+    }
+
+    /**
+     * Acceleration in the robot's XY plane, straight off the onboard accelerometer.
+     *
+     * <p>Always present: the sensor is on the board and there is nothing to be absent. Reported in
+     * m/s² with gravity still in it, per the interface.
+     */
+    @Override
+    public java.util.Optional<Translation2d> getAcceleration() {
+        return java.util.Optional.of(new Translation2d(imu.getAccelX(), imu.getAccelY()));
     }
 
     /** The underlying WPILib IMU, for acceleration and per-axis rates. */

@@ -322,6 +322,23 @@ What the second sensor buys is measured, not averaged:
 | `angularAccelerationRadPerSecSq(a1, a2)` | measured from the difference between the two accelerometers instead of by differentiating a gyro, which amplifies noise |
 | `yawRateDisagreementDegPerSec()` | two gyros on one rigid body must agree; a persistent gap means a sensor failed, drifted, or physically moved, and shows up long before the pose error does |
 
+Angular acceleration reads both sensors itself:
+
+```java
+imu.angularAccelerationRadPerSecSq();      // rad/s², or empty
+imu.canMeasureAngularAcceleration();       // whether both are reporting
+```
+
+`CatalystIMU` gained an optional `getAcceleration()` for this, which `CatalystGyro` and
+`SystemCoreIMU` both implement. It defaults to empty, so a heading source that only knows heading
+stays a perfectly good heading source. Without it a caller had to fetch accelerations from a Pigeon
+and from Systemcore separately, through two unrelated APIs in two unit conventions, and get the
+frames right — enough friction that the measurement simply would not get taken.
+
+If either sensor is silent the answer is empty rather than zero. Substituting zero for the missing
+one produces a confident number out of a single accelerometer, which is the exact thing having two
+sensors exists to avoid.
+
 The offsets have to be right. They are measured on the robot, in robot coordinates, and a wrong one
 produces a confident wrong answer. Sensors closer together than 5 cm return empty rather than
 guessing — at that separation the difference between them is mostly noise divided by a small number.

@@ -2,6 +2,10 @@ package frc.lib.catalyst.hardware;
 
 import com.ctre.phoenix6.configs.Pigeon2Configuration;
 import com.ctre.phoenix6.hardware.Pigeon2;
+
+import org.wpilib.math.geometry.Translation2d;
+
+import static org.wpilib.units.Units.MetersPerSecondPerSecond;
 import org.wpilib.math.geometry.Rotation2d;
 
 /**
@@ -104,6 +108,28 @@ public class CatalystGyro implements CatalystIMU {
     }
 
     /** Get the underlying Pigeon2. */
+    /**
+     * Acceleration in the robot's XY plane, from the Pigeon's accelerometer.
+     *
+     * <p>Phoenix reports it as a typed {@code LinearAcceleration}, so this converts once here rather
+     * than leaving every caller to remember whether the signal is in g or m/s².
+     *
+     * <p>Empty if the signal has not arrived. A Pigeon that has just powered up, or one on a bus
+     * that has dropped, reports nothing rather than zero - and zero acceleration is a specific,
+     * wrong claim about a robot that might be accelerating hard.
+     */
+    @Override
+    public java.util.Optional<Translation2d> getAcceleration() {
+        var x = pigeon.getAccelerationX();
+        var y = pigeon.getAccelerationY();
+        if (!x.getStatus().isOK() || !y.getStatus().isOK()) {
+            return java.util.Optional.empty();
+        }
+        return java.util.Optional.of(new Translation2d(
+                x.getValue().in(MetersPerSecondPerSecond),
+                y.getValue().in(MetersPerSecondPerSecond)));
+    }
+
     public Pigeon2 getPigeon() {
         return pigeon;
     }

@@ -6,6 +6,7 @@ import org.wpilib.math.geometry.Rotation2d;
 import org.wpilib.math.geometry.Translation2d;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -22,6 +23,11 @@ class DualIMUTest {
     private static final class FakeIMU implements CatalystIMU {
         double yawDeg;
         double yawRateDegPerSec;
+        Translation2d accel;          // null means "this sensor reports no acceleration"
+
+        @Override public java.util.Optional<Translation2d> getAcceleration() {
+            return java.util.Optional.ofNullable(accel);
+        }
 
         @Override public Rotation2d getHeading() { return Rotation2d.fromDegrees(yawDeg); }
         @Override public double getYaw() { return yawDeg; }
@@ -216,6 +222,56 @@ class DualIMUTest {
                 new Translation2d(0, 2.0), new Translation2d(0, -2.0)).orElseThrow();
 
         assertEquals(fromNear, fromFar, 1e-9);
+    }
+
+    // --- reading both sensors without being handed their accelerations -------
+
+    @Test
+    void theSensorsCanBeReadDirectly() {
+        // The form worth using. Fetching accelerations by hand means going through a Pigeon and
+        // Systemcore's onboard IMU separately, in two unit conventions, and getting the frames
+        // right - enough work that the measurement does not get taken.
+        FakeIMU a = new FakeIMU();
+        FakeIMU b = new FakeIMU();
+        a.accel = new Translation2d(0, 1.0);
+        b.accel = new Translation2d(0, -1.0);
+
+        DualIMU dual = oneMetreApart(a, b);
+        assertTrue(dual.canMeasureAngularAcceleration());
+        assertEquals(2.0, dual.angularAccelerationRadPerSecSq().orElseThrow(), 1e-9);
+    }
+
+    @Test
+    void oneSilentSensorIsNoMeasurement() {
+        // Substituting zero for the missing one produces a confident number out of a single
+        // accelerometer, which is the exact thing having two sensors exists to avoid.
+        FakeIMU a = new FakeIMU();
+        FakeIMU b = new FakeIMU();
+        a.accel = new Translation2d(0, 1.0);
+        b.accel = null;
+
+        DualIMU dual = oneMetreApart(a, b);
+        assertFalse(dual.canMeasureAngularAcceleration());
+        assertTrue(dual.angularAccelerationRadPerSecSq().isEmpty());
+    }
+
+    @Test
+    void sensorsTooCloseCannotMeasureEvenWhenBothReport() {
+        FakeIMU a = new FakeIMU();
+        FakeIMU b = new FakeIMU();
+        a.accel = new Translation2d(0, 1.0);
+        b.accel = new Translation2d(0, -1.0);
+
+        DualIMU dual = new DualIMU(a, b, new Translation2d(0.005, 0), new Translation2d(-0.005, 0));
+        assertFalse(dual.canMeasureAngularAcceleration());
+        assertTrue(dual.angularAccelerationRadPerSecSq().isEmpty());
+    }
+
+    @Test
+    void anImuThatKnowsOnlyHeadingIsStillAValidImu() {
+        // The default on the interface is empty, so every heading source written before this stays
+        // valid rather than being forced to implement a method it has no sensor for.
+        assertTrue(new FakeIMU().getAcceleration().isEmpty());
     }
 
     @Test
