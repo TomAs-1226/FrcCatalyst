@@ -159,7 +159,21 @@ configurations {
     nativeDesktop
 }
 
-def desktopClassifier = 'windowsx86-64'
+// Which desktop natives to unpack. Hardcoding Windows meant the test task only ever worked on one
+// machine: CI runs on Linux, unpacked a directory of DLLs, and failed loading the HAL with an error
+// about a missing library rather than about the wrong platform.
+def desktopClassifier = {
+    String os = System.getProperty('os.name').toLowerCase()
+    String arch = System.getProperty('os.arch').toLowerCase()
+    boolean arm = arch.contains('aarch64') || arch.contains('arm64')
+    if (os.contains('win')) {
+        return arm ? 'windowsarm64' : 'windowsx86-64'
+    }
+    if (os.contains('mac') || os.contains('darwin')) {
+        return 'osxuniversal'
+    }
+    return arm ? 'linuxarm64' : 'linuxx86-64'
+}()
 
 dependencies {
     nativeDesktop "org.wpilib.hal:hal-cpp:${wpilibVersion}:${desktopClassifier}@zip"
