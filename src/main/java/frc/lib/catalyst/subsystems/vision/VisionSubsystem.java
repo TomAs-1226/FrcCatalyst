@@ -153,7 +153,7 @@ public class VisionSubsystem implements frc.lib.catalyst.command.CatalystSubsyst
                 continue;
             }
 
-            String rejectReason = filterEstimate(pe, currentPose);
+            String rejectReason = filterEstimate(pe, currentPose, camera.isPrefiltered());
             if (rejectReason != null) {
                 totalRejected++;
                 cycleRejected++;
@@ -218,14 +218,27 @@ public class VisionSubsystem implements frc.lib.catalyst.command.CatalystSubsyst
 
     /**
      * Filter a pose estimate. Returns null if accepted, or a rejection reason string.
+     *
+     * <p>Split by what each side can know. A source that reports
+     * {@link CameraSource#isPrefiltered()} has already applied everything decidable from the image —
+     * tag count, ambiguity, tag distance and area, field bounds, frame age — using the raw
+     * detections, which it can do better than this can from a finished pose. Those checks are
+     * skipped for such a source rather than repeated with a second set of thresholds nobody tuned.
+     *
+     * <p>What is never skipped is the half the camera cannot do, because it does not know where the
+     * robot thinks it is or what it is doing: distance from the current fused pose, angular and
+     * translational velocity, heading divergence. Those run for every source.
      */
-    private String filterEstimate(CameraSource.PoseEstimate pe, Pose2d currentPose) {
-        // Reject if no tags seen
-        if (pe.tagCount() == 0) return "NoTags";
+    private String filterEstimate(CameraSource.PoseEstimate pe, Pose2d currentPose,
+                                  boolean prefiltered) {
+        if (!prefiltered) {
+            // Reject if no tags seen
+            if (pe.tagCount() == 0) return "NoTags";
 
-        // Reject if ambiguity is too high (single tag only — multi-tag PnP has low ambiguity)
-        if (pe.tagCount() == 1 && pe.ambiguity() > config.maxAmbiguity) {
-            return "HighAmbiguity(" + String.format("%.2f", pe.ambiguity()) + ")";
+            // Reject if ambiguity is too high (single tag only — multi-tag PnP has low ambiguity)
+            if (pe.tagCount() == 1 && pe.ambiguity() > config.maxAmbiguity) {
+                return "HighAmbiguity(" + String.format("%.2f", pe.ambiguity()) + ")";
+            }
         }
 
         // Reject if too far from current Kalman filter estimate (likely outlier)
@@ -235,19 +248,21 @@ public class VisionSubsystem implements frc.lib.catalyst.command.CatalystSubsyst
             return "TooFar(" + String.format("%.1fm", distFromCurrent) + ")";
         }
 
-        // Reject if pose is off the field (configurable bounds with margin)
-        double x = pe.pose().getX();
-        double y = pe.pose().getY();
-        double margin = config.fieldBoundsMargin;
-        if (x < -margin || x > config.fieldLengthMeters + margin
-                || y < -margin || y > config.fieldWidthMeters + margin) {
-            return "OffField";
-        }
+        if (!prefiltered) {
+            // Reject if pose is off the field (configurable bounds with margin)
+            double x = pe.pose().getX();
+            double y = pe.pose().getY();
+            double margin = config.fieldBoundsMargin;
+            if (x < -margin || x > config.fieldLengthMeters + margin
+                    || y < -margin || y > config.fieldWidthMeters + margin) {
+                return "OffField";
+            }
 
-        // Reject if timestamp is too old (stale data degrades Kalman filter accuracy)
-        double latency = Timer.getTimestamp() - pe.timestampSeconds();
-        if (latency > config.maxLatencySeconds) {
-            return "StaleData(" + String.format("%.0fms", latency * 1000) + ")";
+            // Reject if timestamp is too old (stale data degrades Kalman filter accuracy)
+            double latency = Timer.getTimestamp() - pe.timestampSeconds();
+            if (latency > config.maxLatencySeconds) {
+                return "StaleData(" + String.format("%.0fms", latency * 1000) + ")";
+            }
         }
 
         // Reject during high angular velocity (motion blur)

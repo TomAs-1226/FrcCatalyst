@@ -25,6 +25,33 @@ public interface CameraSource {
     default void setRobotOrientation(double yawDegrees, double yawRate,
                                      double pitchDegrees, double rollDegrees) {}
 
+    /**
+     * Whether this source already rejects bad estimates before returning them.
+     *
+     * <p>This exists to divide the work honestly rather than do it twice. The two sides filter on
+     * different information and neither can do the other's job:
+     *
+     * <ul>
+     *   <li><b>The camera</b> knows what it can see — tag count, ambiguity, tag distance and area,
+     *       field bounds, how old the frame is. LimelightLib 2 does all of this, and better than
+     *       Catalyst could, because it has the raw detections.</li>
+     *   <li><b>Catalyst</b> knows what the robot is doing — how far the estimate sits from the
+     *       current fused pose, how fast the robot is spinning or driving, whether the estimate's
+     *       heading disagrees with the gyro. The camera cannot compute any of those; it has no idea
+     *       where the robot thinks it is.</li>
+     * </ul>
+     *
+     * <p>When this is true, {@code VisionSubsystem} skips the checks the camera has already made and
+     * applies only the robot-aware ones. Running both would mean two sets of thresholds for the same
+     * rejection — a team tunes one, the other silently keeps rejecting, and the symptom is vision
+     * that "doesn't work" for no visible reason.
+     *
+     * <p>Defaults to false, which is right for any source that hands back raw estimates.
+     */
+    default boolean isPrefiltered() {
+        return false;
+    }
+
     /** A pose estimate from a vision camera. */
     record PoseEstimate(
             Pose2d pose,

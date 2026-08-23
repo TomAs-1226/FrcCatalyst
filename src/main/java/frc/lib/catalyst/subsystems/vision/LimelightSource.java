@@ -2,6 +2,8 @@ package frc.lib.catalyst.subsystems.vision;
 
 import com.limelightvision.Limelight;
 
+import frc.lib.catalyst.logging.CatalystLog;
+
 import org.wpilib.math.geometry.Pose3d;
 import org.wpilib.math.geometry.Transform3d;
 
@@ -71,6 +73,23 @@ public class LimelightSource implements CameraSource {
         this.useMegaTag2 = useMegaTag2;
         this.limelight = new Limelight(name, new Pose3d(
                 robotToCamera.getTranslation(), robotToCamera.getRotation()));
+
+        // Publish the transform once, at construction, because a wrong one cannot be detected later.
+        //
+        // Limelight OS 2027.0 unified every 3D space on NWU right-handed. A transform carried over
+        // from 2026 may need its mount side and pitch signs flipped, and the failure mode is not a
+        // crash - it is a pose that is confidently, consistently wrong by a few degrees of camera
+        // pitch, which reads as "vision is a bit noisy" rather than as a configuration error.
+        // Catalyst cannot tell a correct transform from an incorrect one, so it does the next best
+        // thing and puts the numbers somewhere a human can check them against the robot.
+        CatalystLog.log("Vision/" + name + "/RobotToCamera", new double[] {
+                robotToCamera.getX(),
+                robotToCamera.getY(),
+                robotToCamera.getZ(),
+                Math.toDegrees(robotToCamera.getRotation().getX()),
+                Math.toDegrees(robotToCamera.getRotation().getY()),
+                Math.toDegrees(robotToCamera.getRotation().getZ())
+        });
     }
 
     /**
@@ -176,6 +195,18 @@ public class LimelightSource implements CameraSource {
         } catch (RuntimeException ignored) {
             // Nothing listening yet.
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>True: {@link #getEstimatedPose()} drains the camera's <em>accepted</em> queue, so tag
+     * count, ambiguity, distance, area, field bounds and frame age have already been applied by
+     * LimelightLib using the raw detections.
+     */
+    @Override
+    public boolean isPrefiltered() {
+        return true;
     }
 
     /** Whether the camera currently sees a target. */
