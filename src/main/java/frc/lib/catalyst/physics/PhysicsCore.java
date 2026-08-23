@@ -1,5 +1,6 @@
 package frc.lib.catalyst.physics;
 
+import frc.lib.catalyst.hardware.DualIMU;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -576,6 +577,7 @@ public final class PhysicsCore implements UncertainRobotStateSource {
     public static final class Builder {
         private RobotModel robotModel;
         private PhysicsProfile profile = PhysicsProfile.BALANCED;
+        private DualIMU dualIMU = null;
         private SwerveDriveKinematics kinematics;
         private int moduleCount = 4;
         private Supplier<Pose2d> poseSource;
@@ -652,6 +654,41 @@ public final class PhysicsCore implements UncertainRobotStateSource {
         public Builder yawRateSource(DoubleSupplier yawRateSource) {
             this.yawRateSource = yawRateSource;
             return this;
+        }
+
+        /**
+         * Use two IMUs at known points on the robot instead of one.
+         *
+         * <p>Wires {@link DualIMU} in as the yaw-rate source. Normal robot motion is unaffected —
+         * drivetrain and odometry keep using whichever IMU you gave as primary, because heading is
+         * an integrated quantity and mixing two integrals hides which one drifted. What changes is
+         * what Physics Core has to work with:
+         *
+         * <ul>
+         *   <li>Yaw rate is averaged across both gyros, so it carries less noise and survives one
+         *       sensor failing. The Pigeon is on the CAN bus and Systemcore's IMU is not, so no
+         *       single fault takes both.</li>
+         *   <li>The two sensors sit at different points on a rigid body, which makes their
+         *       disagreement measurable rather than merely suspected — and disagreement is the
+         *       signal Physics Core is built around.</li>
+         * </ul>
+         *
+         * <p>The natural pairing on Systemcore is the Pigeon as primary and the onboard IMU as
+         * secondary, since the Pigeon is better placed for odometry and drifts less.
+         *
+         * <pre>{@code
+         * .dualIMU(new DualIMU(pigeon, new SystemCoreIMU(),
+         *         new Translation2d(0.2, 0.0),     // where the Pigeon sits
+         *         new Translation2d(-0.15, 0.1))); // where the Systemcore sits
+         * }</pre>
+         *
+         * <p>Positions are measured on the robot in metres, robot coordinates. They matter: the
+         * angular-acceleration solve divides by the distance between them, so a wrong offset gives a
+         * confidently wrong answer rather than an error.
+         */
+        public Builder dualIMU(DualIMU dual) {
+            this.dualIMU = dual;
+            return this.yawRateSource(() -> Math.toRadians(dual.getYawRate()));
         }
 
         /**

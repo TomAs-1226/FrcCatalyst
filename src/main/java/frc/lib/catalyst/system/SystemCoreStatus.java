@@ -52,26 +52,80 @@ public final class SystemCoreStatus {
 
     private static SystemCoreStatus instance;
 
-    private final NetworkTableInstance server;
-    private final NetworkTable sys;
-    private final boolean available;
+    private final SystemCoreSource source;
 
-    private SystemCoreStatus() {
-        NetworkTableInstance resolved = null;
-        try {
-            resolved = SystemServer.getSystemServer();
-        } catch (Throwable ignored) {
-            // No system server: simulation, a unit test, or a desktop build. Not an error.
-        }
-        this.server = resolved;
-        this.sys = resolved == null ? null : resolved.getTable(SYS_TABLE);
-        this.available = resolved != null;
+    private SystemCoreStatus(SystemCoreSource source) {
+        this.source = source;
     }
 
-    /** The shared reader. Cheap to call; the underlying instance is resolved once. */
+    /**
+     * Replace where readings come from — a {@link SystemCoreSim} in tests and simulation.
+     *
+     * <p>Passing null clears the override so the next {@link #getInstance()} resolves the real
+     * system server. It does <em>not</em> resolve it here: that would construct an {@code NtSource}
+     * immediately, and doing so in a JVM without the HAL natives terminates the process. Clearing
+     * has to stay lazy so a caller can undo an override without triggering the very thing the
+     * override existed to avoid.
+     */
+    public static synchronized void useSource(SystemCoreSource source) {
+        instance = source == null ? null : new SystemCoreStatus(source);
+    }
+
+    /** Reads the live system NetworkTables server. Constructed only on real hardware. */
+    private static final class NtSource implements SystemCoreSource {
+        private final NetworkTable sys;
+        private final boolean available;
+        private final NetworkTableInstance server;
+
+        NtSource() {
+            NetworkTableInstance resolved = null;
+            try {
+                resolved = SystemServer.getSystemServer();
+            } catch (Throwable ignored) {
+                // No system server: simulation, a unit test, or a desktop build. Not an error.
+            }
+            this.server = resolved;
+            this.sys = resolved == null ? null : resolved.getTable(SYS_TABLE);
+            this.available = resolved != null;
+        }
+
+        NetworkTableInstance server() {
+            return server;
+        }
+
+        @Override public boolean isAvailable() { return available; }
+
+        @Override
+        public OptionalDouble number(String key) {
+            if (!available) {
+                return OptionalDouble.empty();
+            }
+            try {
+                var entry = sys.getEntry(key);
+                return entry.exists() ? OptionalDouble.of(entry.getDouble(Double.NaN))
+                                      : OptionalDouble.empty();
+            } catch (Throwable ignored) {
+                return OptionalDouble.empty();
+            }
+        }
+
+        @Override
+        public boolean bool(String key) {
+            if (!available) {
+                return false;
+            }
+            try {
+                return sys.getEntry(key).getBoolean(false);
+            } catch (Throwable ignored) {
+                return false;
+            }
+        }
+    }
+
+    /** The shared reader. Cheap to call; the underlying source is resolved once. */
     public static synchronized SystemCoreStatus getInstance() {
         if (instance == null) {
-            instance = new SystemCoreStatus();
+            instance = new SystemCoreStatus(new NtSource());
         }
         return instance;
     }
@@ -83,12 +137,16 @@ public final class SystemCoreStatus {
      * callers do not need to branch on it except to decide whether to show the data at all.
      */
     public boolean isAvailable() {
-        return available;
+        return source.isAvailable();
     }
 
-    /** The raw system NetworkTables instance, for anything this class does not wrap. */
+    /**
+     * The raw system NetworkTables instance, for anything this class does not wrap.
+     *
+     * @return the instance, or null when reading a simulated source or off hardware
+     */
     public NetworkTableInstance server() {
-        return server;
+        return source instanceof NtSource nt ? nt.server() : null;
     }
 
     // --- Power ---------------------------------------------------------------
@@ -182,7 +240,7 @@ public final class SystemCoreStatus {
      * <p>Call once per loop. No-op when there is no system server.
      */
     public void publish() {
-        if (!available) {
+        if (!isAvailable()) {
             return;
         }
         batteryVolts().ifPresent(v -> CatalystLog.log("Systemcore/BatteryVolts", v));
@@ -201,29 +259,11 @@ public final class SystemCoreStatus {
     // --- Internals -----------------------------------------------------------
 
     private OptionalDouble number(String key) {
-        if (!available) {
-            return OptionalDouble.empty();
-        }
-        try {
-            var entry = sys.getEntry(key);
-            if (!entry.exists()) {
-                return OptionalDouble.empty();
-            }
-            return OptionalDouble.of(entry.getDouble(Double.NaN));
-        } catch (Throwable ignored) {
-            return OptionalDouble.empty();
-        }
+        return source.number(key);
     }
 
     private boolean bool(String key) {
-        if (!available) {
-            return false;
-        }
-        try {
-            return sys.getEntry(key).getBoolean(false);
-        } catch (Throwable ignored) {
-            return false;
-        }
+        return source.bool(key);
     }
 
     private OptionalDouble millivoltsAsVolts(String key) {
