@@ -300,11 +300,13 @@ s). Bind the servo into a `Superstructure` in one line with `Mechanisms.servo(..
 give each state a `ServoGoal.preset(...)`:
 
 ```java
-superstructure.bind(Mechanisms.servo(hood, "hood"));
+enum SuperState { STOW, SHOOT_FAR }
 
-superstructure.state("SHOOT_FAR")
-    .set("hood", ServoGoal.preset("FAR"))   // resolved to degrees at build time
-    .done();
+var b = Superstructure.builder(SuperState.class, "Superstructure");
+var hoodHandle = b.bind("hood", Mechanisms.servo(hood));   // key first, then the mechanism
+
+b.state(SuperState.SHOOT_FAR, s -> s
+    .set(hoodHandle, ServoGoal.preset("FAR")));   // resolved to degrees at build time
 ```
 
 Preset goals are resolved to degrees once, at validate time, so an unknown preset name or
@@ -387,7 +389,7 @@ on the primary.
 **Superseded in v1.2.0 by `frc.lib.catalyst.statemachine.robot.Superstructure`.** The coordinator
 only ever understood `LinearMechanism` and `RotationalMechanism` positions, so a robot with a claw,
 a shooter, a turret or a climber could not put those mechanisms into its states at all. The new
-`Superstructure` takes all nine Catalyst mechanism types and any subsystem you wrote yourself, and
+`Superstructure` takes all ten Catalyst mechanism types and any subsystem you wrote yourself, and
 it is a real state machine: a legal-transition graph, guards and interlocks, staged actuation, and
 a full log under `/Catalyst/<prefix>/`. See
 [the state machine guide](../advanced/statemachine.html).

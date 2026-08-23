@@ -29,7 +29,7 @@ It is not a how-to. If you want to *build* a superstructure, read
 re-explain them.
 
 {: .note }
-The honest short version of the #29 complaint: yes, there are 44 files, but 43 of them are
+The honest short version of the #29 complaint: yes, there are 46 files, but 45 of them are
 tiny. The actual engine — every decision, every arrival check, every timeout — lives in
 **one** file, `StateMachineCore.java`. Once you know that, the package stops being scary.
 
@@ -37,20 +37,20 @@ tiny. The actual engine — every decision, every arrival check, every timeout �
 
 ## 1. Why so many files
 
-Java forces one public class per file. A package that models nine mechanism types, each with
+Java forces one public class per file. A package that models ten mechanism types, each with
 its own goal shape and its own hardware adapter, and then wraps the whole thing in a real
 finite state machine with logging, is going to be a lot of *files* even though it is not much
 *logic*. Counting them and being surprised is fair; but the count is almost entirely
 single-purpose value types, not engine code.
 
-The 44 files fall into four layers, and the layers matter because they are what keeps the
+The 46 files fall into four layers, and the layers matter because they are what keeps the
 hard part testable:
 
 | Layer | Package | Files | What it is | WPILib? |
 |---|---|---|---|---|
 | **Core engine + value types** | `statemachine` | 20 | The FSM itself plus the plain values it speaks in | **None** |
-| **Goals** | `statemachine.goals` | 9 | One typed "where should this mechanism be" value per mechanism | None |
-| **Mechanism adapters** | `statemachine.mech` | 10 | One WPILib adapter per mechanism, plus the `Mechanisms` facade | Yes |
+| **Goals** | `statemachine.goals` | 10 | One typed "where should this mechanism be" value per mechanism | None |
+| **Mechanism adapters** | `statemachine.mech` | 11 | One WPILib adapter per mechanism, plus the `Mechanisms` facade | Yes |
 | **Robot glue** | `statemachine.robot` | 5 | The `Subsystem` / `Command` / `Trigger` / logging layer | Yes |
 
 ### The core engine + value types (20 files, zero WPILib imports)
@@ -60,7 +60,7 @@ files, exactly **one** is the engine:
 
 | File | What it is |
 |---|---|
-| **`StateMachineCore.java`** | **The engine.** ~1830 lines, and everything below is a value it operates on. This is the file to read. |
+| **`StateMachineCore.java`** | **The engine.** ~1940 lines, and everything below is a value it operates on. This is the file to read. |
 | `Binding.java` | The one interface the engine knows about hardware — no WPILib types, so a test implements it in ten lines. |
 | `StateSpec.java` | What one state *means*: each mechanism's goal, entry guard, settle time, timeout, fault policy, enter/exit actions. |
 | `EdgeSpec.java` | What one transition means: guard, timeout, cost, and the actuation `stage(...)` ordering. |
@@ -79,10 +79,10 @@ by a `DoubleSupplier` and *told* to advance by `step()`; it never reaches for
 `Timer.getFPGATimestamp()` itself. That same property is what will make the eventual port to
 the 2027 command framework a change to the thin robot layer instead of to the FSM.
 
-### Goals (9 files) — one value type per mechanism
+### Goals (10 files) — one value type per mechanism
 
 `goals/`: `LinearGoal`, `RotationalGoal`, `WristGoal`, `FlywheelGoal`, `TurretGoal`,
-`ClawGoal`, `RollerGoal`, `WinchGoal`, `PneumaticGoal`.
+`ClawGoal`, `RollerGoal`, `WinchGoal`, `PneumaticGoal`, `ServoGoal`.
 
 Each is a `record` describing *where a mechanism should be* — `LinearGoal.meters(0.30)`,
 `LinearGoal.preset("L4")`, `FlywheelGoal.rpm(4200)`, `ClawGoal.open()`. They are `record`s on
@@ -92,11 +92,11 @@ identity equality would compare unequal to itself and rebuild its pursue command
 second (`LinearGoal`'s javadoc walks through exactly this trap, including the `-0.0` vs `0.0`
 edge). These files are almost all factory methods and normalisation — no control flow.
 
-### Mechanism adapters (10 files) — one adapter per mechanism, plus a facade
+### Mechanism adapters (11 files) — one adapter per mechanism, plus a facade
 
 `mech/`: `LinearBinding`, `RotationalBinding`, `WristBinding`, `FlywheelBinding`,
-`TurretBinding`, `ClawBinding`, `RollerBinding`, `WinchBinding`, `PneumaticBinding`, and
-`Mechanisms`.
+`TurretBinding`, `ClawBinding`, `RollerBinding`, `WinchBinding`, `PneumaticBinding`,
+`ServoBinding`, and `Mechanisms`.
 
 Each `*Binding` implements `Actuator<ThatGoal>` and is the single place that knows how to
 turn one goal into motor output for one mechanism type: build the pursue command, measure
@@ -106,9 +106,10 @@ turn one goal into motor output for one mechanism type: build the pursue command
 instead of `new LinearBinding(...)`. Your own subsystem is exactly as first-class: implement
 `Actuator<YourGoal>` and it drops in with no special-casing.
 
-The 9 goals and 9 bindings are the "19 files" from the complaint. They are 19 files because
-there are 9 mechanism types and Java needs a file per class, not because there are 19 things
-to understand — it is the same two ideas (a value, an adapter) repeated nine times.
+The 10 goals and 10 bindings are the bulk of the file count the complaint was reacting to.
+They are 20 files because there are 10 mechanism types and Java needs a file per class, not
+because there are 20 things to understand — it is the same two ideas (a value, an adapter)
+repeated ten times.
 
 ### Robot glue (5 files)
 

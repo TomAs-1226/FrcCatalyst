@@ -27,6 +27,12 @@ A Java library of pre-built mechanism building blocks for FRC robots on Phoenix 
 
 ## Latest release
 
+**v1.12.0** publishes the CAN devices themselves rather than a tally of them.
+`Hardware/Devices` carries one `bus|id|type` row per device, sorted by bus and then numerically by
+id, alongside the `Hardware/CanDevices` count and `Hardware/Inventory` breakdown that were already
+there. A count is the right shape for a glance; which id sits on which bus is the shape a pit crew
+needs when a device stops answering.
+
 **v1.11.0** adds the other half of the [spec sheet](advanced/robot-identity.html): which parts of
 Catalyst the robot actually runs. Autopilot, Strategist, Sequence, Goal Director and Physics Core
 each record themselves under `/Catalyst/Robot/Catalyst/` as they are built, with the name they were
@@ -125,7 +131,9 @@ Eleven single-file tools served from this site. Click and use — no clone, no i
   <a class="hero-tool" href="tools/pid/"><span class="icon">🎯</span><span class="name">PID Step Response</span><span class="desc">Dial gains, watch the simulated response.</span></a>
   <a class="hero-tool" href="tools/motors/"><span class="icon">⚡</span><span class="name">MotorType Browser</span><span class="desc">Every motor preset + gear-ratio calculator.</span></a>
   <a class="hero-tool" href="tools/canids/"><span class="icon">🔌</span><span class="name">CAN ID Planner</span><span class="desc">Catch CAN ID collisions before crimping.</span></a>
+  <a class="hero-tool" href="tools/wiring/"><span class="icon">⚡</span><span class="name">Wiring Diagram</span><span class="desc">Power tree and CAN bus from your CAN ID plan.</span></a>
   <a class="hero-tool" href="tools/auto/"><span class="icon">🧭</span><span class="name">Auto Builder</span><span class="desc">Generate a behavior-framework auto.</span></a>
+  <a class="hero-tool" href="tools/aiming/"><span class="icon">🎯</span><span class="name">Shoot-On-The-Fly</span><span class="desc">The <code>AimingSolver</code> virtual goal and lead, drawn.</span></a>
   <a class="hero-tool" href="tools/statemachine/"><span class="icon">🔀</span><span class="name">State Machine Visualizer</span><span class="desc">Draw the graph your <code>Superstructure</code> logs — states, guards, dead-ends.</span></a>
 </div>
 
@@ -167,14 +175,16 @@ Motion Magic, gravity FF, sim, telemetry, command factories, health monitoring, 
 | Mechanism | Use Case | Key Features |
 |-----------|----------|--------------|
 | **LinearMechanism** | Elevators, slides | Position control, gravity FF, limit switches, multi-follower |
-| **RotationalMechanism** | Arms, wrists, turrets | Cosine gravity, hard stops, Motion Magic, multi-follower |
+| **RotationalMechanism** | Arms, wrists, hoods | Cosine gravity, hard stops, Motion Magic, multi-follower |
+| **TurretMechanism** | Aiming turrets | Continuous angle, wrap-safe, field-relative tracking, Motion Magic |
 | **FlywheelMechanism** | Shooters | Dual motor + per-shaft followers, velocity PID, at-speed trigger |
 | **RollerMechanism** | Intakes, conveyors | Stall detection, beam break, auto-stop |
 | **WinchMechanism** | Climbers | Extend/retract limits, position tracking, dual-arm support |
 | **ClawMechanism** | Motor-driven grippers | Stall detection, beam break, multi-follower, passive-hold |
 | **DifferentialWristMechanism** | Diffy wrists (pitch + roll) | **Phoenix-6 native differential control**, separate Slot 0 / Slot 1 tuning |
 | **PneumaticMechanism** | Solenoids / pistons | Double or single solenoid, optional pressure-gating, pulse / toggle commands |
-| **Superstructure** (v1.2.0+) | Whole-robot coordination | Real state machine over **all nine mechanism types plus your own subsystems** — legal-transition graph, guards, interlocks, staged actuation, proven arrival, full logging. Replaces the now-deprecated `SuperstructureCoordinator` (linear + rotational only), which still works and is not being removed |
+| **ServoMechanism** (v1.3.0+) | PWM servos: hoods, ratchet releases, funnel flappers | Open-loop PWM, named positions, angle clamped to the real travel |
+| **Superstructure** (v1.2.0+) | Whole-robot coordination | Real state machine over **all ten mechanism types plus your own subsystems** — legal-transition graph, guards, interlocks, staged actuation, proven arrival, full logging. Replaces the now-deprecated `SuperstructureCoordinator` (linear + rotational only), which still works and is not being removed |
 
 ### Subsystems
 
@@ -237,7 +247,7 @@ HealthCheck-based fault monitoring, multi-follower support, pre-built commands,
 |---|---|
 | [Installation](getting-started/installation) | Add Catalyst to your `build.gradle` |
 | [Quick Start](getting-started/quickstart) | First mechanism in five minutes |
-| [Mechanisms](mechanisms/) | All nine mechanism types |
+| [Mechanisms](mechanisms/) | All ten mechanism types |
 | [Subsystems](subsystems/) | Swerve, Vision, LEDs, LimelightTriggers, SwerveSetpointGenerator |
 | [Driver](driver/) | DriverProfile, RumbleEvents, controller feel |
 | [Utilities](utilities/) | Health Kit, RobotSafety, RobotState, MotorType, CANRegistry, feedforward, profiles |

@@ -100,6 +100,35 @@ public class Intake extends CatalystMechanism {
 These are not Catalyst decisions. They are properties of Systemcore that are invisible from robot
 code, and each one has a failure mode that does not look like its cause.
 
+### Commands need two JVM flags, or nothing runs
+
+Commands v3 is built on JDK continuations. They live in `jdk.internal.vm`, which is exported to
+nobody, so v3 reaches them by reflection. The robot program must be launched with:
+
+```
+--add-opens java.base/jdk.internal.vm=ALL-UNNAMED
+--add-opens java.base/java.lang=ALL-UNNAMED
+```
+
+Nothing fails at build time and nothing fails at startup. The robot boots, the dashboard connects,
+and then the first command to be scheduled throws `ExceptionInInitializerError` from inside WPILib,
+naming no class of yours, at whatever moment a driver first pressed a button.
+
+Both flags are needed, and the second only shows itself once the first is fixed: `jdk.internal.vm`
+gets the scheduler constructed, `java.lang` gets a command scheduled. Fix one, deploy, and you meet
+the other on the field.
+
+Catalyst checks for both when it builds a command and throws something legible if either is missing,
+so you find out at the line that built the command rather than several seconds later. To ask
+directly:
+
+```java
+CommandRuntime.isAvailable();   // false means the flags are missing
+```
+
+On Systemcore the launch line is `/home/systemcore/robotCommand`, written by GradleRIO at deploy
+time. In simulation and unit tests these are the JVM's own arguments.
+
 ### The five CAN buses are three controllers
 
 `can_s0`+`can_s1` share an SPI controller, `can_s3`+`can_s4` share another, `can_s2` is alone.
@@ -177,6 +206,35 @@ CatalystIMU backup = new SystemCoreIMU(OnboardIMU.MountOrientation.FLAT);
 
 The mount orientation must match what is set in the Systemcore web UI. Getting it wrong silently
 swaps which axis reports as yaw.
+
+#### Using both at once
+
+`DualIMU` reads the two as one. It is opt-in and it does not change how the robot drives:
+
+```java
+DualIMU imu = new DualIMU(
+        pigeon, backup,
+        new Translation2d(0.25, 0.0),    // where the Pigeon sits, robot coordinates, metres
+        new Translation2d(-0.15, 0.1));  // where Systemcore sits
+
+PhysicsCore physics = PhysicsCore.builder(...).dualIMU(imu).build();
+```
+
+Heading still comes from the primary alone. Yaw is an integrated quantity, and averaging two
+integrals that drift at different rates gives a third drifting integral while hiding which sensor
+moved — so odometry and drivetrain carry on exactly as before.
+
+What the second sensor buys is measured, not averaged:
+
+| | |
+|---|---|
+| `getYawRate()` | averaged across both — rate is a direct measurement, so this is straightforwardly better, and the two share no failure mode since the Pigeon is on CAN and Systemcore is not |
+| `angularAccelerationRadPerSecSq(a1, a2)` | measured from the difference between the two accelerometers instead of by differentiating a gyro, which amplifies noise |
+| `yawRateDisagreementDegPerSec()` | two gyros on one rigid body must agree; a persistent gap means a sensor failed, drifted, or physically moved, and shows up long before the pose error does |
+
+The offsets have to be right. They are measured on the robot, in robot coordinates, and a wrong one
+produces a confident wrong answer. Sensors closer together than 5 cm return empty rather than
+guessing — at that separation the difference between them is mostly noise divided by a small number.
 
 ### Four cameras, no switch
 

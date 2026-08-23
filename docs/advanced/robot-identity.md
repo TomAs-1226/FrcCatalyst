@@ -131,9 +131,17 @@ honest way to say "unknown". In practice:
   whose cameras Catalyst never saw look identical from inside the library, and publishing an empty
   array would assert the first with confidence earned for neither.
 
-`SpecSheet` is what enforces this. Every setter takes an `Optional`, and there is deliberately no
-overload that accepts a bare `double` — writing a placeholder takes more effort than writing the
+`SpecSheet` is what enforces this. Every setter for a *measurement* — `putText`, `putNumber`,
+`putInt` — takes an `Optional`, `OptionalDouble` or `OptionalInt`, and there is deliberately no
+overload that accepts a bare `double`, so writing a placeholder takes more effort than writing the
 truth rather than less.
+
+Three setters do take plain values, each for its own reason. `putFlag(String, boolean)` does because
+a boolean has no "unknown" to encode: a caller who does not know reaches that line through
+`Optional.ifPresent` or does not reach it at all. `putList(String, List<String>)` and
+`putNumbers(String, double[])` do because an empty collection *is* the absence — both drop an empty
+argument rather than publishing an empty array, and `putNumbers` drops the whole array if any element
+is not finite.
 
 ## Publishing once is enough
 
@@ -265,6 +273,7 @@ actually measured.
 |-----|--------|
 | `Hardware/CanDevices` | count, merged across sources |
 | `Hardware/Inventory` | `type|count` rows |
+| `Hardware/Devices` (v1.12.0+) | `bus|id|type` rows, one per device, sorted by bus then numerically by id |
 | `Hardware/Gyro` | the drivetrain's Pigeon 2, else a registered `CatalystGyro` |
 | `Hardware/GyroCanId` | its CAN id |
 | `Hardware/Cameras` | camera names from `VisionSubsystem` |
@@ -303,9 +312,9 @@ the constructors happened to run.
 ## Naming the library's own build
 
 ```java
-CatalystVersion.version();     // "1.11.0"
-CatalystVersion.gitSha();      // Optional["d604d51"]
-CatalystVersion.describe();    // "1.11.0 (d604d51, dirty)"
+CatalystVersion.version();     // "1.12.0"
+CatalystVersion.gitSha();      // Optional["cc5cadf"]
+CatalystVersion.describe();    // "1.12.0 (cc5cadf, dirty)"
 ```
 
 The build generates these into a compiled constant rather than stamping the jar manifest, because a

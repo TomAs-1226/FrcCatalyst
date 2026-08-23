@@ -60,7 +60,7 @@ repositories {
 }
 
 dependencies {
-    implementation "com.github.TomAs-1226:FrcCatalyst:v1.11.0"
+    implementation "com.github.TomAs-1226:FrcCatalyst:v1.12.0"
 }
 ```
 </details>
@@ -98,6 +98,28 @@ elevator.setDefaultCommand(elevator.holdPosition());
 operatorController.a().onTrue(elevator.goTo("HIGH"));
 operatorController.b().onTrue(elevator.goTo("STOW"));
 ```
+
+---
+
+## v1.12.0: the devices, not the count
+
+The spec sheet has always known every CAN device the robot is driving. It was publishing the tally —
+`Hardware/CanDevices: 15`, `Hardware/Inventory: ["CANcoder|4", "Pigeon2|1", "TalonFX|10"]` — and
+throwing away the part a pit crew needs. The map now goes out whole as well:
+
+```text
+Hardware/Devices  ["canivore|1|TalonFX", "canivore|2|TalonFX", "canivore|3|CANcoder", ...,
+                   "rio|0|Pigeon2", "rio|20|TalonFX", "rio|21|TalonFX"]
+```
+
+`bus|id|type`, sorted by bus and then numerically by id, so the list reads down a bus the way a
+wiring loom does. The type is each device's own class name rather than a guess, so a module built on
+a TalonFXS reports a TalonFXS. At two in the morning in a pit the question is which id is on which
+wire, and whether the device that stopped answering is on the rio bus or the CANivore — a tally
+cannot say. `CanDevices` and `Inventory` are unchanged and still published: a count is the right
+shape for a glance, and this is the right shape for a diagnosis.
+
+Key list in [docs/advanced/robot-identity.md](docs/advanced/robot-identity.md).
 
 ---
 
@@ -150,8 +172,10 @@ module constants (the only route to the gear ratios, since Phoenix does not hand
 
 **A fact Catalyst does not know is absent from the wire.** Not zero, not `-1`, not an empty string. A
 robot with no swerve publishes no drivetrain group at all; a project with no PathPlanner settings
-publishes no mass. Catalyst Console draws a dash for a missing key and a number for a present one, so
-a placeholder is indistinguishable from a measurement once it has left the robot.
+publishes no mass. A dashboard can tell an absent key from a published one; it cannot tell a
+placeholder from a measurement, because a zero on the wire looks exactly like a zero that was
+measured. Catalyst Console leaves an unpublished fact off the sheet rather than dashing it, since a
+dash beside "Gyro" reads as a robot that has no gyro when the truth is that it never mentioned one.
 
 Publishing happens once at boot and that is enough. NT4 servers keep the last value of every topic and
 send it to each subscriber on subscribe, so a dashboard that connects mid-match, or reconnects after
@@ -580,12 +604,14 @@ frc.lib.catalyst
 +-- mechanisms/          Generic reusable mechanisms
 |   +-- LinearMechanism             Elevator, slide, telescoping arm
 |   +-- RotationalMechanism         Arm, wrist, turret, hood
+|   +-- TurretMechanism             Aiming turret — continuous angle, wrap-safe
 |   +-- FlywheelMechanism           Shooter, accelerator wheel
 |   +-- RollerMechanism             Intake, conveyor, indexer (with ramp, pulse, voltage feed)
 |   +-- WinchMechanism              Climber, deployment
 |   +-- ClawMechanism               Motor-driven gripper with stall-based grip detection
 |   +-- DifferentialWristMechanism  Two-motor diffy wrist (pitch + roll)
 |   +-- PneumaticMechanism          Single/double solenoid with pressure-aware safety
+|   +-- ServoMechanism              PWM servo — hood, ratchet release, funnel flapper
 |   +-- SuperstructureCoordinator   Deprecated in v1.2.0 — use statemachine/ below
 |
 +-- statemachine/        Whole-robot state machine (v1.2.0)
@@ -598,8 +624,9 @@ frc.lib.catalyst
 |   +-- TransitionRecord         One history entry: outcome + per-mechanism arrival times
 |   +-- Snapshot                 Whole-machine state as one immutable object
 |   +-- goals/                   LinearGoal, RotationalGoal, WristGoal, FlywheelGoal,
-|   |                            TurretGoal, ClawGoal, RollerGoal, WinchGoal, PneumaticGoal
-|   +-- mech/Mechanisms          Factory facade: 9 typed bindings + 4 escape-hatch tiers
+|   |                            TurretGoal, ClawGoal, RollerGoal, WinchGoal,
+|   |                            PneumaticGoal, ServoGoal
+|   +-- mech/Mechanisms          Factory facade: 10 typed bindings + 4 escape-hatch tiers
 |   +-- robot/Superstructure     Public entry point — builder, commands, triggers
 |
 +-- io/                  Hardware-abstraction layer (v0.3)
@@ -923,7 +950,7 @@ SwerveSubsystem drive = new SwerveSubsystem(
 
 // Enable advanced features
 drive.setSkewCorrectionEnabled(true);
-drive.enableSlewRateLimiting(2.0, 5.0);
+drive.enableSlewRateLimiting(2.0, 5.0);  // translation m/s per second, rotation rad/s per second
 drive.setSnapToAngles(new double[]{0.0, 90.0, 180.0, 270.0}, 5.0);
 
 // Advanced drive: deadband + slew + heading lock + snap + skew correction
@@ -1047,16 +1074,23 @@ double maxSpeed = config.estimateMaxSpeed();      // ~1.9 m/s
 
 ## Testing
 
-FrcCatalyst ships **78 JUnit tests** in `src/test`, run with `./gradlew test`:
+FrcCatalyst ships **427 JUnit tests** across 37 test classes in `src/test`, run with `./gradlew test`:
 
-- **46 tests covering the state machine engine** — graph validation and refused transitions
+- **314 physics tests** — the state estimator, contact and collision, slip and stability,
+  parameter identification, prediction, and the ground-truth validation suite.
+- **49 tests covering the state machine engine** — graph validation and refused transitions
   (`StateMachineGraphTest`), transition sequencing, staging and deadlines
   (`StateMachineTransitionTest`), the proven-arrival invariant (`StateMachineTruthTest`), the
   logging schema (`StateMachineTelemetryTest`), and robustness against throwing guards and
   post-timeout recovery (`StateMachineRobustnessTest`).
-- **Aiming and field math** — the Shoot-On-The-Fly solver closed-loop proof (`AimingSolverTest`),
-  the vector-adding SOTF solver (`AimingSolverVectorTest`),
+- **28 identity tests** — what the spec sheet records, what it refuses to record, and the
+  geometry it derives (`SpecSheetTest`, `RobotIdentitySheetTest`, `RobotIdentityGeometryTest`).
+- **19 tests of aiming and field math** — the Shoot-On-The-Fly solver closed-loop proof
+  (`AimingSolverTest`), the vector-adding SOTF solver (`AimingSolverVectorTest`),
   turret continuous-wrap (`TurretMathTest`), and alliance flipping (`AllianceFlipUtilTest`).
+- **17 more** — loop-time monitoring (`LoopMonitorTest`), mechanism config validation
+  (`FlywheelTorqueCurrentConfigTest`, `ServoConfigTest`) and the swerve sim yield guard
+  (`SwerveSimYieldTest`).
 
 ```bash
 ./gradlew test

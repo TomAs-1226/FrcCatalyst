@@ -39,9 +39,14 @@ This launches the WPILib Sim GUI with:
 |-----------|-------------------|
 | LinearMechanism | Gravity, mass, gear ratio, drum radius, stages, soft limits |
 | RotationalMechanism | Gravity (cosine), mass, arm length, MOI, range limits |
+| TurretMechanism | Motor dynamics at the configured MOI, fed back through the gear ratio |
 | FlywheelMechanism | Flywheel inertia, spin-up/spin-down dynamics |
 | RollerMechanism | Motor response (no physics model needed for duty cycle) |
 | WinchMechanism | Position tracking with range limits |
+| ClawMechanism | Motor response, plus `setSimHasPiece(...)` — a `DCMotorSim` will not stall against a virtual game piece, so possession is set rather than inferred |
+| DifferentialWristMechanism | Both motors independently, so pitch and roll come out of the differential rather than being faked |
+| PneumaticMechanism | Commanded solenoid state only. There is no air model anywhere, sim or not — `isForward()` reports what was commanded, so gate on `timeInState()` rather than on arrival |
+| ServoMechanism | Nothing to model — a servo has no encoder, so the measured angle reads back the commanded one on a real robot too |
 
 ### Dashboard Visualization
 
@@ -131,32 +136,95 @@ class UtilityTests {
 }
 ```
 
-### Timer-dependent code: `HAL.initialize` does not work here
+### The HAL works in tests, and so does the command scheduler
 
-`SlewRateLimiter` and `TimedBoolean` call WPILib's `Timer`, which needs the HAL. Older versions of
-this page suggested reaching for it directly:
+Earlier versions of this page said the HAL could not be loaded in a JUnit test and that anything
+touching it — `Timer`, `DriverStation`, the command scheduler — belonged in `simulateJava` instead.
+That is no longer true, and the reason it was true is worth knowing, because the same thing will
+happen in your own project.
 
-```java
-// This does NOT work in the FrcCatalyst `test` task.
-@BeforeAll
-static void initHAL() {
-    HAL.initialize(500, 0);   // UnsatisfiedLinkError: no wpiHaljni in java.library.path
-}
+WPILib's Java artifacts contain only the Java half of each JNI binding. The `.dll`/`.so` comes from
+a separate platform artifact that GradleRIO normally extracts for you. Catalyst applies plain
+`java-library`, so its `build.gradle` extracts them itself into `build/nativeLibs` and points the
+test JVM at that directory.
+
+The part that took a while: 2027 split `telemetry`, `tunables` and `datalog` out of `wpiutil` and
+`ntcore` into their own libraries. `wpimath` links against the first two and `ntcore` against the
+third, so leaving them out of the extraction meant **no** native library loaded at all. The
+diagnostic points the wrong way —
+
+```
+wpiHaljni.dll: Can't find dependent libraries
 ```
 
-The reason is worth understanding, because it is the same reason in your own robot project.
-`HAL.initialize` is a Java method that calls straight into `wpiHaljni`, a native library. The
-`edu.wpi.first.hal:hal-java` artifact contains only the Java side of that binding; the `.dll` /
-`.so` comes from a separate platform-specific artifact that the GradleRIO plugin puts on the
-classpath and extracts for you. FrcCatalyst's `build.gradle` applies plain `java-library` and lists
-exactly three test dependencies — JUnit, the JUnit launcher, and `quickbuf-runtime` for wpimath's
-geometry classes. No GradleRIO, so no natives, so the class loads and the first native call fails.
-Adding a `@BeforeAll` block does not fix that; it just moves the failure earlier.
+— names the library that failed, never the one actually missing. If you hit this, check the import
+table of the library that failed rather than adding directories to `PATH`.
 
-**What this means in practice.** Anything that touches the HAL — `Timer`, motor controllers,
-`DriverStation`, NetworkTables-backed telemetry, the command scheduler — belongs in a simulation
-run (`./gradlew simulateJava`), not in a JUnit test. Anything that is pure Java can and should be
-unit-tested, and the useful move is to *design* for that boundary rather than to fight it.
+The test JVM also passes the two continuation flags Commands v3 requires:
+
+```groovy
+jvmArgs '--add-opens', 'java.base/jdk.internal.vm=ALL-UNNAMED',
+        '--add-opens', 'java.base/java.lang=ALL-UNNAMED'
+```
+
+Without them the scheduler cannot be constructed. See [Systemcore](../advanced/systemcore.md) — the
+robot program needs the same two.
+
+**What this means in practice.** You can schedule real commands in a unit test:
+
+```java
+Scheduler scheduler = Scheduler.createIndependentScheduler();   // not the default one
+scheduler.schedule(myMechanism.raiseCommand());
+for (int i = 0; i < 10; i++) {
+    scheduler.run();                                            // ten robot loops
+}
+assertTrue(elevator.atGoal());
+```
+
+Use `createIndependentScheduler()` rather than `Scheduler.getDefault()` so tests do not inherit each
+other's commands. `CommandFacadeTest` in this repo is a worked example.
+
+One caveat that has not changed: a test JVM has no Systemcore behind the HAL, so anything that reads
+hardware reports absent rather than a value. That is what `SystemCoreSim` is for — see below.
+
+### Simulating Systemcore itself
+
+`SystemCoreSim` stands in for the machine. It exists for two reasons.
+
+The first is that `SystemCoreStatus` could not otherwise be tested at all: resolving Systemcore's
+system NetworkTables server forces a HAL JNI load through a path that terminates the JVM when the
+natives are absent, which took the whole Gradle worker down and lost every other result with it.
+Reading is now separated from interpreting — `SystemCoreSource` supplies raw values, `SystemCoreStatus`
+keeps every rule about units, ratios and what counts as missing — so the rules are testable.
+
+The second is more useful day to day. The interesting code paths are the ones that only run when the
+machine is in trouble, and those are exactly the ones nobody exercises, because reproducing them on
+real hardware means deliberately filling a disk or pinning a core during a practice match.
+
+```java
+SystemCoreStatus.useSource(SystemCoreSim.healthy()
+        .withStorage(31_500_000_000.0, 32_000_000_000.0));   // 98% full
+
+assertTrue(healthMonitor.problems().stream()
+        .anyMatch(p -> p.contains("storage")));
+```
+
+Values are set in the OS's own units — millivolts for the brownout thresholds, bytes for memory and
+storage — so the conversions under test are the real ones.
+
+A fresh `new SystemCoreSim()` reports available with no values, which is the honest model of a
+Systemcore that has booted but published nothing yet. Every reading must come back empty rather than
+zero: a robot that reads 0 V should not conclude the battery is flat.
+
+`withAvailable(false)` models no Systemcore at all, which is what a desktop test run actually is.
+Restore that in teardown rather than the real source — constructing the real one loads the HAL:
+
+```java
+@AfterEach
+void tearDown() {
+    SystemCoreStatus.useSource(SystemCoreSource.unavailable());
+}
+```
 
 ### Designing for testability: how the state machine engine does it
 
@@ -284,22 +352,34 @@ System.out.println("Max speed: " + config.estimateMaxSpeed() + " m/s");
 
 ### The in-repo suite
 
-`./gradlew test` on FrcCatalyst itself runs **78 JUnit tests**. They all run on a laptop with no
-HAL, no NetworkTables and no command scheduler, for the reasons described above.
+`./gradlew test` on FrcCatalyst itself runs **427 JUnit tests** across 37 test classes. They all run
+on a laptop with no HAL, no NetworkTables and no command scheduler, for the reasons described above.
 
-**46 of the 62 cover the state machine engine**, split across five files:
+| Package | Tests | What it covers |
+|---|---|---|
+| `physics` | 314 | The state estimator, contact and collision, slip and stability, projectile and prediction, parameter identification, diagnostics, and the ground-truth validation suite |
+| `statemachine` | 49 | The engine — see the breakdown below |
+| `identity` | 28 | What `SpecSheet` records, what it refuses to record, and the geometry `RobotIdentity` derives |
+| `util` | 22 | `AimingSolver` and the vector solver, `AllianceFlipUtil`, `LoopMonitor` |
+| `mechanisms` | 11 | Config validation and pure math only: flywheel torque-current config, servo config, turret continuous-angle wrap |
+| `subsystems` | 3 | The swerve sim yield guard |
+
+Physics dominates the count because physics is where a wrong answer is invisible: an estimator that
+is confidently wrong looks exactly like one that is right, until the robot misses.
+
+**49 of them cover the state machine engine**, split across five files:
 
 | Area | Tests | What it pins down |
 |---|---|---|
-| Graph and validation | 11 | Undeclared states and unreachable states fail the build; every problem is reported, not just the first; an undeclared edge is refused rather than attempted |
+| Graph and validation | 12 | Undeclared states and unreachable states fail the build; every problem is reported, not just the first; an undeclared edge is refused rather than attempted |
 | Truth invariants | 10 | `current()` is only ever a proven state; a timeout leaves the machine where the robot actually is; `isAt` stays a live measurement rather than a latch |
 | Transitions and staging | 11 | Stage N waits for stage N-1; guards, entry guards and interlocks block with the right reason; abort and override behaviour |
 | Telemetry cadence | 9 | The log schema is written at the right rate, and edge-detected keys do not churn |
-| Robustness | 5 | A throwing guard fails closed instead of crashing the loop; after a timeout the machine can be commanded back to its proven state; diagnostics track the goals actually being pursued |
+| Robustness | 7 | A throwing guard fails closed instead of crashing the loop; after a timeout the machine can be commanded back to its proven state; diagnostics track the goals actually being pursued |
 
-The remaining 16 cover `AimingSolver` (8), `AllianceFlipUtil` (4) and turret math (4) — the other
-pure-Java corners of the library. Mechanism classes are not in this count: they need the CTRE
-Phoenix simulation runtime and are exercised through `simulateJava` instead.
+The mechanism *classes* are not in this count. Their configs and their maths are — a `Config`
+builder is pure Java and a turret's wrap arithmetic has no motor in it — but driving a mechanism
+needs the CTRE Phoenix simulation runtime, so that happens under `simulateJava` instead.
 
 ### The example robot project
 

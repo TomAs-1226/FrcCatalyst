@@ -50,8 +50,8 @@ SwerveSubsystem drive = new SwerveSubsystem(
 // Advanced drive (recommended default command)
 // Combines deadband, slew limiting, heading lock, snap-to-angle, and skew correction
 drive.setSkewCorrectionEnabled(true);
-drive.enableSlewRateLimiting(2.0, 5.0); // accel, decel
-drive.setSnapToAngles(List.of(0.0, 90.0, 180.0, 270.0), 5.0);
+drive.enableSlewRateLimiting(2.0, 5.0); // translation m/s per second, rotation rad/s per second
+drive.setSnapToAngles(new double[]{0.0, 90.0, 180.0, 270.0}, 5.0);
 drive.setDefaultCommand(drive.advancedDrive(
     () -> -driver.getLeftY(),
     () -> -driver.getLeftX(),
@@ -206,10 +206,11 @@ VisionSubsystem vision = new VisionSubsystem(
         .driveSubsystem(drive)                                    // wires pose fusion
         .addLimelight("limelight-front", frontCameraPose)
         .addPhotonCamera("cam-rear", rearCameraPose, fieldLayout) // Photon needs the tag layout
-        .singleTagStdDevs(4, 8)
-        .multiTagStdDevs(0.5, 1)
-        .xyDistanceScaling(1.0)
-        .rotDistanceScaling(1.5)
+        .baseXYStdDev(0.5)                // expected XY error at 1 m off one tag
+        .baseRotStdDev(0.9)               // expected heading error in radians
+        .xyDistanceScaling(1.0)           // xyStdDev = base * (1 + distance^2 * scaling)
+        .rotDistanceScaling(1.5)          // heading degrades faster with distance than XY does
+        .singleTagRotDistanceThreshold(4.0)  // past 4 m, one tag's heading is ignored outright
         .rejectDuringSpin(2.0)
         .rejectDuringHighSpeed(3.0)       // reject when > 3 m/s
         .maxHeadingDivergence(15.0)       // reject if heading disagrees > 15 deg
@@ -260,8 +261,8 @@ Addressable LED pattern controller with 14 pre-built effects.
 ```java
 LEDSubsystem leds = new LEDSubsystem(
     LEDConfig.builder()
-        .port(0)
-        .length(60)
+        .pwmPort(0)          // PWM port the strip is on
+        .ledCount(60)        // LEDs in the strip
         .build()
 );
 

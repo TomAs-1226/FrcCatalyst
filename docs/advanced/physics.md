@@ -316,6 +316,11 @@ Physics Core is told what it may spend rather than being hard-coded to a control
 one today you get `BALANCED` behaviour, and the profile is recorded in `health()` so a log says what
 was actually running.
 
+Prediction is not gated by the profile at all. `predict(...)` and `predictLaunchState(...)` answer
+under every profile including `MINIMAL`, because they are calls you make on demand rather than work
+`update()` does each loop. The profile constants gate exactly two things — slip scoring and the
+disturbance/diagnostics chain — and `MINIMAL` is the only one that turns either off.
+
 The profile gates only what runs **inside** `PhysicsCore.update()`. The models, identifiers,
 evaluators, and constraints described below are separate objects you construct and call yourself, so
 their cost is yours to place — most are pure functions you can call once a second rather than once a

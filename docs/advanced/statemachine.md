@@ -34,7 +34,7 @@ log to read when it misbehaved. That is
 complaint: a state machine that only understands half your robot is a preset applier with
 a nicer name.
 
-Version 1.2.0 adds `frc.lib.catalyst.statemachine`. It accepts all nine Catalyst
+Version 1.2.0 adds `frc.lib.catalyst.statemachine`. It accepts all ten Catalyst
 mechanism types plus any subsystem you wrote yourself, it enforces a legal-transition
 graph where an edge you did not declare is a transition the robot will not make, it
 proves arrival from sensors instead of assuming it, and it publishes a complete
@@ -237,7 +237,7 @@ appears in the log, so keep it stable and short.
 
 ## Every mechanism type
 
-All nine Catalyst mechanisms have a typed factory in `Mechanisms` and a matching goal
+All ten Catalyst mechanisms have a typed factory in `Mechanisms` and a matching goal
 type. The factories are thin — each is a one-line delegation to a public binding
 constructor, so if you want the binding's behaviour without this naming you can construct
 `LinearBinding` and friends directly and lose nothing.
@@ -257,6 +257,13 @@ mechanism telemetry in a log viewer.
 | `RollerMechanism` | `RollerGoal` | `Mechanisms.roller("intake", intakeMech)` | `.set(intake, RollerGoal.intakeUntilPiece(3.0))` |
 | `WinchMechanism` | `WinchGoal` | `Mechanisms.winch("climber", climberMech)` | `.set(climber, WinchGoal.extend())` |
 | `PneumaticMechanism` | `PneumaticGoal` | `Mechanisms.pneumatic("funnel", funnelMech)` | `.set(funnel, PneumaticGoal.extended())` |
+| `ServoMechanism` | `ServoGoal` | `Mechanisms.servo("hood", hoodMech)` | `.set(hood, ServoGoal.preset("FAR"))` |
+
+`ServoBinding` is the one entry in that table whose arrival is not measured. A PWM servo has
+no encoder, so the binding reports itself `observable == false` and counts the servo arrived
+once the goal's `settleSeconds` window has elapsed. That is the honest reading of a mechanism
+you cannot sense, and marking it explicitly is what lets a log reader tell a timer from a
+sensor.
 
 The goal types are records or sealed interfaces of records, so `Handle<LinearGoal>` will
 not accept a `RotationalGoal` — passing the wrong goal to the wrong mechanism is a
@@ -290,6 +297,9 @@ RollerGoal.eject(0.5);             RollerGoal.idle();
 WinchGoal.extend();  WinchGoal.retract();  WinchGoal.stop();  WinchGoal.speed(0.6, 1.0);
 
 PneumaticGoal.extended();  PneumaticGoal.retracted();  PneumaticGoal.off();
+
+ServoGoal.degrees(45);                     ServoGoal.degrees(45, 0.4);     // settle seconds
+ServoGoal.preset("DEPLOYED");              ServoGoal.preset("DEPLOYED", 0.4);
 ```
 
 {: .tip }
@@ -306,7 +316,7 @@ the shot misses from.
 
 ## Custom mechanisms
 
-The engine knows nothing about the nine typed bindings. It knows only `Actuator`. So your
+The engine knows nothing about the ten typed bindings. It knows only `Actuator`. So your
 own swerve wrapper, LED controller, vendor-SDK climber or odd-shaped subsystem reaches
 exactly the same fidelity — arrival gating, blocker reporting, re-assertion, build-time
 validation — through one of four tiers, chosen by how much the subsystem actually has to
@@ -364,7 +374,7 @@ simply stops driving, so the mechanism sags.
 
 ### Tier 4 — `build`: everything
 
-Everything the nine typed bindings publish is reachable here. Nothing is reserved for
+Everything the ten typed bindings publish is reachable here. Nothing is reserved for
 library mechanisms.
 
 ```java

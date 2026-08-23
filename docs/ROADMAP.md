@@ -59,7 +59,7 @@ No mainstream FRC library bundles these. This is the moat:
 - **Physical intelligence** — Physics Core (v1.5.0–v1.6.0): fused state with honest confidence, slip
   and collision detection, a live centre of mass and tipping margin, online gain and battery
   identification, and pre-flight capability evaluation. Nobody else packages this either.
-- **Unified mechanism layer** — nine mechanisms, live tuning, CAN registry, one builder call each.
+- **Unified mechanism layer** — ten mechanisms, live tuning, CAN registry, one builder call each.
 
 ---
 
