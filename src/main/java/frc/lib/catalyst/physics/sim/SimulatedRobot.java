@@ -488,9 +488,20 @@ public final class SimulatedRobot {
         // Encoders measure wheel rotations and the code multiplies by the radius it was told. Get
         // that radius wrong and every speed is wrong by the same factor.
         Translation2d reported = wheelVelocity.times(wheelRadiusError);
+        // toRobotRelative, not toFieldRelative. wheelVelocity is field-relative - it is integrated
+        // from the commanded field velocity - and this is the one place in the codebase that
+        // converts the other way. The port's sweep turned every conversion into toFieldRelative,
+        // which was right for the four that were fromRobotRelativeSpeeds and exactly backwards for
+        // this one, which was fromFieldRelativeSpeeds. The variable is even named robotRelative.
+        //
+        // The cost was invisible at heading zero, where the two are identical, and every validator
+        // scenario drives at heading zero. At 90 degrees the reported velocity came out exactly
+        // reversed, and a turning robot showed a phantom disturbance over half the traction limit -
+        // so isDisturbed() read true on every turn, in the simulator teams are told to validate
+        // against before taking Physics Core to carpet.
         ChassisVelocities robotRelative = new ChassisVelocities(
                 reported.getX(), reported.getY(), trueOmega + noise(gyroNoise))
-                .toFieldRelative(heading);
+                .toRobotRelative(heading);
 
         SwerveModuleVelocity[] states = kinematics.toSwerveModuleVelocities(robotRelative);
         if (states.length > moduleCount) {

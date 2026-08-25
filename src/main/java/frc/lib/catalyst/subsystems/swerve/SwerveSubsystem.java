@@ -76,6 +76,15 @@ import frc.lib.catalyst.util.SlewRateLimiter;
  */
 public class SwerveSubsystem implements frc.lib.catalyst.command.CatalystSubsystem, RobotStateSource {
 
+    /**
+     * The robot loop period, used by skew correction.
+     *
+     * <p>Matches WPILib's default. A robot on a different period should pass its own; getting this
+     * wrong scales the correction rather than breaking it, so it fails quietly.
+     */
+    private static final double LOOP_PERIOD_SECONDS = 0.02;
+
+
     private final SwerveDrivetrain drivetrain;
     private final double maxSpeedMPS;
     private double maxAngularRate;
@@ -689,16 +698,23 @@ public class SwerveSubsystem implements frc.lib.catalyst.command.CatalystSubsyst
                 if (rotLimiter != null) rotLimiter.calculate(rot); // keep limiter in sync
             }
 
-            // Skew correction via pose exponential discretization
+            // Skew correction, via WPILib's own pose-exponential discretization.
+            //
+            // This was hand-rolled and rotated the wrong way: by +omega*dt/2 rather than
+            // -omega*dt/2, so it added the skew it exists to remove. Checked against
+            // ChassisVelocities.discretize with vx=3, omega=6, dt=0.02 - WPILib gives -3.4377
+            // degrees and the old code gave +3.4377. A driver pushing straight forward while
+            // spinning got roughly twice the drift they would have had with the feature switched
+            // off, which reads as "skew correction makes it worse" rather than as a sign error.
+            //
+            // Delegated rather than corrected in place. This is the canonical implementation of the
+            // operation the javadoc names, it cannot drift from WPILib, and there is no second copy
+            // of the trigonometry to get backwards again.
             if (skewCorrectionEnabled && rot != 0) {
-                double dt = 0.02; // 20ms loop
-                double halfAngle = rot * dt / 2.0;
-                double cos = Math.cos(halfAngle);
-                double sin = Math.sin(halfAngle);
-                double correctedX = x * cos - y * sin;
-                double correctedY = x * sin + y * cos;
-                x = correctedX;
-                y = correctedY;
+                ChassisVelocities corrected =
+                        new ChassisVelocities(x, y, rot).discretize(LOOP_PERIOD_SECONDS);
+                x = corrected.vx;
+                y = corrected.vy;
             }
 
             driveFieldCentric(x, y, rot);
@@ -938,22 +954,38 @@ public class SwerveSubsystem implements frc.lib.catalyst.command.CatalystSubsyst
                                 double translationKP, double toleranceMeters) {
         PIDController xCtl = new PIDController(translationKP, 0, 0);
         PIDController yCtl = new PIDController(translationKP, 0, 0);
-        final boolean[] arrived = { false };
+
+        // Two flags, both reset when the command starts rather than when it is built.
+        //
+        // A command bound with whileTrue is constructed once, at bind time, and reused on every
+        // press. Left set from the previous run, `done` makes untilTrue true on the first tick, so
+        // the second press of the button ends the command immediately and the robot does nothing at
+        // all - with nothing logged, because nothing went wrong.
+        final boolean[] done = { false };
         return run(() -> {
             var opt = pieceFieldPose.get();
             if (opt.isEmpty()) {
+                // The javadoc says the command ends when the piece disappears, and it has to: a
+                // command that sits here holds the drivetrain requirement, so the default drive
+                // command stays interrupted and the driver has no sticks until something else is
+                // scheduled.
                 driveFieldCentric(0, 0, 0);
+                done[0] = true;
                 return;
             }
             Translation2d target = opt.get();
             Pose2d cur = getPose();
             double dist = cur.getTranslation().getDistance(target);
-            arrived[0] = dist < toleranceMeters;
+            done[0] = dist < toleranceMeters;
             double maxApproach = maxSpeedMPS * 0.6;
             double vx = Math.clamp(xCtl.calculate(cur.getX(), target.getX()), -maxApproach, maxApproach);
             double vy = Math.clamp(yCtl.calculate(cur.getY(), target.getY()), -maxApproach, maxApproach);
             driveFieldCentric(vx, vy, 0);
-        }).untilTrue(() -> arrived[0])
+        }).beforeStarting(() -> {
+            done[0] = false;
+            xCtl.reset();
+            yCtl.reset();
+        }).untilTrue(() -> done[0])
           .finallyDo(interrupted -> driveFieldCentric(0, 0, 0))
           .withName("Swerve.DriveToPiece");
     }

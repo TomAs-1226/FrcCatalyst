@@ -399,10 +399,16 @@ public class RotationalMechanism extends CatalystMechanism {
             double posRotations = degreesToRotations(getAngle());
             double targetRotations = degreesToRotations(setpointDegrees);
             double output = profiledPID.calculate(posRotations, targetRotations);
+            // Velocity in rot/s, unconverted. The profile runs in rotations (its constraints are
+            // deg/s divided by 360) and kV is volts per rotation per second - the same field is
+            // handed to Phoenix's Slot0.kV, which fixes that unit. Multiplying by 2*PI here made the
+            // velocity feedforward 6.28x too large, which on a geared arm means the cruise phase
+            // commands well past the 12 V rail: a profiled move that behaves like a bang-bang move,
+            // overshoots, and hits the soft limit.
             double ff = config.useCosineGravity
                     ? feedforwardGains.calculateArm(Math.toRadians(getAngle()),
-                            profiledPID.getSetpoint().velocity * 2 * Math.PI)
-                    : feedforwardGains.calculateSimple(profiledPID.getSetpoint().velocity * 2 * Math.PI);
+                            profiledPID.getSetpoint().velocity)
+                    : feedforwardGains.calculateSimple(profiledPID.getSetpoint().velocity);
             motor.setVoltage(output + ff);
             setState("ProfiledGoTo " + String.format("%.1f", setpointDegrees) + "deg");
         }).beforeStarting(() -> profiledPID.reset(
@@ -435,10 +441,16 @@ public class RotationalMechanism extends CatalystMechanism {
             double posRotations = degreesToRotations(getAngle());
             double targetRotations = degreesToRotations(setpointDegrees);
             double output = profiledPID.calculate(posRotations, targetRotations);
+            // Velocity in rot/s, unconverted. The profile runs in rotations (its constraints are
+            // deg/s divided by 360) and kV is volts per rotation per second - the same field is
+            // handed to Phoenix's Slot0.kV, which fixes that unit. Multiplying by 2*PI here made the
+            // velocity feedforward 6.28x too large, which on a geared arm means the cruise phase
+            // commands well past the 12 V rail: a profiled move that behaves like a bang-bang move,
+            // overshoots, and hits the soft limit.
             double ff = config.useCosineGravity
                     ? feedforwardGains.calculateArm(Math.toRadians(getAngle()),
-                            profiledPID.getSetpoint().velocity * 2 * Math.PI)
-                    : feedforwardGains.calculateSimple(profiledPID.getSetpoint().velocity * 2 * Math.PI);
+                            profiledPID.getSetpoint().velocity)
+                    : feedforwardGains.calculateSimple(profiledPID.getSetpoint().velocity);
             motor.setVoltage(output + ff);
             setState("ProfiledHold " + String.format("%.1f", setpointDegrees) + "deg");
         }).beforeStarting(() -> profiledPID.reset(

@@ -431,7 +431,13 @@ public class LinearMechanism extends CatalystMechanism {
         return run(() -> {
             setpointMeters = Math.clamp(meters, config.minPosition, config.maxPosition);
             double output = profiledPID.calculate(getPosition(), setpointMeters);
-            double ff = feedforwardGains.calculateElevator(profiledPID.getSetpoint().velocity);
+            // Converted to drum rotations per second. The profile runs in metres, but kV is volts
+            // per drum rotation per second - the same field is handed to Phoenix's Slot0.kV, which
+            // fixes that unit. Passing m/s straight in made the velocity feedforward roughly 6x too
+            // small on a 1-inch drum, so a profiled move lagged its own trapezoid and arrived late
+            // with the timing guarantees of the profile meaning nothing.
+            double ff = feedforwardGains.calculateElevator(
+                    metersToRotations(profiledPID.getSetpoint().velocity));
             motor.setVoltage(output + ff);
             setState("ProfiledGoTo " + String.format("%.2f", setpointMeters) + "m");
         }).beforeStarting(() -> profiledPID.reset(getPosition(), getVelocity()))
@@ -461,7 +467,13 @@ public class LinearMechanism extends CatalystMechanism {
         }
         return run(() -> {
             double output = profiledPID.calculate(getPosition(), setpointMeters);
-            double ff = feedforwardGains.calculateElevator(profiledPID.getSetpoint().velocity);
+            // Converted to drum rotations per second. The profile runs in metres, but kV is volts
+            // per drum rotation per second - the same field is handed to Phoenix's Slot0.kV, which
+            // fixes that unit. Passing m/s straight in made the velocity feedforward roughly 6x too
+            // small on a 1-inch drum, so a profiled move lagged its own trapezoid and arrived late
+            // with the timing guarantees of the profile meaning nothing.
+            double ff = feedforwardGains.calculateElevator(
+                    metersToRotations(profiledPID.getSetpoint().velocity));
             motor.setVoltage(output + ff);
             setState("ProfiledHold " + String.format("%.2f", setpointMeters) + "m");
         }).beforeStarting(() -> profiledPID.reset(getPosition(), getVelocity()))

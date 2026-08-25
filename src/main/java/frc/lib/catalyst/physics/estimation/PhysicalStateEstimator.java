@@ -438,6 +438,12 @@ public final class PhysicalStateEstimator {
         lastDisagreement = 0.0;
         initialized = false;
         observedVelocityVariance = Double.NaN;
+        // The slip budget is state too, and forgetting it was the whole bug: a reset after a long
+        // shove left the budget exhausted, so the very next slip ran on plain odometry with the IMU
+        // fusion effectively switched off - roughly a 200x over-trust of the wheels - until about a
+        // second of clean gripping drained it back. A team calling reset() at the auto-to-teleop
+        // boundary got exactly that, in the case the fusion exists for.
+        slipSeconds = 0.0;
         accelX.reset();
         accelY.reset();
         angularAccel.reset();

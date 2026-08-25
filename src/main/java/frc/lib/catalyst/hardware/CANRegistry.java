@@ -70,7 +70,15 @@ public final class CANRegistry {
         if (canId < 0 || canId > 62) {
             throw new IllegalArgumentException("CAN id must be 0–62, got " + canId);
         }
-        String b = bus == null ? "" : bus;
+        // Normalised, not raw. "", "0" and "can_s0" are three spellings of one physical bus, and
+        // keying on the raw string aliased them apart - so an elevator built with the default bus
+        // and an intake built with .canBus("can_s0"), both at id 12 and both on the same wire,
+        // registered under different keys and never collided. The team met that as a Phoenix
+        // failure at an event instead of a named conflict at robotInit.
+        //
+        // The same aliasing split byBus(), so contention warnings and utilisation each saw two
+        // half-loaded buses where there was one overloaded one.
+        String b = CatalystCANBus.of(bus).name();
         String key = b + "/" + canId;
         Entry existing = byKey.get(key);
         Entry candidate = new Entry(name, canId, b, type == null ? "" : type);
