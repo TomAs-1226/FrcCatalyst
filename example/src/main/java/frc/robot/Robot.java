@@ -4,6 +4,7 @@ import frc.lib.catalyst.command.Commands;
 import frc.lib.catalyst.driverstation.DriverBoard;
 import frc.lib.catalyst.opmode.CatalystOpMode;
 import frc.lib.catalyst.opmode.CommandOpMode;
+import frc.lib.catalyst.util.Preflight;
 
 import org.wpilib.framework.OpModeRobot;
 import org.wpilib.opmode.Autonomous;
@@ -38,8 +39,15 @@ public class Robot extends OpModeRobot {
         // Finds every annotated OpMode in this package, including the nested ones below.
         addAnnotatedOpModeClasses(getClass().getPackage());
 
+        // Is this robot fit to enable? One line, read once, at the laptop, before anyone walks to
+        // the field. It changes nothing and blocks nothing - a preflight that refused to let a robot
+        // enable would eventually refuse during a match.
+        Preflight.Report preflight = Preflight.run().printToConsole();
+
         // What is wrong and the battery, on the Driver Station itself. Updates itself from here.
-        DriverBoard.standard().start();
+        DriverBoard.standard()
+                .line("Preflight", preflight::summary)
+                .start();
     }
 
     /**

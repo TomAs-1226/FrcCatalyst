@@ -426,6 +426,34 @@ Stated so nobody assumes otherwise:
 - **PathPlanner is still commands v2.** Catalyst bridges it with `LegacyCommands.fromV2(...)`; the
   bridge and the v2 dependency both go away when PathPlanner ships for v3.
 
+## Is this robot fit to enable?
+
+One line in the robot constructor:
+
+```java
+Preflight.run().printToConsole();
+```
+
+Everything it checks is already checkable separately, and checking all of it separately is something
+nobody does. The failures share a shape: the robot boots, the dashboard connects, everything looks
+normal, and the problem surfaces at the worst moment as something that does not resemble its cause.
+
+| | |
+|---|---|
+| **Commands v3 runtime** | the two `--add-opens` flags. Without them the robot starts perfectly and dies on the first command a driver schedules. **Blocker.** |
+| **Storage** | 95% full stops logging, then stops the robot program, and nothing about that points at the disk. **Blocker.** |
+| **Battery** | against the machine's own brownout floor, not a roboRIO constant. Below it is a **blocker** — a robot browning out on the cart will not survive being driven. |
+| **Flash wear** | warns. It will run this match; it is a part to order, not a reason to stop. |
+| **Temperature** | warns above 80 °C, and says what it will look like — the cores throttle rather than reporting anything, so the symptom is a loop overrun. |
+| **CAN plan** | conflicts and controller contention, both knowable from the device list before anything is enabled. |
+
+It changes nothing and blocks nothing. A preflight that refused to let a robot enable would
+eventually refuse during a match, and the team it happened to would delete it. It reports; the
+decision stays with the people.
+
+`report.summary()` is one line for a dashboard or the Driver Station — `"Ready"`, `"Ready, 2
+warnings"`, or `"NOT READY: "` and the first thing to fix, named rather than counted.
+
 ## Two things 2027 puts where the driver is looking
 
 ### Autos the Driver Station lists
