@@ -189,6 +189,32 @@ dependencies {
     nativeDesktop "org.wpilib.telemetry:telemetry-cpp:${wpilibVersion}:${desktopClassifier}@zip"
     nativeDesktop "org.wpilib.tunables:tunables-cpp:${wpilibVersion}:${desktopClassifier}@zip"
     nativeDesktop "org.wpilib.datalog:datalog-cpp:${wpilibVersion}:${desktopClassifier}@zip"
+
+    // Phoenix's desktop simulation natives.
+    //
+    // Without these, constructing any Catalyst mechanism *terminates the JVM*. Phoenix's loader
+    // behaves like WPILib's: a missing native is a process exit, not an exception, so a test that
+    // merely builds a FlywheelMechanism takes the Gradle worker down and loses every other result.
+    // That is why the mechanism classes had no tests - not because they were untestable, but
+    // because nobody had unpacked these.
+    //
+    // api-cpp-sim and tools-sim are the runtime; the simPro* libraries are the device models that
+    // make a TalonFX or a Pigeon respond to being commanded.
+    nativeDesktop "com.ctre.phoenix6.sim:api-cpp-sim:${phoenixVersion}:${desktopClassifier}@zip"
+    nativeDesktop "com.ctre.phoenix6.sim:tools-sim:${phoenixVersion}:${desktopClassifier}@zip"
+    nativeDesktop "com.ctre.phoenix6.sim:simProTalonFX:${phoenixVersion}:${desktopClassifier}@zip"
+    nativeDesktop "com.ctre.phoenix6.sim:simProTalonFXS:${phoenixVersion}:${desktopClassifier}@zip"
+    nativeDesktop "com.ctre.phoenix6.sim:simProCANcoder:${phoenixVersion}:${desktopClassifier}@zip"
+    nativeDesktop "com.ctre.phoenix6.sim:simProPigeon2:${phoenixVersion}:${desktopClassifier}@zip"
+    nativeDesktop "com.ctre.phoenix6.sim:simProCANdi:${phoenixVersion}:${desktopClassifier}@zip"
+    nativeDesktop "com.ctre.phoenix6.sim:simProCANdle:${phoenixVersion}:${desktopClassifier}@zip"
+    nativeDesktop "com.ctre.phoenix6.sim:simProCANrange:${phoenixVersion}:${desktopClassifier}@zip"
+    // CTRE_PhoenixTools_Sim links against these three by name even on a robot with none of them, so
+    // leaving them out makes the whole Phoenix sim stack fail to load - and Phoenix answers a failed
+    // load with System.exit(1), which is why a missing legacy device model killed the JVM.
+    nativeDesktop "com.ctre.phoenix6.sim:simTalonSRX:${phoenixVersion}:${desktopClassifier}@zip"
+    nativeDesktop "com.ctre.phoenix6.sim:simVictorSPX:${phoenixVersion}:${desktopClassifier}@zip"
+    nativeDesktop "com.ctre.phoenix6.sim:simPigeonIMU:${phoenixVersion}:${desktopClassifier}@zip"
 }
 
 def nativeLibsDir = layout.buildDirectory.dir('nativeLibs')
