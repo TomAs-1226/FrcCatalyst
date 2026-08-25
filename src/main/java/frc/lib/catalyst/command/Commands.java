@@ -116,7 +116,7 @@ public final class Commands {
                 }
                 coroutine.yield();
             }
-        });
+        }, requirementsOf(commands));
     }
 
     /** Run the given commands at the same time, finishing when all of them are done. */
@@ -137,7 +137,39 @@ public final class Commands {
      * @param selector  evaluated once, at start
      */
     public static CatalystCommand either(Command onTrue, Command onFalse, BooleanSupplier selector) {
-        return of("Either", coroutine -> coroutine.await(selector.getAsBoolean() ? onTrue : onFalse));
+        // Both branches' requirements, because the selector is not read until start and either
+        // branch may be the one that runs. Reserving both is the conservative answer and the only
+        // correct one at schedule time.
+        return of("Either", coroutine -> coroutine.await(selector.getAsBoolean() ? onTrue : onFalse),
+                requirementsOf(onTrue, onFalse));
+    }
+
+    /**
+     * Every mechanism the given commands between them control.
+     *
+     * <p>{@code sequence}, {@code parallel} and {@code race} get this from v3's group builders.
+     * {@code either} and {@code repeatingSequence} are built by hand here, and both used to declare
+     * no requirements at all — which is not a cosmetic gap.
+     *
+     * <p>A repeating sequence with no requirements releases its mechanisms at every cycle boundary,
+     * so the drivetrain's default command gets a full loop of stick input back between iterations.
+     * On {@code Autopilot}, whose documentation promises the driver's steering stays suspended, that
+     * is a visible twitch of the swerve every time the co-pilot finishes an action.
+     *
+     * <p>Requirements hidden inside an {@code either} are worse: v3 rejects
+     * {@code parallel(a, b)} at construction when both need one mechanism, and
+     * {@code parallel(either(a), either(b))} sailed straight through. The build-time check that
+     * would have caught two commands driving one motor was simply skipped, and the fault surfaced
+     * on the field instead as one branch cancelling the other's whole composition.
+     */
+    private static Mechanism[] requirementsOf(Command... commands) {
+        Set<Mechanism> union = new LinkedHashSet<>();
+        for (Command command : commands) {
+            if (command != null) {
+                union.addAll(command.requirements());
+            }
+        }
+        return union.toArray(new Mechanism[0]);
     }
 
     /**

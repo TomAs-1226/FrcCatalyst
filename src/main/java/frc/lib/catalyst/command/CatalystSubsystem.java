@@ -2,6 +2,7 @@ package frc.lib.catalyst.command;
 
 import org.wpilib.command3.Mechanism;
 import org.wpilib.command3.Scheduler;
+import org.wpilib.driverstation.DriverStationErrors;
 import org.wpilib.framework.RobotBase;
 
 /**
@@ -73,9 +74,49 @@ public interface CatalystSubsystem extends Mechanism {
      * constructor. It is explicit here because v3 has no constructor to hook.
      */
     default void registerPeriodic() {
-        Scheduler.getDefault().addPeriodic(this::periodic);
+        registerPeriodic(Scheduler.getDefault());
+    }
+
+    /**
+     * As {@link #registerPeriodic()}, on a scheduler of your choosing.
+     *
+     * @param scheduler where the callbacks are registered
+     */
+    default void registerPeriodic(Scheduler scheduler) {
+        scheduler.addPeriodic(() -> guarded(this::periodic, "periodic"));
         if (RobotBase.isSimulation()) {
-            Scheduler.getDefault().addPeriodic(this::simulationPeriodic);
+            scheduler.addPeriodic(() -> guarded(this::simulationPeriodic, "simulationPeriodic"));
+        }
+    }
+
+    /**
+     * Run a periodic callback, absorbing anything it throws.
+     *
+     * <p>Not defensive habit — without it, one unchecked exception out of any {@code periodic()}
+     * ends the robot for the rest of the match.
+     *
+     * <p>v3 runs periodic callbacks as sideloaded coroutines. An exception escaping one destroys
+     * that coroutine, and the scheduler re-mounts the dead continuation on every later
+     * {@code run()}, so every subsequent loop throws before reaching a single command. Nothing
+     * recovers it — not disabling, not re-enabling. From the driver's station the robot works and
+     * then freezes completely at some arbitrary moment, with the log filling with
+     * {@code IllegalStateException: Mounted!!!!} from inside WPILib, naming nothing the team wrote.
+     *
+     * <p>The moment is arbitrary because the trigger is ordinary: the first null vision frame, the
+     * first CAN read on a device that has just browned out. A subsystem that reads a sensor which is
+     * briefly absent is a normal subsystem.
+     *
+     * <p>This is one place v3 is strictly worse than v2, where the same exception recurred but the
+     * scheduler carried on once the condition cleared. Catching here restores that.
+     */
+    private void guarded(Runnable body, String which) {
+        try {
+            body.run();
+        } catch (RuntimeException | Error e) {
+            // Reported, not swallowed. A subsystem quietly failing every loop is its own kind of
+            // undiagnosable, so this goes where a team already looks for faults.
+            DriverStationErrors.reportError(
+                    getName() + "." + which + " threw: " + e, e.getStackTrace());
         }
     }
 }

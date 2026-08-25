@@ -190,9 +190,22 @@ public final class SimulatedGamePiece {
         }
 
         // Push out along whichever face is nearest — the shallowest penetration.
+        //
+        // signum returns zero for an exact zero, which built a normal of no length and made the
+        // resolver throw straight out of the simulation loop. That is not an exotic input: a piece
+        // on the robot's centreline has offset.y exactly zero whenever the two share a y coordinate
+        // at heading zero, and a piece exactly at the robot's centre does it on both axes at once.
+        // Existing tests all used a square robot with |offset.x| > |offset.y|, which never reaches
+        // the branch that broke.
+        //
+        // Zero means "no side is nearer", so a direction has to be chosen rather than derived.
+        // Pushing out along +X is arbitrary but consistent, and any direction is better than an
+        // exception in the middle of a match simulation.
+        double sx = Math.signum(offset.getX());
+        double sy = Math.signum(offset.getY());
         Translation2d localNormal = dx > dy
-                ? new Translation2d(Math.signum(offset.getX()), 0)
-                : new Translation2d(0, Math.signum(offset.getY()));
+                ? new Translation2d(sx != 0 ? sx : 1.0, 0)
+                : new Translation2d(0, sy != 0 ? sy : 1.0);
         Translation2d fieldNormal = localNormal.rotateBy(robotPose.getRotation());
 
         Translation3d normal = new Translation3d(fieldNormal.getX(), fieldNormal.getY(), 0);

@@ -131,7 +131,11 @@ public final class WheelRadiusCalibration {
 
         @Override
         public void onCancel() {
-            finish(false);
+            // true, not false. Passing "not interrupted" sent a cancelled run down the success
+            // path: the dashboard showed done, a corrected radius, and a ready-to-paste snippet -
+            // all computed from a partial arc measured against a full-rotation gyro reading. A team
+            // pastes that into their constants and every odometry distance is wrong for the event.
+            finish(true);
         }
 
         private void step() {
