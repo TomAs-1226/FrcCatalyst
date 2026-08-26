@@ -1,29 +1,18 @@
 #!/bin/sh
+# Enable and start the agent, and get out of the installer's way.
+#
+# This used to sleep, start the service, sleep again and then verify it was running. That is about
+# five seconds of blocking inside a hook the Systemcore package manager runs synchronously, and when
+# the manager gives up waiting it reports "Package Manager health check failed - check Systemcore
+# power and connectivity" - a message about the board, for a problem in this script.
+#
+# So: no sleeps, no waiting, no verification. `systemctl enable --now` is one call that does both,
+# and systemd will bring the unit up on its own schedule. If it fails, `systemctl status
+# catalyst-agent` says why, which is a better place to find out than an installer's timeout.
 PACKAGE_NAME="catalyst-agent"
 
-echo "Configuring service for $PACKAGE_NAME"
+systemctl daemon-reload || true
+systemctl enable --now "$PACKAGE_NAME.service" || true
 
-systemctl daemon-reload
-sleep 1
-
-echo "Enabling service for auto-start on boot..."
-systemctl enable $PACKAGE_NAME.service
-
-echo "Starting service..."
-if systemctl start $PACKAGE_NAME.service; then
-    echo "Service started successfully"
-    
-    sleep 2
-    
-    if systemctl is-active $PACKAGE_NAME.service >/dev/null 2>&1; then
-        echo "Service is now running"
-    else
-        echo "Service may have an issue"
-    fi
-else
-    echo "Failed to start service automatically"
-fi
-
-echo "Package installation complete"
-
+echo "$PACKAGE_NAME installed. Check it with: systemctl status $PACKAGE_NAME"
 exit 0

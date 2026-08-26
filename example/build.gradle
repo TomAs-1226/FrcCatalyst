@@ -79,3 +79,50 @@ dependencies {
 // `systemcore` user from /home/systemcore/robotCommand, and its service waits for all five CAN
 // buses to come up before starting.
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Running it
+//
+// `gradlew :example:simulate` starts the robot program on this machine, with no Systemcore and no
+// WPILib installer. That matters more than it sounds: GradleRIO 2027 ships only inside the 2.6 GB
+// installer, so until that is present there is no `deploy` and no `simulateJava` - and without a
+// task here there was no way to run the example at all, only to compile it.
+//
+// What it takes to actually start is the whole reason this is fifteen lines and not one:
+//
+//   - Both --add-opens flags. Commands v3 runs on JDK continuations reached by reflection into
+//     jdk.internal.vm. Without them the robot boots, the dashboard connects, and the first command
+//     scheduled throws from inside WPILib naming nothing in this project.
+//   - The desktop JNI natives, unpacked by the root project's extractNativeLibs. WPILib's and
+//     Phoenix's loaders both answer a missing native by terminating the JVM rather than throwing,
+//     so a missing one looks like the program exiting silently.
+//   - PATH as well as java.library.path. The JNI stubs are found via java.library.path, but each
+//     stub links against its own implementation library and Windows resolves *those* off PATH.
+//
+// Once it is up, SimCockpit serves a field view at http://localhost:5805 - drive with WASD, watch
+// the mechanisms respond, and read any errors the robot reports.
+// ---------------------------------------------------------------------------
+tasks.register('simulate', JavaExec) {
+    group = 'catalyst'
+    description = 'Run the example robot program in simulation. Cockpit at http://localhost:5805'
+
+    dependsOn rootProject.tasks.named('extractNativeLibs')
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'frc.robot.Main'
+    standardInput = System.in
+
+    jvmArgs '--add-opens', 'java.base/jdk.internal.vm=ALL-UNNAMED',
+            '--add-opens', 'java.base/java.lang=ALL-UNNAMED'
+
+    doFirst {
+        def libs = rootProject.layout.buildDirectory.dir('nativeLibs').get().asFile.absolutePath
+        systemProperty 'java.library.path', libs
+
+        // Windows names the variable "Path", not "PATH". Setting "PATH" alongside it adds a second
+        // entry the loader ignores, so extend whichever key the environment actually uses.
+        def pathKey = System.getenv().keySet().find { it.equalsIgnoreCase('PATH') } ?: 'PATH'
+        environment pathKey, libs + File.pathSeparator + (System.getenv(pathKey) ?: '')
+        environment 'LD_LIBRARY_PATH', libs + File.pathSeparator + (System.getenv('LD_LIBRARY_PATH') ?: '')
+        environment 'DYLD_LIBRARY_PATH', libs + File.pathSeparator + (System.getenv('DYLD_LIBRARY_PATH') ?: '')
+    }
+}
