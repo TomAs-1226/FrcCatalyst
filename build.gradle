@@ -21,34 +21,30 @@ java {
 // commands v3 (coroutines on JDK continuations, which is why Java 25 above is a hard requirement
 // and not a preference).
 //
-// The version below is a CI snapshot from WPILib's development repository, not a release. The
-// released alpha-6 artifacts ship inside the 2.6 GB WPILib installer's local maven and are not
-// otherwise fetchable, which is why this library was pinned to the snapshot.
+// The version below is a CI snapshot from WPILib's development repository, not a release, and that
+// is deliberate: the snapshot is NEWER than the released alpha-6, not merely different.
 //
-// THE SNAPSHOT IS NOT THE SAME CODE AS THE RELEASED alpha-6. An earlier version of this comment
-// said it was. That was wrong, and it matters: a team installs the WPILib 2027 alpha and gets the
-// released alpha-6, so what they have is not what this library is compiled against. Three
-// differences measured by reading both sets of jars:
+// This matters because a team who installs the WPILib 2027 alpha gets the release, and the release
+// cannot build this library. Measured by reading every jar in the installer's local maven:
 //
-//   - Commands v3's `Mechanism` is a CLASS in the released alpha-6 and an INTERFACE in the
-//     snapshot. CatalystSubsystem is declared `interface CatalystSubsystem extends Mechanism`,
-//     which an interface cannot do to a class - so the whole command layer is structurally
-//     incompatible, not merely out of date.
-//   - The maven coordinate differs: the release publishes `org.wpilib:commands3-java`, the
-//     snapshot `org.wpilib:commandsv3-java`. The dependency below names the snapshot's, so on a
-//     machine with the installer it silently resolves nothing and every command3 type comes from
-//     whichever jar the vendordep happened to pull in.
-//   - `CommandXboxController` exists in the snapshot and not in the released alpha-6, where the
-//     controllers are named CommandNiDs*.
+//   - org.wpilib.telemetry does not exist in the released alpha-6. Neither does org.wpilib.tunables
+//     nor org.wpilib.fields. No class named Telemetry*, Selectable* or Tunable* appears in any jar
+//     it ships. WpiTelemetrySink, AutoSelector and the field layout all depend on those packages.
+//   - Commands v3's Mechanism is a CLASS in the release and an INTERFACE in the snapshot, so
+//     `interface CatalystSubsystem extends Mechanism` does not compile there at all.
+//   - The coordinate differs: the release publishes org.wpilib:commands3-java, the snapshot
+//     org.wpilib:commandsv3-java.
 //
-// Found by porting a real 2026 robot project onto the installed alpha-6: it compiles down to three
-// errors and then cannot go further, because Catalyst's mechanisms do not fit the Mechanism the
-// installer ships.
+// So retargeting to the released alpha-6 is not an option worth taking - it would mean deleting the
+// telemetry integration, reverting AutoSelector off Selectable, and giving up the field API, to aim
+// at an older build. The snapshot is the right target and the port is not at fault.
 //
-// This has to be decided rather than left: either retarget this library to the released alpha-6 -
-// which teams actually have - or state plainly that Catalyst 2.x needs the development snapshot and
-// cannot be used with a stock WPILib install. Re-pin to alpha-7 when it is published; Systemcore OS
-// beta 14 requires it, and until then this branch pairs with OS beta 13.
+// What IS true, and has to be said plainly in the docs rather than discovered: Catalyst 2.x needs a
+// WPILib newer than the released 2027 alpha-6. A stock installer alone is not enough. Re-pin to
+// alpha-7 when it is published, and re-check these three things then - Systemcore OS beta 14
+// requires alpha-7, and until then this branch pairs with OS beta 13.
+//
+// Established by porting a real 2026 robot project onto a machine with the installer present.
 // ---------------------------------------------------------------------------
 ext {
     wpilibVersion = '2027.0.0-alpha-6-360-gcaf0fb2dc'

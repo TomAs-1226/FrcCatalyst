@@ -140,3 +140,21 @@ test("the beta vendordep points at its own URL, not the stable one", () => {
   assert.ok(vendordep.jsonUrl.includes(baseurl + "/vendordep/"),
     `jsonUrl ${vendordep.jsonUrl} should sit under this site's baseurl ${baseurl}`);
 });
+
+test("the vendordep names the year field GradleRIO 2027 actually reads", () => {
+  // 2027 renamed this field. A vendordep carrying the 2026 spelling is not merely ignored - the
+  // GradleRIO plugin refuses to apply at all, so the project fails before compiling anything:
+  //
+  //   Vendor Dependency FrcCatalyst has invalid year null. Expected to be 2027_alpha5.
+  //
+  // Nothing in that message says "your vendordep uses the wrong key", and the version and URL
+  // checks above both pass on a file that fails this way. Found by installing this vendordep into
+  // a real 2027 project.
+  const vendordep = JSON.parse(
+    fs.readFileSync(path.join(docsDir, "vendordep", "FrcCatalyst.json"), "utf8"));
+
+  assert.equal(vendordep.frcYear, undefined,
+    "frcYear is the 2026 spelling; 2027 reads wpilibYear and rejects the file outright");
+  assert.equal(vendordep.wpilibYear, "2027_alpha5",
+    "GradleRIO compares this string exactly against the WPILib release it was built for");
+});

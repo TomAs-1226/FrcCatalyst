@@ -42,6 +42,23 @@ that deploys and then does nothing.
 Systemcore OS **beta 14 requires WPILib alpha-7**, which is not released. Until it is, pair Catalyst
 2.x with OS beta 13.
 
+> **The WPILib installer alone is not enough yet.**
+>
+> Catalyst 2.x is built against a development snapshot that is *newer* than the released 2027
+> alpha-6, and the difference is not cosmetic. Checked by reading every jar the installer ships:
+>
+> - `org.wpilib.telemetry`, `org.wpilib.tunables` and `org.wpilib.fields` **do not exist** in the
+>   released alpha-6. Catalyst's logging, `AutoSelector` and the field layout all need them.
+> - Commands v3's `Mechanism` is a **class** in the release and an **interface** in the snapshot,
+>   so Catalyst's subsystem hierarchy will not compile against the release.
+> - The release publishes `org.wpilib:commands3-java`; the snapshot publishes
+>   `org.wpilib:commandsv3-java`.
+>
+> A project that installs the WPILib 2027 alpha and adds the Catalyst vendordep will resolve, then
+> fail to compile, with errors that name none of this. Until alpha-7 ships, build against the
+> development maven (`https://frcmaven.wpi.edu/artifactory/development/`) at the version this
+> library's `build.gradle` pins.
+
 ---
 
 ## What you have to change
