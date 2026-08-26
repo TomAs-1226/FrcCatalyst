@@ -119,9 +119,18 @@ public final class CANRegistry {
         }
     }
 
-    /** Look up which device owns a given {@code (canId, bus)} pair. */
+    /**
+     * Look up which device owns a given {@code (canId, bus)} pair.
+     *
+     * <p>The bus name is normalised exactly as {@link #register} normalises it. It was not, and the
+     * two disagreeing made this method a reliable way to get the wrong answer: {@code register}
+     * stores {@code "can_s0/12"} for a device declared on {@code ""}, {@code "0"} or {@code "can_s0"},
+     * while this built its key from whatever string it was handed. {@code lookup(12, "")} therefore
+     * searched for {@code "/12"}, found nothing, and returned an empty Optional that reads as
+     * "no device has that id" rather than "the name was spelled differently".
+     */
     public static synchronized Optional<Entry> lookup(int canId, String bus) {
-        String b = bus == null ? "" : bus;
+        String b = CatalystCANBus.of(bus).name();
         return Optional.ofNullable(byKey.get(b + "/" + canId));
     }
 

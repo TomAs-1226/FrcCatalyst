@@ -94,6 +94,14 @@ public final class CatalystCANBus {
         return new CatalystCANBus(Kind.CANIVORE, -1, name, new CANBus(name));
     }
 
+    // Compiled once. These were String.matches, which compiles a fresh Pattern on every call - up
+    // to three per of(). That is invisible until something calls of() in a loop: CANBusHealth
+    // resolves a bus name inside its 50 Hz read path, so three buses came to roughly eighteen
+    // hundred regex compilations a second to answer a question whose answer never changes.
+    private static final java.util.regex.Pattern BARE_INDEX = java.util.regex.Pattern.compile("\\d+");
+    private static final java.util.regex.Pattern SYSTEMCORE_BUS = java.util.regex.Pattern.compile("can_s\\d+");
+    private static final java.util.regex.Pattern MOTIONCORE_BUS = java.util.regex.Pattern.compile("can_d\\d+");
+
     /**
      * Resolve a bus from the string forms Catalyst accepted before this type existed, so existing
      * robot code and generated {@code CANIds.java} keep working.
@@ -106,13 +114,13 @@ public final class CatalystCANBus {
             return DEFAULT;
         }
         String s = spec.trim();
-        if (s.matches("\\d+")) {
+        if (BARE_INDEX.matcher(s).matches()) {
             return systemcore(Integer.parseInt(s));
         }
-        if (s.matches("can_s\\d+")) {
+        if (SYSTEMCORE_BUS.matcher(s).matches()) {
             return systemcore(Integer.parseInt(s.substring(5)));
         }
-        if (s.matches("can_d\\d+")) {
+        if (MOTIONCORE_BUS.matcher(s).matches()) {
             return motioncore(Integer.parseInt(s.substring(5)));
         }
         return canivore(s);

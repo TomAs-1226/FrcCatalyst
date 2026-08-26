@@ -153,7 +153,9 @@ public final class BrownoutMonitor {
     // ============================================================
 
     /** roboRIO brownout floor, and the fallback when no hardware value is available. */
-    private static final double LEGACY_FLOOR_VOLTS = 6.8;
+    // Package-private so Preflight uses the same number. It had its own 6.75 - two guesses at one
+    // constant, which is how a preflight passes a battery the monitor is already throttling for.
+    static final double LEGACY_FLOOR_VOLTS = 6.8;
 
     public static Builder builder() {
         return new Builder();

@@ -231,7 +231,7 @@ public final class Preflight {
             return;
         }
         double v = volts.getAsDouble();
-        double floor = status.brownoutVolts().orElse(6.75);
+        double floor = status.brownoutVolts().orElse(BrownoutMonitor.LEGACY_FLOOR_VOLTS);
 
         if (status.isBrownedOut() || v <= floor) {
             out.add(new Finding(Level.BLOCKER, "Battery is below the brownout threshold",
