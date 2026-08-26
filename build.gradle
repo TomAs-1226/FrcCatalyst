@@ -139,6 +139,11 @@ dependencies {
     // 2027's poms are flat - no transitive dependencies - so anything WPILib needs at runtime has to
     // be declared here or it does not exist. Found by running the example rather than by testing it.
     runtimeOnly 'us.hebi.quickbuf:quickbuf-runtime:1.4'
+
+    // Only the tests name the type. TelemetryBackend's entries declare logProtobuf(T, Protobuf),
+    // so a fake backend has to implement it, and Protobuf's signature reaches into quickbuf. The
+    // library itself never mentions it, which is why this is not a compile dependency.
+    testCompileOnly 'us.hebi.quickbuf:quickbuf-runtime:1.4'
     // SwerveDriveKinematics builds a SimpleMatrix, so wpimath needs EJML at runtime too.
     // Same story as quickbuf above: wpimath's linear algebra is EJML, 2027's flat poms do not carry
     // it, and as a test-only dependency it was present for every test and absent for every robot.
