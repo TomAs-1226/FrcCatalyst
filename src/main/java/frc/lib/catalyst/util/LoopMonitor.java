@@ -65,6 +65,13 @@ public class LoopMonitor {
     private long overCount = 0;
     private long totalCount = 0;
 
+    /** Work-duration window, only fed when a team brackets its loop with begin/end. */
+    private final MovingAverage workAverage;
+
+    private double workBeganAt = Double.NaN;
+    private double lastWorkSeconds = 0.0;
+    private boolean measuringWork = false;
+
     private boolean loggingEnabled = true;
     private boolean alertsEnabled = true;
     private boolean alertActive = false;
@@ -100,12 +107,72 @@ public class LoopMonitor {
         this.budgetSeconds = budgetSeconds;
         this.clock = clock;
         this.average = new MovingAverage(averageWindow);
+        this.workAverage = new MovingAverage(averageWindow);
         this.overBudgetMessage =
                 String.format(Locale.ROOT, "Robot loop is averaging over its %.0f ms budget", budgetSeconds * 1000.0);
     }
 
     /**
+     * How far over the period an interval has to run before it counts as an overrun.
+     *
+     * <p>This exists because {@link #record()} measures the loop <em>period</em> — the interval
+     * between successive calls — and not the work done inside it. On a {@code TimedRobot} the
+     * notifier is absolute-scheduled, so on a completely healthy robot that interval is the period
+     * exactly, and comparing it directly against a budget equal to the period marks a perfectly
+     * fine robot as over budget roughly half the time. The alert then latches and can never clear,
+     * because clearing needs an interval <em>below</em> the period and the loop cannot run faster
+     * than the notifier driving it.
+     *
+     * <p>A warning that is always on is worse than none: it gets filtered out, and takes the real
+     * ones with it. So a period-based measurement only counts when it is meaningfully over — the
+     * notifier is being missed, which is a genuine overrun.
+     *
+     * <p>None of this applies when a team brackets its loop with {@link #begin()} and {@link #end()}.
+     * That measures real work, which is what the budget was always meant to be compared against, and
+     * it is used directly.
+     */
+    private static final double OVERRUN_FACTOR = 1.2;
+
+    /**
+     * Mark the start of the work being measured. Optional; pairs with {@link #end()}.
+     *
+     * <p>Without this, {@link #record()} can only see how far apart the loops are, which says
+     * nothing about how much of that was spent working. With it, the monitor knows the difference
+     * between a loop that is computing too much and one that is blocked waiting — the distinction
+     * that decides what to do about a late loop, and the one a period alone cannot make.
+     *
+     * <pre>{@code
+     * public void robotPeriodic() {
+     *     loop.begin();
+     *     CommandScheduler.getInstance().run();
+     *     loop.end();
+     * }
+     * }</pre>
+     */
+    public void begin() {
+        workBeganAt = clock.getAsDouble();
+    }
+
+    /** Mark the end of the work begun by {@link #begin()}. */
+    public void end() {
+        if (Double.isNaN(workBeganAt)) {
+            return;
+        }
+        double elapsed = clock.getAsDouble() - workBeganAt;
+        workBeganAt = Double.NaN;
+        if (elapsed >= 0) {
+            lastWorkSeconds = elapsed;
+            workAverage.calculate(elapsed);
+            measuringWork = true;
+            if (alertsEnabled) updateAlert();
+        }
+    }
+
+    /**
      * Measure the time since the last call. Call this exactly once per loop, in {@code robotPeriodic()}.
+     *
+     * <p>This measures the loop <em>period</em>. See {@link #begin()} for measuring the work itself,
+     * and {@link #OVERRUN_FACTOR} for why the two are judged differently.
      *
      * <p>The very first call only records the timestamp (there is nothing yet to measure against).
      * A non-positive interval, which happens if the clock is reset, is skipped rather than counted.
@@ -119,7 +186,7 @@ public class LoopMonitor {
                 average.calculate(dt);
                 if (dt > maxLoopSeconds) maxLoopSeconds = dt;
                 totalCount++;
-                if (dt > budgetSeconds) overCount++;
+                if (dt > overrunThreshold()) overCount++;
                 if (loggingEnabled) publish();
                 if (alertsEnabled) updateAlert();
             }
@@ -133,6 +200,12 @@ public class LoopMonitor {
         CatalystLog.log("Loop/" + name + "/AverageMs", average.get() * 1000.0);
         CatalystLog.log("Loop/" + name + "/MaxMs", maxLoopSeconds * 1000.0);
         CatalystLog.log("Loop/" + name + "/OverBudget", isOverBudget());
+        if (measuringWork) {
+            // Only when it is real. A WorkMs of 0 on a dashboard reads as "the loop does nothing",
+            // not as "nobody called begin()".
+            CatalystLog.log("Loop/" + name + "/WorkMs", lastWorkSeconds * 1000.0);
+            CatalystLog.log("Loop/" + name + "/AverageWorkMs", workAverage.get() * 1000.0);
+        }
     }
 
     /**
@@ -148,11 +221,17 @@ public class LoopMonitor {
 
     // Warn/clear only on the transition, with a fixed message, so the alert list never churns.
     private void updateAlert() {
-        double current = average.isFull() ? average.get() : lastLoopSeconds;
-        if (!alertActive && current > budgetSeconds) {
+        double current;
+        if (measuringWork) {
+            current = workAverage.isFull() ? workAverage.get() : lastWorkSeconds;
+        } else {
+            current = average.isFull() ? average.get() : lastLoopSeconds;
+        }
+        double threshold = overrunThreshold();
+        if (!alertActive && current > threshold) {
             AlertManager.getInstance().warning("LoopMonitor:" + name, overBudgetMessage);
             alertActive = true;
-        } else if (alertActive && current < budgetSeconds * ALERT_CLEAR_FRACTION) {
+        } else if (alertActive && current < threshold * ALERT_CLEAR_FRACTION) {
             AlertManager.getInstance().clearWarning("LoopMonitor:" + name, overBudgetMessage);
             alertActive = false;
         }
@@ -163,7 +242,28 @@ public class LoopMonitor {
      * (so a single spike does not trip it), and the most recent loop until then.
      */
     public boolean isOverBudget() {
-        return average.isFull() ? average.get() > budgetSeconds : lastLoopSeconds > budgetSeconds;
+        if (measuringWork) {
+            // Real work against a real budget, which is the comparison the budget was written for.
+            return workAverage.isFull() ? workAverage.get() > budgetSeconds
+                                        : lastWorkSeconds > budgetSeconds;
+        }
+        return average.isFull() ? average.get() > overrunThreshold()
+                                : lastLoopSeconds > overrunThreshold();
+    }
+
+    /** The value a measurement has to exceed to count, which depends on what is being measured. */
+    private double overrunThreshold() {
+        return measuringWork ? budgetSeconds : budgetSeconds * OVERRUN_FACTOR;
+    }
+
+    /** The most recent measured work time, in milliseconds, or 0 if begin/end are not being used. */
+    public double getWorkMs() {
+        return lastWorkSeconds * 1000.0;
+    }
+
+    /** The rolling-average work time, in milliseconds, or 0 if begin/end are not being used. */
+    public double getAverageWorkMs() {
+        return workAverage.get() * 1000.0;
     }
 
     /** The most recent loop time, in milliseconds. */
