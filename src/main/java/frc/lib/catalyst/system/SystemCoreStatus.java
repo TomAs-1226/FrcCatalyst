@@ -191,6 +191,24 @@ public final class SystemCoreStatus {
         return source instanceof NtSource nt ? nt.server() : null;
     }
 
+    // --- Why there is no HAL fallback here -----------------------------------
+    //
+    // Tried and reverted, deliberately. WPILib exposes battery voltage, brownout state and CPU
+    // temperature through RobotController as well, and it is tempting to use those when Systemcore
+    // publishes nothing - the topic names here were read out of a binary rather than a
+    // specification, so a renamed one silently empties a reading for a whole match.
+    //
+    // It breaks the invariant this class is built on, and five existing tests say so. An absent
+    // Systemcore currently reports empty, DriverBoard shows a dash, and Preflight says it cannot
+    // see the machine. With a fallback it reports 12.00 V - the simulator's default, presented as a
+    // measurement - and every one of those surfaces starts showing a healthy battery for a robot
+    // that is not answering. That is precisely the plausible-wrong-number failure the rest of this
+    // file goes to some length to avoid, and it is worse than a dash because nobody investigates a
+    // dashboard that looks fine.
+    //
+    // If this is ever wanted, it has to arrive as a separate reading that says where it came from,
+    // not as a silent substitution behind the same accessor.
+
     // --- Power ---------------------------------------------------------------
 
     /** Battery voltage as Systemcore measures it, in volts. */
