@@ -36,7 +36,10 @@ import java.util.Map;
  *
  * <h2>Logging before there is anywhere to log</h2>
  *
- * <p>WPILib installs its telemetry backend part-way through {@code RobotBase.startRobot}. Anything
+ * <p>WPILib installs its telemetry backend in {@code RobotBase}'s constructor - read off the
+ * alpha-6 jar, not inferred. That is later than it sounds: a {@code static final} field on the
+ * robot class is initialised when the class loads, which is before any instance of it exists and
+ * therefore before that constructor has run. Anything
  * a robot publishes before that lands in a registry with no backend, and WPILib answers each one
  * with a warning and a stack trace rather than storing it — so the value is gone and the console is
  * full of traces about it.
