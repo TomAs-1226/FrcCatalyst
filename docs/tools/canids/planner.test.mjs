@@ -163,3 +163,106 @@ const sameIdSameBus = run(`devices = ${JSON.stringify([
 ])}; [...detectConflicts()].length`);
 assert.equal(sameIdSameBus, 2, "and on one bus it is still a conflict");
 });
+
+// --- Balance across buses ---------------------------------------------------
+//
+// This is a port of CANBusPlanner.suggest(), and a port that quietly disagrees with the library is
+// worse than no port: the tool would hand a team a plan the library's own validate() complains
+// about. The numbers asserted below are the library's, taken from CANBusPlannerSpreadTest.
+
+const identical = n =>
+  Array.from({ length: n }, (_, i) => ({ name: "M" + i, id: i + 1, type: "Kraken X60", bus: "can_s0" }));
+
+/** Devices per bus, after balancing whatever is handed in. */
+const balancedBuses = list => {
+  ctx.__in = list;
+  const out = runJson("balanceAcrossBuses(__in)");
+  const per = {};
+  for (const d of out) per[d.bus] = (per[d.bus] || 0) + 1;
+  return per;
+};
+
+/** Devices per SPI controller, which is the quantity the planner is actually levelling. */
+const balancedControllers = list => {
+  ctx.__in = list;
+  const out = runJson("balanceAcrossBuses(__in)");
+  const groups = [0, 0, 0];
+  for (const d of out) groups[runJson(`controllerGroup(${JSON.stringify(d.bus)})`)] += 1;
+  return groups;
+};
+
+test("balancing levels controllers, not buses", () => {
+  // The distinction is the whole reason the planner exists. can_s2 owns its controller, so an even
+  // plan gives it a full third while can_s0 and can_s1 split their third between them. The per-bus
+  // counts that produces look lopsided precisely because they are right.
+  const groups = balancedControllers(identical(20));
+  const spread = Math.max(...groups) - Math.min(...groups);
+
+  assert.ok(spread <= 2, `controller loads differ by ${spread}: ${groups.join("/")}`);
+});
+
+test("every bus is reachable, including the second of each pair", () => {
+  // The bug this guards: scoring by controller load alone made both buses in a pair always tie,
+  // and a strict comparison plus iteration order handed it to the first every time - so can_s1 and
+  // can_s4 were never chosen, in any plan, ever. Each bus is an independent 1 Mbit/s wire even
+  // when it shares a controller, so that was real headroom thrown away.
+  const per = balancedBuses(identical(30));
+
+  for (const bus of ["can_s0", "can_s1", "can_s2", "can_s3", "can_s4"]) {
+    assert.ok(per[bus] > 0, `${bus} was never used: ${JSON.stringify(per)}`);
+  }
+});
+
+test("balancing moves every device exactly once and invents none", () => {
+  const before = identical(17);
+  ctx.__in = before;
+  const after = runJson("balanceAcrossBuses(__in)");
+
+  assert.equal(after.length, before.length);
+  assert.deepEqual(
+    after.map(d => d.id).sort((a, b) => a - b),
+    before.map(d => d.id).sort((a, b) => a - b),
+    "ids must survive untouched - renumbering someone's plan is not the planner's call",
+  );
+  assert.deepEqual(after.map(d => d.name), before.map(d => d.name));
+});
+
+test("a CANivore device is left where it is", () => {
+  // A CANivore is a physical box with wires already in it. "Move this onto a different controller"
+  // is not a thing a planner gets to decide.
+  const list = [...identical(6), { name: "Arm", id: 99, type: "Kraken X60", bus: "canivore" }];
+  ctx.__in = list;
+  const out = runJson("balanceAcrossBuses(__in)");
+
+  assert.equal(out.find(d => d.id === 99).bus, "canivore");
+});
+
+test("the shipped presets do not pile onto one bus", () => {
+  // The reported bug: 13 of the 20 preset devices landed on can_s0 and the other 7 on can_s2, so
+  // can_s1, can_s3 and can_s4 appeared in no preset at all - and the tool taught the opposite of
+  // what the five-bus model is for.
+  //
+  // The key names are asserted rather than defaulted. An earlier version of this test read
+  // PRESETS["elevatorArm"] with a `?? []` fallback; the real key is "elevator-arm", so that branch
+  // checked nothing and passed.
+  const keys = runJson("Object.keys(PRESETS)");
+  assert.deepEqual(keys, ["swerve", "elevator-arm", "shooter"], "preset keys moved - update this test");
+
+  const all = keys.map(k => runJson(`PRESETS[${JSON.stringify(k)}]`)).flat();
+  const buses = [...new Set(all.map(d => d.bus))].sort();
+
+  assert.ok(all.length > 0, "presets are empty");
+  assert.ok(
+    buses.length > 2,
+    `a full robot's presets use only ${buses.join(", ")} - the point of five buses is to use them`,
+  );
+
+  // And no single bus may carry more than half of everything.
+  const per = {};
+  for (const d of all) per[d.bus] = (per[d.bus] || 0) + 1;
+  const worst = Math.max(...Object.values(per));
+  assert.ok(
+    worst <= all.length / 2,
+    `one bus carries ${worst} of ${all.length} preset devices: ${JSON.stringify(per)}`,
+  );
+});

@@ -122,12 +122,15 @@
     .device.conflict .id-chip { color: var(--err); }
     .name { font-size: 13px; font-weight: 600; }
     .meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
-    .meta .tag {
+    /* Shape on .tag, spacing on .meta .tag — the controller strip below reuses the same chips and
+       lays them out itself. */
+    .tag {
       display: inline-block; padding: 1px 6px;
-      border-radius: 999px; margin-left: 4px;
+      border-radius: 999px;
       font-size: 10px; font-weight: 700; text-transform: uppercase;
       letter-spacing: 0.5px;
     }
+    .meta .tag { margin-left: 4px; }
     .tag.kraken    { background: rgba(96,165,250,0.18); color: #60a5fa; }
     .tag.falcon    { background: rgba(96,165,250,0.18); color: #60a5fa; }
     .tag.cancoder  { background: rgba(233,69,96,0.16);  color: var(--accent2); }
@@ -159,6 +162,33 @@
     .summary .val { font-size: 24px; font-weight: 700; color: var(--accent2); margin-top: 4px; }
     .summary .card.err .val { color: var(--err); }
     .summary .card.warn .val { color: var(--warn); }
+
+    /* The SPI pairing, made visible.
+       A device row can only ever show its own bus, so nothing in the list above can say that
+       can_s0 and can_s1 are one shared wire's worth of throughput between them. This strip groups
+       the buses the way the hardware does and prints the load per controller, which is the number
+       the planner is actually balancing. */
+    .controllers { display: grid; gap: 8px; margin-bottom: 18px; }
+    .ctrl {
+      display: grid; grid-template-columns: 86px 1fr auto;
+      gap: 12px; align-items: center;
+      padding: 8px 12px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    .ctrl .who { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+    .ctrl .buses { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .ctrl .join { color: var(--muted); font-size: 11px; font-weight: 700; }
+    .ctrl .alone { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+    .ctrl .load { font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); }
+    .ctrl .load.over { color: var(--err); font-weight: 700; }
+    .ctrl .tag .n { opacity: 0.65; }
+    .ctrl .load { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .ctrl .load b { color: var(--text); font-weight: 700; }
+    .ctrl.hot { border-color: rgba(251,191,36,0.35); background: rgba(251,191,36,0.05); }
+    .ctrl.hot .load b { color: var(--warn); }
+    .ctrl .tag.idle { background: rgba(255,255,255,0.05); color: var(--muted); }
 
     .empty {
       text-align: center; padding: 32px;
@@ -255,6 +285,11 @@
       <button class="btn ghost" data-preset="shooter">Shooter</button>
     </div>
 
+    <h2>Spread the load</h2>
+    <div class="actions">
+      <button class="btn ghost" id="balanceBtn">Balance across buses</button>
+    </div>
+
     <h2>Storage</h2>
     <div class="actions">
       <button class="btn ghost" id="exportJson">Export JSON</button>
@@ -271,6 +306,9 @@
       <div class="card"><div class="label">Busiest bus</div><div class="val" id="sumBusiest">-</div></div>
       <div class="card" id="conflictCard"><div class="label">Conflicts</div><div class="val" id="sumConflicts">0</div></div>
     </div>
+
+    <h2>SPI controllers</h2>
+    <div id="controllers" class="controllers"></div>
 
     <h2>Devices</h2>
     <div id="deviceList" class="device-list"></div>
@@ -339,8 +377,169 @@
   // a drivetrain across can_s0 and can_s1 therefore buys far less than splitting it across can_s0
   // and can_s3, and two buses at 55% each can saturate their shared controller while both look
   // fine on their own. Read out of the OS image; mirrors CatalystCANBus.sharesControllerWith().
-  const SYSTEMCORE_BUSES = ["can_s0", "can_s1", "can_s2", "can_s3", "can_s4"];
+  //
+  // The grouping is written down once, here, and everything else is derived from it. It used to be
+  // restated as a pair list in the contention advice and again as a lookup table in the Java
+  // generator, which is two more places for it to go stale than the hardware has.
+  const CONTROLLERS = [
+    { buses: ["can_s0", "can_s1"] },   // SPI2
+    { buses: ["can_s2"] },             // SPI3, on its own
+    { buses: ["can_s3", "can_s4"] },   // SPI1
+  ];
+  const SYSTEMCORE_BUSES = CONTROLLERS.flatMap(c => c.buses);
   const ALL_BUSES = [...SYSTEMCORE_BUSES, "canivore"];
+  // The paired buses, for advice that wants to talk about them two at a time.
+  const CONTROLLER_PAIRS = CONTROLLERS.filter(c => c.buses.length === 2).map(c => c.buses);
+
+  /** Which SPI controller a bus hangs off, or -1 for a CANivore. CatalystCANBus.controllerGroup(). */
+  function controllerGroup(bus) {
+    return CONTROLLERS.findIndex(c => c.buses.includes(bus));
+  }
+
+  /** The other bus on the same controller, or null when there isn't one. */
+  function busPair(bus) {
+    const group = controllerGroup(bus);
+    if (group < 0) return null;
+    return CONTROLLERS[group].buses.find(b => b !== bus) || null;
+  }
+
+  /** Whether a bus has its SPI controller to itself — true only for can_s2. */
+  function isUnpaired(bus) {
+    const group = controllerGroup(bus);
+    return group >= 0 && CONTROLLERS[group].buses.length === 1;
+  }
+
+  // Frames per second attributed to a device, mirroring CANBusPlanner.FRAME_RATES. A motor talks
+  // far more than a sensor: it publishes position, velocity, current, voltage and fault signals
+  // continuously, where an encoder publishes position and little else. Conservative on purpose —
+  // these over-state load rather than under-state it.
+  const DEFAULT_FRAMES_PER_SECOND = 200;
+  const FRAME_RATES = {
+    "TalonFX": 250,
+    "TalonFX (follower)": 150,
+    "CANcoder": 100,
+    "CANcoder (fused)": 100,
+    "CANcoder (sync)": 100,
+    "CANcoder (remote)": 100,
+    "Pigeon2": 100,
+  };
+
+  // This planner labels devices with catalogue names ("Kraken X60"); the library prices them from
+  // the type string CANRegistry stores ("TalonFX", from CatalystMotor). Same devices, two names, so
+  // translate before looking a rate up. Anything with no entry falls through to the default exactly
+  // as it does in CANBusPlanner — a NEO or a CANdle is priced at the default here for the same
+  // reason it is priced at the default there, which is that nobody has measured it.
+  function registryType(type) {
+    const t = String(type || "").toLowerCase();
+    if (t.includes("kraken") || t.includes("falcon") || t.includes("minion")) return "TalonFX";
+    if (t.includes("cancoder")) return "CANcoder";
+    if (t.includes("pigeon")) return "Pigeon2";
+    return type;
+  }
+
+  /** Estimated frames per second for one device. CANBusPlanner.framesPerSecondFor(). */
+  function framesPerSecond(type) {
+    const rate = FRAME_RATES[registryType(type)];
+    return rate === undefined ? DEFAULT_FRAMES_PER_SECOND : rate;
+  }
+
+  // What a bus and a shared controller should stay under. Straight off CANBusPlanner; the pair
+  // ceiling is not twice the single-bus one because the pair shares an SPI host, so the limit is
+  // about that host's throughput rather than the sum of two independent wires.
+  const BITS_PER_FRAME = 135;
+  const BUS_BITS_PER_SECOND = 1000000;
+  const TARGET_BUS_UTILIZATION = 0.60;
+  const TARGET_PAIR_UTILIZATION = 1.00;
+
+  /** Estimated utilisation, 0–1, of whatever set of devices is handed in. */
+  function utilizationOf(list) {
+    return list.reduce((sum, d) => sum + framesPerSecond(d.type), 0)
+        * BITS_PER_FRAME / BUS_BITS_PER_SECOND;
+  }
+
+  // A proposed assignment of these devices to buses. A faithful port of CANBusPlanner.suggest():
+  // greedy, heaviest device first, each one placed on the bus whose SPI *controller* is least
+  // loaded — grouping rather than per-bus, because that is the constraint that actually binds.
+  //
+  // Three keys, in this order:
+  //
+  //  1. Controller load. The SPI controller is the shared resource and the reason the pairing
+  //     matters at all.
+  //  2. The unpaired bus, when controllers tie. A device on can_s2 costs no other bus anything.
+  //  3. Load on the individual bus. Without this last key, both buses in a pair always report the
+  //     same controller load, the comparison is strict, and iteration order hands it to the first
+  //     every time — can_s1 and can_s4 then never get chosen at all, in any plan. Each bus is an
+  //     independent 1 Mbit/s wire even when it shares a controller, so that is real headroom.
+  //
+  // The answer looks lopsided per bus and is not. Twenty identical devices come back as 7 on
+  // can_s2, 4+3 across the first pair and 3+3 across the second — which is 7/7/6 across the three
+  // controllers, i.e. even. A plan that looked even bus-by-bus would be putting twice the load on
+  // the two shared controllers.
+  //
+  // Advice, not an instruction: it knows nothing about where things physically sit on the robot,
+  // and a plan that halves bus load while doubling the length of the CAN wiring is not an
+  // improvement. Read it as "these devices want separating", then decide where.
+  function suggestBuses(list) {
+    const order = list.map((d, i) => ({ d, i }))
+        .sort((a, b) => framesPerSecond(b.d.type) - framesPerSecond(a.d.type));
+
+    const busFrames = {};
+    const groupFrames = {};
+    for (const bus of SYSTEMCORE_BUSES) busFrames[bus] = 0;
+    CONTROLLERS.forEach((c, g) => { groupFrames[g] = 0; });
+
+    const placed = list.slice();
+    for (const { d, i } of order) {
+      const load = framesPerSecond(d.type);
+
+      let target = SYSTEMCORE_BUSES[0];
+      let bestGroupLoad = Infinity;
+      let bestBusLoad = Infinity;
+      for (const bus of SYSTEMCORE_BUSES) {
+        const groupLoad = groupFrames[controllerGroup(bus)];
+        const busLoad = busFrames[bus];
+
+        let better;
+        if (groupLoad !== bestGroupLoad) {
+          better = groupLoad < bestGroupLoad;
+        } else if (isUnpaired(bus) !== isUnpaired(target)) {
+          better = isUnpaired(bus);
+        } else {
+          better = busLoad < bestBusLoad;
+        }
+
+        if (better) {
+          bestGroupLoad = groupLoad;
+          bestBusLoad = busLoad;
+          target = bus;
+        }
+      }
+
+      placed[i] = { ...d, bus: target };
+      busFrames[target] += load;
+      groupFrames[controllerGroup(target)] += load;
+    }
+    return placed;
+  }
+
+  // The button's version of the above. CANivore devices are left exactly where they are: a CANivore
+  // is a box on the robot with wires already in it, and "move this device onto a different physical
+  // controller" is not something a planner gets to decide. Only the five Systemcore buses are
+  // shuffled, and only the bus changes — ids, names and types are untouched.
+  //
+  // Duplicate ids that were legal because they sat on different buses can land on the same bus and
+  // become conflicts. That is not hidden: the summary card and the red rows say so immediately, and
+  // renumbering someone's plan behind their back would be the worse answer.
+  function balanceAcrossBuses(list) {
+    const movable = [];
+    const index = [];
+    list.forEach((d, i) => {
+      if (SYSTEMCORE_BUSES.includes(d.bus)) { movable.push(d); index.push(i); }
+    });
+    const out = list.slice();
+    suggestBuses(movable).forEach((d, k) => { out[index[k]] = d; });
+    return out;
+  }
 
   // Plans saved before Systemcore named "rio" and "" for the one bus a roboRIO had. That bus does
   // not exist any more; can_s0 is the closest thing and is Catalyst's default, so an imported plan
@@ -430,6 +629,7 @@
     $("sumConflicts").textContent = conflicts.size;
     $("conflictCard").classList.toggle("err",  conflicts.size > 0);
 
+    renderControllers();
     renderOutput(sorted, conflicts);
     save();
     // Wire remove buttons
@@ -440,6 +640,37 @@
         render();
       };
     });
+  }
+
+  // The SPI pairing, drawn.
+  //
+  // A device row can only ever say which bus it is on, so nothing in the list above can express
+  // that can_s0 and can_s1 are one shared controller's worth of throughput between them. This is
+  // the only place that fact is visible, which is why the load figure printed here is the
+  // controller's and not the bus's - the controller total is what the planner balances and what
+  // actually runs out.
+  function renderControllers() {
+    const host = $("controllers");
+    host.innerHTML = CONTROLLERS.map(c => {
+      const on = devices.filter(d => c.buses.includes(d.bus));
+      const util = utilizationOf(on);
+      // A pair shares an SPI host, so its ceiling is about that host rather than the sum of two
+      // independent wires - hence a different target from a lone bus. Straight off CANBusPlanner.
+      const ceiling = c.buses.length === 2 ? TARGET_PAIR_UTILIZATION : TARGET_BUS_UTILIZATION;
+      const over = util > ceiling;
+
+      const chips = c.buses.map(b => {
+        const n = devices.filter(d => d.bus === b).length;
+        return `<span class="tag ${b}">${b} <span class="n">${n}</span></span>`;
+      }).join('<span class="join">+</span>');
+
+      return `<div class="ctrl">
+          <div class="who">${c.buses.length === 2 ? "shared" : "on its own"}</div>
+          <div class="buses">${chips}${c.buses.length === 1
+              ? '<span class="alone">no contention</span>' : ''}</div>
+          <div class="load${over ? " over" : ""}">${Math.round(util * 100)}%</div>
+        </div>`;
+    }).join("");
   }
 
   function escapeHtml(s) {
@@ -627,6 +858,15 @@
     };
   });
 
+  // Balance is advice you asked for, so it applies straight away rather than opening a preview -
+  // but it only ever changes the `bus` field, and Clear all / Import are right there if the answer
+  // is not wanted. Nothing is renumbered and nothing is deleted.
+  $("balanceBtn").onclick = () => {
+    if (!devices.length) return;
+    devices = balanceAcrossBuses(devices);
+    render();
+  };
+
   $("javaPkg").addEventListener("input", () => { if (outputMode === "java") render(); });
 
   $("copyOutput").onclick = async () => {
@@ -703,26 +943,28 @@
       { name: "FrontRightDrive", id: 4, type: "Kraken X60", bus: "can_s0" },
       { name: "FrontRightSteer", id: 5, type: "Kraken X60", bus: "can_s0" },
       { name: "FrontRightCANcoder", id: 6, type: "CANcoder", bus: "can_s0" },
-      { name: "RearLeftDrive",   id: 7, type: "Kraken X60", bus: "can_s0" },
-      { name: "RearLeftSteer",   id: 8, type: "Kraken X60", bus: "can_s0" },
-      { name: "RearLeftCANcoder", id: 9, type: "CANcoder", bus: "can_s0" },
-      { name: "RearRightDrive",  id: 10, type: "Kraken X60", bus: "can_s0" },
-      { name: "RearRightSteer",  id: 11, type: "Kraken X60", bus: "can_s0" },
-      { name: "RearRightCANcoder", id: 12, type: "CANcoder", bus: "can_s0" },
-      { name: "Pigeon",          id: 13, type: "Pigeon 2", bus: "can_s0" },
+      { name: "RearLeftDrive",   id: 7, type: "Kraken X60", bus: "can_s3" },
+      { name: "RearLeftSteer",   id: 8, type: "Kraken X60", bus: "can_s3" },
+      { name: "RearLeftCANcoder", id: 9, type: "CANcoder", bus: "can_s3" },
+      { name: "RearRightDrive",  id: 10, type: "Kraken X60", bus: "can_s3" },
+      { name: "RearRightSteer",  id: 11, type: "Kraken X60", bus: "can_s3" },
+      { name: "RearRightCANcoder", id: 12, type: "CANcoder", bus: "can_s3" },
+      // The Pigeon goes on the lone controller. It is the one device whose timing the drivetrain
+      // depends on and which nothing else should ever be queued behind.
+      { name: "Pigeon",          id: 13, type: "Pigeon 2", bus: "can_s2" },
     ],
     // can_s2 rather than can_s1: can_s1 shares a controller with can_s0, so putting mechanisms
     // there would look like a split without being one.
     "elevator-arm": [
-      { name: "ElevatorMaster",  id: 20, type: "Kraken X60", bus: "can_s2" },
-      { name: "ElevatorFollower", id: 21, type: "Kraken X60", bus: "can_s2" },
-      { name: "ArmMaster",       id: 22, type: "Kraken X60", bus: "can_s2" },
-      { name: "ArmCANcoder",     id: 23, type: "CANcoder", bus: "can_s2" },
+      { name: "ElevatorMaster",  id: 20, type: "Kraken X60", bus: "can_s1" },
+      { name: "ElevatorFollower", id: 21, type: "Kraken X60", bus: "can_s1" },
+      { name: "ArmMaster",       id: 22, type: "Kraken X60", bus: "can_s1" },
+      { name: "ArmCANcoder",     id: 23, type: "CANcoder", bus: "can_s1" },
     ],
     shooter: [
-      { name: "ShooterTop",      id: 30, type: "Kraken X60", bus: "can_s2" },
-      { name: "ShooterBottom",   id: 31, type: "Kraken X60", bus: "can_s2" },
-      { name: "Indexer",         id: 32, type: "Kraken X44", bus: "can_s2" },
+      { name: "ShooterTop",      id: 30, type: "Kraken X60", bus: "can_s4" },
+      { name: "ShooterBottom",   id: 31, type: "Kraken X60", bus: "can_s4" },
+      { name: "Indexer",         id: 32, type: "Kraken X44", bus: "can_s4" },
     ],
   };
   document.querySelectorAll("[data-preset]").forEach(b => {
