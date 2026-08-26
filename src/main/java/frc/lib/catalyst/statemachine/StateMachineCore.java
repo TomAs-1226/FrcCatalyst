@@ -1468,11 +1468,19 @@ public final class StateMachineCore<S extends Enum<S>> {
         double arrivalSeconds = Double.NaN;
         boolean owned = true;
 
-        private String lastGoalLabel = " ";
+        // Written "\0" rather than as a raw NUL byte, which is what these were. A single NUL
+        // anywhere in a file makes git and most review tools treat the whole thing as binary:
+        // `git grep` stops reporting matches, and a diff of this file - the largest in the
+        // library - renders as "binary files differ".
+        //
+        // The sentinel itself is deliberate and cannot be "". Below, a null goal produces an
+        // empty label and note, so initialising to "" would make the first sample compare equal
+        // and the first state of every binding would go unpublished.
+        private String lastGoalLabel = "\0";
         private boolean lastArrived;
         private boolean lastOwned = true;
         private boolean lastGating;
-        private String lastNote = " ";
+        private String lastNote = "\0";
 
         @SuppressWarnings("unchecked")
         Bound(Handle<?> handle, Binding<?> binding, boolean advisory) {
