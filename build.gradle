@@ -23,9 +23,32 @@ java {
 //
 // The version below is a CI snapshot from WPILib's development repository, not a release. The
 // released alpha-6 artifacts ship inside the 2.6 GB WPILib installer's local maven and are not
-// otherwise fetchable; the snapshot is the same code and lets this library build without it.
-// Re-pin to alpha-7 when it is published - Systemcore OS beta 14 requires it, and until then this
-// branch pairs with OS beta 13.
+// otherwise fetchable, which is why this library was pinned to the snapshot.
+//
+// THE SNAPSHOT IS NOT THE SAME CODE AS THE RELEASED alpha-6. An earlier version of this comment
+// said it was. That was wrong, and it matters: a team installs the WPILib 2027 alpha and gets the
+// released alpha-6, so what they have is not what this library is compiled against. Three
+// differences measured by reading both sets of jars:
+//
+//   - Commands v3's `Mechanism` is a CLASS in the released alpha-6 and an INTERFACE in the
+//     snapshot. CatalystSubsystem is declared `interface CatalystSubsystem extends Mechanism`,
+//     which an interface cannot do to a class - so the whole command layer is structurally
+//     incompatible, not merely out of date.
+//   - The maven coordinate differs: the release publishes `org.wpilib:commands3-java`, the
+//     snapshot `org.wpilib:commandsv3-java`. The dependency below names the snapshot's, so on a
+//     machine with the installer it silently resolves nothing and every command3 type comes from
+//     whichever jar the vendordep happened to pull in.
+//   - `CommandXboxController` exists in the snapshot and not in the released alpha-6, where the
+//     controllers are named CommandNiDs*.
+//
+// Found by porting a real 2026 robot project onto the installed alpha-6: it compiles down to three
+// errors and then cannot go further, because Catalyst's mechanisms do not fit the Mechanism the
+// installer ships.
+//
+// This has to be decided rather than left: either retarget this library to the released alpha-6 -
+// which teams actually have - or state plainly that Catalyst 2.x needs the development snapshot and
+// cannot be used with a stock WPILib install. Re-pin to alpha-7 when it is published; Systemcore OS
+// beta 14 requires it, and until then this branch pairs with OS beta 13.
 // ---------------------------------------------------------------------------
 ext {
     wpilibVersion = '2027.0.0-alpha-6-360-gcaf0fb2dc'
