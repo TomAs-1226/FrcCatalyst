@@ -260,10 +260,28 @@ public final class WpiTelemetrySink implements LogSink {
     // Arrays are copied on the buffered path only. A caller is entitled to reuse its array after a
     // log call returns, and a replay seconds later would otherwise publish whatever it holds by
     // then. On the live path - every loop after startup - nothing is copied.
-    @Override public void log(String key, double value)    { write(key, () -> root.log(key, value)); }
-    @Override public void log(String key, boolean value)   { write(key, () -> root.log(key, value)); }
-    @Override public void log(String key, long value)      { write(key, () -> root.log(key, value)); }
-    @Override public void log(String key, String value)    { write(key, () -> root.log(key, value)); }
+    // The `live` test comes before the lambda, not inside write().
+    //
+    // `() -> root.log(key, value)` captures both arguments, so it allocates on every call - and
+    // write() only checks `live` after receiving it. That put an object on the heap for every log
+    // call for the entire match, to support a buffer that stops mattering a second after boot.
+    // Across roughly forty log calls a loop at 50 Hz that is a couple of thousand allocations a
+    // second doing nothing. The array overloads below already had this shape; these four did not.
+    @Override public void log(String key, double value) {
+        if (live) { root.log(key, value); } else { write(key, () -> root.log(key, value)); }
+    }
+
+    @Override public void log(String key, boolean value) {
+        if (live) { root.log(key, value); } else { write(key, () -> root.log(key, value)); }
+    }
+
+    @Override public void log(String key, long value) {
+        if (live) { root.log(key, value); } else { write(key, () -> root.log(key, value)); }
+    }
+
+    @Override public void log(String key, String value) {
+        if (live) { root.log(key, value); } else { write(key, () -> root.log(key, value)); }
+    }
 
     @Override public void log(String key, double[] value) {
         if (live) { root.log(key, value); } else { double[] c = value.clone(); write(key, () -> root.log(key, c)); }
@@ -283,7 +301,11 @@ public final class WpiTelemetrySink implements LogSink {
 
     @Override
     public <T> void log(String key, Struct<T> struct, T value) {
-        write(key, () -> root.log(key, value, struct));
+        if (live) {
+            root.log(key, value, struct);
+        } else {
+            write(key, () -> root.log(key, value, struct));
+        }
     }
 
     @Override
