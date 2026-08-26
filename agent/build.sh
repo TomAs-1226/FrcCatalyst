@@ -1,93 +1,24 @@
-#!/bin/bash
-
+#!/bin/sh
+# Build catalyst-agent_<version>.ipk.
+#
+# The work is in build.py. This existed as a shell script first and could not do the job: an .ipk's
+# tarballs carry Unix file modes and ownership, and reading those from the host filesystem is wrong
+# on any machine that does not have them. On Windows there is no executable bit to read, and `ar` is
+# not present in Git Bash at all, so the build could not finish. build.py sets every mode explicitly
+# and writes the ar archive itself, so the package is identical wherever it was built.
+#
+# Kept as build.sh because that is what the README and everyone's muscle memory says.
 set -e
+cd "$(dirname "$0")"
 
-# Extract package info from control/control file
-if [ ! -f "control/control" ]; then
-    echo "Error: control/control not found!"
-    echo "Create a control/control file with package metadata"
-    exit 1
-fi
+# Each candidate is asked to run something, not merely found on PATH. Windows ships a `python3` in
+# WindowsApps that exists, resolves, and does nothing but print an advert for the Microsoft Store -
+# so `command -v` says yes and the build then fails with a message about app execution aliases.
+for py in python3 python py; do
+    if "$py" -c "import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)" >/dev/null 2>&1; then
+        exec "$py" build.py "$@"
+    fi
+done
 
-PACKAGE_NAME=$(grep "^Package:" control/control | cut -d' ' -f2- | tr -d ' ')
-PACKAGE_VERSION=$(grep "^Version:" control/control | cut -d' ' -f2- | tr -d ' ')
-
-# Validate required fields
-if [ -z "$PACKAGE_NAME" ] || [ -z "$PACKAGE_VERSION" ]; then
-    echo "Err: Package and Version must be set in control/control"
-    echo "Package: my-package"
-    echo "Version: 1.0.0"
-    exit 1
-fi
-
-PACKAGE_DIR="${PACKAGE_NAME}_${PACKAGE_VERSION}"
-BUILD_DIR="build"
-
-echo "Building IPK package from overlay structure..."
-echo "Package: ${PACKAGE_NAME}_${PACKAGE_VERSION}.ipk"
-
-if [ ! -d "overlay" ]; then
-    echo "overlay/ directory not found"
-    exit 1
-fi
-
-if [ ! -d "control" ]; then
-    echo "Error: control/ directory not found!"
-    echo "Create control/ with control, postinst, prerm, postrm files"
-    exit 1
-fi
-
-echo "Cleaning previous build..."
-rm -rf "$BUILD_DIR"
-mkdir -p "$BUILD_DIR/$PACKAGE_DIR"
-
-echo "Copying overlay structure..."
-cp -r overlay/* "$BUILD_DIR/$PACKAGE_DIR/"
-
-echo "Copying CONTROL files..."
-mkdir -p "$BUILD_DIR/$PACKAGE_DIR/CONTROL"
-cp control/* "$BUILD_DIR/$PACKAGE_DIR/CONTROL/"
-
-echo "Setting file permissions..."
-
-# Make scripts executable
-find "$BUILD_DIR/$PACKAGE_DIR" -name "*.py" -exec chmod +x {} \;
-
-if [ -d "$BUILD_DIR/$PACKAGE_DIR/CONTROL" ]; then
-    chmod +x "$BUILD_DIR/$PACKAGE_DIR/CONTROL"/* 2>/dev/null || true
-fi
-
-find "$BUILD_DIR/$PACKAGE_DIR" -name "*.sh" -exec chmod +x {} \;
-
-echo "Building IPK dir structure"
-cd "$BUILD_DIR"
-
-echo "Creating data.tar.gz"
-tar --exclude='CONTROL' -czf data.tar.gz -C "$PACKAGE_DIR" .
-
-echo "Creating control.tar.gz"
-tar -czf control.tar.gz -C "$PACKAGE_DIR/CONTROL" .
-
-echo "Creating IPK..."
-ar r "../${PACKAGE_NAME}_${PACKAGE_VERSION}.ipk" control.tar.gz data.tar.gz
-
-cd ..
-
-echo ""
-echo "IPK package created."
-echo "Package: ${PACKAGE_NAME}_${PACKAGE_VERSION}.ipk"
-echo ""
-echo "Package structure:"
-echo "  CONTROL files:"
-find control -type f | sort | sed 's/^/    /'
-echo "  Overlay files (will be installed):"
-find overlay -type f | sort | sed 's/^overlay/    /' | head -15
-
-if [ $(find overlay -type f | wc -l) -gt 15 ]; then
-    echo "    ... and $(($(find overlay -type f | wc -l) - 15)) more files"
-fi
-
-rm -rf "$BUILD_DIR"
-
-echo ""
-echo "Build complete"
+echo "No working python3 on PATH. build.py needs one (standard library only)." >&2
+exit 1

@@ -4,6 +4,23 @@ build/
 bin/
 !gradle-wrapper.jar
 
+# The Systemcore agent's payload lives at agent/overlay/usr/local/bin/, and the Gradle/Eclipse
+# `bin/` rule above swallowed the whole directory - so the only real content of the .ipk was
+# untracked, and a fresh clone built a package whose systemd unit pointed at a file that was not
+# in it. The directory has to be re-included before its contents, because git does not descend
+# into an excluded directory to find a re-included file.
+!agent/overlay/usr/local/bin/
+!agent/overlay/usr/local/bin/**
+
+# ...but the re-include above is broad enough to bring back build residue with it. A .pyc compiled
+# by whatever Python a developer happened to run is host-specific and stale, and it used to ship.
+agent/overlay/**/__pycache__/
+agent/**/*.pyc
+
+# Build output.
+agent/*.ipk
+agent/build/
+
 # IDE
 .idea/
 *.iml

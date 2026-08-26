@@ -23,10 +23,18 @@ All of it is already in `/proc` and `/sys`. The agent serves it over HTTP so Con
 ```bash
 cd agent
 ./build.sh                  # produces catalyst-agent_2.0.0.ipk
+./build.sh --check          # verify a package without rebuilding it
 ```
 
 Install it through the Systemcore web UI's package manager, or with `opkg install` over SSH. It
 registers itself as an auto-start service on port 9010; Console finds it on its own.
+
+The build sets every file mode and owner explicitly rather than reading them off the build host, so
+the package is the same bytes whether it was built on Linux, macOS or Windows. That matters more
+than it sounds: `ExecStart` names `catalyst_agent.py` directly, and a Windows build that lost the
+executable bit produces a service that fails at boot with `203/EXEC` — an error naming the file and
+saying nothing about why. Every build ends by reading its own output back and checking exactly that
+class of thing.
 
 ## What it does not do
 
@@ -50,10 +58,16 @@ only while somebody has the Systemcore page open.
 ## Tests
 
 ```bash
-python agent/test_agent.py
+python agent/test_agent.py     # the parsing
+python agent/test_build.py     # the packaging
 ```
 
-Fifteen tests over the parsing, which is the part that has to be checked somewhere other than a
+`test_build.py` takes the built package apart, breaks one thing, and asserts the checker notices —
+a missing payload, a lost executable bit, a CRLF shebang, files owned by the build user, members in
+the wrong order. Every one of those installs without complaint and then does not work, which is why
+none of them can be checked by building a good package and looking at it.
+
+`test_agent.py` is fifteen tests over the parsing, which is the part that has to be checked somewhere other than a
 robot. They cover the Linux text formats that are easy to parse *almost* correctly: a command name
 containing spaces in `/proc/stat`, which shifts every field after it; `/proc/meminfo` in kibibytes;
 and `MemFree` versus `MemAvailable`, where using the first reports every healthy Linux machine as
