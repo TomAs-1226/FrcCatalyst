@@ -64,11 +64,19 @@ import java.util.OptionalDouble;
 public final class DualIMU implements CatalystIMU {
 
     /**
-     * Below this separation the two accelerometers see nearly the same motion.
+     * Below this separation the two accelerometers see effectively the same motion.
      *
-     * <p>The difference between them is then mostly sensor noise divided by a small number, which
-     * is a large noisy number rather than an angular acceleration. Half a metre is about the
-     * shortest lever arm on a typical robot that carries useful signal.
+     * <p>Five centimetres is a floor on <em>degeneracy</em>, not a recommendation. The measurement
+     * divides the difference of two accelerometers by the lever arm, so the noise it reports is
+     * roughly {@code sigma * sqrt(2) / r}: at 5 cm that is about twenty-eight times each sensor's
+     * own noise, which is no longer an angular acceleration in any useful sense. Above it the answer
+     * degrades smoothly rather than becoming meaningless, so this refuses only the cases where the
+     * difference cannot carry signal at all — and {@link #angularAccelerationNoiseGain()} reports
+     * what any particular geometry costs.
+     *
+     * <p>An earlier comment here claimed half a metre. That would have refused a Pigeon and a
+     * Systemcore mounted 20 cm apart, which is an entirely ordinary layout and gives a perfectly
+     * usable reading.
      */
     private static final double MIN_LEVER_ARM_METERS = 0.05;
 
@@ -178,6 +186,25 @@ public final class DualIMU implements CatalystIMU {
     }
 
     // --- what only two sensors can tell you ----------------------------------
+
+    /**
+     * How much this geometry multiplies accelerometer noise, in the angular acceleration it reports.
+     *
+     * <p>The measurement is a difference of two accelerometers divided by the lever arm, so if each
+     * sensor has noise {@code sigma}, the reported angular acceleration carries about
+     * {@code sigma * sqrt(2) / r} of it. This is that factor.
+     *
+     * <p>Worth looking at once, when the sensors are mounted. A robot that can pull 20 rad/s² and a
+     * gain of 3 is fine; the same robot with the two IMUs 6 cm apart has a gain near 24, and the
+     * reading is mostly noise. Nothing enforces a limit here — the geometry is a fact about the
+     * robot, and this is how to find out what it bought.
+     *
+     * @return the multiplier, or positive infinity when the sensors are too close to measure at all
+     */
+    public double angularAccelerationNoiseGain() {
+        double r = leverArm.getNorm();
+        return r < MIN_LEVER_ARM_METERS ? Double.POSITIVE_INFINITY : Math.sqrt(2.0) / r;
+    }
 
     /** How far apart the two sensors are, in metres. */
     public double leverArmMeters() {

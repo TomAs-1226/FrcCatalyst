@@ -295,15 +295,38 @@ public final class CANBusPlanner {
         for (CANRegistry.Entry device : devices) {
             double load = framesPerSecondFor(device);
 
+            // Choose on three keys, in this order.
+            //
+            //  1. Controller load. The SPI controller is the shared resource and the reason the
+            //     pairing matters at all.
+            //  2. The unpaired bus, when controllers tie. A device on can_s2 costs no other bus
+            //     anything.
+            //  3. Load on the individual bus. This one used to be missing, and its absence meant
+            //     can_s1 and can_s4 were never chosen at all: within a pair both buses always
+            //     reported the same controller load, the comparison was strict, and the iteration
+            //     order handed it to the first every time. A twenty-device plan came back piled
+            //     onto three buses with two sitting empty - and each bus is an independent
+            //     1 Mbit/s wire even when it shares a controller, so that was real headroom being
+            //     thrown away by a plan its own validate() would then complain about.
             CatalystCANBus target = buses.get(0);
             double bestGroupLoad = Double.MAX_VALUE;
+            double bestBusLoad = Double.MAX_VALUE;
             for (CatalystCANBus b : buses) {
                 double groupLoad = groupFrames.getOrDefault(b.controllerGroup(), 0.0);
-                // Tie-break toward the unpaired bus: a device there costs nothing to any other bus.
-                boolean better = groupLoad < bestGroupLoad
-                        || (groupLoad == bestGroupLoad && isUnpaired(b) && !isUnpaired(target));
+                double busLoad = busFrames.getOrDefault(b.name(), 0.0);
+
+                boolean better;
+                if (groupLoad != bestGroupLoad) {
+                    better = groupLoad < bestGroupLoad;
+                } else if (isUnpaired(b) != isUnpaired(target)) {
+                    better = isUnpaired(b);
+                } else {
+                    better = busLoad < bestBusLoad;
+                }
+
                 if (better) {
                     bestGroupLoad = groupLoad;
+                    bestBusLoad = busLoad;
                     target = b;
                 }
             }

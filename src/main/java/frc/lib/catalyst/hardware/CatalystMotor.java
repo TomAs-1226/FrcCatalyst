@@ -20,6 +20,9 @@ import com.ctre.phoenix6.controls.VelocityTorqueCurrentFOC;
 import com.ctre.phoenix6.controls.VelocityVoltage;
 import com.ctre.phoenix6.controls.VoltageOut;
 import com.ctre.phoenix6.hardware.CANcoder;
+import com.ctre.phoenix6.StatusCode;
+
+import org.wpilib.driverstation.DriverStationErrors;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.SignalLogger;
 import com.ctre.phoenix6.signals.GravityTypeValue;
@@ -72,7 +75,6 @@ public class CatalystMotor {
 
     // Config storage
     private double gearRatio = 1.0;
-    private double positionConversionFactor = 1.0; // rotations to mechanism units
     // Retained so live-tuning helpers can rebuild Slot0Configs without losing the
     // gravity model the mechanism was originally configured with.
     private GravityTypeValue gravityType;
@@ -93,7 +95,6 @@ public class CatalystMotor {
 
         this.motor = new TalonFX(canId, CatalystCANBus.of(builder.canBus).phoenix());
         this.gearRatio = builder.gearRatio;
-        this.positionConversionFactor = builder.positionConversionFactor;
         this.gravityType = builder.gravityType;
         this.supplyCurrentLimit = builder.currentLimit;
         this.statorCurrentLimit = builder.statorCurrentLimit;
@@ -202,10 +203,27 @@ public class CatalystMotor {
             config.Feedback.SensorToMechanismRatio = builder.gearRatio;
         }
 
-        // Apply config with retries
+        // Apply config with retries, and say so if none of them worked.
+        //
+        // The status used to be read and dropped, so five failures and a success were
+        // indistinguishable. A TalonFX on a bus that is briefly down at boot - a loose connector, a
+        // device still enumerating - would take every default from whatever was left in its flash by
+        // the last Tuner X session, possibly including no current limit at all, and robotInit would
+        // complete clean. The team's first indication is a browned-out robot or a burnt motor.
+        StatusCode configStatus = StatusCode.OK;
         for (int i = 0; i < 5; i++) {
-            var status = motor.getConfigurator().apply(config);
-            if (status.isOK()) break;
+            configStatus = motor.getConfigurator().apply(config);
+            if (configStatus.isOK()) {
+                break;
+            }
+        }
+        if (!configStatus.isOK()) {
+            DriverStationErrors.reportError(
+                    "CatalystMotor " + builder.canId + " on " + builder.canBus
+                            + ": configuration failed after 5 attempts (" + configStatus
+                            + "). The motor is running on whatever was left in its flash - check the"
+                            + " CAN connection before enabling.",
+                    Thread.currentThread().getStackTrace());
         }
 
         // Set up followers. Each one gets a fresh TalonFX, shared current/neutral
@@ -598,7 +616,6 @@ public class CatalystMotor {
         private double peakForwardTorqueCurrent = 800;
         private double peakReverseTorqueCurrent = -800;
         private double gearRatio = 1.0;
-        private double positionConversionFactor = 1.0;
         private double kP = 0, kI = 0, kD = 0;
         private double kS = 0, kV = 0, kA = 0, kG = 0;
         private GravityTypeValue gravityType = GravityTypeValue.Elevator_Static;
@@ -673,7 +690,6 @@ public class CatalystMotor {
             return this;
         }
         public Builder gearRatio(double ratio) { this.gearRatio = ratio; return this; }
-        public Builder positionConversionFactor(double factor) { this.positionConversionFactor = factor; return this; }
 
         public Builder pid(double kP, double kI, double kD) {
             this.kP = kP; this.kI = kI; this.kD = kD; return this;
