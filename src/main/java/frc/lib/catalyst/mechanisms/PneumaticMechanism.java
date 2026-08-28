@@ -44,6 +44,15 @@ import frc.lib.catalyst.util.HealthMonitor;
  */
 public class PneumaticMechanism extends CatalystMechanism {
 
+    /**
+     * CAN id a pneumatics module answers at when nobody says otherwise.
+     *
+     * <p>Only used on this branch. The development snapshot addresses the module by bus; the
+     * released alpha-6 this branch targets addresses it by id, and this config has no field for one.
+     */
+    private static final int DEFAULT_PNEUMATICS_MODULE_ID = 1;
+
+
     /** Logical state of a pneumatic actuator. */
     public enum State { FORWARD, REVERSE, OFF }
 
@@ -66,7 +75,12 @@ public class PneumaticMechanism extends CatalystMechanism {
             // 2027 requires a CAN bus: Systemcore has no rio-attached pneumatics module, so a
             // REVPH/CTREPCM is reached over CAN like any other device.
             this.doubleSolenoid = new DoubleSolenoid(
-                    config.canBus.wpilib(),
+                    // The released alpha-6 takes a module id, not a bus: it predates
+                    // org.wpilib.hardware.bus.CANBus entirely. A REV PH answers at CAN id 1 by
+                    // default, which is the only sensible constant available here - a robot with the
+                    // module elsewhere has to say so, and there is no field on this config for it
+                    // yet because the snapshot API did not need one.
+                    DEFAULT_PNEUMATICS_MODULE_ID,
                     config.moduleType,
                     config.forwardChannel,
                     config.reverseChannel);
@@ -74,11 +88,11 @@ public class PneumaticMechanism extends CatalystMechanism {
         } else {
             this.doubleSolenoid = null;
             this.singleSolenoid = new Solenoid(
-                    config.canBus.wpilib(), config.moduleType, config.forwardChannel);
+                    DEFAULT_PNEUMATICS_MODULE_ID, config.moduleType, config.forwardChannel);
         }
 
         this.compressor = config.attachCompressor
-                ? new Compressor(config.canBus.wpilib(), config.moduleType)
+                ? new Compressor(DEFAULT_PNEUMATICS_MODULE_ID, config.moduleType)
                 : null;
 
         if (compressor != null && config.minPressurePSI > 0) {

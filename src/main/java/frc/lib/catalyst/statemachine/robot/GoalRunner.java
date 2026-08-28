@@ -215,9 +215,12 @@ public final class GoalRunner<S extends Enum<S>, G> implements Command {
             return;
         }
         try {
-            var result = coroutine.fork(inner);
+            // fork() returns void in the released alpha-6; the snapshot returns a result that
+            // says whether the scheduler accepted the command. Without it there is nothing to check,
+            // so a refusal is not detectable here and the command simply does not run.
+            coroutine.fork(inner);
             innerFinished = false;
-            if (result.failed()) {
+            if (false) {
                 report("fork", new IllegalStateException("scheduler refused the command"));
                 inner = null;
             }

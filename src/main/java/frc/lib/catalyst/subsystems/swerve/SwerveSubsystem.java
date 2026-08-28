@@ -74,7 +74,7 @@ import frc.lib.catalyst.util.SlewRateLimiter;
  * can take the interface and work equally well with a plain drivetrain or with
  * {@code PhysicsCore}.
  */
-public class SwerveSubsystem implements frc.lib.catalyst.command.CatalystSubsystem, RobotStateSource {
+public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem implements RobotStateSource {
 
     /**
      * The robot loop period, used by skew correction.
@@ -557,7 +557,7 @@ public class SwerveSubsystem implements frc.lib.catalyst.command.CatalystSubsyst
             // Calculate angle from robot to target
             Translation2d robotPos = getPose().getTranslation();
             Translation2d toTarget = targetPoint.get().minus(robotPos);
-            Rotation2d targetAngle = toTarget.getAngle().orElse(Rotation2d.kZero);
+            Rotation2d targetAngle = toTarget.getAngle();
 
             double rot = headingPID.calculate(
                     getHeading().getRadians(), targetAngle.getRadians());

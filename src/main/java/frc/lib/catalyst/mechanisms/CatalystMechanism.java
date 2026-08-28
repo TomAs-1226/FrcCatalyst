@@ -25,7 +25,7 @@ import frc.lib.catalyst.util.RumbleEvents;
  * working unchanged. Teams that want AdvantageKit (or any other framework)
  * just swap the sink at robot init; no mechanism code changes.
  */
-public abstract class CatalystMechanism implements frc.lib.catalyst.command.CatalystSubsystem {
+public abstract class CatalystMechanism extends frc.lib.catalyst.command.CatalystSubsystem {
 
     protected final String name;
     /**

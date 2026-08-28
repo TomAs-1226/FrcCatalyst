@@ -175,7 +175,7 @@ public final class DisturbanceEstimator {
      */
     public Rotation2d direction() {
         if (residual.getNorm() < 0.05) return Rotation2d.kZero;
-        return residual.getAngle().orElse(Rotation2d.kZero);
+        return residual.getAngle();
     }
 
     /**

@@ -1,11 +1,10 @@
 package frc.lib.catalyst.statemachine.robot;
 
+import frc.lib.catalyst.logging.CatalystLog;
 import frc.lib.catalyst.command.CatalystCommand;
 import org.wpilib.driverstation.DriverStationErrors;
 import org.wpilib.system.Timer;
 import org.wpilib.command3.Command;
-import org.wpilib.telemetry.Telemetry;
-import org.wpilib.telemetry.TelemetryTable;
 import frc.lib.catalyst.command.Commands;
 import org.wpilib.command3.Mechanism;
 import org.wpilib.command3.Trigger;
@@ -154,7 +153,7 @@ import java.util.function.Predicate;
  * @param <S> the enum of superstructure states
  * @since 1.2.0
  */
-public final class Superstructure<S extends Enum<S>> implements frc.lib.catalyst.command.CatalystSubsystem, SuperstructureLike {
+public final class Superstructure<S extends Enum<S>> extends frc.lib.catalyst.command.CatalystSubsystem implements SuperstructureLike {
 
     private final StateMachineCore<S> engine;
     private final Class<S> stateType;
@@ -464,15 +463,17 @@ public final class Superstructure<S extends Enum<S>> implements frc.lib.catalyst
      * @param tab table to publish beneath, e.g. {@code "Pit"}
      */
     public void addToDashboard(String tab) {
-        TelemetryTable table = Telemetry.getTable(tab).getTable(getName());
-        table.setType("Superstructure");
-        table.log("State", getCurrentState());
-        table.log("Confirmed", stateConfirmed());
-        table.log("Phase", phase().name());
-        table.log("Blocker", blocker());
-        table.log("Summary", summary());
-        table.log("Progress", progress());
-        table.log("Faulted", isFaulted());
+        // Through CatalystLog rather than org.wpilib.telemetry, which the released alpha-6 does not
+        // have. The keys are the same, so a dashboard laid out against either one still resolves;
+        // what is lost is the type tag that let a smart dashboard render this as a unit.
+        String root = tab + "/" + getName() + "/";
+        CatalystLog.log(root + "State", String.valueOf(getCurrentState()));
+        CatalystLog.log(root + "Confirmed", stateConfirmed());
+        CatalystLog.log(root + "Phase", phase().name());
+        CatalystLog.log(root + "Blocker", blocker());
+        CatalystLog.log(root + "Summary", summary());
+        CatalystLog.log(root + "Progress", progress());
+        CatalystLog.log(root + "Faulted", isFaulted());
     }
 
     /** The default commands installed on each bound mechanism, for teams managing them by hand. */

@@ -78,7 +78,7 @@ public class AimingSolverVector {
         double staticSpeedMps = staticRps * wheelCircumference * efficiency;
 
         double theta = (Math.PI / 2.0) - staticHoodPitch.getRadians();
-        double phi = targetPosition.minus(robotTranslation).getAngle().orElse(Rotation2d.kZero).getRadians();
+        double phi = targetPosition.minus(robotTranslation).getAngle().getRadians();
 
         double vx = staticSpeedMps * Math.sin(theta) * Math.cos(phi);
         double vy = staticSpeedMps * Math.sin(theta) * Math.sin(phi);

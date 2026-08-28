@@ -25,6 +25,23 @@ java {
 repositories {
     mavenLocal()
     mavenCentral()
+
+    // The released alpha-6 ships only inside the WPILib installer's local maven, and this branch
+    // targets the release because that is what Systemcore OS beta 13 will run. The root project
+    // probes for the same directories; the example needs its own copy because it declares its own
+    // repository list.
+    String userHome = System.getProperty('user.home')
+    String publicFolder = System.getenv('PUBLIC') ?: 'C:\\Users\\Public'
+    ['wpilib/2027/maven', 'wpilib/2027_alpha5/maven', 'wpilib/2027_alpha1/maven'].each { rel ->
+        [new File(publicFolder, rel), new File(userHome, rel)].each { dir ->
+            if (dir.exists()) {
+                maven {
+                    name 'frcHome'
+                    url dir
+                }
+            }
+        }
+    }
     maven { url "https://frcmaven.wpi.edu/artifactory/development/" }
     maven { url "https://frcmaven.wpi.edu/artifactory/release/" }
     maven { url "https://maven.ctr-electronics.com/release/" }

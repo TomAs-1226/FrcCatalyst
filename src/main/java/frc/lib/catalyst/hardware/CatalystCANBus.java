@@ -148,14 +148,18 @@ public final class CatalystCANBus {
      *
      * @throws IllegalStateException for a CANivore, which WPILib's enum cannot represent
      */
-    public org.wpilib.hardware.bus.CANBus wpilib() {
-        return switch (kind) {
-            case SYSTEMCORE -> org.wpilib.hardware.bus.CANBus.valueOf("CAN_S" + index);
-            case MOTIONCORE -> org.wpilib.hardware.bus.CANBus.valueOf("CAN_D" + index);
-            case CANIVORE -> throw new IllegalStateException(
-                    "WPILib's CANBus enum has no CANivore entry, so " + name
-                            + " cannot be used for WPILib devices. CANivores are Phoenix-only.");
-        };
+    /**
+     * Not available on this branch.
+     *
+     * <p>The released alpha-6 has no {@code org.wpilib.hardware.bus.CANBus} - the type this returned
+     * only exists in WPILib's development snapshot, and the release addresses pneumatics modules by
+     * integer id instead. Kept as a thrower rather than deleted so the signature survives for
+     * whenever a release carries the type again.
+     */
+    public Object wpilib() {
+        throw new UnsupportedOperationException(
+                "org.wpilib.hardware.bus.CANBus does not exist in the released WPILib 2027 alpha-6; "
+                        + "address the pneumatics module by id instead");
     }
 
     /** Interface name, e.g. {@code "can_s2"}, or the CANivore's name. */

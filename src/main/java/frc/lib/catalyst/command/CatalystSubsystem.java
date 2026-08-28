@@ -29,25 +29,45 @@ import org.wpilib.framework.RobotBase;
  *
  * @since 2.0.0
  */
-public interface CatalystSubsystem extends Mechanism {
+public abstract class CatalystSubsystem extends Mechanism {
+
+    /**
+     * A mechanism with a generated name.
+     *
+     * <p>This is a class rather than an interface on this branch, and not by choice: Commands v3's
+     * {@code Mechanism} is an interface in WPILib's development snapshot and a CLASS in the released
+     * alpha-6, and an interface cannot extend a class. The released build is the one Systemcore OS
+     * beta 13 will actually run, so this follows it.
+     *
+     * <p>For a team the difference is invisible: mechanisms extend {@code CatalystMechanism}, which
+     * extends this, exactly as before.
+     */
+    protected CatalystSubsystem() {
+        super();
+    }
+
+    /** A mechanism with an explicit name, as it appears in telemetry and the command list. */
+    protected CatalystSubsystem(String name) {
+        super(name);
+    }
 
     /** Run {@code action} every loop until the command is cancelled. Requires this mechanism. */
-    default CatalystCommand run(Runnable action) {
+    public CatalystCommand run(Runnable action) {
         return Commands.run(action, this);
     }
 
     /** Run {@code action} once, then finish. Requires this mechanism. */
-    default CatalystCommand runOnce(Runnable action) {
+    public CatalystCommand runOnce(Runnable action) {
         return Commands.runOnce(action, this);
     }
 
     /** Run {@code start} on entry and {@code end} on exit, holding this mechanism in between. */
-    default CatalystCommand startEnd(Runnable start, Runnable end) {
+    public CatalystCommand startEnd(Runnable start, Runnable end) {
         return Commands.startEnd(start, end, this);
     }
 
     /** Hold this mechanism, doing nothing, until cancelled. */
-    default CatalystCommand idleCommand() {
+    public CatalystCommand idleCommand() {
         return Commands.idle(this);
     }
 
@@ -56,7 +76,7 @@ public interface CatalystSubsystem extends Mechanism {
      *
      * <p>Default is a no-op so subsystems that do not need it can ignore it entirely.
      */
-    default void periodic() {}
+    public void periodic() {}
 
     /**
      * Called every scheduler loop, but only when the robot program is running in simulation.
@@ -64,7 +84,7 @@ public interface CatalystSubsystem extends Mechanism {
      * <p>Same contract {@code SubsystemBase} had. Mechanism sim models update here so the real
      * {@link #periodic()} stays free of simulation-only work.
      */
-    default void simulationPeriodic() {}
+    public void simulationPeriodic() {}
 
     /**
      * Register {@link #periodic()} — and {@link #simulationPeriodic()} when running in simulation —
@@ -73,7 +93,7 @@ public interface CatalystSubsystem extends Mechanism {
      * <p>This replaces the automatic registration {@code SubsystemBase} performed in its own
      * constructor. It is explicit here because v3 has no constructor to hook.
      */
-    default void registerPeriodic() {
+    public void registerPeriodic() {
         registerPeriodic(Scheduler.getDefault());
     }
 
@@ -82,7 +102,7 @@ public interface CatalystSubsystem extends Mechanism {
      *
      * @param scheduler where the callbacks are registered
      */
-    default void registerPeriodic(Scheduler scheduler) {
+    public void registerPeriodic(Scheduler scheduler) {
         scheduler.addPeriodic(() -> guarded(this::periodic, "periodic"));
         if (RobotBase.isSimulation()) {
             scheduler.addPeriodic(() -> guarded(this::simulationPeriodic, "simulationPeriodic"));

@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'com.frccatalyst'
-version = '2.0.0-alpha.1'
+version = '2.0.0-alpha.1-a6'
 
 java {
     sourceCompatibility = JavaVersion.VERSION_25
@@ -70,7 +70,7 @@ java {
 // Established by porting a real 2026 robot project onto a machine with the installer present.
 // ---------------------------------------------------------------------------
 ext {
-    wpilibVersion = '2027.0.0-alpha-6-360-gcaf0fb2dc'
+    wpilibVersion = '2027.0.0-alpha-6'
     phoenixVersion = '26.50.0-alpha-1'
     pathplannerVersion = '2027.0.0-alpha-3'
     limelightVersion = '2.0.0-beta2'
@@ -110,6 +110,34 @@ repositories {
     maven { url "https://limelightvision.github.io/limelightlib-public/maven/" }
 }
 
+// Source that cannot exist on the released alpha-6.
+//
+// org.wpilib.telemetry, .tunables and .fields are not in that build - no class named Telemetry*,
+// Selectable* or Tunable* appears in any jar it ships. The four files below are the only ones that
+// touch them, and every one has a working alternative already in the tree: CatalystLog defaults to
+// NetworkTablesSink, and AutoSelector's chooser goes back to NetworkTables directly.
+//
+// Excluded rather than deleted. They are the better implementations and they come back the moment a
+// WPILib ships those packages in a release the OS accepts.
+sourceSets {
+    main {
+        java {
+            // org.wpilib.telemetry - CatalystLog falls back to NetworkTablesSink, which is the
+            // sink this library used before 2027 and is still fully tested.
+            exclude 'frc/lib/catalyst/logging/WpiTelemetrySink.java'
+            exclude 'frc/lib/catalyst/util/TelemetryUtil.java'
+            exclude 'frc/lib/catalyst/util/MechanismVisualizer.java'
+
+            // org.wpilib.tunable - no Selectable, so AutoSelector has no chooser to publish.
+            exclude 'frc/lib/catalyst/util/AutoSelector.java'
+
+            // DriverStationDisplay does not exist in the release at all, and DriverBoard is a
+            // wrapper around it.
+            exclude 'frc/lib/catalyst/driverstation/DriverBoard.java'
+        }
+    }
+}
+
 dependencies {
     // WPILib core
     // WPILib 2027. Every coordinate below was verified resolvable against
@@ -128,19 +156,16 @@ dependencies {
     api "org.wpilib.hal:hal-java:${wpilibVersion}"
     api "org.wpilib.apriltag:apriltag-java:${wpilibVersion}"
     api "org.wpilib.datalog:datalog-java:${wpilibVersion}"
-    api "org.wpilib.fields:fields-java:${wpilibVersion}"
 
     // New in 2027. `telemetry` is what replaced SmartDashboard and is where Catalyst's logging
     // now lands (see WpiTelemetrySink); `tunables` is what replaced SendableChooser and backs
     // AutoSelector. Both are the same facade-over-swappable-backend shape Catalyst already used,
     // which is why adopting them changed no Catalyst signatures.
-    api "org.wpilib.telemetry:telemetry-java:${wpilibVersion}"
-    api "org.wpilib.tunables:tunables-java:${wpilibVersion}"
 
     // Commands v3 replaces wpilibNewCommands. Catalyst's own command-facing API is unchanged for
     // teams - Superstructure, the mechanism builders and the binding DSL keep their signatures.
     // v3 is an implementation detail below that line.
-    api "org.wpilib:commandsv3-java:${wpilibVersion}"
+    api "org.wpilib:commands3-java:${wpilibVersion}"
 
     // Commands v2, present only so PathPlanner works.
     //

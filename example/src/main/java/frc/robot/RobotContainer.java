@@ -814,8 +814,9 @@ public class RobotContainer {
 
         // Systemcore has five buses, so there is no single "the CAN bus" to ask about any more.
         // CANBusHealth publishes all of them; this reports the default bus for continuity.
-        CatalystLog.log("Status/CanUtilization",
-                RobotController.getCANStatus(CatalystCANBus.DEFAULT.wpilib()).percentBusUtilization);
+        // Per-bus CAN status needs org.wpilib.hardware.bus.CANBus, which the released alpha-6 does
+        // not have. CANBusHealth still publishes every bus from Phoenix's own status; this line was
+        // only echoing the default one for continuity.
         CatalystLog.log("Status/BatteryVolts", RobotController.getBatteryVoltage());
     }
 

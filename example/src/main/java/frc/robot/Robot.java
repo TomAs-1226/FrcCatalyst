@@ -1,7 +1,6 @@
 package frc.robot;
 
 import frc.lib.catalyst.command.Commands;
-import frc.lib.catalyst.driverstation.DriverBoard;
 import frc.lib.catalyst.opmode.CatalystOpMode;
 import frc.lib.catalyst.opmode.CommandOpMode;
 import frc.lib.catalyst.util.Preflight;
@@ -45,9 +44,11 @@ public class Robot extends OpModeRobot {
         Preflight.Report preflight = Preflight.run().printToConsole();
 
         // What is wrong and the battery, on the Driver Station itself. Updates itself from here.
-        DriverBoard.standard()
-                .line("Preflight", preflight::summary)
-                .start();
+        // DriverBoard is not built on this branch: it wraps DriverStationDisplay, which the
+        // released WPILib 2027 alpha-6 does not have. The preflight summary still reaches the
+        // console and the log; what is missing is the line on the driver station itself.
+        //
+        //   DriverBoard.standard().line("Preflight", preflight::summary).start();
     }
 
     /**

@@ -31,7 +31,7 @@ import org.wpilib.command3.Mechanism;
  * intake.hasPieceTrigger().whileTrue(leds.blink(Color.GREEN, 5));
  * }</pre>
  */
-public class LEDSubsystem implements frc.lib.catalyst.command.CatalystSubsystem {
+public class LEDSubsystem extends frc.lib.catalyst.command.CatalystSubsystem {
 
     private final AddressableLED led;
     private final AddressableLEDBuffer buffer;

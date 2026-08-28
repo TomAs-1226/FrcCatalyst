@@ -63,7 +63,7 @@ import java.util.Optional;
  *     .build());
  * }</pre>
  */
-public class VisionSubsystem implements frc.lib.catalyst.command.CatalystSubsystem {
+public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem {
 
     private final VisionConfig config;
     private final List<CameraSource> cameras;

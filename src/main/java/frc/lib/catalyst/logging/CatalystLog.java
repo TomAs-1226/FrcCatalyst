@@ -81,7 +81,7 @@ public final class CatalystLog {
      * {@code setSink(new NetworkTablesSink())} restores the old behaviour exactly.
      */
     public static synchronized LogSink getSink() {
-        if (sink == null) sink = new WpiTelemetrySink();
+        if (sink == null) sink = new NetworkTablesSink();
         return sink;
     }
 
