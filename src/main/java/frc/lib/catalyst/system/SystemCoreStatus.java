@@ -1,5 +1,6 @@
 package frc.lib.catalyst.system;
 
+import frc.lib.catalyst.hardware.CatalystCANBus;
 import frc.lib.catalyst.logging.CatalystLog;
 
 import org.wpilib.networktables.NetworkTable;
@@ -389,48 +390,61 @@ public final class SystemCoreStatus {
      * @return one entry per bus, or empty when there is no reading at all
      */
     public Optional<double[]> canBusUtilization() {
-        return source.numberArray("/diagnostics/canbusutil").map(SystemCoreStatus::checkedUtilization);
+        return source.numberArray("/diagnostics/canbusutil").map(SystemCoreStatus::decodeUtilization);
     }
 
     /**
-     * Whether the last utilisation reading was outside 0-1.
+     * Whether the last utilisation reading had a shape this code does not recognise.
      *
-     * <p>Consulted by anything that renders a percentage. A dashboard that multiplies an
-     * out-of-contract value by 100 shows something like "500%", which is how this was noticed.
+     * <p>Consulted by anything that renders it. The layout below was read off one board with one bus
+     * carrying traffic; a different length means the assumption has expired and the number should be
+     * treated as unknown rather than drawn.
      */
     public boolean canBusUtilizationOutOfRange() {
-        return utilizationOutOfRange;
+        return utilizationUnrecognised;
     }
 
-    private static volatile boolean utilizationOutOfRange;
+    private static volatile boolean utilizationUnrecognised;
 
     /**
-     * Pass the reading through, but notice when it cannot mean what this class says it means.
+     * Turn {@code /diagnostics/canbusutil} into one fraction per bus.
      *
-     * <p>The documented contract is 0-1 per bus, and that is what every consumer multiplies by 100.
-     * A board reported 5-ish and Catalyst Console duly drew "500%", which is not a utilisation any
-     * bus can have.
+     * <p>The topic does not publish one value per bus. Measured on a Systemcore running OS beta 13
+     * with a single Pigeon on {@code can_s0} and the other four buses idle, it publishes ten numbers
+     * for five buses:
      *
-     * <p>It is <b>not</b> converted here, deliberately. The obvious rule - "over 1, so it must be a
-     * percentage, divide by 100" - is wrong in the case that matters most: a lightly loaded bus at
-     * 0.5% publishes 0.5, which is a legal fraction, and would be silently reported as 50%. A rule
-     * that is right for a busy bus and wrong for an idle one is worse than no rule, because idle is
-     * the normal state and nobody checks a plausible small number.
+     * <pre>[5.341, 0.05341, 0, 0, 0, 0, 0, 0, 0, 0]</pre>
      *
-     * <p>So the value is passed on unchanged and flagged. Whether the OS publishes a fraction or a
-     * percentage is one measurement on a board with a known CAN load, and until somebody makes it
-     * this class will not pretend to know.
+     * <p>The second entry is exactly the first divided by a hundred, so the pairs are
+     * {@code [percent, fraction]} per bus. Independently, the agent's own frame counters put
+     * {@code can_s0} at 427 frames/s on a 1 Mbit bus, which is 4.6-5.8% depending on frame size -
+     * agreeing with 5.341 being a percentage and not a fraction.
+     *
+     * <p>Reading it as one-value-per-bus, which this did, is wrong twice over: {@code can_s0} came
+     * back as 5.341 where the contract is 0-1, so a dashboard drew "534%", and {@code can_s1} came
+     * back as 0.05341 - bus zero's fraction, presented as a second bus's load, on a bus with no
+     * traffic at all. A wrong number on an idle bus is the worse of the two, because nobody
+     * questions 5%.
+     *
+     * <p><b>Only the first pair is confirmed.</b> With four buses idle every remaining entry was
+     * zero, so the interleaving is consistent with the evidence rather than proven by it. If the
+     * array is not twice the bus count the shape is not what was measured, and this says so through
+     * {@link #canBusUtilizationOutOfRange()} instead of indexing into it hopefully.
      */
-    private static double[] checkedUtilization(double[] reading) {
-        boolean bad = false;
-        for (double v : reading) {
-            if (v < 0 || v > 1.0) {
-                bad = true;
-                break;
+    private static double[] decodeUtilization(double[] raw) {
+        int buses = CatalystCANBus.SYSTEMCORE_BUS_COUNT;
+        if (raw.length == buses * 2) {
+            utilizationUnrecognised = false;
+            double[] out = new double[buses];
+            for (int i = 0; i < buses; i++) {
+                out[i] = raw[i * 2] / 100.0;   // the percent half, as the documented fraction
             }
+            return out;
         }
-        utilizationOutOfRange = bad;
-        return reading;
+        // Some other shape. Hand it back untouched and flag it - inventing a reading here is how a
+        // dashboard ends up confidently wrong about a bus nobody is watching.
+        utilizationUnrecognised = true;
+        return raw;
     }
 
     /** Utilisation of one bus, 0-1, by index. Empty if that bus is not in the reading. */
