@@ -53,7 +53,7 @@ class RobotBootIntegrationTest {
 
     @BeforeAll
     static void bootTheHal() {
-        assertTrue(HAL.initialize(), "the simulated HAL must come up, or none of this means anything");
+        assertTrue(HAL.initialize(500, 0), "the simulated HAL must come up, or none of this means anything");
     }
 
     @AfterAll

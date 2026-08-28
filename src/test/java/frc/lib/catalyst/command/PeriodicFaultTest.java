@@ -29,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PeriodicFaultTest {
 
     /** A subsystem whose periodic throws once, the way a real one meets a null vision frame. */
-    private static final class Flaky implements CatalystSubsystem {
+    private static final class Flaky extends CatalystSubsystem {
         final AtomicInteger calls = new AtomicInteger();
         int throwOnCall = -1;
 

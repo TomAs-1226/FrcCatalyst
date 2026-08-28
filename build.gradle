@@ -136,6 +136,13 @@ sourceSets {
             exclude 'frc/lib/catalyst/driverstation/DriverBoard.java'
         }
     }
+    test {
+        java {
+            // Tests for the classes excluded above.
+            exclude 'frc/lib/catalyst/logging/WpiTelemetrySinkTest.java'
+            exclude 'frc/lib/catalyst/driverstation/DriverBoardTest.java'
+        }
+    }
 }
 
 dependencies {
@@ -153,6 +160,11 @@ dependencies {
     api "org.wpilib.ntcore:ntcore-java:${wpilibVersion}"
     api "org.wpilib.wpinet:wpinet-java:${wpilibVersion}"
     api "org.wpilib.cscore:cscore-java:${wpilibVersion}"
+
+    // CameraServerShared lives in cameraserver in the release, not cscore. wpilibj's static
+    // initialisers reach for it, so without this every test that touches the HAL dies with
+    // NoClassDefFoundError naming a vision class no Catalyst code mentions.
+    api "org.wpilib.cameraserver:cameraserver-java:${wpilibVersion}"
     api "org.wpilib.hal:hal-java:${wpilibVersion}"
     api "org.wpilib.apriltag:apriltag-java:${wpilibVersion}"
     api "org.wpilib.datalog:datalog-java:${wpilibVersion}"
@@ -270,8 +282,6 @@ dependencies {
     // telemetry and tunables, and ntcore against datalog, so leaving them out makes every JNI load
     // fail with "Can't find dependent libraries" - which names the library that failed, never the
     // one actually missing.
-    nativeDesktop "org.wpilib.telemetry:telemetry-cpp:${wpilibVersion}:${desktopClassifier}@zip"
-    nativeDesktop "org.wpilib.tunables:tunables-cpp:${wpilibVersion}:${desktopClassifier}@zip"
     nativeDesktop "org.wpilib.datalog:datalog-cpp:${wpilibVersion}:${desktopClassifier}@zip"
 
     // Phoenix's desktop simulation natives.

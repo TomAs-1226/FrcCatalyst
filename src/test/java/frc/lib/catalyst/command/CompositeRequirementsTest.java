@@ -26,10 +26,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class CompositeRequirementsTest {
 
-    private record Mech(String name) implements Mechanism {
-        @Override public String getName() {
-            return name;
-        }
+    // Was a record. Mechanism is a class in the released alpha-6 and a record cannot extend one, so
+    // this is a plain class that hands the name to the superclass.
+    private static final class Mech extends Mechanism {
+        Mech(String name) { super(name); }
     }
 
     private static CatalystCommand using(Mechanism m) {

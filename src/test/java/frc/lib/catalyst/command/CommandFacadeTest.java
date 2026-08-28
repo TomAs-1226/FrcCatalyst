@@ -38,10 +38,10 @@ class CommandFacadeTest {
     private Scheduler scheduler;
 
     /** A mechanism with no behaviour, to check that requirements are carried and honoured. */
-    private static final class Mech implements Mechanism {
-        private final String name;
-        Mech(String name) { this.name = name; }
-        @Override public String getName() { return name; }
+    // Mechanism is a class in the released alpha-6, not an interface, so a fixture extends it and
+    // lets it hold the name rather than implementing getName().
+    private static final class Mech extends Mechanism {
+        Mech(String name) { super(name); }
     }
 
     @BeforeEach
