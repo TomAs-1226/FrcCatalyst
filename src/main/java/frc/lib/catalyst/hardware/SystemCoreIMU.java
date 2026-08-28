@@ -40,6 +40,20 @@ public final class SystemCoreIMU implements CatalystIMU {
 
     private final OnboardIMU imu;
 
+    /** How the board is mounted, kept because the rate and acceleration paths need to know. */
+    private final OnboardIMU.MountOrientation orientation;
+
+    /**
+     * Sensor frame to robot frame, or null when nobody has said.
+     *
+     * <p>WPILib applies mount orientation to yaw and to the Euler angles, and to nothing else — one
+     * {@code rawgyro} topic and one {@code rawaccel} topic exist, with no per-orientation form.
+     * Confirmed twice: in the alpha-6 bytecode, and by dumping the topics a board actually
+     * publishes. So on anything but a FLAT mount the rates and accelerations below are in the
+     * sensor's frame, and only the caller knows how that relates to the robot.
+     */
+    private final Rotation2d sensorToRobot;
+
     /** Offset applied on top of the hardware yaw, so setYaw() can work without a hardware setter. */
     private double yawOffsetDegrees;
 
@@ -50,7 +64,32 @@ public final class SystemCoreIMU implements CatalystIMU {
      *                    configured in the Systemcore web UI
      */
     public SystemCoreIMU(OnboardIMU.MountOrientation orientation) {
+        this(orientation, null);
+    }
+
+    /**
+     * Use the IMU with a mount orientation and an explicit sensor-to-robot rotation.
+     *
+     * <p>Supplying the rotation is what makes acceleration available on a board that is not mounted
+     * FLAT. Without it, {@link #getAcceleration()} returns empty for any other orientation rather
+     * than handing back a vector in the wrong frame — because that vector still contains gravity,
+     * and {@link DualIMU} differences accelerations expecting gravity to cancel. It does not cancel,
+     * and the leftover becomes a large constant angular acceleration that is not happening. On a
+     * bench with a stationary robot that was measured at -1.89 rad/s².
+     *
+     * <p>Pass {@link Rotation2d#kZero} to say "the sensor frame is the robot frame" — which is what
+     * a FLAT board aligned with robot-forward means, and is also the way to keep readings flowing
+     * while deliberately tilting the hardware to test something.
+     *
+     * @param orientation   how the Systemcore is physically mounted; must match the Systemcore web
+     *                      UI's setting
+     * @param sensorToRobot rotation from the sensor's frame into the robot's, or null to have
+     *                      acceleration reported only when the mount is FLAT
+     */
+    public SystemCoreIMU(OnboardIMU.MountOrientation orientation, Rotation2d sensorToRobot) {
         this.imu = new OnboardIMU(orientation);
+        this.orientation = orientation;
+        this.sensorToRobot = sensorToRobot;
     }
 
     /** Use the IMU mounted flat — the common case, Systemcore lying on a horizontal surface. */
@@ -78,9 +117,28 @@ public final class SystemCoreIMU implements CatalystIMU {
         return Math.toDegrees(imu.getAngleX());
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Read off the sensor's Z axis, which is the robot's yaw axis only when the board is FLAT or
+     * a sensor-to-robot rotation has been given. On any other mount with no rotation supplied this
+     * is a pitch or roll rate wearing a yaw label, so it reports zero instead: this returns a
+     * primitive and has no way to say "unknown", and a plausible wrong rate is worse than a still
+     * one. {@link #isYawRateTrustworthy()} says which of the two is being returned.
+     */
     @Override
     public double getYawRate() {
-        return Math.toDegrees(imu.getGyroRateZ());
+        return isFrameKnown() ? Math.toDegrees(imu.getGyroRateZ()) : 0.0;
+    }
+
+    /**
+     * Whether {@link #getYawRate()} is measuring the robot's yaw axis.
+     *
+     * <p>False when the board is mounted other than FLAT and nobody has said how it sits relative to
+     * the robot. {@link DualIMU} consults this before weighting this sensor's rate.
+     */
+    public boolean isYawRateTrustworthy() {
+        return isFrameKnown();
     }
 
     @Override
@@ -134,7 +192,24 @@ public final class SystemCoreIMU implements CatalystIMU {
     // rotation here and apply it, or return empty for any orientation other than FLAT.
     @Override
     public java.util.Optional<Translation2d> getAcceleration() {
-        return java.util.Optional.of(new Translation2d(imu.getAccelX(), imu.getAccelY()));
+        if (!isFrameKnown()) {
+            // Empty, not a guess. The alternative is a plane containing gravity presented as the
+            // robot's XY, which reads as a real measurement all the way into Physics Core.
+            return java.util.Optional.empty();
+        }
+        Translation2d sensor = new Translation2d(imu.getAccelX(), imu.getAccelY());
+        return java.util.Optional.of(
+                sensorToRobot == null ? sensor : sensor.rotateBy(sensorToRobot));
+    }
+
+    /**
+     * Whether the readings below can be put in the robot's frame at all.
+     *
+     * <p>True when the board is FLAT — sensor and robot frames agree — or when a caller has supplied
+     * the rotation between them.
+     */
+    private boolean isFrameKnown() {
+        return sensorToRobot != null || orientation == OnboardIMU.MountOrientation.FLAT;
     }
 
     /** The underlying WPILib IMU, for acceleration and per-axis rates. */
