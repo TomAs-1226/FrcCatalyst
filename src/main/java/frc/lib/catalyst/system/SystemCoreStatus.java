@@ -389,7 +389,48 @@ public final class SystemCoreStatus {
      * @return one entry per bus, or empty when there is no reading at all
      */
     public Optional<double[]> canBusUtilization() {
-        return source.numberArray("/diagnostics/canbusutil");
+        return source.numberArray("/diagnostics/canbusutil").map(SystemCoreStatus::checkedUtilization);
+    }
+
+    /**
+     * Whether the last utilisation reading was outside 0-1.
+     *
+     * <p>Consulted by anything that renders a percentage. A dashboard that multiplies an
+     * out-of-contract value by 100 shows something like "500%", which is how this was noticed.
+     */
+    public boolean canBusUtilizationOutOfRange() {
+        return utilizationOutOfRange;
+    }
+
+    private static volatile boolean utilizationOutOfRange;
+
+    /**
+     * Pass the reading through, but notice when it cannot mean what this class says it means.
+     *
+     * <p>The documented contract is 0-1 per bus, and that is what every consumer multiplies by 100.
+     * A board reported 5-ish and Catalyst Console duly drew "500%", which is not a utilisation any
+     * bus can have.
+     *
+     * <p>It is <b>not</b> converted here, deliberately. The obvious rule - "over 1, so it must be a
+     * percentage, divide by 100" - is wrong in the case that matters most: a lightly loaded bus at
+     * 0.5% publishes 0.5, which is a legal fraction, and would be silently reported as 50%. A rule
+     * that is right for a busy bus and wrong for an idle one is worse than no rule, because idle is
+     * the normal state and nobody checks a plausible small number.
+     *
+     * <p>So the value is passed on unchanged and flagged. Whether the OS publishes a fraction or a
+     * percentage is one measurement on a board with a known CAN load, and until somebody makes it
+     * this class will not pretend to know.
+     */
+    private static double[] checkedUtilization(double[] reading) {
+        boolean bad = false;
+        for (double v : reading) {
+            if (v < 0 || v > 1.0) {
+                bad = true;
+                break;
+            }
+        }
+        utilizationOutOfRange = bad;
+        return reading;
     }
 
     /** Utilisation of one bus, 0-1, by index. Empty if that bus is not in the reading. */
