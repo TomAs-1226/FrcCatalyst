@@ -48,6 +48,29 @@ class SystemCoreIMUFrameTest {
         @Override public Optional<Translation2d> getAcceleration() { return Optional.of(accel); }
     }
 
+    /** Like {@link FixedIMU}, but the reading can be moved between calls. */
+    private static final class MovableIMU implements CatalystIMU {
+        Translation2d accel;
+
+        MovableIMU(Translation2d accel) { this.accel = accel; }
+
+        @Override public Rotation2d getHeading() { return Rotation2d.kZero; }
+
+        @Override public double getYaw() { return 0; }
+
+        @Override public double getPitch() { return 0; }
+
+        @Override public double getRoll() { return 0; }
+
+        @Override public double getYawRate() { return 0; }
+
+        @Override public void zeroYaw() {}
+
+        @Override public void setYaw(double degrees) {}
+
+        @Override public Optional<Translation2d> getAcceleration() { return Optional.of(accel); }
+    }
+
     /** An IMU that cannot say, standing in for a Systemcore mounted in an unknown frame. */
     private record SilentIMU() implements CatalystIMU {
         @Override public Rotation2d getHeading() { return Rotation2d.kZero; }
@@ -146,5 +169,59 @@ class SystemCoreIMUFrameTest {
         assertTrue(told.getAcceleration().isPresent(),
                 "the frame is known now, so there is nothing to withhold");
         assertTrue(told.isYawRateTrustworthy());
+    }
+
+    // --- rest calibration ---------------------------------------------------
+
+    @Test
+    void aRestCalibrationRemovesTheGravityTheSensorsDisagreeAbout() {
+        // The bench case, with the numbers measured off a real rig. A Pigeon at roll -2.24 degrees
+        // read -0.4741 m/s^2 in Y where the Systemcore's own IMU read +0.0861. Across a 0.30 m arm
+        // that is -1.87 rad/s^2 on a robot standing still.
+        var pigeonAtRest = new Translation2d(-0.1293, -0.4741);
+        var onboardAtRest = new Translation2d(-0.0670, 0.0861);
+
+        DualIMU fused = new DualIMU(
+                new FixedIMU(pigeonAtRest), new FixedIMU(onboardAtRest),
+                new Translation2d(0.30, 0.0), Translation2d.kZero);
+
+        assertEquals(-1.8673, fused.angularAccelerationRadPerSecSq().orElseThrow(), 1e-3,
+                "uncalibrated, this is what the rig actually reported");
+
+        assertTrue(fused.calibrateAtRest());
+        assertEquals(0.0, fused.angularAccelerationRadPerSecSq().orElseThrow(), 1e-9,
+                "a robot that is not moving has no angular acceleration");
+    }
+
+    @Test
+    void calibrationRemovesTheOffsetAndNotTheSignal() {
+        // The failure mode worth guarding: a calibration that subtracted the live reading every loop
+        // would zero the measurement permanently, and do it in the quietest possible way - the
+        // number would look plausible and never move.
+        var bias = new Translation2d(-0.0623, -0.5602);
+        MovableIMU pigeon = new MovableIMU(bias);
+
+        DualIMU fused = new DualIMU(pigeon, new FixedIMU(Translation2d.kZero),
+                new Translation2d(0.30, 0.0), Translation2d.kZero);
+
+        assertTrue(fused.calibrateAtRest());
+        assertEquals(0.0, fused.angularAccelerationRadPerSecSq().orElseThrow(), 1e-9,
+                "at rest, after calibration");
+
+        // Now actually rotate: 0.60 m/s^2 of real tangential difference on top of the same tilt.
+        pigeon.accel = bias.plus(new Translation2d(0.0, 0.60));
+
+        assertEquals(2.0, fused.angularAccelerationRadPerSecSq().orElseThrow(), 1e-9,
+                "the bias is gone and the rotation survives - 0.60 m/s^2 across 0.30 m is 2 rad/s^2");
+    }
+
+    @Test
+    void calibratingWithASilentSensorChangesNothing() {
+        DualIMU fused = new DualIMU(
+                new FixedIMU(new Translation2d(0.2, 0.0)), new SilentIMU(),
+                new Translation2d(0.30, 0.0), Translation2d.kZero);
+
+        assertFalse(fused.calibrateAtRest(), "nothing to learn from a sensor that did not report");
+        assertEquals(0.0, fused.restBias().getNorm(), 1e-12);
     }
 }

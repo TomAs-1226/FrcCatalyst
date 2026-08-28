@@ -296,8 +296,59 @@ public final class DualIMU implements CatalystIMU {
             // this class exists to avoid.
             return OptionalDouble.empty();
         }
-        return angularAccelerationRadPerSecSq(a.get(), b.get());
+        return angularAccelerationRadPerSecSq(a.get().minus(restBias), b.get());
     }
+
+    /**
+     * Learn what the two sensors read while the robot is standing still, and subtract it from then
+     * on.
+     *
+     * <p>Without this the measurement has a constant offset that has nothing to do with rotation.
+     * Two accelerometers a few degrees out of plane with each other each read a different slice of
+     * gravity, and this method divides their difference by the lever arm — so a small tilt becomes a
+     * large angular acceleration. Measured on a bench: a Pigeon sitting at roll -2.24° read
+     * -0.474 m/s² in Y where the Systemcore's own IMU read +0.086, and that 0.56 m/s² of gravity
+     * across a 0.30 m arm came out as <b>-1.87 rad/s² on a robot that was not moving</b>. The
+     * arithmetic was right; the inputs were tilted.
+     *
+     * <p>Call it once with the robot at rest and level — {@code robotInit} is the natural place, or
+     * a button in the pit. Calling it while the robot is moving bakes that motion in as the new
+     * zero, so it is deliberately explicit rather than automatic.
+     *
+     * @return whether a bias was captured; false when either sensor had nothing to report
+     */
+    public boolean calibrateAtRest() {
+        var a = primary.getAcceleration();
+        var b = secondary.getAcceleration();
+        if (a.isEmpty() || b.isEmpty()) {
+            return false;
+        }
+        // The whole difference, not a modelled part of it. Whatever the two sensors disagree about
+        // while nothing is happening is by definition not rotation.
+        restBias = a.get().minus(b.get());
+        return true;
+    }
+
+    /** Forget any rest calibration, so readings are raw again. */
+    public void clearRestCalibration() {
+        restBias = Translation2d.kZero;
+    }
+
+    /**
+     * The offset learned by {@link #calibrateAtRest()}, in m/s².
+     *
+     * <p>Worth publishing. A large value means the two sensors are further out of plane than
+     * intended, and that is a mounting problem the number will otherwise hide.
+     */
+    public Translation2d restBias() {
+        return restBias;
+    }
+
+    /**
+     * What the sensors disagree about at rest, removed from every reading. Zero until
+     * {@link #calibrateAtRest()} is called.
+     */
+    private Translation2d restBias = Translation2d.kZero;
 
     /** Whether both sensors are reporting acceleration, so the reading above is available. */
     public boolean canMeasureAngularAcceleration() {
