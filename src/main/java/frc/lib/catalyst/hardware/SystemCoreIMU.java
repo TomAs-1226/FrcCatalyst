@@ -119,6 +119,19 @@ public final class SystemCoreIMU implements CatalystIMU {
      * <p>Always present: the sensor is on the board and there is nothing to be absent. Reported in
      * m/s² with gravity still in it, per the interface.
      */
+    // CONFIRMED ON HARDWARE, 2026-08-26. The system server publishes yaw and Euler angles once per
+    // mount orientation - /imu/yaw_flat, /imu/yaw_landscape, /imu/yaw_portrait, and the three
+    // matching /imu/euler_* topics - but exactly ONE /imu/rawgyro and ONE /imu/rawaccel. There is no
+    // per-orientation form of either.
+    //
+    // That is the board agreeing with what the jars said: mount orientation is applied to yaw and
+    // Euler angles and to nothing else. On a Systemcore mounted LANDSCAPE or PORTRAIT, the rates and
+    // accelerations read here are in the sensor's frame, not the robot's - so this returns a vector
+    // containing gravity rather than the robot's XY plane, and DualIMU's differencing then produces
+    // a confident wrong angular acceleration rather than an empty Optional.
+    //
+    // Unresolved, and it needs a decision rather than more measurement: either take a robot-relative
+    // rotation here and apply it, or return empty for any orientation other than FLAT.
     @Override
     public java.util.Optional<Translation2d> getAcceleration() {
         return java.util.Optional.of(new Translation2d(imu.getAccelX(), imu.getAccelY()));

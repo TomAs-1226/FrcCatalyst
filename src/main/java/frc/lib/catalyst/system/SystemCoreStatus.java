@@ -191,6 +191,31 @@ public final class SystemCoreStatus {
         return source instanceof NtSource nt ? nt.server() : null;
     }
 
+    // --- MEASURED ON HARDWARE, 2026-08-26 ------------------------------------
+    //
+    // A program running on a Systemcore (OS beta 13) dumped every topic its system server
+    // publishes. There were 37, and exactly one of them was under /sys:
+    //
+    //     /sys/battery | double
+    //
+    // Everything else this class reads - brownout, vbrownout, vrecovery, cpu, ram, storage, temp,
+    // team, hsub, and /diagnostics/canbusutil - was not published at all. The topics that do exist
+    // are a different shape entirely: /Netcomm/* for the MRC comms link, /UsageReporting/*, /imu/*
+    // and /io/leds.
+    //
+    // So on that board every reading here except battery returns empty, which travels exactly as
+    // this file's own comments warn: DriverBoard shows dashes, HealthMonitor registers nothing,
+    // Preflight reports what it cannot see. That is the designed behaviour working correctly on
+    // input nobody had checked.
+    //
+    // What is NOT yet known is whether those topics appear later - published on demand, or by a
+    // daemon that had not started, or under names this OS build changed. The dump was one moment on
+    // one board with no robot mechanisms attached. Do not delete these readings on this evidence;
+    // do not trust them either until a second look says the same thing.
+    //
+    // The NaN concern that motivated the check is settled for the one topic that exists: battery is
+    // a double, so getDouble does not fabricate a NaN for it.
+
     // --- Why there is no HAL fallback here -----------------------------------
     //
     // Tried and reverted, deliberately. WPILib exposes battery voltage, brownout state and CPU

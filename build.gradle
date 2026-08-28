@@ -21,6 +21,29 @@ java {
 // commands v3 (coroutines on JDK continuations, which is why Java 25 above is a hard requirement
 // and not a preference).
 //
+// MEASURED ON HARDWARE 2026-08-26: A BUILD ON THIS SNAPSHOT WILL NOT START ON SYSTEMCORE OS BETA 13.
+//
+// Deployed to a real board (limelightosr-2027.0.0-beta13, CM5 Rev 1.0) and it aborts immediately,
+// before any robot code runs:
+//
+//     NT: CONNECTED NT4 to 127.0.0.1 port 6810
+//     Error: MRC API version mismatch. Restarting app and retrying...
+//     terminate called without an active exception
+//     robot.service: Main process exited, code=exited, status=134
+//
+// systemd restarted it 22 times in a couple of minutes. A minimal robot program built on the
+// RELEASED alpha-6, deployed to the same board over the same path minutes later, ran cleanly at
+// 50 Hz with zero restarts - so the variable is the WPILib version and nothing else.
+//
+// That closes a loop the compile-time findings below could not. The release cannot build this
+// library, because it has no org.wpilib.telemetry, tunables or fields. The snapshot builds it and
+// cannot run on the shipping OS. Catalyst 2.x is currently pinned to a WPILib that no released
+// Systemcore OS will accept, which means it does not run on hardware at all today - the desktop
+// tests are green and the robot never gets past startup.
+//
+// Nothing here is a code fix. The pairing has to come from upstream: alpha-7 with OS beta 14. Until
+// then this is the honest state, and it belongs at the top of the file rather than in a changelog.
+//
 // The version below is a CI snapshot from WPILib's development repository, not a release, and that
 // is deliberate: the snapshot is NEWER than the released alpha-6, not merely different.
 //
