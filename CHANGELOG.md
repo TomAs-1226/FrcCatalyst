@@ -146,6 +146,12 @@ Systemcore measures itself and publishes it.
   deviations instead of Catalyst approximating from tag count, and every queued frame between loops
   rather than only the newest.
 
+  **The consequence, which was not written down until a real camera was tested: Catalyst 2.x
+  requires Limelight OS 2027.** On a 2026 camera the mirror failure happens — the camera publishes
+  only the classic keys, LimelightLib reads none of them, and vision contributes nothing while
+  `isConnected()` reads false despite a live NT4 connection. Catalyst now reports that state and
+  names the version as the cause.
+
 - **A single non-finite reading permanently wedged a `SignalBuffer`.** Every guard in that class is a
   comparison and NaN compares false to all of them, so each was one bad sample away from being
   switched off for the rest of the match. Measured: after one `add(+Infinity, …)`, **zero of ten

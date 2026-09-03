@@ -5,6 +5,7 @@ import com.limelightvision.Limelight;
 import frc.lib.catalyst.logging.CatalystLog;
 
 import org.wpilib.driverstation.DriverStationErrors;
+import org.wpilib.networktables.NetworkTableInstance;
 import org.wpilib.system.Timer;
 
 import org.wpilib.math.geometry.Pose3d;
@@ -70,6 +71,20 @@ public class LimelightSource implements CameraSource {
 
     /** So the warning below is said once per camera, not fifty times a second. */
     private boolean warnedAboutMissingYaw = false;
+
+    /** When this camera first looked connected-but-silent. NaN once it has spoken. */
+    private double connectedButSilentSince = Double.NaN;
+
+    /** So the OS-mismatch diagnosis is said once per camera. */
+    private boolean warnedAboutNoData = false;
+
+    /**
+     * How long a camera may be connected and publishing nothing before that is worth reporting.
+     *
+     * <p>Long enough to cover a boot and a pipeline switch, short enough that a pit crew hears
+     * about it before the match rather than after.
+     */
+    private static final double SILENT_GRACE_SECONDS = 4.0;
 
     /**
      * A Limelight by name, using MegaTag2.
@@ -208,6 +223,13 @@ public class LimelightSource implements CameraSource {
             return Optional.empty();
         }
 
+        try {
+            diagnoseSilentCamera();
+        } catch (Throwable ignored) {
+            // A diagnostic must never be the thing that breaks the read it is diagnosing. Reporting
+            // goes through the Driver Station, which is not present in every JVM this runs in.
+        }
+
         Limelight.PoseEstimate[] accepted;
         try {
             accepted = limelight.readAcceptedPoseEstimates(type);
@@ -333,6 +355,104 @@ public class LimelightSource implements CameraSource {
     public boolean isConnected() {
         try {
             return limelight.isConnected();
+        } catch (RuntimeException ignored) {
+            return false;
+        }
+    }
+
+    /**
+     * What the camera link is actually doing, which is four states and not two.
+     *
+     * <p>{@link #isConnected()} collapses them into a boolean, and two of the four are "connected"
+     * while vision is dead: {@code STALE} is a camera holding its NetworkTables connection while its
+     * data stops advancing, and {@code DECODE_ERROR} is data arriving that cannot be parsed. Both
+     * read as connected, and neither produces a pose.
+     *
+     * @return {@code OK}, {@code NO_DATA}, {@code STALE} or {@code DECODE_ERROR}
+     */
+    public Limelight.Status cameraStatus() {
+        try {
+            return limelight.getStatus();
+        } catch (RuntimeException ignored) {
+            return Limelight.Status.NO_DATA;
+        }
+    }
+
+    /**
+     * Notice a camera that is publishing to NetworkTables but saying nothing Catalyst can read, and
+     * name the cause.
+     *
+     * <p>Measured on a Limelight 4 running <b>Limelight OS 2026.0</b>. The camera connects to the
+     * robot's NetworkTables server as a healthy NT4 client and publishes fifty topics — the whole
+     * classic per-key API, {@code tx}, {@code ty}, {@code ta}, {@code botpose_wpiblue},
+     * {@code rawfiducials}, {@code stddevs} — with live values while it is looking at a tag.
+     * LimelightLib 2 reads none of them, because it reads the single results topic that Limelight OS
+     * <b>2027</b> introduced, and on a 2026 camera that topic does not exist. Its status is
+     * {@code NO_DATA} and {@link #getEstimatedPose()} returns empty forever.
+     *
+     * <p><b>The obvious check does not work, which is the whole reason this method is careful.</b>
+     * The first version of it asked {@code isConnected() && status == NO_DATA}. Measured against
+     * the real camera, {@link Limelight#isConnected()} reports <em>false</em> in exactly this
+     * situation — it is a data-freshness test, not a link test — so that guard could never fire on
+     * the case it was written for. What distinguishes an old camera from an absent one is that an
+     * old one is still publishing the per-key topics, so that is what this looks for.
+     *
+     * <p>Reading {@code tv} through an entry is deliberate rather than incidental: NetworkTables
+     * only makes a remote topic visible once something subscribes to it, and taking the entry is
+     * what subscribes. Asking whether the topic exists without doing that returns false for every
+     * camera, working or not.
+     *
+     * <p>The docs had this risk recorded backwards. They warn that Limelight OS 2027 disables the
+     * classic keys, so <em>old</em> Catalyst code would silently see nothing. True — and the mirror
+     * image is also true and was not written down: <em>new</em> Catalyst code silently sees nothing
+     * on a 2026 camera. Catalyst 2.x requires Limelight OS 2027.
+     */
+    private void diagnoseSilentCamera() {
+        if (cameraStatus() != Limelight.Status.NO_DATA) {
+            connectedButSilentSince = Double.NaN;
+            return;
+        }
+
+        // Is anything at all publishing under this camera's name? An old camera is; an unplugged
+        // one is not, and that is a different problem with a different fix.
+        boolean publishingOldStyle = NetworkTableInstance.getDefault()
+                .getTable(name).getEntry("tv").exists();
+        if (!publishingOldStyle) {
+            connectedButSilentSince = Double.NaN;
+            return;
+        }
+
+        double now = Timer.getTimestamp();
+        if (Double.isNaN(connectedButSilentSince)) {
+            connectedButSilentSince = now;
+            return;
+        }
+        if (warnedAboutNoData || (now - connectedButSilentSince) < SILENT_GRACE_SECONDS) {
+            return;
+        }
+        warnedAboutNoData = true;
+        DriverStationErrors.reportWarning(
+                "[Catalyst] " + name + " is publishing the older per-key Limelight topics (tv, tx, "
+                        + "botpose_wpiblue, ...) but nothing Catalyst can read. That is the "
+                        + "signature of a Limelight still on OS 2026: Catalyst 2.x reads the single "
+                        + "results topic introduced in Limelight OS 2027. Update the camera to a "
+                        + "2027 image — its version is in the top right of its web UI. Vision will "
+                        + "contribute nothing until then, and note that isConnected() reads false "
+                        + "in this state even though the camera is plainly connected.",
+                false);
+    }
+
+    /**
+     * Whether this camera looks like it is on Limelight OS 2026 rather than 2027.
+     *
+     * <p>True when it is publishing the old per-key topics and LimelightLib can read nothing from
+     * it. Worth putting on a pit dashboard: it is the difference between "the camera is broken" and
+     * "the camera needs a firmware update", which look identical from the robot.
+     */
+    public boolean looksLikeOldLimelightOs() {
+        try {
+            return cameraStatus() == Limelight.Status.NO_DATA
+                    && NetworkTableInstance.getDefault().getTable(name).getEntry("tv").exists();
         } catch (RuntimeException ignored) {
             return false;
         }

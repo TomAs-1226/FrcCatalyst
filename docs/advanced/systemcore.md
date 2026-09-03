@@ -460,14 +460,36 @@ autos.publishAsOpModes();
 
 ## If vision stops working
 
-**Check this first.** Limelight OS 2027.0 publishes results as a single MessagePack topic and
-disables the classic per-key NetworkTables API by default. Code written against the old keys compiles
-perfectly and sees nothing at all.
+**Check the camera's OS version first — Catalyst 2.x requires Limelight OS 2027.**
 
-Catalyst 2.x uses LimelightLib 2 and is fine. What is *not* automatically fine is your camera
-transform: 2027.0 unified every 3D space on NWU right-handed, so a transform carried over from 2026
-may need its mount side and pitch signs flipped. A wrong sign produces a confidently wrong pose, not
-an error.
+This is the failure that costs a whole session, and it was written down backwards here until a real
+camera was put in front of the library. Both halves are true:
+
+- Limelight OS **2027** publishes results as a single topic and disables the classic per-key
+  NetworkTables API by default, so code written against the old keys sees nothing.
+- Limelight OS **2026** publishes only the classic per-key API, so Catalyst 2.x — which reads the
+  2027 topic through LimelightLib 2 — sees nothing.
+
+Measured on a Limelight 4 running OS 2026.0: it connects to the robot's NetworkTables server as a
+healthy NT4 client and publishes fifty topics with live values while looking at a tag — `tx`, `ty`,
+`ta`, `botpose_wpiblue`, `rawfiducials`, `stddevs`, all of it. LimelightLib reads none of them,
+`getEstimatedPose()` returns empty forever, and **`isConnected()` reports false** even though the
+camera is plainly connected, because that method tests data freshness rather than the link.
+
+Catalyst now says so itself. After a few seconds in that state it reports a Driver Station warning
+naming the version as the likely cause, and `LimelightSource.looksLikeOldLimelightOs()` exposes it
+for a pit dashboard. The camera's version is in the top right of its web UI.
+
+Once the version is right, the thing that is *not* automatically fine is your camera transform:
+2027.0 unified every 3D space on NWU right-handed, so a transform carried over from 2026 may need
+its mount side and pitch signs flipped. A wrong sign produces a confidently wrong pose, not an
+error.
+
+**And if poses are empty while the camera plainly sees a tag,** check that something is publishing
+robot yaw every loop. MegaTag2 — Catalyst's default — resolves tags against an externally supplied
+heading and silently assumes zero when none arrives, so its poses would be wrong by exactly the
+robot's heading. Catalyst refuses those rather than passing them on;
+`LimelightSource.isReceivingRobotOrientation()` says whether the feed is live.
 
 Catalyst publishes each camera's transform at construction to
 `/Catalyst/Vision/<camera>/RobotToCamera` so you can check it against the robot.
