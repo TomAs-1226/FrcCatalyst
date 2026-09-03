@@ -44,7 +44,9 @@ public record ContactObservation(
     /** Compact constructor: rejects a null normal, a negative standoff, and a non-positive uncertainty. */
     public ContactObservation {
         if (surfaceNormal == null) throw new IllegalArgumentException("surfaceNormal must not be null");
-        if (standoffMeters < 0) {
+        // !(x >= 0) rather than x < 0, so NaN is rejected rather than stored. The line below
+        // already had it right; this one did not, in the same constructor.
+        if (!(standoffMeters >= 0)) {
             throw new IllegalArgumentException("standoffMeters must be >= 0 (got " + standoffMeters + ")");
         }
         if (!(standardDeviation > 0)) {

@@ -93,10 +93,44 @@ public final class ContactResolver {
             ContactMaterial materialA,
             ContactMaterial materialB) {
 
-        double normalLength = normal.getNorm();
-        if (normalLength < 1e-9) {
+        // Every check in this method is a comparison, and NaN compares false to all of them - so a
+        // single non-finite input does not trip one guard, it switches off all of them at once:
+        //
+        //   normalLength < 1e-9   false for NaN -> the degenerate-normal guard passes
+        //   approach >= 0.0       false for NaN -> the "already separating" early return is skipped
+        //   slidingSpeed > 1e-9   false for NaN -> friction is skipped entirely
+        //   inverseSum <= 0.0     false for NaN -> the immovable-pair early return is skipped
+        //
+        // The result is not an exception and not a visibly wrong number at the call site. It is a
+        // ContactResolution whose velocities are NaN, handed straight back into the body's state -
+        // and from there every later position, contact and collision is NaN too, with the original
+        // bad input long gone. resolved() reads false, so it does not even count as a contact.
+        //
+        // Reachable two ways. SimulatedGamePiece.resolveAgainstRobot rotates its normal by
+        // robotPose.getRotation(), so a NaN pose - which is exactly what an unguarded SignalBuffer
+        // used to be able to produce - arrives here as a NaN normal. And resolve() is public: the
+        // javadoc's "unit vector pointing from B toward A" is a contract this guard exists to
+        // enforce, and it was not enforcing it.
+        //
+        // Written as !(x > y) rather than x <= y throughout, which rejects NaN instead of admitting
+        // it. Infinity has to be excluded separately for the normal, because an infinite component
+        // passes a length test and then divides down to a zero vector - a silent no-op rather than
+        // an error. Mass is the one place infinity is legitimate: IMMOVABLE is +Infinity, so the
+        // mass guard rejects NaN and non-positive values while deliberately admitting it.
+        if (!isFinite(velocityA) || !isFinite(velocityB)) {
             throw new IllegalArgumentException(
-                    "contact normal has no direction; it must point from B toward A");
+                    "contact velocities must be finite (got A=" + velocityA + ", B=" + velocityB + ")");
+        }
+        if (!(massA > 0) || !(massB > 0)) {
+            throw new IllegalArgumentException(
+                    "contact masses must be positive, or IMMOVABLE (got A=" + massA + ", B=" + massB + ")");
+        }
+
+        double normalLength = normal.getNorm();
+        if (!isFinite(normal) || !(normalLength > 1e-9)) {
+            throw new IllegalArgumentException(
+                    "contact normal has no usable direction; it must be a finite vector pointing "
+                            + "from B toward A (got " + normal + ")");
         }
         Translation3d n = normal.div(normalLength);
 
@@ -165,6 +199,11 @@ public final class ContactResolver {
     }
 
     /** Dot product. {@link Translation3d} does not offer one. */
+    /** Whether every component is a real number. A NaN in any one poisons the whole resolution. */
+    private static boolean isFinite(Translation3d v) {
+        return Double.isFinite(v.getX()) && Double.isFinite(v.getY()) && Double.isFinite(v.getZ());
+    }
+
     private static double dot(Translation3d a, Translation3d b) {
         return a.getX() * b.getX() + a.getY() * b.getY() + a.getZ() * b.getZ();
     }
