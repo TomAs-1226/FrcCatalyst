@@ -5,6 +5,178 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.0.0-alpha.1-a6] — 2026-09-02 — Different computer, same library
+
+WPILib 2027 and Limelight Systemcore. Not a version bump: the package root moved from
+`edu.wpi.first` to `org.wpilib`, the hardware layer was reorganised, the command framework was
+replaced with one built on JDK continuations, and the robot controller went from one CAN bus to
+five.
+
+The constraint this whole release was built under is that **none of that is a team's problem**.
+Nobody should have to relearn Catalyst because WPILib reorganised itself, so every builder, every
+mechanism signature and every binding call is where it was, and 2027 is absorbed behind that line.
+Where WPILib now ships something Catalyst already had, Catalyst kept its own class and delegates
+inwards rather than deleting it and making everyone migrate.
+
+Four things could not be kept, and they are listed under *Changed* rather than buried. Five
+decorator names is the painful one.
+
+**Read the pairing before flashing anything.** This build targets the *released* WPILib
+`2027.0.0-alpha-6`, which is what Systemcore OS beta 13 runs. The development snapshot of the same
+alpha is a materially different API — it has `org.wpilib.telemetry`, `tunables` and `fields`, which
+the release does not — and a robot program built against one aborts on the other with a version
+mismatch the daemon reports rather than a compile error. Match the two.
+
+### Added — the machine underneath
+
+For the first time there is something to ask. A roboRIO could not tell you why it was unhappy;
+Systemcore measures itself and publishes it.
+
+- **`SystemCoreStatus`** — battery, brownout state, CPU, RAM, storage and team number, read from the
+  system server the OS runs alongside the robot program. Topic names were read out of the
+  `MrcCommDaemon` binary in the OS image rather than taken from documentation. Every reader returns
+  an empty `Optional` when a topic is absent, so a call is safe on a desktop.
+
+  `SystemCoreSim` and `SystemCoreSource` sit behind it so all of the above is testable without a
+  board — and so a test can install an absent machine without resolving the real one, which loads
+  HAL natives and, if they are missing, terminates the JVM rather than throwing.
+
+- **`Preflight`** — one call at boot that answers whether the robot is fit to enable. Findings are
+  levelled, and only a `BLOCKER` means no. It reports the things that are invisible until they are
+  expensive: a filling disk, eMMC nearing its write life, a hot Systemcore (the cores throttle
+  silently, so the symptom is a loop overrun and not a temperature), and the two JVM flags Commands
+  v3 needs.
+
+- **`CatalystCANBus`, `CANBusPlanner`, `CANBusHealth`** — one bus meant there was no decision to
+  make. Five means there is, and it is not the obvious one: **the buses are not five independent
+  lanes.** `can_s0`/`can_s1` share an SPI controller and `can_s3`/`can_s4` share another, with
+  `can_s2` alone — read off the OS image. Splitting a heavy load across a *paired* bus buys much
+  less than splitting across unpaired ones, and `CANBusPlanner` knows the difference.
+  `CANRegistry.contentionWarnings()` flags both that and everything-on-one-bus from the plan alone,
+  before the robot is ever enabled. Advisory; nothing throws.
+
+- **`SystemCoreIMU`, `DualIMU`, `CatalystIMU`** — Systemcore has an IMU built in, costing no CAN id,
+  no wiring and no bus bandwidth, and most robots already carry a Pigeon. `DualIMU` reads the two as
+  one and can tell you when they disagree, which is the only cheap way to catch a gyro that has
+  started lying.
+
+  `SystemCoreIMU` will not report acceleration until it has been told how the board is mounted. That
+  is deliberate: the board's frame and the robot's are only the same if it was installed flat and
+  square, and an acceleration in the wrong frame is a plausible number pointing the wrong way.
+
+- **`SmartIO` and `CatalystI2C`** — Systemcore's IO pins are typed, and the type is set *on the
+  device* in its web UI, not in robot code. `SmartIO` makes robot code declare what it expects, so a
+  mismatch is a message instead of a pin that reads zero forever.
+
+- **`opmode/CatalystOpMode`, `CommandOpMode`** — 2027 robots are OpModes. A program with no
+  registered OpMode connects, looks healthy, and cannot be enabled, with nothing on any dashboard
+  saying why.
+
+- **`sysid/SysIdRoutine`** — WPILib kept `SysIdRoutineLog`, the half that writes what the desktop
+  tool reads, and deleted the half that drove the mechanism, because that half was Commands v2.
+  Characterisation is not optional here — feedforward gains, `MotionConstraintCalculator` and Physics
+  Core's identifiers all assume a team can measure kS/kV/kA — so Catalyst supplies the driving half
+  on v3 coroutines and keeps writing through `SysIdRoutineLog`. **The desktop tool sees exactly the
+  same data as before.**
+
+- **`GamePieceDetector`** — Systemcore has a Hailo accelerator on USB ports 0 and 1, so neural object
+  detection is available to any team rather than to whoever had a spare coprocessor.
+
+- **`command/`** — `CatalystCommand`, `Commands`, `CatalystSubsystem`, `CommandRuntime`. Commands v3
+  ships a deliberately small surface: no `withName`, no `finallyDo`, no `beforeStarting`, no
+  `Commands` class, and `Mechanism.run` takes a `Consumer<Coroutine>` where `SubsystemBase.run` took
+  a `Runnable`. Catalyst used those shapes about four hundred times. Rather than rewrite every call
+  site, these restore them on top of v3 — most call sites changed an import and nothing else.
+
+### Changed — the four things a team actually has to edit
+
+- **Five command decorators were renamed.** `until` → `untilTrue`, `andThen` → `then`, `alongWith` →
+  `together`, `raceWith` → `racing`, `withTimeout` → `timeoutAfter`.
+
+  This is the one place the no-migration rule could not be honoured, and it is worth being straight
+  about why: v3 declares those five names returning group *builders*, and Java will not allow an
+  override that narrows a builder to a finished command. Keeping the names would not have compiled.
+  v3's own versions stay inherited and reachable under the original names, so both are available —
+  they just do different things.
+
+- **`ServoMechanism.getServo()` is now `getPwm()`**, because `Servo` was removed from WPILib, and
+  deliberately. Two hardware facts came with that and matter more than the rename: Systemcore's IO
+  pins output **3.3 V** at nowhere near a servo's current, so a servo wired straight to the board
+  will not work and the rules are not expected to permit it; and **Systemcore returns every PWM
+  output to centre when the robot is disabled** — IO-chip firmware, no override. A mechanism that
+  must hold position through a disable cannot hold it on PWM. Design around that well beyond servos.
+  The supported path for servos is a CAN servo hub.
+
+- **The default CAN bus is now `can_s0`**, where it was `""` — the rio bus, which no longer exists.
+  Code that never named a bus keeps working and keeps its devices together.
+
+- **`periodic()` is no longer automatic.** `SubsystemBase` registered itself; v3's `Mechanism` is an
+  interface with no constructor to hook. A subsystem that defines `periodic()` and never calls
+  `registerPeriodic()` compiles and silently never ticks. Every Catalyst subsystem and mechanism now
+  registers itself, so this only bites a team's own classes — but it bites silently, which is why it
+  is here rather than in a footnote.
+
+### Removed — and what to use instead
+
+- **`AutoSelector`, `DriverBoard`, `WpiTelemetrySink`, `TelemetryUtil`, `MechanismVisualizer`** are
+  not in this build. The released alpha-6 ships no `org.wpilib.telemetry` and no
+  `org.wpilib.tunables` — verified by searching every jar in the installer, not inferred — so there
+  is no `Telemetry`, no `Selectable` and no `DriverStationDisplay` for them to sit on.
+
+  They are *excluded from the source set, not deleted*: they are the better implementations and they
+  return the moment a release ships those packages. Nothing is lost meanwhile. `CatalystLog` falls
+  back to `NetworkTablesSink`, which is the sink this library used before 2027 and is still fully
+  tested, and published key paths are unchanged — Console, the health dashboard and any existing
+  AdvantageScope layout resolve the same names.
+
+- **PhotonVision** has no 2027 vendordep, so `PhotonSource` is excluded. Catalyst is Limelight-first,
+  and this is a stated direction rather than a temporary gap.
+
+- **ChoreoLib** has no build past alpha-2. PathPlanner remains.
+
+### Fixed
+
+- **`LimelightSource` was rewritten, and had to be.** Catalyst read Limelight NT keys directly —
+  `botpose_wpiblue`, `tx`, `ta` — to avoid a vendordep. Limelight OS 2027.0 publishes results as a
+  single MessagePack topic and **disables the classic per-key API by default**. The old code compiles
+  perfectly and silently sees nothing, which is the worst way for vision to fail. Taking LimelightLib
+  2 also brought the camera's own rejection rules, real distance- and tag-count-scaled standard
+  deviations instead of Catalyst approximating from tag count, and every queued frame between loops
+  rather than only the newest.
+
+- **A single non-finite reading permanently wedged a `SignalBuffer`.** Every guard in that class is a
+  comparison and NaN compares false to all of them, so each was one bad sample away from being
+  switched off for the rest of the match. Measured: after one `add(+Infinity, …)`, **zero of ten
+  thousand** following good samples were stored, and `latest()` went on answering the pre-fault value
+  as though it were current. A vision frame with no target, or a latency computed by dividing by a
+  zero frame count, is all it took, and a pose estimator had no way to tell the frozen value from a
+  live one.
+
+- **`SystemCoreStatus.isAvailable()` answered true in simulation.** It tested `resolved != null`,
+  which looks right and is not — `getSystemServer()` returns a non-null instance wrapping handle 0
+  when there is no board. Nothing crashed, because the readings were all empty anyway; what broke was
+  the diagnosis. Preflight told a student running in simulation `Systemcore: reporting`, and the
+  health dashboard registered checks whose detail line read `battery NaN V`.
+
+- **A NaN contact normal disabled all four of `ContactResolver`'s guards at once** — the
+  degenerate-normal check, both early returns and the friction branch — and handed back NaN
+  velocities that propagated into every later position and collision, without throwing and without
+  even counting as a contact.
+
+### Known limits — stated, not hidden
+
+- **`ignoringDisable(boolean)` is a no-op.** v3's disabled-mode semantics could not be confirmed
+  against the alpha-6 jars, and guessing at what runs while disabled is not acceptable. The method is
+  kept so call sites compile and intent stays readable. Verify on hardware before depending on it.
+- **`Models.createDCMotorSystem` has no same-named successor** and is mapped to
+  `singleJointedArmFromPhysicalConstants`, which builds the same rotational double-integrator. That
+  equivalence is reasoned rather than read off a jar, and it feeds five mechanism sim models.
+- **`SystemCoreStatus` availability is unverified on real hardware** — that a board returns a
+  non-zero handle follows from the handle encoding, not from a measurement.
+- The example project builds as a plain Java project, not a GradleRIO one: GradleRIO 2027 stops at
+  alpha-2 on the plugin portal and the alpha-6 plugin ships only inside the 2.6 GB installer. The
+  deploy configuration is recorded in `example/build.gradle` ready to paste back.
+
 ## [1.12.0] — 2026-08-07 — The devices, not the count
 
 ### Added
