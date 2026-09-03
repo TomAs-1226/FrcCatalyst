@@ -67,6 +67,9 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
 
     private final VisionConfig config;
     private final List<CameraSource> cameras;
+
+    /** Cross-camera transform check. Inert with fewer than two cameras. */
+    private final CameraAgreement agreement = new CameraAgreement();
     private final SwerveSubsystem driveSubsystem;
 
     // Telemetry
@@ -163,6 +166,20 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
 
             Matrix<N3, N1> stdDevs = calculateStdDevs(pe);
             accepted.add(new Accepted(i, camera.getName(), pe, stdDevs, qualityScore(pe)));
+        }
+
+        // ---- Phase 1b: check the cameras against each other ----
+        // Only possible with more than one camera, which is the point. A robotToCamera transform has
+        // nothing to be checked against on a single-camera robot - LimelightSource says as much and
+        // publishes the numbers for a human instead. Two cameras seeing tags in the same loop are
+        // describing the same robot, so a disagreement that persists is a wrong transform rather
+        // than noise. Advisory: nothing below changes what reaches the estimator.
+        if (accepted.size() >= 2) {
+            agreement.observe(
+                    accepted.stream()
+                            .map(a -> new CameraAgreement.Sighting(a.cameraName(), a.pe().pose()))
+                            .toList(),
+                    currentPose.getRotation());
         }
 
         // ---- Phase 2: fuse in a deterministic order ----
