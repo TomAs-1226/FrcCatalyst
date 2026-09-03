@@ -4,6 +4,9 @@ import com.limelightvision.Limelight;
 
 import frc.lib.catalyst.logging.CatalystLog;
 
+import org.wpilib.driverstation.DriverStationErrors;
+import org.wpilib.system.Timer;
+
 import org.wpilib.math.geometry.Pose3d;
 import org.wpilib.math.geometry.Transform3d;
 
@@ -49,6 +52,24 @@ public class LimelightSource implements CameraSource {
     private final String name;
     private final Limelight limelight;
     private final boolean useMegaTag2;
+
+    /**
+     * How stale the robot yaw may be before MegaTag2 estimates stop being trusted.
+     *
+     * <p>Half a second is about twenty-five robot loops. Anything that is still publishing yaw at
+     * all will be well inside it, and anything outside it has stopped, which is the case worth
+     * catching.
+     */
+    private static final double ORIENTATION_STALE_SECONDS = 0.5;
+
+    /** When this camera was last told the robot's yaw. */
+    private double lastOrientationTs = Double.NEGATIVE_INFINITY;
+
+    /** When ANY camera was last told the robot's yaw through the shared table. */
+    private static volatile double lastSharedOrientationTs = Double.NEGATIVE_INFINITY;
+
+    /** So the warning below is said once per camera, not fifty times a second. */
+    private boolean warnedAboutMissingYaw = false;
 
     /**
      * A Limelight by name, using MegaTag2.
@@ -119,6 +140,28 @@ public class LimelightSource implements CameraSource {
     }
 
     /**
+     * Whether this camera has been given the robot's yaw recently enough to trust MegaTag2.
+     *
+     * <p>Either route counts. A robot with four cameras is expected to use the shared publish, and
+     * one with a single camera usually calls the instance method; neither should look unwired
+     * because it chose the other.
+     */
+    private boolean orientationIsFresh() {
+        double newest = Math.max(lastOrientationTs, lastSharedOrientationTs);
+        return (Timer.getTimestamp() - newest) <= ORIENTATION_STALE_SECONDS;
+    }
+
+    /**
+     * Whether MegaTag2 is currently being fed, for a dashboard or a pre-match check.
+     *
+     * <p>Exposed because "vision is not returning anything" and "vision is not being told where the
+     * robot is pointing" look identical from the outside and have completely different fixes.
+     */
+    public boolean isReceivingRobotOrientation() {
+        return !useMegaTag2 || orientationIsFresh();
+    }
+
+    /**
      * {@inheritDoc}
      *
      * <p>Returns the newest estimate the camera has <em>accepted</em>. Rejected ones are dropped by
@@ -129,6 +172,41 @@ public class LimelightSource implements CameraSource {
         Limelight.PoseEstimateType type = useMegaTag2
                 ? Limelight.PoseEstimateType.MT2_WPIBLUE
                 : Limelight.PoseEstimateType.MT1_WPIBLUE;
+
+        // MegaTag2 without a robot yaw is not a degraded estimate, it is a wrong one.
+        //
+        // MT2 resolves tag ambiguity using an externally supplied heading. If nobody supplies it,
+        // the camera does not fail and does not complain - it uses the last value it was given,
+        // which at boot is zero. Every pose it then produces is confidently wrong by exactly the
+        // robot's true heading, and it looks like a plausible pose, so it goes into the estimator
+        // and drags the fused pose with it.
+        //
+        // Confirmed on a Limelight 4 on the bench rather than reasoned about: an untouched camera
+        // reports botorient = {alpha: 0.001, imumode: 0, interpbotyaw: 0.0}. imumode 0 is
+        // "use the externally supplied yaw", and interpbotyaw stays 0.0 until something publishes.
+        // So a robot that constructs LimelightSource with useMegaTag2 and never wires the yaw feed
+        // is asking the camera to localise a robot it believes is facing field-X, forever.
+        //
+        // Refusing is the right answer rather than warning and returning anyway: there is no sense
+        // in which the estimate is usable, and handing it to a pose estimator is strictly worse
+        // than handing it nothing. A camera that has simply not been fed yet - the first loops
+        // after boot - is the same case and is also correctly refused, because MT2 genuinely has
+        // no answer yet.
+        if (useMegaTag2 && !orientationIsFresh()) {
+            if (!warnedAboutMissingYaw) {
+                warnedAboutMissingYaw = true;
+                DriverStationErrors.reportWarning(
+                        "[Catalyst] " + name + " is configured for MegaTag2 but has not been given "
+                                + "the robot's yaw for " + ORIENTATION_STALE_SECONDS + "s. MegaTag2 "
+                                + "resolves tags against that heading and silently assumes 0 when "
+                                + "it is missing, so its poses would be wrong by the robot's true "
+                                + "heading. Call setRobotOrientation(...) or "
+                                + "LimelightSource.setSharedRobotOrientation(...) every loop, or "
+                                + "construct this source with useMegaTag2 = false.",
+                        false);
+            }
+            return Optional.empty();
+        }
 
         Limelight.PoseEstimate[] accepted;
         try {
@@ -174,6 +252,11 @@ public class LimelightSource implements CameraSource {
         if (!useMegaTag2) {
             return;
         }
+        // Stamped before the call, not after: the point is that a caller is feeding yaw this
+        // loop. Whether the camera is reachable right now is a different question, and one that
+        // must not make a correctly-wired robot look unwired.
+        lastOrientationTs = Timer.getTimestamp();
+        warnedAboutMissingYaw = false;
         try {
             limelight.setRobotOrientation(yawDegrees, yawRate, pitchDegrees, 0, rollDegrees, 0);
         } catch (RuntimeException ignored) {
@@ -190,6 +273,7 @@ public class LimelightSource implements CameraSource {
      * @param yawDegrees fused robot yaw, CCW positive
      */
     public static void setSharedRobotOrientation(double yawDegrees) {
+        lastSharedOrientationTs = Timer.getTimestamp();
         try {
             Limelight.setSharedRobotOrientation(yawDegrees);
         } catch (RuntimeException ignored) {
