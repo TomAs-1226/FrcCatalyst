@@ -39,12 +39,18 @@ import java.util.OptionalInt;
  * server, {@link #isAvailable()} is false and every reading is empty — no exceptions, no logs, no
  * behaviour change. Code can call this unconditionally.
  *
- * <p><b>Not unit-tested, and it cannot be.</b> Resolving the system server forces a HAL JNI load,
- * and WPILib's {@code RuntimeLoader} terminates the JVM when the natives are missing rather than
- * throwing. A test that constructs this class kills the Gradle test worker and takes every other
- * result with it, so no amount of {@code catch (Throwable)} here can make it testable on a desktop
- * JVM — the process is gone before the catch runs. The graceful-degradation paths below are written
- * defensively for the same reason, and want verifying on real hardware.
+ * <p><b>Testable here, but only here.</b> Resolving the system server forces a HAL JNI load, and
+ * WPILib's {@code RuntimeLoader} answers missing natives by terminating the JVM rather than
+ * throwing — so on a machine without them, a test that constructs this class kills the Gradle
+ * worker and takes every other result with it, and no {@code catch (Throwable)} can prevent it
+ * because the process is gone before the catch runs. This repository extracts the desktop natives
+ * before {@code test} runs, which is what makes {@link SystemCoreAvailabilityTest} possible; it is
+ * the same bet the Phoenix tests already make. An earlier version of this note said the class could
+ * not be tested at all, and that was too strong — believing it is what let
+ * {@link #isAvailable()} answer true in simulation, unnoticed, for as long as it did.
+ *
+ * <p>The readings themselves still want verifying on real hardware: a desktop can show that an
+ * absent server reads as absent, but not that a present one reads correctly.
  *
  * @since 2.0.0
  */
@@ -87,9 +93,31 @@ public final class SystemCoreStatus {
             } catch (Throwable ignored) {
                 // No system server: simulation, a unit test, or a desktop build. Not an error.
             }
-            this.server = resolved;
-            this.sys = resolved == null ? null : resolved.getTable(SYS_TABLE);
-            this.available = resolved != null;
+            // `resolved != null` is NOT the availability test, though it reads like one.
+            //
+            // Measured on a desktop JVM with the natives present: getSystemServer() does not throw
+            // and does not return null. It returns a NetworkTableInstance wrapping handle 0 -
+            // because it is `fromNativeHandle(getSystemServerHandle())`, and fromNativeHandle is a
+            // plain constructor that wraps whatever int it is given. So the null check succeeded
+            // everywhere, and isAvailable() answered true in simulation: the exact opposite of what
+            // this class promises and of what Preflight then printed to a student.
+            //
+            // Handle 0 is the C-API's "no handle" sentinel, and it is distinguishable. Real
+            // instances carry a typed handle with a non-zero type field in the high bits - two
+            // independently created ones measured here came back 318767104 and 319815680, while the
+            // system server's was 0. It is also genuinely a different instance from the default one:
+            // writing to the default instance's /sys/battery is invisible through this handle, so
+            // the failure mode was a wrong answer about availability, not crossed data.
+            //
+            // Unverified on hardware: that a real Systemcore returns a non-zero handle here. It
+            // follows from the handle encoding rather than from a measurement, because the board was
+            // not reachable when this was written. If a real board ever reports "not present", this
+            // line is the first place to look.
+            boolean real = resolved != null && resolved.getHandle() != 0;
+
+            this.server = real ? resolved : null;
+            this.sys = real ? resolved.getTable(SYS_TABLE) : null;
+            this.available = real;
         }
 
         NetworkTableInstance server() {
