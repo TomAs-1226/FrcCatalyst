@@ -132,7 +132,9 @@ Systemcore measures itself and publishes it.
 - **PhotonVision** has no 2027 vendordep, so `PhotonSource` is excluded. Catalyst is Limelight-first,
   and this is a stated direction rather than a temporary gap.
 
-- **ChoreoLib** has no build past alpha-2. PathPlanner remains.
+- **ChoreoLib** has no build past alpha-2, but nothing is lost: `followChoreoPath()` reads Choreo
+  `.traj` files through PathPlanner's `fromChoreoTrajectory`, so it never depended on the ChoreoLib
+  vendordep and still works.
 
 ### Fixed
 
@@ -171,8 +173,11 @@ Systemcore measures itself and publishes it.
 - **`Models.createDCMotorSystem` has no same-named successor** and is mapped to
   `singleJointedArmFromPhysicalConstants`, which builds the same rotational double-integrator. That
   equivalence is reasoned rather than read off a jar, and it feeds five mechanism sim models.
-- **`SystemCoreStatus` availability is unverified on real hardware** — that a board returns a
-  non-zero handle follows from the handle encoding, not from a measurement.
+- **`SystemCoreStatus` works on hardware; the handle value itself was never printed there.** Live
+  `/diagnostics/canbusutil` readings came back through this class on a real board, and every reader
+  returns empty unless availability resolved true — so it does resolve true on hardware. What was
+  not done is reading the raw handle on a board to confirm *why*, so the reasoning that a real
+  instance carries a non-zero typed handle remains reasoning.
 - The example project builds as a plain Java project, not a GradleRIO one: GradleRIO 2027 stops at
   alpha-2 on the plugin portal and the alpha-6 plugin ships only inside the 2.6 GB installer. The
   deploy configuration is recorded in `example/build.gradle` ready to paste back.

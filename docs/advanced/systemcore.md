@@ -42,32 +42,76 @@ that deploys and then does nothing.
 Systemcore OS **beta 14 requires WPILib alpha-7**, which is not released. Until it is, pair Catalyst
 2.x with OS beta 13.
 
-> **The WPILib installer alone is not enough yet.**
+> **The installer is all you need, and the two alpha-6s are not the same thing.**
 >
-> Catalyst 2.x is built against a development snapshot that is *newer* than the released 2027
-> alpha-6, and the difference is not cosmetic. Checked by reading every jar the installer ships:
+> There are two builds called 2027 alpha-6: the **release**, which ships inside the WPILib installer
+> and is what Systemcore OS beta 13 runs, and a **development snapshot** with the same alpha number
+> published to the development maven. They are materially different APIs. Read off every jar in the
+> installer rather than inferred:
 >
 > - `org.wpilib.telemetry`, `org.wpilib.tunables` and `org.wpilib.fields` **do not exist** in the
->   released alpha-6. Catalyst's logging, `AutoSelector` and the field layout all need them.
-> - Commands v3's `Mechanism` is a **class** in the release and an **interface** in the snapshot,
->   so Catalyst's subsystem hierarchy will not compile against the release.
+>   release. They do in the snapshot.
+> - Commands v3's `Mechanism` is a **class** in the release and an **interface** in the snapshot.
 > - The release publishes `org.wpilib:commands3-java`; the snapshot publishes
 >   `org.wpilib:commandsv3-java`.
 >
-> A project that installs the WPILib 2027 alpha and adds the Catalyst vendordep will resolve, then
-> fail to compile, with errors that name none of this. Until alpha-7 ships, build against the
-> development maven (`https://frcmaven.wpi.edu/artifactory/development/`) at the version this
-> library's `build.gradle` pins.
+> **Catalyst 2.0.0-alpha.1-a6 targets the release**, so the installer is sufficient and no
+> development maven is needed. Five classes that can only exist on the snapshot are excluded from
+> this build — see [What is not in this build](#what-is-not-in-this-build).
+>
+> Getting this wrong does not look like a version problem. A program built against the snapshot and
+> deployed to a beta 13 board **aborts at startup**: the board's daemon checks the client's reported
+> library version and rejects a mismatch, so the symptom is a robot that deploys, refuses to enable,
+> and says nothing a compile error would have told you.
+
+---
+
+## What is not in this build
+
+Six classes that exist in the source tree do not ship in `2.0.0-alpha.1-a6`. None of them are
+deleted — every one is excluded from the source set, so it comes back unchanged the moment the thing
+it needs exists in a release. They are listed here so that "why can I not import this" has an answer
+that is not a compile error.
+
+| Class | Needs | Use instead |
+|---|---|---|
+| `AutoSelector` | `org.wpilib.tunables` | PathPlanner's chooser, or NetworkTables directly |
+| `WpiTelemetrySink` | `org.wpilib.telemetry` | `NetworkTablesSink` — already the default |
+| `TelemetryUtil` | `org.wpilib.telemetry` | `CatalystLog` |
+| `MechanismVisualizer` | `org.wpilib.telemetry` | `SimDashboard` |
+| `DriverBoard` | `DriverStationDisplay` | the Driver Station's own panels |
+| `PhotonSource` | a PhotonVision 2027 vendordep | `LimelightSource` |
+
+**The logging ones cost you nothing.** `CatalystLog` falls back to `NetworkTablesSink`, which is the
+sink this library used for every season before 2027 and is still fully tested. Published key paths
+are identical, so Console, the health dashboard and any AdvantageScope layout you already have
+resolve exactly the same names. The only thing lost is that Catalyst telemetry does not automatically
+appear in tools that read WPILib's new standard backend without being pointed at `/Catalyst/...`.
+
+**PhotonVision is a direction, not a gap.** Catalyst is Limelight-first: the pipeline is built into
+the hardware and it is the supported path. `PhotonSource` is unlikely to return.
+
+**Choreo still works**, despite ChoreoLib having no build past alpha-2. `followChoreoPath()` reads
+Choreo `.traj` files through PathPlanner's `fromChoreoTrajectory`, so it never needed the ChoreoLib
+vendordep and is unaffected.
 
 ---
 
 ## What you have to change
 
-### `AutoSelector.getChooser()` returns a different type
+### `AutoSelector` is not in this build
 
-`SendableChooser` no longer exists in WPILib. The method now returns
-`org.wpilib.tunable.Selectable`. Every other `AutoSelector` method is unchanged, so this only matters
-if you called that accessor.
+`SendableChooser` no longer exists in WPILib, and its replacement — `org.wpilib.tunable.Selectable`
+— is one of the classes that ships only in the development snapshot, not in the release this build
+targets. There is nothing for the chooser to publish to, so the class is excluded rather than
+shipped broken.
+
+It is excluded from the source set, not deleted. It returns unchanged, publishing to `Selectable`,
+the moment a WPILib release ships `org.wpilib.tunables`.
+
+Until then, build the chooser on NetworkTables directly, or use PathPlanner's own auto chooser. The
+rest of the auto path — `DynamicAutoBuilder`, path following, the auto routines themselves — is
+untouched and works normally.
 
 ### Five command decorators were renamed
 

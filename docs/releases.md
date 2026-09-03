@@ -101,7 +101,10 @@ Java will not allow an override — this is the one place API stability could no
 
 Three more, each forced by something being removed from WPILib or the hardware:
 
-- `AutoSelector.getChooser()` returns `Selectable<String>`. `SendableChooser` no longer exists.
+- `AutoSelector` is **not in this build**. `SendableChooser` is gone from WPILib, and its
+  replacement `Selectable` exists only in the development snapshot, not the release this build
+  targets — so there is nothing for the chooser to publish to. Excluded from the source set
+  rather than deleted; it returns when a release ships `org.wpilib.tunables`.
 - `ServoMechanism.getServo()` is `getPwm()`. Servos cannot be driven from Systemcore at all — its IO
   pins are 3.3 V and nowhere near the current — so the class drives raw PWM and says so.
 - `Identity/RioSerial` and `Software/RioImage` are now `ControllerSerial` and `ControllerImage`. The

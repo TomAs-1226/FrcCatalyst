@@ -13,8 +13,10 @@ A Java library of pre-built mechanism building blocks for FRC robots on Phoenix 
 
 {: .warning }
 > **This is the beta site.** It documents Catalyst 2.x for WPILib 2027 on Limelight Systemcore,
-> which is an alpha platform: the WPILib release is an alpha snapshot, the Systemcore OS is a beta,
-> and this library has not yet run on the hardware. Things here will move.
+> which is an alpha platform: the WPILib release is an alpha, the Systemcore OS is a beta, and this
+> library has run on that hardware only on a bench — a Pigeon on `can_s0`, the onboard IMU, and the
+> board's own status topics. Swerve, mechanisms, autos and vision have not been driven by a real
+> robot. Things here will move.
 >
 > For the version running on robots today - Catalyst 1.x, WPILib 2026, roboRIO - use the
 > [stable documentation](https://tomas-1226.github.io/FrcCatalyst/).

@@ -11,7 +11,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/WPILib-2027%20alpha--6-green?style=flat-square" alt="WPILib"/>
-  <img src="https://img.shields.io/badge/Systemcore-OS%20beta%2014-e94560?style=flat-square" alt="Systemcore"/>
+  <img src="https://img.shields.io/badge/Systemcore-OS%20beta%2013-e94560?style=flat-square" alt="Systemcore"/>
   <img src="https://img.shields.io/badge/Phoenix%206-26.50.0--alpha--1-orange?style=flat-square" alt="Phoenix 6"/>
   <img src="https://img.shields.io/badge/Java-25-blue?style=flat-square&logo=openjdk" alt="Java 25"/>
   <img src="https://img.shields.io/badge/PathPlanner-2027.0.0--alpha--3-purple?style=flat-square" alt="PathPlanner"/>
@@ -20,7 +20,10 @@
 ---
 
 > **This branch is Catalyst 2.x — WPILib 2027 on Limelight Systemcore.** A hard cut with no 2026
-> shims, and it has never run on hardware. For a robot that is competing on a roboRIO, use
+> shims. It has now run on a real Systemcore — deploy, OpMode enable, a Pigeon on `can_s0`, the
+> onboard IMU, and the board's own `/sys` and `/diagnostics` readings — but only on a bench, never
+> on a robot. Swerve, mechanisms, autos and vision have not been driven by hardware.
+> For a robot that is competing on a roboRIO, use
 > [1.12.0](https://github.com/TomAs-1226/FrcCatalyst/releases/tag/v1.12.0) and the
 > [stable documentation](https://tomas-1226.github.io/FrcCatalyst/).
 
