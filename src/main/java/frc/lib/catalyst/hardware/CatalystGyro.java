@@ -22,6 +22,32 @@ public class CatalystGyro implements CatalystIMU {
      */
     public static final String DEVICE_TYPE = "Pigeon2";
 
+    /**
+     * How often the signals this class reads every loop are asked to arrive, in hertz.
+     *
+     * <p>Phoenix's own defaults are not uniform, and the two that matter most here are the slow
+     * ones. Read from CTRE's source for the Pigeon 2:
+     *
+     * <ul>
+     *   <li>{@code Yaw}, {@code Pitch}, {@code Roll} — 100 Hz on CAN 2.0
+     *   <li>{@code AngularVelocityZWorld} — <b>10 Hz</b>
+     *   <li>{@code AccelerationX/Y} — <b>10 Hz</b>
+     * </ul>
+     *
+     * <p>Every Systemcore bus is CAN 2.0, and so is the roboRIO's, so 10 Hz is what a robot actually
+     * gets. {@link #getYawRate()} is read once a loop at 50 Hz for heading control, which means its
+     * value can be 100 ms old — five loops of a derivative term acting on a number that has not
+     * changed. Acceleration is worse: {@link DualIMU} differences it against Systemcore's own IMU
+     * sampled now, so under a hard turn the difference is not two sensors disagreeing, it is one
+     * sensor being a tenth of a second behind the other.
+     *
+     * <p>100 Hz is twice the loop rate, which is the least that makes a per-loop read meaningful.
+     * It is not free: three signals going from 10 Hz to 100 Hz is 270 extra frames a second, about
+     * 3.6% of a 1 Mbit bus. That is a fair price for a heading rate that is actually current, and
+     * {@link #withSignalRate(double)} is there for anyone who disagrees.
+     */
+    public static final double DEFAULT_SIGNAL_HZ = 100.0;
+
     private final Pigeon2 pigeon;
     private final int canId;
 
@@ -33,6 +59,7 @@ public class CatalystGyro implements CatalystIMU {
         this.canId = canId;
         this.pigeon = new Pigeon2(canId, CatalystCANBus.of(canBus).phoenix());
         claimCanId(canId, canBus);
+        applySignalRates(DEFAULT_SIGNAL_HZ);
         // Intentionally do NOT apply a configuration here. Applying a default
         // Pigeon2Configuration would erase whatever is on the device — most
         // importantly the mount-pose offset teams set in Tuner X. Use the
@@ -52,6 +79,41 @@ public class CatalystGyro implements CatalystIMU {
             var status = pigeon.getConfigurator().apply(config);
             if (status.isOK()) break;
         }
+        applySignalRates(DEFAULT_SIGNAL_HZ);
+    }
+
+    /**
+     * Ask for the signals this class reads at a different rate.
+     *
+     * <p>Returns {@code this}, so it reads as part of construction. Lower it on a crowded bus, or
+     * raise it on CAN FD where the ceiling is higher.
+     *
+     * <p>Phoenix stores a period rather than a frequency, in whole milliseconds, so the rate that
+     * comes back is the nearest one a whole-millisecond period can express. 100, 50 and 20 Hz land
+     * exactly; asking for 37 gets 37.037. Worth knowing before wondering why a requested rate reads
+     * back slightly different.
+     *
+     * @param hz how often to send yaw rate and acceleration; see {@link #DEFAULT_SIGNAL_HZ}
+     */
+    public CatalystGyro withSignalRate(double hz) {
+        applySignalRates(hz);
+        return this;
+    }
+
+    /**
+     * Raise the signals Catalyst reads every loop off their 10 Hz defaults.
+     *
+     * <p>Only the ones this class reads, and deliberately no {@code optimizeBusUtilization()} to go
+     * with it. That call silences every signal nobody has explicitly asked for, which would be a
+     * quiet trap for a team reading something else off {@link #getPigeon()} — their reading would
+     * stop updating with nothing to say why. A motor is a closed enough object for Catalyst to make
+     * that call on its behalf; a gyro a team also talks to directly is not.
+     */
+    private void applySignalRates(double hz) {
+        com.ctre.phoenix6.BaseStatusSignal.setUpdateFrequencyForAll(hz,
+                pigeon.getAngularVelocityZWorld(),
+                pigeon.getAccelerationX(),
+                pigeon.getAccelerationY());
     }
 
     /**
