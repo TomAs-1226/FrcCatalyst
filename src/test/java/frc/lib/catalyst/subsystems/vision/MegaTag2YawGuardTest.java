@@ -32,8 +32,23 @@ class MegaTag2YawGuardTest {
     private static final Transform3d MOUNT =
             new Transform3d(new Translation3d(0.2, 0.0, 0.5), new Rotation3d(0, 0, 0));
 
+    /**
+     * Let any yaw published by an earlier test go stale.
+     *
+     * <p>The shared-orientation timestamp is deliberately static, because one shared publish really
+     * does feed every camera on the robot - that is the whole point of the shared table. The
+     * consequence in a test JVM is that a sibling class publishing yaw makes every camera here look
+     * fed, and "starts out not being fed" then fails for a reason that has nothing to do with the
+     * code under test. Waiting the window out is honest and self-contained; resetting the static
+     * would mean adding a test-only door into the library.
+     */
+    private static void letSharedYawGoStale() throws InterruptedException {
+        Thread.sleep(700);   // > ORIENTATION_STALE_SECONDS
+    }
+
     @Test
-    void aMegaTag2CameraStartsOutNotBeingFed() {
+    void aMegaTag2CameraStartsOutNotBeingFed() throws InterruptedException {
+        letSharedYawGoStale();
         LimelightSource cam = new LimelightSource("limelight-guardtest-a", MOUNT, true);
 
         assertFalse(cam.isReceivingRobotOrientation(),
@@ -50,9 +65,10 @@ class MegaTag2YawGuardTest {
     }
 
     @Test
-    void theSharedPublishCountsToo() {
+    void theSharedPublishCountsToo() throws InterruptedException {
         // A four-camera robot is expected to use the shared table. A camera must not look unwired
         // just because the team chose the efficient route.
+        letSharedYawGoStale();
         LimelightSource cam = new LimelightSource("limelight-guardtest-c", MOUNT, true);
         assertFalse(cam.isReceivingRobotOrientation());
 

@@ -1,6 +1,5 @@
 package frc.lib.catalyst.subsystems.vision;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.wpilib.math.geometry.Rotation3d;
 import org.wpilib.math.geometry.Transform3d;
@@ -51,11 +50,6 @@ class LegacyLimelightApiTest {
         t.getEntry("botpose_orb_wpiblue").setDoubleArray(pose);
         t.getEntry("tv").setDouble(tv);
         return t;
-    }
-
-    @AfterEach
-    void quiet() {
-        LimelightSource.setSharedRobotOrientation(0.0);
     }
 
     @Test
@@ -151,9 +145,16 @@ class LegacyLimelightApiTest {
     }
 
     @Test
-    void theMegaTag2YawGuardStillAppliesOnThisPath() {
+    void theMegaTag2YawGuardStillAppliesOnThisPath() throws InterruptedException {
         // The old path is not an escape hatch from the yaw requirement: botpose_orb_wpiblue IS
         // MegaTag2, and it is just as wrong without a heading here as through LimelightLib.
+        //
+        // The wait is for the shared-orientation clock, which is static because one shared publish
+        // really does feed every camera on a robot. In a test JVM that means a sibling class
+        // publishing yaw makes this camera look fed, and the assertion below would fail for a
+        // reason unrelated to the code under test. This coupling runs both ways and bit both
+        // classes once each before it was understood.
+        Thread.sleep(700);
         String cam = fresh("g");
         publish(cam, botpose(3.0, 4.0, 0.0, 2, 2.0), 1);
 
