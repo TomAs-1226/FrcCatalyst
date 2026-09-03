@@ -103,10 +103,63 @@ public abstract class CatalystSubsystem extends Mechanism {
      * @param scheduler where the callbacks are registered
      */
     public void registerPeriodic(Scheduler scheduler) {
+        warnIfThisTickWillBeReaped(scheduler);
         scheduler.addPeriodic(() -> guarded(this::periodic, "periodic"));
         if (RobotBase.isSimulation()) {
             scheduler.addPeriodic(() -> guarded(this::simulationPeriodic, "simulationPeriodic"));
         }
+    }
+
+    /**
+     * Say so, loudly, when this registration is going to be silently thrown away later.
+     *
+     * <p><b>{@code addPeriodic} callbacks are scoped, and inactive scopes are deleted.</b> Read off
+     * the released alpha-6 sources rather than inferred: {@code addPeriodic} delegates to
+     * {@code sideload}, which stamps the callback with {@code BindingScope.createNarrowestScope},
+     * and {@code Scheduler.runPeriodicSideloads} removes any callback whose scope has gone inactive
+     * — without running it and without a word. The rule is exactly three cases:
+     *
+     * <pre>
+     *   a command is currently running  -&gt; ForCommand  — dies when THAT command ends
+     *   an opmode is selected (id != 0) -&gt; ForOpmode   — dies at the next opmode switch
+     *   neither                         -&gt; Global      — never dies
+     * </pre>
+     *
+     * <p>Constructing subsystems where they are meant to be constructed — in the robot's
+     * constructor, before {@code startCompetition} — hits the third case, and everything is fine.
+     * That is why this has never bitten. But a lazily built container, or a subsystem created
+     * inside a command, hits one of the first two, and then {@code periodic()} runs perfectly until
+     * the driver switches from autonomous to teleop and stops forever. The subsystem is still
+     * there, its commands still schedule, and nothing anywhere reports a fault — which is about the
+     * worst shape a bug can have on a competition field.
+     *
+     * <p>Catalyst cannot widen the scope; {@code BindingScope} is package-private to WPILib and
+     * there is no public way to ask for a global one. What it can do is refuse to let it happen
+     * quietly, so this checks the same two conditions WPILib checks and reports through the Driver
+     * Station. A warning at construction is recoverable; a dead subsystem in the second match is
+     * not.
+     */
+    private void warnIfThisTickWillBeReaped(Scheduler scheduler) {
+        String scope;
+        try {
+            if (scheduler.currentCommand() != null) {
+                scope = "a command that is running now";
+            } else if (org.wpilib.driverstation.RobotState.getOpModeId() != 0) {
+                scope = "the opmode selected right now";
+            } else {
+                return;   // Global scope. Nothing to say.
+            }
+        } catch (Throwable ignored) {
+            return;       // No HAL, no opmode: a desktop test. Nothing to say there either.
+        }
+
+        DriverStationErrors.reportWarning(
+                "[Catalyst] " + getName() + ".registerPeriodic() was called while " + scope
+                        + " was active, so its periodic() is bound to that scope and WPILib will "
+                        + "delete it when the scope ends — silently, with the subsystem still "
+                        + "present and its commands still working. Construct subsystems in the "
+                        + "robot constructor, before startCompetition(), where the scope is global.",
+                false);
     }
 
     /**
