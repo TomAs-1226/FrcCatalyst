@@ -482,8 +482,9 @@ Stated so nobody assumes otherwise:
   against the alpha jars, and guessing at what runs while disabled is not something to do quietly.
 - **`PhysicsProfile.SYSTEMCORE` behaves as `BALANCED`.** The compute and the solver both exist now,
   but Physics Core has never run on a robot. Shadow mode on carpet first.
-- **PhotonVision and ChoreoLib have no 2027 build.** `PhotonSource` is excluded from the compile
-  rather than deleted, and `followChoreoPath()` has no path forward until ChoreoLib ships.
+- **PhotonVision has no 2027 build.** `PhotonSource` is excluded from the compile rather than
+  deleted. ChoreoLib has none either, but that costs nothing: `followChoreoPath()` reads Choreo
+  `.traj` files through PathPlanner's `fromChoreoTrajectory`, so it never depended on ChoreoLib.
 - **PathPlanner is still commands v2.** Catalyst bridges it with `LegacyCommands.fromV2(...)`; the
   bridge and the v2 dependency both go away when PathPlanner ships for v3.
 
