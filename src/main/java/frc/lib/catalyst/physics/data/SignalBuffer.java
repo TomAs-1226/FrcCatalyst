@@ -52,6 +52,29 @@ public final class SignalBuffer {
      * @return true if the sample was stored
      */
     public boolean add(double timestampSeconds, double value) {
+        // Non-finite input is refused, not stored. Both halves matter and for different reasons.
+        //
+        // The timestamp is the dangerous one. Every guard in this class is a comparison, and NaN
+        // compares false to everything - so a NaN timestamp walks through the ordering check below,
+        // and once it is in the ring `latestTimestamp()` is NaN and the check never fires again for
+        // any sample. An infinite timestamp is worse still: it is genuinely the largest value, so
+        // every subsequent real sample is rejected as "backwards" forever. Measured on a copy of
+        // this class: after one add(+Infinity, ...), zero of ten thousand following good samples
+        // were stored, and latest() kept answering the pre-fault value as though it were live.
+        //
+        // A frame with no target, or a latency computed by dividing by a zero frame count, is all it
+        // takes. The buffer then reports a frozen two-second-old reading as a current one, which a
+        // pose estimator has no way to distinguish from a real measurement.
+        //
+        // The value is refused for a plainer reason: nothing downstream can use it. sampleAt
+        // interpolates through it, averageRate divides with it, and the NaN propagates into whatever
+        // the caller does next - where `reading > threshold` quietly stops being true.
+        //
+        // Refusing rather than storing keeps the invariant this class is built on: what is in the
+        // ring is real. A caller wanting to know a sample was dropped has the false return; one
+        // wanting to know the signal has gone quiet should watch latestTimestamp() stop advancing,
+        // which is the honest symptom of a sensor that is no longer reporting.
+        if (!Double.isFinite(timestampSeconds) || !Double.isFinite(value)) return false;
         if (size > 0 && timestampSeconds < latestTimestamp()) return false;
         timestamps[head] = timestampSeconds;
         values[head] = value;
@@ -66,6 +89,12 @@ public final class SignalBuffer {
      * honest "I do not know" rather than an extrapolated guess.
      */
     public OptionalDouble sampleAt(double timestampSeconds) {
+        // A NaN request cannot be outside a range, because NaN fails both comparisons below - so
+        // without this it walks past the bounds check and comes back interpolated into NaN, dressed
+        // as a present reading. The usual source is a caller asking for `frameTime - latency` where
+        // one of those is not a number. Infinities are already caught by the range check; NaN is the
+        // one that needs saying.
+        if (!Double.isFinite(timestampSeconds)) return OptionalDouble.empty();
         if (size == 0) return OptionalDouble.empty();
         if (timestampSeconds < oldestTimestamp() || timestampSeconds > latestTimestamp()) {
             return OptionalDouble.empty();

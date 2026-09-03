@@ -165,6 +165,40 @@ public final class SystemCoreStatus {
         }
     }
 
+    // --- Why availability is resolved once and never retried ------------------
+    //
+    // Suggested and rejected: re-attempt SystemServer.getSystemServer() while unavailable, so a
+    // slow-booting board is not invisible for the rest of the match. Traced through, the thing it
+    // would retry cannot change its answer, and the obvious implementation is actively dangerous.
+    //
+    // The chain: SystemServer.getSystemServer() returns
+    // NetworkTableInstance.fromNativeHandle(SystemServerJNI.getSystemServerHandle()), and
+    // fromNativeHandle is `new NetworkTableInstance(handle)` - it never returns null and never
+    // throws, for any int including zero. So `resolved == null` requires the JNI call itself to
+    // throw, and there are only two ways:
+    //
+    //   * the HAL natives are absent, in which case JNIWrapper's static block has already called
+    //     System.exit(1) - the process is gone before any catch here runs, which is what the
+    //     comment at the top of this file describes; or
+    //   * the JNI symbol is missing, and it is not: HAL_GetSystemServerHandle and its JNI wrapper
+    //     are present in the shipped alpha-6 natives for both linuxsystemcore and windows.
+    //
+    // Neither is transient. `available` cannot go false to true inside one process, so caching it
+    // loses nothing.
+    //
+    // The case the suggestion was really reaching for - a topic that only appears once the board is
+    // further into its boot - is already handled and is NOT latched. Only the instance handle is
+    // cached; every reading re-queries entry.exists(), so a topic that appears five seconds into a
+    // match is read five seconds into a match. SystemCoreStatusTest pins that semantic already.
+    //
+    // And the naive retry would be worse than the problem. Written as
+    // `if (instance == null || !instance.isAvailable())`, it cannot tell "we resolved nothing" from
+    // "a caller deliberately installed an absent machine" - so the next getInstance() would throw
+    // away a useSource() override and construct a real NtSource inside the Gradle test worker,
+    // loading HAL natives, which is precisely the process-killing thing the SystemCoreSource split
+    // exists to prevent. Six test classes install an unavailable source. That would not fail one
+    // test; it would take the worker down and lose every other result in the run.
+
     /** The shared reader. Cheap to call; the underlying source is resolved once. */
     public static synchronized SystemCoreStatus getInstance() {
         if (instance == null) {

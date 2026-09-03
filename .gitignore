@@ -45,3 +45,8 @@ networktables.json
 
 # graphify knowledge graph (generated)
 **/graphify-out/
+
+# Phoenix simulation scratch. Written whenever a test constructs a TalonFX or Pigeon,
+# so every `gradlew test` rewrites them and they show up as a dirty tree. They are
+# per-machine simulator state, not source.
+ctre_sim/

@@ -61,8 +61,15 @@ public final class TimestampSynchronizer {
      * @return this, for chaining
      */
     public TimestampSynchronizer register(String name, double latencySeconds) {
-        if (latencySeconds < 0) {
-            throw new IllegalArgumentException("latencySeconds must be >= 0 for '" + name + "'");
+        // `< 0` is false for both NaN and +Infinity, so the old guard let either through - and a
+        // latency is subtracted from every capture time this signal ever records, so one bad value
+        // here poisons the whole buffer rather than one sample. It is also the likeliest way to get
+        // a non-finite timestamp in practice: latency is usually computed, often by a division, and
+        // a zero frame count or a missing timestamp produces exactly this.
+        if (!Double.isFinite(latencySeconds) || latencySeconds < 0) {
+            throw new IllegalArgumentException(
+                    "latencySeconds must be finite and >= 0 for '" + name + "' (got "
+                            + latencySeconds + ")");
         }
         buffers.put(name, new SignalBuffer(capacityPerSignal));
         latencies.put(name, latencySeconds);
