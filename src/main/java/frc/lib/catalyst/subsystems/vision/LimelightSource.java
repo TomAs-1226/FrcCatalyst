@@ -72,6 +72,12 @@ public class LimelightSource implements CameraSource {
     /** So the warning below is said once per camera, not fifty times a second. */
     private boolean warnedAboutMissingYaw = false;
 
+    /** The per-key reader, used when the camera does not speak the 2027 results topic. */
+    private final LegacyLimelightReader legacy;
+
+    /** Which API this camera turned out to speak. Null until it has said anything at all. */
+    private Boolean usingLegacyApi = null;
+
     /** When this camera first looked connected-but-silent. NaN once it has spoken. */
     private double connectedButSilentSince = Double.NaN;
 
@@ -109,6 +115,7 @@ public class LimelightSource implements CameraSource {
         this.useMegaTag2 = useMegaTag2;
         this.limelight = new Limelight(name, new Pose3d(
                 robotToCamera.getTranslation(), robotToCamera.getRotation()));
+        this.legacy = new LegacyLimelightReader(name, robotToCamera);
 
         // Publish the transform once, at construction, because a wrong one cannot be detected later.
         //
@@ -223,6 +230,10 @@ public class LimelightSource implements CameraSource {
             return Optional.empty();
         }
 
+        if (useLegacyApi()) {
+            return legacy.read(useMegaTag2);
+        }
+
         try {
             diagnoseSilentCamera();
         } catch (Throwable ignored) {
@@ -280,7 +291,13 @@ public class LimelightSource implements CameraSource {
         lastOrientationTs = Timer.getTimestamp();
         warnedAboutMissingYaw = false;
         try {
+            // Both paths, deliberately, and not one or the other. The API is chosen lazily on the
+            // first successful read, so during the loops before that the camera would otherwise get
+            // no heading at all - and MegaTag2 with no heading is exactly the wrong-pose case the
+            // guard above exists to prevent. Writing both is two NetworkTables sets and settles as
+            // soon as the path is known.
             limelight.setRobotOrientation(yawDegrees, yawRate, pitchDegrees, 0, rollDegrees, 0);
+            legacy.setRobotOrientation(yawDegrees, yawRate, pitchDegrees, rollDegrees);
         } catch (RuntimeException ignored) {
             // A camera that is not connected yet is normal at startup, not an error.
         }
@@ -407,6 +424,52 @@ public class LimelightSource implements CameraSource {
      * image is also true and was not written down: <em>new</em> Catalyst code silently sees nothing
      * on a 2026 camera. Catalyst 2.x requires Limelight OS 2027.
      */
+    /**
+     * Which of the two Limelight APIs this camera speaks, decided by asking it.
+     *
+     * <p>Preferred is LimelightLib on the {@code results_msgpack} topic: the camera applies its own
+     * rejection rules, reports real standard deviations, and queues estimates between robot loops.
+     * That topic exists from Limelight OS 2027.
+     *
+     * <p>Measured, and the reason this method exists: <b>no shipping camera publishes it.</b> The
+     * newest image Limelight offers for LL2/3/3G/3A/4 is 2026.1, and a 2026 camera publishes the
+     * fifty per-key topics instead. Against every camera a team can flash today, LimelightLib reads
+     * nothing - so a library that only spoke the modern API would have no vision at all on real
+     * hardware, silently.
+     *
+     * <p>Decided once and then kept, because a camera does not change its OS mid-match, and
+     * re-deciding every loop would make a momentary dropout look like a different camera. Until one
+     * of them produces something the answer stays open, so a camera that boots late is picked up
+     * whenever it arrives.
+     */
+    private boolean useLegacyApi() {
+        if (usingLegacyApi != null) {
+            return usingLegacyApi;
+        }
+        if (cameraStatus() == Limelight.Status.OK) {
+            usingLegacyApi = false;
+            CatalystLog.log("Vision/" + name + "/Api", "results_msgpack (Limelight OS 2027+)");
+            return false;
+        }
+        if (legacy.isPublishing()) {
+            usingLegacyApi = true;
+            CatalystLog.log("Vision/" + name + "/Api", "per-key (Limelight OS 2026)");
+            return true;
+        }
+        return false;   // Nothing yet. Ask again next loop.
+    }
+
+    /**
+     * Whether this camera is being read over the older per-key API.
+     *
+     * <p>Worth putting on a pit dashboard. It is not a fault - it is how every camera on a shipping
+     * image is read today - but it means the camera's own rejection gates and standard deviations
+     * are not in play, so a pose estimator wants its own limits.
+     */
+    public boolean isUsingLegacyApi() {
+        return Boolean.TRUE.equals(usingLegacyApi);
+    }
+
     private void diagnoseSilentCamera() {
         if (cameraStatus() != Limelight.Status.NO_DATA) {
             connectedButSilentSince = Double.NaN;
@@ -432,13 +495,11 @@ public class LimelightSource implements CameraSource {
         }
         warnedAboutNoData = true;
         DriverStationErrors.reportWarning(
-                "[Catalyst] " + name + " is publishing the older per-key Limelight topics (tv, tx, "
-                        + "botpose_wpiblue, ...) but nothing Catalyst can read. That is the "
-                        + "signature of a Limelight still on OS 2026: Catalyst 2.x reads the single "
-                        + "results topic introduced in Limelight OS 2027. Update the camera to a "
-                        + "2027 image — its version is in the top right of its web UI. Vision will "
-                        + "contribute nothing until then, and note that isConnected() reads false "
-                        + "in this state even though the camera is plainly connected.",
+                "[Catalyst] " + name + " is not publishing anything Catalyst can read - neither the "
+                        + "2027 results topic nor the older per-key topics. The camera is reachable "
+                        + "but silent. Check that it is on a pipeline that produces output, and note "
+                        + "that isConnected() reads false in this state because it tests data "
+                        + "freshness rather than the link.",
                 false);
     }
 
