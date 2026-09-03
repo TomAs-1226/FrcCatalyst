@@ -83,8 +83,35 @@ class FireModeTest {
     }
 
     @Test
+    void intakingIsReloading() {
+        FireMode f = FireMode.builder().intaking(() -> true).build();
+        f.update();
+        assertEquals(Posture.RELOADING, f.current());
+    }
+
+    @Test
+    void reloadingBeatsAimingBecauseYouCannotShootWhatYouDoNotHave() {
+        // A robot that has stopped shooting to go and collect is reloading even if the turret is
+        // still nominally pointed at something.
+        FireMode f = FireMode.builder().aiming(() -> true).intaking(() -> true).build();
+        f.update();
+        assertEquals(Posture.RELOADING, f.current());
+    }
+
+    @Test
+    void sprayingBeatsReloadingForAThroughPathRobot() {
+        // The ordering that matters for a robot which intakes and feeds continuously: it is
+        // shooting, and the cadence is the honest description, not the intake roller.
+        FireMode f = FireMode.builder().intaking(() -> true).build();
+        for (int i = 0; i < 8; i++) f.recordShot();
+        f.update();
+        assertEquals(Posture.MAC_10, f.current());
+    }
+
+    @Test
     void theDisplayNameHasTheHyphen() {
         assertEquals("MAC-10", Posture.MAC_10.display());
         assertEquals("AWP", Posture.AWP.display());
+        assertEquals("RELOADING", Posture.RELOADING.display());
     }
 }

@@ -142,6 +142,7 @@ public abstract class CatalystOpMode implements OpMode {
         // this loop produced rather than the previous loop's.
         scheduler().run();
         SystemCoreStatus.getInstance().publish();
+        frc.lib.catalyst.util.HealthMonitor.getInstance().update();
         onPeriodic();
     }
 
@@ -152,6 +153,10 @@ public abstract class CatalystOpMode implements OpMode {
         // callbacks that a pit crew reads between matches.
         scheduler().run();
         SystemCoreStatus.getInstance().publish();
+        // Health matters more between matches than during them - a pit crew reads it to decide
+        // whether the robot goes back out. See the note in HealthMonitor on why this is called from
+        // here rather than from a scheduler periodic.
+        frc.lib.catalyst.util.HealthMonitor.getInstance().update();
         onDisabledPeriodic();
     }
 

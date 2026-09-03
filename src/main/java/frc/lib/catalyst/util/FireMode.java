@@ -9,14 +9,16 @@ import java.util.function.BooleanSupplier;
 /**
  * Whether the robot is currently a sniper or a spray-and-pray.
  *
- * <p>Two postures, named after the guns that behave the way each one does:
+ * <p>Four postures, named after the guns that behave the way each one does:
  *
  * <ul>
  *   <li><b>AWP</b> — lining a shot up. Something is being aimed, the robot cares more about where
  *       the shot goes than about how soon it goes, and the interesting question on a dashboard is
  *       "are we locked yet".
  *   <li><b>MAC-10</b> — shots are leaving faster than anybody is aiming them. Volume over placement.
- *   <li><b>HOLSTERED</b> — neither. Not shooting, not aiming.
+ *   <li><b>RELOADING</b> — taking a game piece in. Not a threat right now, and the driver coach
+ *       wants to know how long it lasts.
+ *   <li><b>HOLSTERED</b> — none of the above. Not shooting, not aiming, not intaking.
  * </ul>
  *
  * <p><b>It is a joke that turned out to be useful.</b> The name is the fun part; what it publishes
@@ -36,6 +38,7 @@ import java.util.function.BooleanSupplier;
  * private final FireMode fire = FireMode.builder()
  *         .aiming(turret::isTracking)                       // something is being pointed
  *         .locked(() -> turret.isOnTarget(solution, heading, 2.0))
+ *         .intaking(() -> intakeTrigger.getAsBoolean())     // going to get one
  *         .build();
  *
  * // In the shot command, wherever a game piece actually leaves:
@@ -45,8 +48,8 @@ import java.util.function.BooleanSupplier;
  * fire.update();
  * }</pre>
  *
- * <p>Both suppliers are optional. With no {@code aiming} supplier the robot can still reach MAC-10
- * from shot cadence alone, which is the mode that matters more anyway.
+ * <p>Every supplier is optional. With none of them wired the robot can still reach MAC-10 from shot
+ * cadence alone, which is the mode that matters most anyway.
  *
  * @since 2.0.0
  */
@@ -54,14 +57,17 @@ public final class FireMode {
 
     /** The posture a robot is currently shooting in. */
     public enum Posture {
-        /** Not shooting and not aiming. */
+        /** Not shooting, not aiming, not intaking. */
         HOLSTERED("HOLSTERED"),
 
         /** Lining one up. Precision matters more than cadence. */
         AWP("AWP"),
 
         /** Shots leaving faster than anyone is aiming them. */
-        MAC_10("MAC-10");
+        MAC_10("MAC-10"),
+
+        /** Taking a piece in. Empty, and doing something about it. */
+        RELOADING("RELOADING");
 
         private final String display;
 
@@ -102,6 +108,7 @@ public final class FireMode {
 
     private final BooleanSupplier aiming;
     private final BooleanSupplier locked;
+    private final BooleanSupplier intaking;
 
     private final double[] shots = new double[HISTORY];
     private int shotCount = 0;
@@ -110,9 +117,10 @@ public final class FireMode {
     private Posture posture = Posture.HOLSTERED;
     private Posture previous = Posture.HOLSTERED;
 
-    private FireMode(BooleanSupplier aiming, BooleanSupplier locked) {
+    private FireMode(BooleanSupplier aiming, BooleanSupplier locked, BooleanSupplier intaking) {
         this.aiming = aiming;
         this.locked = locked;
+        this.intaking = intaking;
     }
 
     /** Start building one. */
@@ -120,10 +128,11 @@ public final class FireMode {
         return new Builder();
     }
 
-    /** Builds a {@link FireMode}. Both signals are optional. */
+    /** Builds a {@link FireMode}. Every signal is optional. */
     public static final class Builder {
         private BooleanSupplier aiming = () -> false;
         private BooleanSupplier locked = () -> false;
+        private BooleanSupplier intaking = () -> false;
 
         /** True while something is being deliberately pointed at a target. */
         public Builder aiming(BooleanSupplier aiming) {
@@ -137,9 +146,21 @@ public final class FireMode {
             return this;
         }
 
+        /**
+         * True while a game piece is being taken in.
+         *
+         * <p>{@code roller::isIntaking} if the mechanism exposes it, otherwise the trigger the
+         * driver holds. Note that {@code RollerMechanism.hasPiece()} is the wrong signal — that is
+         * true once the piece is <em>in</em>, which is the moment reloading stops.
+         */
+        public Builder intaking(BooleanSupplier intaking) {
+            this.intaking = intaking == null ? () -> false : intaking;
+            return this;
+        }
+
         /** Build it. */
         public FireMode build() {
-            return new FireMode(aiming, locked);
+            return new FireMode(aiming, locked, intaking);
         }
     }
 
@@ -168,6 +189,7 @@ public final class FireMode {
         CatalystLog.log(KEY + "Mode", posture.display());
         CatalystLog.log(KEY + "ShotsPerSecond", shotsPerSecond());
         CatalystLog.log(KEY + "Locked", posture == Posture.AWP && safely(locked));
+        CatalystLog.log(KEY + "Reloading", posture == Posture.RELOADING);
     }
 
     /** The current posture. */
@@ -204,6 +226,14 @@ public final class FireMode {
         // is describing an intention, not the behaviour anyone is watching.
         if (shotsPerSecond() >= SPRAY_SHOTS_PER_SECOND) {
             return Posture.MAC_10;
+        }
+        // Reloading sits under spraying and above everything else, which is the ordering a
+        // through-path robot needs: one that intakes and feeds continuously is spraying, and the
+        // cadence says so, but a robot that has stopped shooting to go and collect is reloading
+        // even if the turret is still nominally pointed at something. Intent beats aim here in the
+        // same way cadence beats intent above it.
+        if (safely(intaking)) {
+            return Posture.RELOADING;
         }
         if (safely(aiming)) {
             return Posture.AWP;
