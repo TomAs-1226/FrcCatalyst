@@ -156,9 +156,13 @@ public final class MotionConstraintCalculator {
         double limitedTorquePerMotor = currentLimitAmps * torquePerAmp;
         double totalMotorTorque = limitedTorquePerMotor * motorCount;
 
-        // Force at the carriage
+        // Force at the carriage. Cable tension is torque/radius; the carriage sees that DIVIDED
+        // by stages, because a cascade trades force for travel. Multiplying overstated the
+        // available force by stages squared, which is the optimistic direction - the profile asked
+        // for an acceleration the mechanism could not deliver, so it fell behind its own setpoint
+        // and the fix looks like a tuning problem.
         double mechanismTorque = totalMotorTorque * gearRatio;
-        double maxForce = mechanismTorque / drumRadiusMeters * stages;
+        double maxForce = mechanismTorque / drumRadiusMeters / stages;
 
         // Gravity force
         double gravityForce = massKg * 9.81;
@@ -169,7 +173,9 @@ public final class MotionConstraintCalculator {
         double maxAccel = Math.min(maxAccelUp, maxAccelDown);
 
         // Gravity feedforward
-        double gravityTorqueAtDrum = gravityForce * drumRadiusMeters / stages;
+        // ...and the mirror of the same error: holding torque at the drum is MULTIPLIED by
+        // stages. Same physics as LinearMechanism.estimateGravityFF, which had it backwards too.
+        double gravityTorqueAtDrum = gravityForce * drumRadiusMeters * stages;
         double gravityFF = motorType.holdingVoltage(gravityTorqueAtDrum, gearRatio);
 
         // Rotational equivalents for Motion Magic

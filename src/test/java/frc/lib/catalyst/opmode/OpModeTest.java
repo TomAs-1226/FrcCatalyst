@@ -10,6 +10,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import org.wpilib.command3.Command;
+import org.wpilib.hardware.hal.HAL;
+import org.wpilib.simulation.DriverStationSim;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -40,7 +42,32 @@ class OpModeTest {
     @AfterEach
     void tidy() {
         SystemCoreStatus.useSource(SystemCoreSource.unavailable());
+        DriverStationSim.setEnabled(false);
+        DriverStationSim.notifyNewData();
     }
+
+    /**
+     * Put the simulated Driver Station in the state the framework calls {@code periodic()} in.
+     *
+     * <p>These tests used to call {@code periodic()} with no Driver Station at all, which meant they
+     * exercised it while disabled — a state the framework's own contract says cannot happen, since
+     * {@code periodic()} is documented to run only while enabled. That is not a harmless shortcut:
+     * it is exactly why the double-tick defect was invisible here. The shipped alpha-6 OpModeRobot
+     * registers {@code periodic()} with no enabled gate, so while disabled it fired alongside
+     * {@code disabledPeriodic()} and the scheduler ran twice per robot loop — and a test that drives
+     * the hooks by hand can never see that, because it is the framework's loop that calls both.
+     *
+     * <p>So these now assert against the real enabled state, and {@code CatalystOpMode.periodic()}
+     * returns early when disabled. The disabled window belongs to {@code disabledPeriodic()}, which
+     * {@code theSchedulerAlsoTicksWhileDisabled} still covers.
+     */
+    private static void enabled() {
+        assertTrue(HAL.initialize(500, 0), "no HAL, no Driver Station state");
+        DriverStationSim.setDsAttached(true);
+        DriverStationSim.setEnabled(true);
+        DriverStationSim.notifyNewData();
+    }
+
 
     /** An OpMode on its own scheduler, so tests do not inherit each other's commands. */
     private static final class Recording extends CatalystOpMode {
@@ -60,6 +87,7 @@ class OpModeTest {
 
     @Test
     void theHooksFireInOrder() {
+        enabled();
         Recording mode = new Recording();
         mode.start();
         mode.periodic();
@@ -67,6 +95,38 @@ class OpModeTest {
         mode.end();
 
         assertEquals(List.of("start", "periodic", "periodic", "end"), mode.calls);
+    }
+
+    @Test
+    void periodicDoesNothingWhileDisabled() {
+        // The scheduler must tick exactly once per robot loop, and while disabled it is
+        // disabledPeriodic() that does it. periodic() staying out of that window is what stops the
+        // two from both firing.
+        //
+        // Why this matters and why it was missed: periodic() is documented to be called only while
+        // enabled, and the shipped alpha-6 OpModeRobot does not honour that - it registers the
+        // callback at opmode-selection time with no enabled gate, so while disabled BOTH hooks
+        // fired and everything that counts loops counted double. Command timeouts expired at half
+        // their stated duration.
+        //
+        // What this test does NOT prove: that the framework calls both. That needs a real
+        // OpModeRobot loop, because driving the hooks by hand is exactly what cannot see it. What
+        // it does pin is the half that is Catalyst's to get right - that periodic() declines the
+        // disabled window - and reverting the guard fails it.
+        DriverStationSim.setEnabled(false);
+        DriverStationSim.notifyNewData();
+
+        AtomicInteger ticks = new AtomicInteger();
+        Recording mode = new Recording();
+        mode.scheduler().schedule(Commands.run(ticks::incrementAndGet).withName("work"));
+
+        for (int i = 0; i < 4; i++) {
+            mode.periodic();
+        }
+
+        assertEquals(0, ticks.get(),
+                "periodic() ticked the scheduler while disabled; disabledPeriodic() owns that window");
+        assertEquals(List.of(), mode.calls, "and onPeriodic must not fire on a disabled loop");
     }
 
     @Test
@@ -95,6 +155,7 @@ class OpModeTest {
         // The failure this exists to prevent: an OpMode whose periodic does not run the scheduler
         // compiles, runs, and does nothing whatsoever - no command, no default command, no
         // subsystem periodic - with nothing anywhere saying why.
+        enabled();
         AtomicInteger ticks = new AtomicInteger();
         Recording mode = new Recording();
         mode.scheduler().schedule(Commands.run(ticks::incrementAndGet).withName("work"));

@@ -78,6 +78,9 @@ public class LinearMechanism extends CatalystMechanism {
 
     // State
     private double setpointMeters = 0;
+    // Previous limit-switch states, so auto-zero fires on the edge rather than while held.
+    private boolean reverseLimitWasPressed = false;
+    private boolean forwardLimitWasPressed = false;
     private boolean hasBeenZeroed = false;
 
     // Reusable inputs snapshot — populated every periodic, forwarded to the
@@ -562,21 +565,38 @@ public class LinearMechanism extends CatalystMechanism {
         if (forwardLimitSwitch != null) log("ForwardLimit", isForwardLimitPressed());
         if (reverseLimitSwitch != null) log("ReverseLimit", isReverseLimitPressed());
 
-        // Auto-zero on reverse limit switch (sets encoder to min position)
-        if (config.autoZeroOnReverseLimit && isReverseLimitPressed()) {
+        // Auto-zero, on the EDGE of the limit switch rather than while it is held.
+        //
+        // These blocks used to be bare `if (pressed)`, which ran every loop the switch stayed
+        // closed - and each run wrote minPosition back into setpointMeters. A limit switch is held
+        // for as long as the mechanism is at its stop, so a command to move away was overwritten on
+        // the very next telemetry tick, before the motor could leave the switch. The mechanism sat
+        // at home, drawing current against a setpoint it kept re-issuing to itself, with no error
+        // and no fault: setEncoderPosition was writing the truth, and the setpoint was the lie.
+        //
+        // Two guards, and both are needed. The edge guard stops the re-assertion. The !hasBeenZeroed
+        // guard covers the case the edge guard cannot: a mechanism that boots on its stop, is zeroed
+        // there, and later returns home mid-match legitimately re-triggers the edge - and on that
+        // edge, claiming the setpoint would fight a command that is deliberately driving through.
+        // Zeroing the encoder is always right; owning the setpoint is only right before the first
+        // zero, when there is no meaningful setpoint to preserve.
+        boolean reversePressed = isReverseLimitPressed();
+        if (config.autoZeroOnReverseLimit && reversePressed && !reverseLimitWasPressed) {
             motor.setEncoderPosition(metersToRotations(config.minPosition));
-            setpointMeters = config.minPosition;
+            if (!hasBeenZeroed) setpointMeters = config.minPosition;
             hasBeenZeroed = true;
         }
+        reverseLimitWasPressed = reversePressed;
 
-        // Auto-zero on forward limit switch (sets encoder to max position).
-        // Useful for mechanisms whose home position is at the top of travel
-        // (e.g., spring-loaded climbers that rest extended).
-        if (config.autoZeroOnForwardLimit && isForwardLimitPressed()) {
+        // Same, for mechanisms whose home is at the top of travel (e.g. spring-loaded climbers
+        // that rest extended).
+        boolean forwardPressed = isForwardLimitPressed();
+        if (config.autoZeroOnForwardLimit && forwardPressed && !forwardLimitWasPressed) {
             motor.setEncoderPosition(metersToRotations(config.maxPosition));
-            setpointMeters = config.maxPosition;
+            if (!hasBeenZeroed) setpointMeters = config.maxPosition;
             hasBeenZeroed = true;
         }
+        forwardLimitWasPressed = forwardPressed;
 
         HealthMonitor.getInstance().update();
     }
@@ -727,8 +747,14 @@ public class LinearMechanism extends CatalystMechanism {
          */
         public double estimateGravityFF() {
             double force = mass * 9.81; // N
-            // Multi-stage: the force at the drum is divided by stages
-            double torqueAtDrum = force * drumRadius / stages; // Nm
+            // Multi-stage MULTIPLIES the torque the drum must supply, it does not divide it.
+            // Power balance: the carriage travels `stages` times further than the cable pays out,
+            // so cable tension is `stages` times the carriage force. Dividing understated the
+            // holding torque by stages squared relative to the truth - a 3-stage elevator asked for
+            // a third of the feedforward it needed and sagged, and the usual response to that is to
+            // add kG by hand until it stops, which hides the bug and leaves the derived
+            // acceleration limits wrong too.
+            double torqueAtDrum = force * drumRadius * stages; // Nm
             return motorType.holdingVoltage(torqueAtDrum, gearRatio);
         }
 

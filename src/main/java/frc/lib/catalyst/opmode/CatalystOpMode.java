@@ -123,6 +123,21 @@ public abstract class CatalystOpMode implements OpMode {
 
     @Override
     public final void periodic() {
+        // Do nothing while disabled: disabledPeriodic() owns that window.
+        //
+        // periodic() is documented to be called only while enabled, and the shipped alpha-6
+        // OpModeRobot does not honour that - it registers this callback when the opmode is selected,
+        // with no enabled gate, so while disabled BOTH hooks fire and the scheduler ran twice per
+        // robot loop. Everything that counts loops counted double: command timeouts expired at half
+        // their stated duration, debounces halved, and onPeriodic() fired on disabled loops
+        // alongside onDisabledPeriodic(), against its own javadoc.
+        //
+        // Gating here rather than in disabledPeriodic() because the disabled branch of loopFunc is
+        // skipped entirely while enabled - verified, zero disabledPeriodic calls across an enabled
+        // phase - so exactly one hook does the work in either state, in both wpilib builds.
+        if (!org.wpilib.driverstation.RobotState.isEnabled()) {
+            return;
+        }
         // The scheduler first, so a subclass reading mechanism state in onPeriodic sees the state
         // this loop produced rather than the previous loop's.
         scheduler().run();

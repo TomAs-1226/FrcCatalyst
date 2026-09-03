@@ -678,7 +678,22 @@ public final class Superstructure<S extends Enum<S>> extends frc.lib.catalyst.co
                 if (required == null) continue;
                 for (Mechanism s : required) {
                     Command existing = s.getDefaultCommand();
-                    if (existing != null) {
+                    // "Non-null" stopped meaning "the team set one". This check was written against
+                    // commands v2, where getDefaultCommand() was null until somebody called
+                    // setDefaultCommand. v3's Mechanism constructor installs idle() unconditionally,
+                    // so on the released alpha-6 every freshly built mechanism already has a default
+                    // and this guard rejected every managed binding - build() threw for every robot
+                    // that used the state machine's default management, which is the default.
+                    //
+                    // The discriminator is priority, measured rather than guessed: the constructor's
+                    // idle carries LOWEST_PRIORITY, while setDefaultCommand(holdPosition()) carries
+                    // DEFAULT_PRIORITY (0). So the guard still refuses to silently stomp a default a
+                    // team installed, which is the whole reason it exists.
+                    //
+                    // It is a heuristic, and the failure mode is the safe one: a team that
+                    // deliberately builds a LOWEST_PRIORITY default has it replaced without a
+                    // message, rather than every ordinary robot failing to start.
+                    if (existing != null && existing.priority() != Command.LOWEST_PRIORITY) {
                         problems.add("'" + e.getKey().key() + "' already has a default command ("
                                 + existing.name() + "). The state machine provides hold behaviour "
                                 + "itself — remove that setDefaultCommand(...) call, or use "

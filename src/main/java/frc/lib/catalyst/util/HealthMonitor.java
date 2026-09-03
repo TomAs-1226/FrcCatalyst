@@ -47,7 +47,51 @@ public final class HealthMonitor {
     public synchronized void register(HealthCheck check) {
         checks.add(check);
         publishStatic(check);
+        installPeriodicOnce();
     }
+
+    /**
+     * Make this monitor tick itself, once, the first time anything registers a check.
+     *
+     * <p>Nothing else did. {@link #update()} is the only evaluator of every check, the only writer
+     * of the health topics, the only feeder of {@code HealthHistory} and the only caller of
+     * {@code RobotSafety.tick()} — and its only callers were the nine {@code updateTelemetry()}
+     * bodies inside the mechanism classes. A robot built from {@code SwerveSubsystem}, a vision
+     * subsystem and the team's own {@code CatalystSubsystem}s — which the state machine explicitly
+     * invites, since "a team's own subsystem is exactly as first-class as LinearMechanism" — owned
+     * no mechanism, so nothing ever called it.
+     *
+     * <p>Measured: with a CAN bus taken off-line for five seconds, a mechanism-less robot left the
+     * ERROR check un-fired, {@code HealthHistory} empty, the health topics never written at all,
+     * and a configured {@code RobotSafety} all-stop never invoked. Adding one flywheel to the same
+     * robot, changing nothing else, brought every one of them back. The dashboard showed a healthy
+     * robot with a dead CAN bus, and the watchdog a team had configured to stop the robot sat there
+     * having never been asked.
+     *
+     * <p>Installed lazily on first registration rather than in a constructor so that merely touching
+     * the singleton does not schedule work. {@code update()} is already throttled and idempotent, so
+     * this composes with the nine existing calls and none of them had to be removed.
+     */
+    private void installPeriodicOnce() {
+        if (periodicInstalled) return;
+        periodicInstalled = true;
+        try {
+            org.wpilib.command3.Scheduler.getDefault().addPeriodic(() -> {
+                try {
+                    update();
+                } catch (Throwable ignored) {
+                    // A health monitor that throws must not be the thing that stops the robot.
+                }
+            });
+        } catch (Throwable ignored) {
+            // No scheduler available (a bare unit test). The nine mechanism call sites still work,
+            // and a caller can always drive update() itself.
+            periodicInstalled = false;
+        }
+    }
+
+    /** Whether this monitor has installed its own periodic tick. */
+    private boolean periodicInstalled = false;
 
     /** Currently-registered checks. Snapshot copy — safe to iterate from callers. */
     public synchronized List<HealthCheck> checks() {

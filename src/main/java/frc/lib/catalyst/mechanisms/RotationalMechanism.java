@@ -70,6 +70,8 @@ public class RotationalMechanism extends CatalystMechanism {
 
     // State
     private double setpointDegrees = 0;
+    // Previous hard-stop state, so auto-zero fires on the edge rather than while held.
+    private boolean hardStopWasPressed = false;
     private boolean hasBeenZeroed = false;
 
     private final RotationalMechanismInputs inputs = new RotationalMechanismInputs();
@@ -546,11 +548,17 @@ public class RotationalMechanism extends CatalystMechanism {
         if (hardStop != null) log("HardStop", inputs.hardStopPressed);
 
         // Auto-zero on hard stop
-        if (config.autoZeroOnHardStop && isHardStopPressed()) {
+        // Edge-triggered, not level-triggered. See LinearMechanism's auto-zero for the full
+        // reasoning: a hard stop stays pressed while the arm rests on it, so re-running this every
+        // loop wrote hardStopAngle back into the live setpoint and the arm could not be commanded
+        // away from its own stop.
+        boolean hardStopPressed = isHardStopPressed();
+        if (config.autoZeroOnHardStop && hardStopPressed && !hardStopWasPressed) {
             motor.setEncoderPosition(degreesToRotations(config.hardStopAngle));
-            setpointDegrees = config.hardStopAngle;
+            if (!hasBeenZeroed) setpointDegrees = config.hardStopAngle;
             hasBeenZeroed = true;
         }
+        hardStopWasPressed = hardStopPressed;
 
         HealthMonitor.getInstance().update();
     }

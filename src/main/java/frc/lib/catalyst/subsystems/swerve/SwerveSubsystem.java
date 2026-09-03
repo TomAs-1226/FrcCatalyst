@@ -710,12 +710,18 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
             // Delegated rather than corrected in place. This is the canonical implementation of the
             // operation the javadoc names, it cannot drift from WPILib, and there is no second copy
             // of the trigonometry to get backwards again.
-            if (skewCorrectionEnabled && rot != 0) {
-                ChassisVelocities corrected =
-                        new ChassisVelocities(x, y, rot).discretize(LOOP_PERIOD_SECONDS);
-                x = corrected.vx;
-                y = corrected.vy;
-            }
+            // ...and then removed entirely, because Phoenix already does it.
+            //
+            // SwerveRequest.FieldCentric discretizes internally, so correcting here applied the
+            // operation twice - and the second application used a different period, since Phoenix
+            // applies at its own 250 Hz rate rather than the 50 Hz loop this code can observe.
+            // Measured for x=3 m/s, omega=6 rad/s: the wheels received (2.994095, -0.215948) where
+            // plain FieldCentric gives (2.999856, -0.036000). The lateral term is six times too
+            // large, in a feature whose entire purpose is to remove lateral drift.
+            //
+            // Left as a comment rather than a corrected constant because the right period is not
+            // knowable from here. setSkewCorrectionEnabled is kept and documented as a no-op for
+            // this path rather than deleted, since teams call it.
 
             driveFieldCentric(x, y, rot);
         }).beforeStarting(() -> {

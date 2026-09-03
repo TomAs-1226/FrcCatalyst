@@ -14,6 +14,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.wpilib.simulation.DriverStationSim;
 
 import org.wpilib.command3.Command;
 import org.wpilib.command3.Scheduler;
@@ -209,6 +210,13 @@ class RobotBootIntegrationTest {
                 scheduler().schedule(c);
             }
         }
+
+        // periodic() only runs while enabled, which is the framework's own contract and now also
+        // CatalystOpMode's. Driving it while disabled tested a state the robot never reaches.
+        assertTrue(HAL.initialize(500, 0));
+        DriverStationSim.setDsAttached(true);
+        DriverStationSim.setEnabled(true);
+        DriverStationSim.notifyNewData();
 
         Teleop teleop = new Teleop();
         teleop.bind(Commands.run(ticks::incrementAndGet).withName("binding"));

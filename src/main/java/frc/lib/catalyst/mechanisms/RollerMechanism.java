@@ -186,7 +186,7 @@ public class RollerMechanism extends CatalystMechanism {
     public CatalystCommand eject() {
         return run(() -> {
             motor.setPercent(config.ejectSpeed);
-            hasPiece = false;
+            clearPieceLatch();
             setState("Ejecting");
         }).finallyDo(() -> {
             motor.stop();
@@ -197,6 +197,7 @@ public class RollerMechanism extends CatalystMechanism {
     /** Command to run rollers at a custom speed [-1, 1]. */
     public CatalystCommand runAtSpeed(double speed) {
         return run(() -> {
+            clearPieceLatch();
             motor.setPercent(speed);
             setState("Running " + String.format("%.0f%%", speed * 100));
         }).finallyDo(() -> {
@@ -208,6 +209,7 @@ public class RollerMechanism extends CatalystMechanism {
     /** Command to run rollers at a custom voltage [-12, 12]. */
     public CatalystCommand runAtVoltage(double volts) {
         return run(() -> {
+            clearPieceLatch();
             motor.setVoltage(volts);
             setState("Running " + String.format("%.1fV", volts));
         }).finallyDo(() -> {
@@ -219,8 +221,7 @@ public class RollerMechanism extends CatalystMechanism {
     /** Reset the has-piece state. */
     public CatalystCommand resetPieceDetection() {
         return runOnce(() -> {
-            hasPiece = false;
-            stallTimerStarted = false;
+            clearPieceLatch();
             setState("Reset");
         }).withName(name + ".ResetDetection");
     }
@@ -277,12 +278,39 @@ public class RollerMechanism extends CatalystMechanism {
      */
     public CatalystCommand feedVoltage(double volts) {
         return run(() -> {
+            clearPieceLatch();
             motor.setVoltage(volts);
             setState("Feeding " + String.format("%.1fV", volts));
         }).finallyDo(() -> {
             motor.stop();
             setState("Idle");
         }).withName(name + ".Feed");
+    }
+
+    /**
+     * Forget that we are holding a piece, and forget how long the rollers have been loaded.
+     *
+     * <p>Both halves, together, always. They were separate assignments and they drifted: {@code
+     * eject()} cleared {@code hasPiece} but left {@code stallTimerStarted} true, so the stall
+     * debounce was only ever honoured on the first pickup of the match. Measured on a simulated
+     * roller: twelve loops to latch on the first intake, <b>one</b> on the intake after an eject.
+     * Roller spin-up inrush is exactly the current that trips that, so every later intake declared
+     * "piece acquired" the instant the rollers drew current, with nothing in the robot.
+     *
+     * <p>The other half is the score path. Nothing in {@code feedVoltage}, {@code runAtSpeed} or
+     * {@code runAtVoltage} cleared the latch, so after scoring, {@code hasPiece()} stayed true for
+     * the rest of the match on a stall-only roller. {@code intake()} is a race against
+     * {@code hasPiece}, so it ended on its first tick - the rollers never turned, nothing threw,
+     * and the state machine's {@code atGoal} reported every subsequent intake goal as instantly
+     * arrived while {@code observable()} still claimed a real sensor said so.
+     *
+     * <p>Cleared here rather than in {@code RollerBinding} because the defect is reachable from a
+     * bare mechanism with no state machine at all. {@code pulse()} deliberately does not call this:
+     * it is an unjam, not a score, and the piece is still in the robot.
+     */
+    private void clearPieceLatch() {
+        hasPiece = false;
+        stallTimerStarted = false;
     }
 
     // --- Stall Detection ---

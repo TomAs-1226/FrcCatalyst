@@ -134,12 +134,38 @@ public final class CatalystCommand implements Command {
                 null);
     }
 
-    /** End this command after {@code seconds}, if it has not already finished. */
-    public CatalystCommand timeoutAfter(double seconds) {
+    /**
+     * End this command after {@code seconds}, if it has not already finished.
+     *
+     * <p>This is the name it had before 2027 and the name to use. It survives where the other four
+     * decorators did not, because v3's {@code withTimeout} is the one of the five that does
+     * <em>not</em> clash: it takes a {@code Time} and returns a finished {@code Command}, where
+     * {@code until}, {@code andThen}, {@code alongWith} and {@code raceWith} take exactly the
+     * parameters Catalyst's versions take and return group <em>builders</em>. Different parameter
+     * types make this an overload rather than an override, so both compile and neither hides the
+     * other — {@code withTimeout(2.0)} lands here, {@code withTimeout(Seconds.of(2))} lands on v3's.
+     *
+     * <p>Read off the released alpha-6 sources rather than assumed, because it was assumed once:
+     * this method shipped as {@code timeoutAfter} on the belief that all five names were taken, and
+     * only four of them were.
+     */
+    public CatalystCommand withTimeout(double seconds) {
         return new CatalystCommand(
                 Command.race(this, Command.waitFor(Seconds.of(seconds)).named(name() + "/timeout"))
                         .named(name()),
                 null);
+    }
+
+    /**
+     * End this command after {@code seconds}.
+     *
+     * @deprecated use {@link #withTimeout(double)}, which is the pre-2027 name and works again.
+     *     Kept because this branch shipped it and code was written against it; it will be removed
+     *     before 2.0.0 proper.
+     */
+    @Deprecated(since = "2.0.0-alpha.2", forRemoval = true)
+    public CatalystCommand timeoutAfter(double seconds) {
+        return withTimeout(seconds);
     }
 
     /** Run {@code next} after this command completes. See {@link #untilTrue} on the naming. */
