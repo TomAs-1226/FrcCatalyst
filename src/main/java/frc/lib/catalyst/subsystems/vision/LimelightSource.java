@@ -471,6 +471,22 @@ public class LimelightSource implements CameraSource {
     }
 
     /**
+     * How long since this camera produced a NEW pose, or empty if it never has.
+     *
+     * <p>Only meaningful on the per-key path, and only possible there since frames gained
+     * identities. LimelightLib calls the equivalent state {@code STALE} — a camera holding its
+     * NetworkTables connection while its data stops advancing — but that detection routes through
+     * the modern API, which no shipping camera speaks, so on the path every real camera uses it can
+     * never fire. This is the substitute.
+     *
+     * <p>Worth watching on a dashboard next to {@code isConnected()}, because those two disagreeing
+     * is exactly the frozen-camera case: connected, publishing, and saying the same thing forever.
+     */
+    public java.util.OptionalDouble secondsSinceLastFrame() {
+        return legacy.secondsSinceLastFrame();
+    }
+
+    /**
      * Whether this camera is being read over the older per-key API.
      *
      * <p>Worth putting on a pit dashboard. It is not a fault - it is how every camera on a shipping

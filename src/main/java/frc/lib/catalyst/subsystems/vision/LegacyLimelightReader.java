@@ -3,8 +3,11 @@ package frc.lib.catalyst.subsystems.vision;
 import org.wpilib.math.geometry.Pose2d;
 import org.wpilib.math.geometry.Rotation2d;
 import org.wpilib.math.geometry.Transform3d;
+import org.wpilib.networktables.DoubleArraySubscriber;
 import org.wpilib.networktables.NetworkTable;
 import org.wpilib.networktables.NetworkTableInstance;
+import org.wpilib.networktables.NetworkTablesJNI;
+import org.wpilib.networktables.TimestampedDoubleArray;
 import org.wpilib.system.Timer;
 
 import java.util.Optional;
@@ -36,11 +39,33 @@ import java.util.Optional;
  *   <li><b>No camera-side rejection.</b> LimelightLib's accepted-estimate queue applies the camera's
  *       own ambiguity, distance and field-bounds gates. Here every estimate the camera publishes is
  *       taken at face value, so a pose estimator downstream needs its own sanity limits.
- *   <li><b>No queue.</b> The per-key API holds only the newest value, so estimates produced between
- *       robot loops are lost rather than delivered as a batch.
+ *   <li><b>No batch.</b> Only the newest frame is delivered each loop; estimates the camera
+ *       produced between robot loops are dropped rather than handed over together. They are at
+ *       least no longer mistaken for new ones - see below.
  *   <li><b>Standard deviations are not read.</b> They exist as a {@code stddevs} topic but their
  *       layout is not pinned here, and guessing at it would produce confident wrong weights.
  * </ul>
+ *
+ * <h2>Frame identity, and why it is not optional</h2>
+ *
+ * <p>NetworkTables holds the last value written until it is overwritten, so re-reading a topic
+ * returns the same frame again. The robot loop runs at 50 Hz and an AprilTag pipeline does not, so
+ * the same {@code botpose} array is read several times per unique frame. Stamped with the clock at
+ * read time - which is what this class did - each re-read looks like a fresh, independent
+ * measurement, and the pose estimator weights it as one. The fused pose ends up several times more
+ * confident in vision than the evidence supports, on every camera at once.
+ *
+ * <p>The same flaw made staleness undetectable. VisionSubsystem computes a frame's age as
+ * {@code now - timestamp}; with the timestamp built as {@code now - latency}, that expression
+ * reduces to the camera's own self-reported latency, a small constant, no matter how old the data
+ * really is. Its {@code StaleData} gate could not fire on this path at all. A camera that keeps its
+ * NetworkTables session while its pipeline stalls leaves its last pose sitting in the table, and
+ * Catalyst would have re-served it forever, always stamped "now", dragging the fused pose back to
+ * wherever the camera froze.
+ *
+ * <p>Both are fixed by taking the value and its NetworkTables publish time together, atomically,
+ * and refusing to hand over a frame whose timestamp has not advanced. That timestamp is also what
+ * the estimate is stamped from, so age is now a real measurement and the staleness gate works.
  *
  * @since 2.0.0
  */
@@ -57,12 +82,35 @@ final class LegacyLimelightReader {
     private static final int I_TAG_COUNT = 7, I_AVG_DIST = 9;
     private static final int MIN_LENGTH = 7;
 
+    /** Never-published sentinel. NetworkTables stamps a real value with a non-zero time. */
+    private static final long NEVER = 0L;
+
     private final String name;
     private final NetworkTable table;
+
+    /**
+     * Subscribers rather than entries, because only a subscriber can hand back the value and its
+     * publish time in one call. Reading them separately would let a frame land between the two and
+     * pair one read timestamp with the other read array.
+     *
+     * <p>No duplicate-handling option is set. Frame identity is decided by the publish timestamp
+     * rather than by comparing values, so whether NetworkTables collapses an identical republish is
+     * not something this has to care about - and a camera that genuinely re-publishes the same pose
+     * has produced a new frame, whatever it contains.
+     */
+    private final DoubleArraySubscriber megaTag2;
+    private final DoubleArraySubscriber megaTag1;
+
+    /** Publish time of the newest frame already handed over, in NetworkTables microseconds. */
+    private long lastConsumedNt = NEVER;
 
     LegacyLimelightReader(String name, Transform3d robotToCamera) {
         this.name = name;
         this.table = NetworkTableInstance.getDefault().getTable(name);
+        this.megaTag2 = table.getDoubleArrayTopic("botpose_orb_wpiblue")
+                .subscribe(new double[0]);
+        this.megaTag1 = table.getDoubleArrayTopic("botpose_wpiblue")
+                .subscribe(new double[0]);
 
         table.getEntry("camerapose_robotspace_set").setDoubleArray(new double[] {
                 robotToCamera.getX(),
@@ -105,16 +153,28 @@ final class LegacyLimelightReader {
      * @param useMegaTag2 read the MegaTag2 array, falling back to MegaTag1 if it is absent
      */
     Optional<CameraSource.PoseEstimate> read(boolean useMegaTag2) {
-        double[] botpose = new double[0];
-        if (useMegaTag2) {
-            botpose = table.getEntry("botpose_orb_wpiblue").getDoubleArray(new double[0]);
+        // Value and publish time together, in one call. MegaTag2 preferred, MegaTag1 as the
+        // fallback, exactly as before - what is new is that the timestamp travels with the array.
+        TimestampedDoubleArray frame = useMegaTag2 ? megaTag2.getAtomic() : null;
+        if (frame == null || frame.value.length < MIN_LENGTH) {
+            frame = megaTag1.getAtomic();
         }
-        if (botpose.length < MIN_LENGTH) {
-            botpose = table.getEntry("botpose_wpiblue").getDoubleArray(new double[0]);
-        }
-        if (botpose.length < MIN_LENGTH) {
+        if (frame.value.length < MIN_LENGTH || frame.timestamp == NEVER) {
             return Optional.empty();
         }
+
+        // Nothing new since the last hand-over. Not an error and not a fault - the camera simply has
+        // not produced a frame since this was last asked, which at 50 Hz against a slower pipeline
+        // is most loops. Serving the old one again would be inventing evidence.
+        if (frame.timestamp <= lastConsumedNt) {
+            return Optional.empty();
+        }
+
+        // Consumed regardless of what happens below. A frame rejected for tv=0 or a bad pose is not
+        // new evidence next loop either, and re-examining it forever would be its own bug.
+        lastConsumedNt = frame.timestamp;
+
+        double[] botpose = frame.value;
         if (!hasTarget()) {
             return Optional.empty();
         }
@@ -148,13 +208,41 @@ final class LegacyLimelightReader {
 
         return Optional.of(new CameraSource.PoseEstimate(
                 new Pose2d(x, y, Rotation2d.fromDegrees(yaw)),
-                Timer.getTimestamp() - (latencyMs / 1000.0),
+                captureTime(frame.timestamp, latencyMs),
                 tagCount,
                 Double.isFinite(avgDist) ? avgDist : 0.0,
                 // This API exposes no per-estimate ambiguity, and unlike the modern path there is no
                 // camera-side gate that has already applied one. Zero here means "not reported",
                 // not "checked and fine" - which is exactly why the modern path is preferred.
                 0.0));
+    }
+
+    /**
+     * When the frame was captured, on the robot's clock.
+     *
+     * <p>Two subtractions from now: how long ago NetworkTables received the value, and the pipeline
+     * latency the camera reports on top of that. Written as a difference of two NetworkTables times
+     * rather than by converting one directly, so it holds whatever the two clocks' origins are.
+     */
+    private static double captureTime(long ntPublishMicros, double latencyMs) {
+        double ageSeconds = (NetworkTablesJNI.now() - ntPublishMicros) / 1_000_000.0;
+        return Timer.getTimestamp() - ageSeconds - (latencyMs / 1000.0);
+    }
+
+    /**
+     * How long since this camera published a new pose, or empty if it never has.
+     *
+     * <p>The signal the per-key path could not previously produce. LimelightLib calls the equivalent
+     * state {@code STALE} - a camera holding its NetworkTables connection while its data stops
+     * advancing - but that detection routes through the modern API, which no shipping camera speaks,
+     * so on this path it can never fire. This is the honest substitute.
+     */
+    java.util.OptionalDouble secondsSinceLastFrame() {
+        if (lastConsumedNt == NEVER) {
+            return java.util.OptionalDouble.empty();
+        }
+        return java.util.OptionalDouble.of(
+                (NetworkTablesJNI.now() - lastConsumedNt) / 1_000_000.0);
     }
 
     /** The camera's name, for messages. */

@@ -227,6 +227,98 @@ class LegacyLimelightApiTest {
                 "a source that has not settled on the per-key path must not claim to be unfiltered");
     }
 
+    // --- frame identity -------------------------------------------------------
+
+    @Test
+    void thesameFrameIsNotHandedOverTwice() {
+        // The duplicate-injection case, and it happens in normal operation rather than in faults:
+        // the robot loop runs at 50 Hz and an AprilTag pipeline does not, so the same botpose array
+        // is read several times per unique frame. Stamped at read time, each re-read looked like an
+        // independent measurement and the pose estimator weighted it as one - ending up several
+        // times more confident in vision than the evidence supports, on every camera at once.
+        String cam = fresh("dup");
+        publish(cam, botpose(3.0, 4.0, 0.0, 2, 2.0), 1);
+
+        LimelightSource src = new LimelightSource(cam, MOUNT, true);
+        src.setRobotOrientation(0.0, 0.0, 0.0, 0.0);
+
+        assertTrue(src.getEstimatedPose().isPresent(), "the first read is a real frame");
+        assertTrue(src.getEstimatedPose().isEmpty(),
+                "nothing was republished, so there is no new evidence to hand over");
+        assertTrue(src.getEstimatedPose().isEmpty(), "and still none");
+    }
+
+    @Test
+    void aNewFrameIsHandedOverAgain() {
+        String cam = fresh("newframe");
+        publish(cam, botpose(3.0, 4.0, 0.0, 2, 2.0), 1);
+
+        LimelightSource src = new LimelightSource(cam, MOUNT, true);
+        src.setRobotOrientation(0.0, 0.0, 0.0, 0.0);
+        assertTrue(src.getEstimatedPose().isPresent());
+        assertTrue(src.getEstimatedPose().isEmpty());
+
+        publish(cam, botpose(3.5, 4.25, 10.0, 2, 2.1), 1);
+
+        var est = src.getEstimatedPose().orElseThrow(
+                () -> new AssertionError("a genuinely new frame must be delivered"));
+        assertEquals(3.5, est.pose().getX(), 1e-9);
+    }
+
+    @Test
+    void aRejectedFrameIsStillConsumed() {
+        // A frame refused for tv=0 or a bad pose is not new evidence next loop either. Leaving it
+        // unconsumed would mean re-examining the same bad frame forever.
+        String cam = fresh("consumed");
+        publish(cam, botpose(3.0, 4.0, 0.0, 0, 2.0), 1);   // tagCount 0 -> rejected
+
+        LimelightSource src = new LimelightSource(cam, MOUNT, true);
+        src.setRobotOrientation(0.0, 0.0, 0.0, 0.0);
+        assertTrue(src.getEstimatedPose().isEmpty(), "zero fielded tags is refused");
+
+        publish(cam, botpose(6.0, 1.0, 0.0, 2, 2.0), 1);
+        assertTrue(src.getEstimatedPose().isPresent(),
+                "and the next real frame still gets through");
+    }
+
+    @Test
+    void staleness_isMeasurableAndWasNotBefore() {
+        // The gate VisionSubsystem thought it had. With the timestamp built as (now - latency), its
+        // age calculation reduced algebraically to the camera's own self-reported latency - a small
+        // constant - so StaleData could not fire on this path however old the data was.
+        String cam = fresh("stale");
+        LimelightSource src = new LimelightSource(cam, MOUNT, true);
+        src.setRobotOrientation(0.0, 0.0, 0.0, 0.0);
+
+        assertTrue(src.secondsSinceLastFrame().isEmpty(),
+                "a camera that has never produced a frame has no age, rather than an age of zero");
+
+        publish(cam, botpose(3.0, 4.0, 0.0, 2, 2.0), 1);
+        assertTrue(src.getEstimatedPose().isPresent());
+
+        double age = src.secondsSinceLastFrame().orElseThrow();
+        assertTrue(age >= 0 && age < 1.0, "just-published frame should read as fresh, got " + age);
+    }
+
+    @Test
+    void theEstimateIsStampedFromThePublishTimeNotTheReadTime() {
+        // What makes staleness real. The stamp must trail now by the frame's NetworkTables age plus
+        // the camera's reported pipeline latency - not be recomputed as "now" on every read.
+        String cam = fresh("stamp");
+        publish(cam, botpose(3.0, 4.0, 0.0, 2, 2.0), 1);
+
+        LimelightSource src = new LimelightSource(cam, MOUNT, true);
+        src.setRobotOrientation(0.0, 0.0, 0.0, 0.0);
+
+        double before = org.wpilib.system.Timer.getTimestamp();
+        var est = src.getEstimatedPose().orElseThrow();
+
+        assertTrue(est.timestampSeconds() <= before,
+                "a measurement cannot have been captured after it was read");
+        assertTrue(before - est.timestampSeconds() >= 0.025 - 1e-6,
+                "at least the 25 ms of reported pipeline latency should be subtracted");
+    }
+
     /**
      * The control that makes a rejection test mean something.
      *
