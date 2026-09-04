@@ -118,10 +118,18 @@ Systemcore measures itself and publishes it.
 
 ### Removed — and what to use instead
 
-- **`AutoSelector`, `DriverBoard`, `WpiTelemetrySink`, `TelemetryUtil`, `MechanismVisualizer`** are
-  not in this build. The released alpha-6 ships no `org.wpilib.telemetry` and no
-  `org.wpilib.tunables` — verified by searching every jar in the installer, not inferred — so there
-  is no `Telemetry`, no `Selectable` and no `DriverStationDisplay` for them to sit on.
+- **`DriverBoard`, `WpiTelemetrySink`, `TelemetryUtil`, `MechanismVisualizer`** are not in this
+  build. The released alpha-6 ships no `org.wpilib.telemetry` and no `org.wpilib.tunables` —
+  verified by searching every jar in the installer — so there is no `Telemetry` and no
+  `DriverStationDisplay` for them to sit on.
+
+  **`AutoSelector` was on this list and should not have been**, which is worth stating plainly
+  because the mistake was mine and it cost teams their auto chooser. It was ported to
+  `org.wpilib.tunable.Selectable` on the belief that `SendableChooser` had been removed in 2027,
+  and dropped from the build when that package proved absent. Only the second half was true:
+  `SendableChooser`, `SmartDashboard`, `Sendable` and `SendableBuilder` are all present in the
+  released `wpilibj-java`. The removal claim came from the development snapshot. `AutoSelector` is
+  back, unchanged from 1.x, and the "one forced API break" recorded below was not a break.
 
   They are *excluded from the source set, not deleted*: they are the better implementations and they
   return the moment a release ships those packages. Nothing is lost meanwhile. `CatalystLog` falls

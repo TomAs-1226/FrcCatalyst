@@ -5,8 +5,8 @@ import frc.lib.catalyst.command.CatalystCommand;
 import org.wpilib.driverstation.DriverStationErrors;
 import com.pathplanner.lib.auto.AutoBuilder;
 import org.wpilib.driverstation.DriverStation;
-import org.wpilib.tunable.Selectable;
-import org.wpilib.tunable.Tunables;
+import org.wpilib.smartdashboard.SendableChooser;
+import org.wpilib.smartdashboard.SmartDashboard;
 import org.wpilib.command3.Command;
 import frc.lib.catalyst.command.Commands;
 
@@ -16,9 +16,18 @@ import java.util.Map;
 /**
  * Auto routine selector with PathPlanner integration and safe defaults.
  *
- * <p>Wraps {@link Selectable} to provide a clean interface for
- * selecting autonomous routines from the dashboard, with built-in
- * error handling and a "Do Nothing" fallback.
+ * <p>Wraps {@link SendableChooser} to provide a clean interface for selecting autonomous routines
+ * from the dashboard, with built-in error handling and a "Do Nothing" fallback.
+ *
+ * <p><b>This class was excluded from the 2027 build for a while, and it should not have been.</b>
+ * It had been ported to {@code org.wpilib.tunable.Selectable} on the belief that
+ * {@code SendableChooser} was removed in 2027, and then dropped from the source set when that
+ * package turned out to be missing from the released alpha-6. Only the second half was true.
+ * Checked against the shipped jars: {@code org.wpilib.tunables} is genuinely absent, but
+ * {@code SendableChooser}, {@code SmartDashboard}, {@code Sendable} and {@code SendableBuilder} are
+ * all present in {@code wpilibj-java}. The removal claim came from the development snapshot, where
+ * {@code org.wpilib.telemetry} replaced them - a different build that happens to share the alpha-6
+ * name. The cost of the mistake was that teams on this branch had no auto chooser at all.
  *
  * <p>Supports both PathPlanner named autos and custom command-based autos.
  *
@@ -38,7 +47,7 @@ import java.util.Map;
  */
 public class AutoSelector {
 
-    private final Selectable<String> chooser = new Selectable<>();
+    private final SendableChooser<String> chooser = new SendableChooser<>();
     private final Map<String, java.util.function.Supplier<Command>> autos = new LinkedHashMap<>();
     private final String dashboardKey;
     private boolean firstAdded = false;
@@ -60,10 +69,10 @@ public class AutoSelector {
         this.dashboardKey = dashboardKey;
 
         // Always have a safe "do nothing" option
-        chooser.addDefault("Do Nothing", "Do Nothing");
+        chooser.setDefaultOption("Do Nothing", "Do Nothing");
         autos.put("Do Nothing", Commands::none);
 
-        Tunables.publish(dashboardKey, chooser);
+        SmartDashboard.putData(dashboardKey, chooser);
     }
 
     /**
@@ -85,10 +94,10 @@ public class AutoSelector {
         });
 
         if (!firstAdded) {
-            chooser.addDefault(autoName, autoName);
+            chooser.setDefaultOption(autoName, autoName);
             firstAdded = true;
         } else {
-            chooser.add(autoName, autoName);
+            chooser.addOption(autoName, autoName);
         }
         return this;
     }
@@ -104,10 +113,10 @@ public class AutoSelector {
         autos.put(name, commandSupplier);
 
         if (!firstAdded) {
-            chooser.addDefault(name, name);
+            chooser.setDefaultOption(name, name);
             firstAdded = true;
         } else {
-            chooser.add(name, name);
+            chooser.addOption(name, name);
         }
         return this;
     }
@@ -205,13 +214,13 @@ public class AutoSelector {
     }
 
     /**
-     * Get the underlying selector.
+     * The underlying chooser, for anything this class does not wrap.
      *
-     * <p><b>Changed in 2.0.0.</b> WPILib 2027 removed {@code SendableChooser}; this now returns
-     * {@link Selectable}, its replacement. Every other method on {@code AutoSelector} is unchanged,
-     * so this is the only call site a migrating team has to touch — and only if they used it.
+     * <p>Back to {@link SendableChooser}, the type it always returned. The 2027 notes recorded this
+     * as the one signature Catalyst was forced to break; that turned out to be wrong, so there is no
+     * break and nothing for a migrating team to change here.
      */
-    public Selectable<String> getChooser() {
+    public SendableChooser<String> getChooser() {
         return chooser;
     }
 }

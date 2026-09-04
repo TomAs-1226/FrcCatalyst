@@ -68,14 +68,13 @@ Systemcore OS **beta 14 requires WPILib alpha-7**, which is not released. Until 
 
 ## What is not in this build
 
-Six classes that exist in the source tree do not ship in `2.0.0-alpha.1-a6`. None of them are
+Five classes that exist in the source tree do not ship in `2.0.0-alpha.1-a6`. None of them are
 deleted — every one is excluded from the source set, so it comes back unchanged the moment the thing
 it needs exists in a release. They are listed here so that "why can I not import this" has an answer
 that is not a compile error.
 
 | Class | Needs | Use instead |
 |---|---|---|
-| `AutoSelector` | `org.wpilib.tunables` | PathPlanner's chooser, or NetworkTables directly |
 | `WpiTelemetrySink` | `org.wpilib.telemetry` | `NetworkTablesSink` — already the default |
 | `TelemetryUtil` | `org.wpilib.telemetry` | `CatalystLog` |
 | `MechanismVisualizer` | `org.wpilib.telemetry` | `SimDashboard` |
@@ -99,19 +98,21 @@ vendordep and is unaffected.
 
 ## What you have to change
 
-### `AutoSelector` is not in this build
+### `AutoSelector` works, and briefly did not
 
-`SendableChooser` no longer exists in WPILib, and its replacement — `org.wpilib.tunable.Selectable`
-— is one of the classes that ships only in the development snapshot, not in the release this build
-targets. There is nothing for the chooser to publish to, so the class is excluded rather than
-shipped broken.
+It is in the build and unchanged from 1.x, `SendableChooser` return type included.
 
-It is excluded from the source set, not deleted. It returns unchanged, publishing to `Selectable`,
-the moment a WPILib release ships `org.wpilib.tunables`.
+It was excluded for a while on a wrong premise, which is worth recording because the premise appears
+elsewhere in these docs. `SendableChooser` was believed removed in 2027 and the class was ported to
+`org.wpilib.tunable.Selectable`; that package really is absent from the released alpha-6, so the
+port would not compile and the file was dropped from the source set. But the original claim was
+false. Checked against the shipped jars: **`SendableChooser`, `SmartDashboard`, `Sendable` and
+`SendableBuilder` are all present** in `wpilibj-java`. Only `org.wpilib.telemetry` and
+`org.wpilib.tunables` are genuinely missing — those belong to the development snapshot, a different
+build that happens to share the alpha-6 name.
 
-Until then, build the chooser on NetworkTables directly, or use PathPlanner's own auto chooser. The
-rest of the auto path — `DynamicAutoBuilder`, path following, the auto routines themselves — is
-untouched and works normally.
+So nothing about `AutoSelector` changes for a migrating team, and the "one forced API break" the
+2027 notes recorded was not a break at all.
 
 ### Five command decorators were renamed
 

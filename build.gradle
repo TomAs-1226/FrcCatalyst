@@ -112,10 +112,16 @@ repositories {
 
 // Source that cannot exist on the released alpha-6.
 //
-// org.wpilib.telemetry, .tunables and .fields are not in that build - no class named Telemetry*,
-// Selectable* or Tunable* appears in any jar it ships. The four files below are the only ones that
-// touch them, and every one has a working alternative already in the tree: CatalystLog defaults to
-// NetworkTablesSink, and AutoSelector's chooser goes back to NetworkTables directly.
+// org.wpilib.telemetry and .tunables are not in that build - no class named Telemetry* or Tunable*
+// appears in any jar it ships. The files below are the only ones that touch them, and each has a
+// working alternative already in the tree: CatalystLog defaults to NetworkTablesSink.
+//
+// AutoSelector used to be on this list and should not have been. It was excluded because its port
+// to org.wpilib.tunable.Selectable would not compile - true - on the belief that SendableChooser
+// had been removed in 2027, which is false. Checked against the shipped jars: SendableChooser,
+// SmartDashboard, Sendable and SendableBuilder are all present in wpilibj-java. That claim came
+// from the development snapshot, a different build sharing the alpha-6 name. AutoSelector is back
+// on SendableChooser and back in the build.
 //
 // Excluded rather than deleted. They are the better implementations and they come back the moment a
 // WPILib ships those packages in a release the OS accepts.
@@ -127,9 +133,6 @@ sourceSets {
             exclude 'frc/lib/catalyst/logging/WpiTelemetrySink.java'
             exclude 'frc/lib/catalyst/util/TelemetryUtil.java'
             exclude 'frc/lib/catalyst/util/MechanismVisualizer.java'
-
-            // org.wpilib.tunable - no Selectable, so AutoSelector has no chooser to publish.
-            exclude 'frc/lib/catalyst/util/AutoSelector.java'
 
             // DriverStationDisplay does not exist in the release at all, and DriverBoard is a
             // wrapper around it.
