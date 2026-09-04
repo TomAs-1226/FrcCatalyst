@@ -83,10 +83,64 @@ public abstract class CatalystOpMode implements OpMode {
         return scheduler;
     }
 
-    /** Schedule a command on this OpMode's scheduler. The usual way to start a routine. */
+    /**
+     * Schedule a command on this OpMode's scheduler, and own it for the life of the mode.
+     *
+     * <p>Anything started here is cancelled when the mode ends. That was not true before, and the
+     * gap is narrower than it sounds but real, because Commands v3 looks like it already covers
+     * this. {@code Scheduler.schedule()} stamps every command with a {@code BindingScope.ForOpmode}
+     * carrying the current opmode <em>id</em>, and reaps it when that id changes - so auto running
+     * on into teleop is genuinely handled by WPILib, and so is a mode being deselected.
+     *
+     * <p>What the id does not change for is a disable. {@code RobotState.getOpModeId()} reflects the
+     * mode <em>selected on the Driver Station</em>, and its own javadoc says it "does not mean the
+     * robot is enabled". So on a disable, {@code OpModeRobot} ends the mode and forces a fresh
+     * instance of the same one; that instance's {@code disabledPeriodic()} runs the scheduler, and
+     * the command left over from auto keeps advancing through the entire disabled window. Timers
+     * expire, sequential groups step forward, and nothing reveals it because the HAL is holding the
+     * outputs neutral. Measured on the alpha-6 scheduler: ten further executions across ten disabled
+     * ticks.
+     *
+     * <p>Nor does the id change when the same mode is enabled a second time - the pit routine of
+     * running auto, disabling, and running it again. Then the leftover is still holding the
+     * drivetrain when the new run starts.
+     *
+     * <p>A command scheduled directly on {@code scheduler()} is not tracked and not cancelled. That
+     * is deliberate: it is the escape hatch for something meant to outlive the mode.
+     */
     protected final void run(org.wpilib.command3.Command command) {
+        owned.add(command);
         scheduler().schedule(command);
     }
+
+    /**
+     * The commands this mode started through {@link #run}, in the order they were started.
+     *
+     * <p>For a test or a dashboard. The list is a snapshot; mutating it does nothing.
+     */
+    public final java.util.List<org.wpilib.command3.Command> scheduledCommands() {
+        return java.util.List.copyOf(owned);
+    }
+
+    /**
+     * Cancel everything this mode started and forget it.
+     *
+     * <p>Cancelling a command that already finished is a documented no-op, so this is safe to call
+     * more than once and safe to call on a mode that ended cleanly.
+     */
+    private void releaseOwned() {
+        for (org.wpilib.command3.Command c : owned) {
+            try {
+                scheduler().cancel(c);
+            } catch (Throwable ignored) {
+                // One command refusing to die must not strand the rest.
+            }
+        }
+        owned.clear();
+    }
+
+    /** Commands started through {@link #run}, owned until the mode ends. */
+    private final java.util.List<org.wpilib.command3.Command> owned = new java.util.ArrayList<>();
 
     /** The name this OpMode is known by. Defaults to the class's simple name. */
     public String name() {
@@ -171,7 +225,28 @@ public abstract class CatalystOpMode implements OpMode {
         try {
             onEnd();
         } finally {
+            // In the finally, so a subclass whose onEnd throws still releases the drivetrain. A
+            // leftover auto command holding mechanisms is worse than the exception that caused it.
+            releaseOwned();
             CatalystLog.log("OpMode/Running", false);
+        }
+    }
+
+    /**
+     * Release anything still owned, even for a mode that never started.
+     *
+     * <p>WPILib calls {@code close()} on every opmode instance it discards, and there is one path
+     * where it calls {@code close()} without {@code end()}: a mode deselected while the robot is
+     * disabled. {@code end()} is guarded behind having run, {@code close()} is not — so this is the
+     * only hook that covers an instance which scheduled something from
+     * {@link #onDisabledPeriodic()} and was then thrown away.
+     */
+    @Override
+    public void close() {
+        try {
+            releaseOwned();
+        } finally {
+            OpMode.super.close();
         }
     }
 }

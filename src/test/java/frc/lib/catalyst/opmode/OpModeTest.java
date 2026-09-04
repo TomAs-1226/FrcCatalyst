@@ -73,11 +73,29 @@ class OpModeTest {
     private static final class Recording extends CatalystOpMode {
         final List<String> calls = new ArrayList<>();
 
+        /** What onStart() should schedule, if a test wants a handle on it. */
+        private Command next;
+
         Recording() {
             super(false);
         }
 
-        @Override protected void onStart()           { calls.add("start"); }
+        /**
+         * Start the mode having it schedule {@code command}, the ordinary way a mode starts work:
+         * {@code onStart() { run(auto.threePiece()); }}. The test keeps the same handle the mode
+         * has, which is what lets it assert on the command's fate afterwards.
+         */
+        void startWith(Command command) {
+            this.next = command;
+            start();
+        }
+
+        @Override protected void onStart() {
+            calls.add("start");
+            if (next != null) {
+                run(next);
+            }
+        }
         @Override protected void onPeriodic()        { calls.add("periodic"); }
         @Override protected void onEnd()             { calls.add("end"); }
         @Override protected void onDisabledPeriodic() { calls.add("disabled"); }
@@ -127,6 +145,109 @@ class OpModeTest {
         assertEquals(0, ticks.get(),
                 "periodic() ticked the scheduler while disabled; disabledPeriodic() owns that window");
         assertEquals(List.of(), mode.calls, "and onPeriodic must not fire on a disabled loop");
+    }
+
+    // --- an OpMode owns what it schedules -------------------------------------
+
+    @Test
+    void endingTheModeCancelsWhatRunStarted() {
+        enabled();
+        Recording mode = new Recording();
+        var work = Commands.run(() -> { }).withName("owned");
+        mode.startWith(work);
+
+        mode.periodic();
+        assertTrue(mode.scheduler().isScheduledOrRunning(work), "precondition: it is running");
+
+        mode.end();
+        mode.periodic();
+
+        assertFalse(mode.scheduler().isScheduledOrRunning(work),
+                "a command started by the mode must not outlive it");
+    }
+
+    @Test
+    void aLeftoverDoesNotKeepTickingThroughTheDisabledWindow() {
+        // The case that costs a match and shows nothing. On a disable, OpModeRobot ends the mode and
+        // forces a fresh instance of the SAME one - and the opmode id has not changed, so v3's
+        // ForOpmode scope does not reap anything. That instance's disabledPeriodic() runs the
+        // scheduler, so the leftover auto command keeps advancing: timers expire, sequential groups
+        // step forward, all with the outputs held neutral so nothing looks wrong.
+        enabled();
+        AtomicInteger ticks = new AtomicInteger();
+        Recording mode = new Recording();
+        mode.startWith(Commands.run(ticks::incrementAndGet).withName("auto"));
+
+        for (int i = 0; i < 5; i++) {
+            mode.periodic();
+        }
+        int atEnd = ticks.get();
+        assertTrue(atEnd > 0, "precondition: it ran while enabled");
+
+        mode.end();
+        for (int i = 0; i < 10; i++) {
+            mode.disabledPeriodic();
+        }
+
+        assertEquals(atEnd, ticks.get(),
+                "the leftover advanced through the disabled window; it should have been released");
+    }
+
+    @Test
+    void theSameModeCanBeRunTwice() {
+        // The pit routine: enable auto, disable, enable the same auto again. With the leftover still
+        // holding mechanisms, the second run fights it - and the symptom is "we ran auto twice and
+        // the second time it did nothing", with nothing anywhere saying why.
+        enabled();
+        Recording mode = new Recording();
+
+        var first = Commands.run(() -> { }).withName("run1");
+        mode.startWith(first);
+        mode.periodic();
+        mode.end();
+
+        var second = Commands.run(() -> { }).withName("run2");
+        mode.startWith(second);
+        mode.periodic();
+
+        assertFalse(mode.scheduler().isScheduledOrRunning(first), "the first run must be gone");
+        assertTrue(mode.scheduler().isScheduledOrRunning(second), "and the second must be running");
+    }
+
+    @Test
+    void closeReleasesEvenWithoutEnd() {
+        // WPILib calls close() on every instance it discards, and one path calls close() WITHOUT
+        // end(): a mode deselected while disabled. end() is guarded behind having started; close()
+        // is the only hook that covers that instance.
+        enabled();
+        Recording mode = new Recording();
+        var work = Commands.run(() -> { }).withName("owned");
+        mode.startWith(work);
+        mode.periodic();
+
+        mode.close();
+        mode.periodic();
+
+        assertFalse(mode.scheduler().isScheduledOrRunning(work));
+    }
+
+    @Test
+    void aCommandScheduledDirectlyIsNotOwned() {
+        // The escape hatch, and it has to keep working: something scheduled on the scheduler rather
+        // than through run() is meant to outlive the mode.
+        enabled();
+        Recording mode = new Recording();
+        var global = Commands.run(() -> { }).withName("global");
+        mode.scheduler().schedule(global);
+        mode.start();
+        mode.periodic();
+
+        mode.end();
+        mode.periodic();
+
+        assertTrue(mode.scheduler().isScheduledOrRunning(global),
+                "only what run() started is owned; anything else is the team's to manage");
+        assertTrue(mode.scheduledCommands().isEmpty());
     }
 
     @Test

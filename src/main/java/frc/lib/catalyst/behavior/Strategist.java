@@ -61,6 +61,8 @@ public final class Strategist {
         private final String name;
         private final List<Behavior> behaviors = new ArrayList<>();
         private double minScore = 0.0;
+        private double switchMargin = 0.0;
+        private double minDwellSeconds = 0.0;
 
         private Builder(String name) {
             this.name = name;
@@ -77,6 +79,43 @@ public final class Strategist {
         }
 
         /** Behaviours must score strictly above this to be eligible. Default 0. */
+        /**
+         * How far a challenger must beat the incumbent before control changes hands.
+         *
+         * <p>Utility selection has no memory: every loop the highest scorer wins, so two behaviours
+         * whose scores cross repeatedly hand control back and forth at the loop rate. Each handover
+         * cancels a command and schedules a new one, so the mechanism restarts fifty times a second
+         * and finishes nothing. The robot twitches and nothing in the scores looks wrong.
+         *
+         * <p><b>Defaults to 0.0, which is exactly today's behaviour</b> — a non-zero default would
+         * change what every existing robot does on a library upgrade. The units are your own score
+         * units, which is why there is no safe default: only you know whether your scores run 0–1 or
+         * 0–100.
+         *
+         * <p>Set too high this freezes the robot on its first choice instead of thrashing, which is
+         * just as silent. Watch {@code /Catalyst/Behavior/<name>/HeldSeconds} — a stuck incumbent
+         * shows up there as a number that keeps climbing.
+         */
+        public Builder switchMargin(double margin) {
+            this.switchMargin = margin;
+            return this;
+        }
+
+        /**
+         * How long a behaviour keeps control before a challenger may take it, however far ahead.
+         *
+         * <p>Complements {@link #switchMargin(double)}: margin stops close scores trading places,
+         * dwell stops any handover happening faster than a mechanism can usefully act.
+         *
+         * <p>Defaults to 0.0, today's behaviour. A behaviour that becomes <em>ineligible</em> or
+         * drops below {@link #minScore(double)} is released immediately regardless — a dwell timer
+         * must never hold on to something that cannot run.
+         */
+        public Builder minDwellSeconds(double seconds) {
+            this.minDwellSeconds = seconds;
+            return this;
+        }
+
         public Builder minScore(double minScore) {
             this.minScore = minScore;
             return this;
@@ -84,7 +123,8 @@ public final class Strategist {
 
         public CatalystCommand build() {
             CatalystFeatures.record(CatalystFeatures.STRATEGIST, name);
-            return CatalystCommand.of(new SelectorCommand(name, List.copyOf(behaviors), minScore));
+            return CatalystCommand.of(new SelectorCommand(
+                    name, List.copyOf(behaviors), minScore, switchMargin, minDwellSeconds));
         }
     }
 
@@ -96,6 +136,7 @@ public final class Strategist {
     private static final class SelectorCommand implements Command {
         private final List<Behavior> behaviors;
         private final double minScore;
+        private final BehaviorArbiter arbiter;
         private final NetworkTable nt;
         private final String commandName;
         private BehaviorContext ctx;
@@ -103,9 +144,11 @@ public final class Strategist {
         private String activeName = "";
         private Command activeCommand;
 
-        SelectorCommand(String name, List<Behavior> behaviors, double minScore) {
+        SelectorCommand(String name, List<Behavior> behaviors, double minScore,
+                        double switchMargin, double minDwellSeconds) {
             this.behaviors = behaviors;
             this.minScore = minScore;
+            this.arbiter = new BehaviorArbiter(minScore, switchMargin, minDwellSeconds);
             this.nt = NetworkTableInstance.getDefault()
                     .getTable("Catalyst").getSubTable("Behavior").getSubTable(name);
             this.commandName = "Strategist:" + name;
@@ -149,35 +192,38 @@ public final class Strategist {
                 activeName = "";
             }
 
-            Behavior best = null;
-            double bestScore = minScore;
+            List<BehaviorArbiter.Candidate> candidates = new java.util.ArrayList<>(behaviors.size());
+            java.util.Map<String, Behavior> byName = new java.util.HashMap<>();
             for (Behavior b : behaviors) {
                 double score = safeScore(b);
                 nt.getSubTable("Scores").getEntry(b.name()).setDouble(score);
-                if (score > bestScore && b.action().canStart()) {
-                    bestScore = score;
-                    best = b;
-                }
+                candidates.add(new BehaviorArbiter.Candidate(b.name(), score, safeCanStart(b)));
+                byName.put(b.name(), b);
             }
 
-            if (best == null) {
-                // Nothing wants to run — release whatever was running.
-                if (activeCommand != null) {
-                    Scheduler.getDefault().cancel(activeCommand);
-                    activeCommand = null;
-                }
+            double now = Timer.getTimestamp();
+            BehaviorArbiter.Decision decision = arbiter.decide(candidates, activeName, now);
+            publishArbitration(now);
+
+            if (!decision.switched()) {
+                return;
+            }
+
+            // A handover. Every one of these cancels a running command and starts another, which is
+            // why they are counted and published rather than left invisible.
+            if (activeCommand != null) {
+                Scheduler.getDefault().cancel(activeCommand);
+                activeCommand = null;
+            }
+            if (decision.winner() == null) {
                 activeName = "";
                 nt.getEntry("Active").setString("(none)");
                 return;
             }
-
-            if (!best.name().equals(activeName)) {
-                if (activeCommand != null) Scheduler.getDefault().cancel(activeCommand);
-                activeCommand = best.action().toCommand();
-                activeName = best.name();
-                Scheduler.getDefault().schedule(activeCommand);
-                nt.getEntry("Active").setString(activeName);
-            }
+            activeCommand = byName.get(decision.winner()).action().toCommand();
+            activeName = decision.winner();
+            Scheduler.getDefault().schedule(activeCommand);
+            nt.getEntry("Active").setString(activeName);
         }
 
         @Override
@@ -186,6 +232,29 @@ public final class Strategist {
             activeCommand = null;
             activeName = "";
             nt.getEntry("Active").setString("(stopped)");
+        }
+
+        /**
+         * Publish how settled the decision is, whether or not the knobs are in use.
+         *
+         * <p>On by default and free: thrashing is invisible today, and a team that has not set a
+         * margin is exactly the team that needs to see the switch rate. A frozen selector is visible
+         * on the same keys, as a HeldSeconds that keeps climbing with a stale reason.
+         */
+        private void publishArbitration(double now) {
+            nt.getEntry("Switches").setDouble(arbiter.switches());
+            nt.getEntry("SwitchesPerSecond").setDouble(arbiter.switchesPerSecond(now));
+            nt.getEntry("HeldSeconds").setDouble(arbiter.heldSeconds(now));
+            nt.getEntry("LastSwitchReason").setString(arbiter.lastSwitchReason());
+        }
+
+        /** A scorer that throws must not be able to decide the match; nor must canStart(). */
+        private boolean safeCanStart(Behavior b) {
+            try {
+                return b.action().canStart();
+            } catch (Throwable t) {
+                return false;
+            }
         }
 
         private double safeScore(Behavior b) {
