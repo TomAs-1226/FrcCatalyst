@@ -190,6 +190,43 @@ class LegacyLimelightApiTest {
         assertTrue(src.isUsingLegacyApi());
     }
 
+    @Test
+    void theLegacyPathDoesNotClaimToBePrefiltered() {
+        // isPrefiltered() tells VisionSubsystem "the camera already applied its own gates, do not
+        // repeat them". That is true on the modern path, where LimelightLib's accepted queue applies
+        // tag-count, ambiguity, distance, area and field-bounds rules using the raw detections.
+        //
+        // It is false here. The per-key path reads botpose_* straight off NetworkTables with nothing
+        // applied. Claiming prefiltered would make VisionSubsystem skip ITS checks too, and the one
+        // that matters is field bounds - a pose off the end of the field would go into the estimator
+        // with nothing standing in its way.
+        //
+        // This method returned an unconditional true until the per-key reader was added, at which
+        // point it quietly became wrong for every camera on a shipping image.
+        String cam = fresh("prefilter");
+        publish(cam, botpose(3.0, 4.0, 0.0, 2, 2.0), 1);
+
+        LimelightSource src = new LimelightSource(cam, MOUNT, true);
+        src.setRobotOrientation(0.0, 0.0, 0.0, 0.0);
+        assertTrue(src.getEstimatedPose().isPresent(), "precondition: the legacy path is in use");
+        assertTrue(src.isUsingLegacyApi());
+
+        assertFalse(src.isPrefiltered(),
+                "the per-key path applies no camera-side gates, so Catalyst's must run");
+    }
+
+    @Test
+    void aModernPathCameraStillReportsPrefiltered() {
+        // The other half, and the reason this is a condition rather than a flat false: on the modern
+        // path the camera really has filtered, and making Catalyst re-filter with a second set of
+        // thresholds nobody tuned would be its own bug.
+        LimelightSource src = new LimelightSource(fresh("nevertalked"), MOUNT, true);
+
+        assertFalse(src.isUsingLegacyApi(), "nothing published, so no path chosen");
+        assertTrue(src.isPrefiltered(),
+                "a source that has not settled on the per-key path must not claim to be unfiltered");
+    }
+
     /**
      * The control that makes a rejection test mean something.
      *

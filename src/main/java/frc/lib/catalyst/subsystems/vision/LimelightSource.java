@@ -321,15 +321,26 @@ public class LimelightSource implements CameraSource {
     }
 
     /**
-     * {@inheritDoc}
+     * Whether the camera has already applied its own rejection rules to this estimate.
      *
-     * <p>True: {@link #getEstimatedPose()} drains the camera's <em>accepted</em> queue, so tag
-     * count, ambiguity, distance, area, field bounds and frame age have already been applied by
-     * LimelightLib using the raw detections.
+     * <p><b>Only on the modern path.</b> LimelightLib's accepted-estimate queue applies the
+     * camera's own tag-count, ambiguity, distance, area and field-bounds gates using the raw
+     * detections, which it can do better than {@code VisionSubsystem} can from a finished pose - so
+     * that filtering is skipped rather than repeated with a second set of thresholds nobody tuned.
+     *
+     * <p>The per-key path has no such gates. It reads {@code botpose_*} straight off NetworkTables
+     * and the camera applies nothing, so claiming prefiltered there tells VisionSubsystem to skip
+     * <em>its</em> checks too and nothing gates the estimate at all - including the field-bounds
+     * check, which is the one standing between a garbage pose and the fused estimate.
+     *
+     * <p>This returned an unconditional {@code true}, which was correct for exactly as long as this
+     * class only spoke the modern API. Adding the per-key reader silently turned it into a lie, and
+     * the shape of that lie was every estimate from a 2026 camera - which is every camera today -
+     * entering the pose estimator ungated.
      */
     @Override
     public boolean isPrefiltered() {
-        return true;
+        return !isUsingLegacyApi();
     }
 
     /** Whether the camera currently sees a target. */
