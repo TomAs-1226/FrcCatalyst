@@ -505,3 +505,4 @@ in-house every season. See the [Advanced](../advanced/) section for:
 | **SignalProcessor** | EMA, median, low-pass, composite filters for sensor data |
 | **PoseHistory** | Temporal pose tracking with interpolation |
 | **DynamicAutoBuilder** | Runtime path generation with PathPlanner |
+- [Motor history](motor-history.md) — what every motor has been through, by serial number, kept on the robot

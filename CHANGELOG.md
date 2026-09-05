@@ -5,6 +5,28 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.0.0-alpha.2-a9] — 2026-09-05 — Motor history
+
+Asked for after a day of finding out that the X1's motors were not what their names said. A
+motor's id and name change; its serial number does not.
+
+### Added
+
+- **`identity.MotorHistory`.** Every device the Phoenix diagnostic server lists (so every CTRE
+  device on every bus, whether or not the team's code constructs it) gets a record keyed by serial
+  number: each id / name / bus / firmware it has been seen with and when, and for motors the
+  powered, turning, loaded and hot seconds, revolutions, energy, peak stator current and
+  temperature, sticky faults, and a bounded log of recent boots. Read from the status frames the
+  motors already send, at 10 Hz, through Phoenix objects it makes for itself. Kept in
+  `catalyst/motor-history.json` beside the program - loaded at boot, never re-derived, written when
+  it changes and on every disable - so it can be copied off the robot as it is. Rides on
+  `HealthMonitor.update()` like the device roster; configure with `MotorHistory.configure(...)`.
+  Publishes a live summary under `/Catalyst/MotorHistory/` (`Rows`, `Count`, `Summary`, `File`) for
+  the Console; the Systemcore agent 2.0.3 serves the whole file on `/api/motor-history` and
+  `/api/motor-history.csv` for the App.
+- **`util.MiniJson`.** A page of JSON writer and parser, so the file above needs no dependency
+  that would have to be listed in every team's vendordep.
+
 ## [2.0.0-alpha.2-a8] — 2026-09-05 — A tag the camera cannot place is not the field's centre
 
 Found minutes after a7 went on the X1, by decoding the pose it had seeded to: (8.2705, 4.0345, 0)

@@ -139,6 +139,9 @@ public final class HealthMonitor {
         // The device roster rides on this tick because it is the one Catalyst already drives
         // whether the robot is enabled or not. Rate-limited inside; this is called at loop rate.
         frc.lib.catalyst.identity.DeviceRoster.publish(now);
+        // And the motor history, for the same reason: a motor's hours accrue whether or not the
+        // robot is enabled, and this is the tick that always runs. Rate-limited inside too.
+        frc.lib.catalyst.identity.MotorHistory.update(now);
     }
 
     /**
