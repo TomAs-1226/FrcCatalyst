@@ -162,6 +162,21 @@ public class Intake extends CatalystMechanism {
 These are not Catalyst decisions. They are properties of Systemcore that are invisible from robot
 code, and each one has a failure mode that does not look like its cause.
 
+### PathPlanner needs commands v2 on the robot, and the vendordep now brings it
+
+PathPlannerLib 2027 is still compiled against commands v2. Catalyst bridges its commands onto v3
+(`LegacyCommands`), but the v2 jar has to be on the robot for `AutoBuilder` to load at all — and
+GradleRIO drops every `org.wpilib.*` transitive dependency of a vendordep, so Catalyst's POM listing
+it changed nothing. Measured: a robot with a `SwerveSubsystem` and a PathPlanner config died at boot
+with `NoClassDefFoundError: org.wpilib.command2.Subsystem`, thirteen restarts, no line of team code
+in the trace.
+
+The Catalyst vendordep now declares `org.wpilib.commandsv2:commandsv2-java` itself, the way
+`CommandsV3.json` declares commands3. If you carry your own copy of `FrcCatalyst.json` from before
+this, add that entry to its `javaDependencies`. And if it is ever missing again, the robot now boots
+and says so — `configurePathPlanner` catches `Throwable` and raises "PathPlanner failed to configure:
+PathPlannerLib needs the WPILibNewCommands (commands v2) vendordep" instead of dying.
+
 ### Commands need two JVM flags, or nothing runs
 
 Commands v3 is built on JDK continuations. They live in `jdk.internal.vm`, which is exported to

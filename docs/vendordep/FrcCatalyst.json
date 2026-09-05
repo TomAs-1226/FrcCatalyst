@@ -17,6 +17,11 @@
       "groupId": "com.github.TomAs-1226",
       "artifactId": "FrcCatalyst",
       "version": "v2.0.0-alpha.1"
+    },
+    {
+      "groupId": "org.wpilib.commandsv2",
+      "artifactId": "commandsv2-java",
+      "version": "wpilib"
     }
   ],
   "jniDependencies": [],

@@ -41,6 +41,19 @@ every existing call is unchanged, and the one validation that was removed only e
 - **`VisionSubsystem` with no sink** now still polls the cameras, publishes their telemetry and
   their health, and says at construction that nothing is being fused.
 
+### Fixed
+
+- **A robot with a `SwerveSubsystem` and a PathPlanner config crash-looped at boot on Systemcore.**
+  PathPlannerLib 2027 is compiled against commands v2, and GradleRIO drops every `org.wpilib.*`
+  transitive dependency of a vendordep, so `commandsv2-java` never reached the robot even though
+  Catalyst's POM lists it. `AutoBuilder.configure()` then threw a `NoClassDefFoundError` — an
+  Error, which `configurePathPlanner`'s `catch (Exception)` let straight through. Two fixes: the
+  catch is now `Throwable` and names the missing jar, so a robot without it boots and says
+  "autos will not path"; and the vendordep now declares `org.wpilib.commandsv2:commandsv2-java`
+  in its own `javaDependencies`, the way `CommandsV3.json` declares commands3, so the jar arrives.
+  `AutoSelector` catches `Throwable` at its two PathPlanner call sites for the same reason. Found
+  by deploying the Catalyst X1 project to a Systemcore.
+
 ### Changed
 
 - `VisionConfig.build()` no longer throws without a drive subsystem. It only ever threw; the

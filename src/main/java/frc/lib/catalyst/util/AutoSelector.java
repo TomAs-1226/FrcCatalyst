@@ -87,7 +87,9 @@ public class AutoSelector {
         autos.put(autoName, () -> {
             try {
                 return LegacyCommands.fromV2(AutoBuilder.buildAuto(autoName));
-            } catch (Exception e) {
+            } catch (Throwable e) {
+                // Throwable: a missing commands-v2 jar surfaces here as a NoClassDefFoundError,
+                // and an auto that cannot be built must become "do nothing", not a dead robot.
                 DriverStationErrors.reportError(
                         "AutoSelector: Failed to build '" + autoName + "' - " + e.getMessage(), false);
                 return Commands.none();
@@ -252,7 +254,7 @@ public class AutoSelector {
                 startPoseSources.put(selected, auto);
             }
             return java.util.Optional.ofNullable(auto.getStartingPose());
-        } catch (RuntimeException e) {
+        } catch (Throwable e) {
             return java.util.Optional.empty();
         }
     }

@@ -223,10 +223,20 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
                         var alliance = MatchState.getAlliance();
                         return alliance.isPresent() && alliance.get() == Alliance.RED;
                     });
-        } catch (Exception e) {
-            // Loud + persistent: AutoBuilder is left unconfigured, so autos won't
+        } catch (Throwable e) {
+            // Throwable, not Exception, and that is the whole fix: PathPlannerLib is built against
+            // commands v2, so on a v3-only robot AutoBuilder.configure() dies with a
+            // NoClassDefFoundError for org.wpilib.command2.Subsystem - an Error, which the old
+            // catch let straight through. The robot program crash-looped at boot with no line of
+            // team code in the trace. Found on a Systemcore with a real swerve config.
+            //
+            // Loud + persistent either way: AutoBuilder is left unconfigured, so autos won't
             // path. A quiet reportError is too easy to miss until a match.
-            String msg = "PathPlanner failed to configure (autos will not path): " + e.getMessage();
+            String why = e instanceof NoClassDefFoundError
+                    ? "PathPlannerLib needs the WPILibNewCommands (commands v2) vendordep on the "
+                            + "robot - add vendordeps/WPILibNewCommands.json (" + e.getMessage() + ")"
+                    : String.valueOf(e.getMessage());
+            String msg = "PathPlanner failed to configure (autos will not path): " + why;
             DriverStationErrors.reportError(msg, e.getStackTrace());
             AlertManager.getInstance().error("Swerve", msg);
         }
