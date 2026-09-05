@@ -115,6 +115,16 @@ final class LegacyLimelightReader {
      */
     private final DoubleSubscriber heartbeat;
     private final DoubleArraySubscriber hardware;
+    /**
+     * The same two poses with the field's centre as the origin - what the camera actually solves.
+     * {@code botpose_wpiblue} is derived from it by adding half the field, so a tag the camera can
+     * see but cannot place (not in its field map, or MegaTag2 with no heading) is all zeros here
+     * and lands exactly on the field's centre there, with {@code tv} = 1 and a tag counted. Seen
+     * on four Limelight 4s at once: a robot on a bench, reported at (8.27, 4.03, 0) to the
+     * millimetre. Only the centre-origin array can tell that apart from a real fix.
+     */
+    private final DoubleArraySubscriber megaTag2Centre;
+    private final DoubleArraySubscriber megaTag1Centre;
 
     /** Publish time of the newest frame already handed over, in NetworkTables microseconds. */
     private long lastConsumedNt = NEVER;
@@ -128,6 +138,8 @@ final class LegacyLimelightReader {
                 .subscribe(new double[0]);
         this.heartbeat = table.getDoubleTopic("hb").subscribe(0.0);
         this.hardware = table.getDoubleArrayTopic("hw").subscribe(new double[0]);
+        this.megaTag2Centre = table.getDoubleArrayTopic("botpose_orb").subscribe(new double[0]);
+        this.megaTag1Centre = table.getDoubleArrayTopic("botpose").subscribe(new double[0]);
 
         table.getEntry("camerapose_robotspace_set").setDoubleArray(new double[] {
                 robotToCamera.getX(),
@@ -173,7 +185,8 @@ final class LegacyLimelightReader {
         // Value and publish time together, in one call. MegaTag2 preferred, MegaTag1 as the
         // fallback, exactly as before - what is new is that the timestamp travels with the array.
         TimestampedDoubleArray frame = useMegaTag2 ? megaTag2.getAtomic() : null;
-        if (frame == null || frame.value.length < MIN_LENGTH) {
+        boolean fromMegaTag2 = frame != null && frame.value.length >= MIN_LENGTH;
+        if (!fromMegaTag2) {
             frame = megaTag1.getAtomic();
         }
         if (frame.value.length < MIN_LENGTH || frame.timestamp == NEVER) {
@@ -205,6 +218,16 @@ final class LegacyLimelightReader {
         // so "the origin, right now" is what no-detection looks like on this API. Treating it as a
         // real measurement teleports a pose estimator to the blue-alliance corner.
         if (x == 0.0 && y == 0.0 && yaw == 0.0) {
+            return Optional.empty();
+        }
+
+        // The other way a camera says "I could not place this": the centre-origin solve is zero
+        // and the blue-origin copy of it is therefore the exact centre of the field. tv is 1 and a
+        // tag is counted, because the tag was seen - it just is not in the camera's map, or
+        // MegaTag2 was asked without a heading. Not every camera publishes the centre-origin key;
+        // when it is absent this cannot tell and the estimate stands on the other checks.
+        double[] centre = fromMegaTag2 ? megaTag2Centre.get() : megaTag1Centre.get();
+        if (centre.length > I_YAW && centre[I_X] == 0.0 && centre[I_Y] == 0.0 && centre[I_YAW] == 0.0) {
             return Optional.empty();
         }
 

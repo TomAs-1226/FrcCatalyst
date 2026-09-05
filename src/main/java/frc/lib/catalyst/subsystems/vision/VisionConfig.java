@@ -138,6 +138,16 @@ public class VisionConfig {
             return this;
         }
 
+        /**
+         * Add a Limelight camera, choosing MegaTag2 (needs the robot yaw every loop, which
+         * {@code VisionSubsystem} supplies; steadier at range) or MegaTag1 (self-contained).
+         * Either way the camera is read with MegaTag1 until the pose has been seeded.
+         */
+        public Builder addLimelight(String name, Transform3d robotToCamera, boolean useMegaTag2) {
+            cameras.add(new LimelightSource(name, robotToCamera, useMegaTag2));
+            return this;
+        }
+
         // addPhotonCamera(...) was removed in 2.0.0.
         //
         // PhotonVision has no 2027 vendordep, so PhotonSource cannot be built on this branch, and

@@ -102,6 +102,28 @@ class LegacyLimelightApiTest {
     }
 
     @Test
+    void aTagTheCameraCannotPlaceIsNotTheCentreOfTheField() {
+        // Seen on four Limelight 4s at once: a tag in view, tv = 1, one tag counted, and the pose
+        // (8.2705, 4.0345, 0) to the millimetre - the centre of the field. The camera solved
+        // nothing (its centre-origin botpose is all zeros) and the blue-origin copy is that plus
+        // half a field. A robot on a bench was "measured" at the field's centre a hundred times a
+        // second and everything real was rejected for being too far from it.
+        String cam = fresh("k");
+        NetworkTable t = publish(cam, botpose(8.2705, 4.0345, 0.0, 1, 0.6), 1);
+        t.getEntry("botpose_orb").setDoubleArray(new double[] {0, 0, 0, 0, 0, 0, 23.5, 1, 0, 0.6, 1.2});
+
+        LimelightSource src = new LimelightSource(cam, MOUNT, true);
+        src.setRobotOrientation(0.0, 0.0, 0.0, 0.0);
+
+        assertTrue(src.getEstimatedPose().isEmpty(), "a zero centre-origin solve is not a measurement");
+
+        // The same camera with a real solve behind the blue-origin pose is read normally.
+        t.getEntry("botpose_orb").setDoubleArray(new double[] {-5.02, 0.47, 0, 0, 0, 90.0, 23.5, 1, 0, 0.6, 1.2});
+        publish(cam, botpose(3.25, 4.5, 90.0, 1, 0.6), 1);
+        assertTrue(src.getEstimatedPose().isPresent(), "a placed tag is a measurement");
+    }
+
+    @Test
     void theAllZeroArrayIsNotTheOrigin() {
         // A camera with nothing in view publishes zeros rather than clearing the topic, so
         // "the origin, right now" is what no-detection looks like on this API. Taken at face value

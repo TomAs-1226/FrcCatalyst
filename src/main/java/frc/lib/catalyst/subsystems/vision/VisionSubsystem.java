@@ -176,16 +176,17 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
         List<Accepted> accepted = new ArrayList<>(cameras.size());
 
         // MegaTag2 needs robot yaw. Limelight OS 2027.0 added a shared orientation table that every
-        // camera reads by default, so one publish serves all of them - with four cameras that is one
-        // write per loop instead of four. Cameras that are not Limelights still get told
-        // individually below, since the shared table means nothing to them.
+        // camera on that OS reads by default, so one publish serves all of them. Every camera is
+        // ALSO told individually: a Limelight still on the 2026 per-key API reads only its own
+        // robot_orientation_set, and a MegaTag2 camera that never receives a heading does not fail
+        // - it returns a zero solve that lands on the field's centre. Four cameras did exactly that
+        // on the X1 while the shared table was being written every loop. Four extra sets a loop is
+        // nothing next to a wrong pose.
         LimelightSource.setSharedRobotOrientation(yaw);
 
         for (int i = 0; i < cameras.size(); i++) {
             CameraSource camera = cameras.get(i);
-            if (!(camera instanceof LimelightSource)) {
-                camera.setRobotOrientation(yaw, Math.toDegrees(yawRate), 0, 0);
-            }
+            camera.setRobotOrientation(yaw, Math.toDegrees(yawRate), 0, 0);
 
             Optional<CameraSource.PoseEstimate> estimate = camera.getEstimatedPose();
             if (estimate.isEmpty()) {

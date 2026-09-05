@@ -5,6 +5,25 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.0.0-alpha.2-a8] — 2026-09-05 — A tag the camera cannot place is not the field's centre
+
+Found minutes after a7 went on the X1, by decoding the pose it had seeded to: (8.2705, 4.0345, 0)
+to the millimetre, the centre of the field. A Limelight that sees a tag but cannot solve it
+(MegaTag2 with no heading, or a tag not in its map) publishes a zero centre-origin pose, and its
+blue-origin copy is that plus half a field, with `tv` = 1 and a tag counted.
+
+### Fixed
+
+- `LegacyLimelightReader` reads the centre-origin `botpose` / `botpose_orb` too and refuses a
+  frame whose solve is zero. On the per-key API this was the only way to tell.
+- `VisionSubsystem` now tells every camera the robot yaw individually as well as through the
+  2027 shared table: a Limelight on the 2026 per-key API reads only its own
+  `robot_orientation_set`, so four MegaTag2 cameras were solving with no heading at all.
+
+### Added
+
+- `VisionConfig.addLimelight(name, robotToCamera, useMegaTag2)`.
+
 ## [2.0.0-alpha.2-a7] — 2026-09-05 — Vision seeds the pose
 
 Found on the Catalyst X1: four cameras seeing tags from close range, every estimate rejected as
