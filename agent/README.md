@@ -19,6 +19,15 @@ What it does not cover is the detail behind a number that has gone the wrong way
 
 All of it is already in `/proc` and `/sys`. The agent serves it over HTTP so Console can ask.
 
+## Motor history
+
+`/api/motor-history` is the robot program's `catalyst/motor-history.json` exactly as it is on
+disk - what every motor has been through, by serial number (see the library's *Motor history*
+page). `/api/motor-history.csv` is one row per device with the totals, for a spreadsheet. The
+`/api/system` snapshot carries a summary of it (`motorHistory`) that the Console shows. The path
+can be moved with the `CATALYST_MOTOR_HISTORY` environment variable. Like everything here, it is
+read-only: the robot program owns the file.
+
 ## Building and installing
 
 ```bash

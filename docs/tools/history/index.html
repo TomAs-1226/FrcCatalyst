@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Catalyst Motor History</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0f1424;
+      --panel: #1b2240;
+      --panel2: #131831;
+      --accent: #e94560;
+      --accent2: #f0648a;
+      --text: #f4f4f8;
+      --muted: #8a8aa8;
+      --border: rgba(255,255,255,0.07);
+      --good: #4ade80;
+      --warn: #fbbf24;
+      --err:  #f87171;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      background:
+        radial-gradient(ellipse at 0% 0%, rgba(74,222,128,0.06), transparent 60%),
+        radial-gradient(ellipse at 100% 100%, rgba(233,69,96,0.08), transparent 60%),
+        var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, "SF Pro Text", Segoe UI, sans-serif;
+      min-height: 100vh;
+    }
+    header {
+      padding: 16px 28px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+      position: sticky; top: 0; z-index: 5;
+      background: linear-gradient(180deg, rgba(27,34,64,0.95) 0%, rgba(15,20,36,0.9) 100%);
+      backdrop-filter: blur(6px);
+    }
+    header h1 { margin: 0; font-size: 18px; font-weight: 700; }
+    header .badge { padding: 2px 10px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 600; }
+    header .hint { color: var(--muted); font-size: 13px; }
+    main { display: grid; grid-template-columns: 330px 1fr; gap: 20px; padding: 22px 24px; }
+    @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+    .left, .right {
+      background: linear-gradient(180deg, var(--panel) 0%, var(--panel2) 100%);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+      min-width: 0;
+    }
+    h2 { margin: 0 0 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 1.4px; color: var(--muted); font-weight: 700; }
+    h2:not(:first-child) { margin-top: 22px; }
+    .row { display: grid; grid-template-columns: 1fr; gap: 6px; margin-bottom: 10px; }
+    .row label { color: var(--muted); font-size: 12px; }
+    input, select {
+      width: 100%; padding: 9px 11px; border-radius: 9px; border: 1px solid var(--border);
+      background: rgba(0,0,0,0.25); color: var(--text); font: inherit; font-size: 13px;
+    }
+    input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accent2); outline-offset: 1px; }
+    .btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+    button {
+      padding: 9px 14px; border-radius: 9px; border: 1px solid var(--border);
+      background: rgba(255,255,255,0.06); color: var(--text); font: inherit; font-size: 13px; cursor: pointer;
+    }
+    button.primary { background: var(--accent); border-color: transparent; font-weight: 600; }
+    button:disabled { opacity: 0.45; cursor: default; }
+    .status { margin-top: 12px; font-size: 12.5px; color: var(--muted); line-height: 1.5; min-height: 1.5em; }
+    .status.err { color: var(--err); }
+    .status.ok { color: var(--good); }
+    .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 12.5px; }
+    .kv dt { color: var(--muted); }
+    .kv dd { margin: 0; font-variant-numeric: tabular-nums; }
+    code { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12px; background: rgba(0,0,0,0.3); padding: 1px 5px; border-radius: 5px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+    th { text-align: right; font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 0 8px 8px 0; white-space: nowrap; cursor: pointer; user-select: none; }
+    th:first-child, td:first-child { text-align: left; }
+    th[data-active="true"] { color: var(--accent2); }
+    td { padding: 8px 8px 8px 0; text-align: right; border-top: 1px solid var(--border); white-space: nowrap; vertical-align: middle; }
+    td.name { font-weight: 600; }
+    td.name small { display: block; color: var(--muted); font-weight: 500; font-size: 11.5px; }
+    td.warn { color: var(--warn); font-weight: 700; }
+    tr.dev { cursor: pointer; }
+    tr.dev:hover td { background: rgba(255,255,255,0.03); }
+    tr.detail td { text-align: left; white-space: normal; background: rgba(0,0,0,0.18); padding: 12px 14px; }
+    .bar { display: inline-block; width: 70px; height: 6px; margin-right: 8px; vertical-align: middle; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
+    .bar i { display: block; height: 100%; background: var(--accent); }
+    .pill { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 999px; background: rgba(251,191,36,0.15); color: var(--warn); font-size: 10.5px; font-weight: 600; }
+    .timeline { display: grid; grid-template-columns: auto auto 1fr; gap: 4px 14px; font-size: 12.5px; }
+    .timeline .t { color: var(--muted); }
+    .sessions { display: flex; gap: 3px; align-items: flex-end; height: 44px; margin-top: 8px; }
+    .sessions i { display: block; width: 9px; background: var(--accent2); border-radius: 2px 2px 0 0; min-height: 2px; opacity: 0.85; }
+    .sessions i[data-hot="true"] { background: var(--warn); }
+    .empty { color: var(--muted); font-size: 13px; padding: 30px 0; text-align: center; }
+    .dim { color: var(--muted); font-weight: 500; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Motor History</h1>
+    <span class="badge">Catalyst</span>
+    <span class="hint">What every motor on the robot has been through, by serial number. Pulled off the Systemcore, saved wherever you keep such things.</span>
+  </header>
+  <main>
+    <section class="left">
+      <h2>Robot</h2>
+      <div class="row">
+        <label for="team">Team number</label>
+        <input id="team" inputmode="numeric" placeholder="5805" />
+      </div>
+      <div class="row">
+        <label for="host">Systemcore address (blank = 10.TE.AM.2)</label>
+        <input id="host" placeholder="10.58.5.2 or 172.26.0.1 over USB" />
+      </div>
+      <div class="btns">
+        <button class="primary" id="fetch">Fetch history</button>
+        <button id="saveJson" disabled>Save JSON</button>
+        <button id="saveCsv" disabled>Save CSV</button>
+        <button id="load">Open a saved file</button>
+        <input type="file" id="file" accept=".json,application/json" hidden />
+      </div>
+      <div class="status" id="status">The robot program writes <code>catalyst/motor-history.json</code> beside itself; <code>catalyst-agent</code> 2.0.3 on the Systemcore serves it on port 9010.</div>
+
+      <h2>This file</h2>
+      <dl class="kv" id="meta"><dt>—</dt><dd>nothing loaded</dd></dl>
+
+      <h2>Reading it</h2>
+      <div class="status">
+        <b>Powered</b> is time on the bus; <b>turning</b> wore the bearings; <b>loaded</b> (over 5 A) wore the windings.
+        <b>Hot</b> counts time at or above 70 °C. <b>Past</b> identities are old ids, names or firmware: the motor's résumé.
+        Click a row for its identities and recent boots.
+      </div>
+    </section>
+
+    <section class="right">
+      <h2>Motors</h2>
+      <div id="table"><div class="empty">Fetch from a robot, or open a saved file.</div></div>
+    </section>
+  </main>
+
+  <script>
+    "use strict";
+    const $ = (s) => document.querySelector(s);
+    const PORT = 9010;
+    const HOT_C = 70;
+    const COLS = [
+      ["name", "Motor", (r) => r.name.toLowerCase()],
+      ["powered", "Powered", (r) => r.poweredSeconds],
+      ["running", "Turning", (r) => r.runningSeconds],
+      ["loaded", "Loaded", (r) => r.loadedSeconds],
+      ["revs", "Revs", (r) => r.revolutions],
+      ["peakA", "Peak A", (r) => r.peakStatorAmps],
+      ["peakC", "Peak °C", (r) => r.peakTempC],
+      ["hot", "Hot", (r) => r.hotSeconds],
+      ["boots", "Boots", (r) => r.boots],
+      ["first", "First seen", (r) => r.firstSeenMs],
+    ];
+    let doc = null;
+    let rows = [];
+    let sortKey = "powered";
+    let sortDesc = true;
+    let open = null;
+
+    const TAURI = (() => { try { return window.parent && window.parent.__TAURI__ ? window.parent.__TAURI__ : (window.__TAURI__ || null); } catch { return null; } })();
+
+    const settings = {
+      get: (k, d) => { try { const v = localStorage.getItem("catalyst.history." + k); return v === null ? d : v; } catch { return d; } },
+      set: (k, v) => { try { localStorage.setItem("catalyst.history." + k, v); } catch { /* private mode */ } },
+    };
+    $("#team").value = settings.get("team", "");
+    $("#host").value = settings.get("host", "");
+
+    function hostFor() {
+      const host = $("#host").value.trim();
+      if (host) return host;
+      const team = parseInt($("#team").value, 10);
+      if (!Number.isFinite(team) || team <= 0) return null;
+      return `10.${Math.floor(team / 100)}.${team % 100}.2`;
+    }
+
+    function status(text, kind) {
+      const el = $("#status");
+      el.textContent = text;
+      el.className = "status" + (kind ? " " + kind : "");
+    }
+
+    function hours(s) {
+      if (!Number.isFinite(s) || s <= 0) return "0";
+      if (s < 3600) return `${(s / 60).toFixed(0)} min`;
+      return `${(s / 3600).toFixed(1)} h`;
+    }
+    function revs(r) {
+      if (!Number.isFinite(r) || r <= 0) return "0";
+      if (r >= 1e6) return `${(r / 1e6).toFixed(2)} M`;
+      if (r >= 1e3) return `${(r / 1e3).toFixed(1)} k`;
+      return r.toFixed(0);
+    }
+    function date(ms, trusted) {
+      if (!ms) return "—";
+      if (trusted === false) return "relative";
+      const d = new Date(ms);
+      return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    }
+    function esc(s) { return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+    function shortSerial(s) { s = String(s || ""); return s.length > 10 ? "…" + s.slice(-8) : s; }
+
+    /* The file's devices, flattened: the latest identity and the totals beside each record. */
+    function flatten(d) {
+      return (d.devices || []).map((dev) => {
+        const ids = dev.identities || [];
+        const latest = ids[ids.length - 1] || {};
+        const t = dev.totals || {};
+        return {
+          dev, serial: dev.serial || "", model: dev.model || "", kind: dev.kind || "device",
+          bus: latest.bus || "", id: latest.id, name: latest.name || "", firmware: latest.firmware || "",
+          poweredSeconds: t.poweredSeconds || 0, runningSeconds: t.runningSeconds || 0, loadedSeconds: t.loadedSeconds || 0,
+          revolutions: t.revolutions || 0, peakStatorAmps: t.peakStatorAmps || 0, peakTempC: t.peakTempC || 0,
+          hotSeconds: t.hotSeconds || 0, energyJoules: t.energyJoules || 0, boots: dev.boots || 0,
+          firstSeenMs: dev.firstSeenMs || 0, lastSeenMs: dev.lastSeenMs || 0, identities: ids, sessions: dev.sessions || [],
+          stickyFaults: t.stickyFaults || 0,
+        };
+      });
+    }
+
+    function csv() {
+      const cols = ["serial", "model", "kind", "bus", "id", "name", "firmware", "poweredSeconds", "runningSeconds", "loadedSeconds",
+        "revolutions", "peakStatorAmps", "peakTempC", "hotSeconds", "energyJoules", "boots", "firstSeenMs", "lastSeenMs", "identities", "stickyFaults"];
+      const cell = (v) => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+      const lines = [cols.join(",")];
+      for (const r of rows) {
+        lines.push(cols.map((c) => cell(c === "identities" ? r.identities.length : c === "id" ? (r.id ?? "") : r[c])).join(","));
+      }
+      return lines.join("\n") + "\n";
+    }
+
+    function render() {
+      const meta = $("#meta");
+      if (!doc) { meta.innerHTML = "<dt>—</dt><dd>nothing loaded</dd>"; $("#table").innerHTML = '<div class="empty">Fetch from a robot, or open a saved file.</div>'; return; }
+      const motors = rows.filter((r) => r.kind === "motor");
+      const totalH = motors.reduce((a, r) => a + r.poweredSeconds, 0) / 3600;
+      const hottest = motors.reduce((a, r) => (!a || r.peakTempC > a.peakTempC ? r : a), null);
+      meta.innerHTML = [
+        ["Source", esc(doc.path || doc.__source || "file")],
+        ["Updated", esc(doc.updatedMs ? new Date(doc.updatedMs).toLocaleString() : "—") + (doc.clockTrusted === false ? " <span class=\"dim\">(robot clock not set)</span>" : "")],
+        ["Devices", `${rows.length} (${motors.length} motors)`],
+        ["Powered", `${totalH.toFixed(1)} h across all motors`],
+        ["Hottest ever", hottest && hottest.peakTempC ? `${hottest.peakTempC.toFixed(0)} °C, ${esc(hottest.name || shortSerial(hottest.serial))}` : "—"],
+      ].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
+
+      const col = COLS.find((c) => c[0] === sortKey) || COLS[1];
+      const key = col[2];
+      const sorted = rows.filter((r) => r.kind === "motor").sort((a, b) => {
+        const x = key(a), y = key(b);
+        const c = typeof x === "string" ? x.localeCompare(y) : x - y;
+        return sortDesc ? -c : c;
+      });
+      const others = rows.filter((r) => r.kind !== "motor");
+      const max = Math.max(1, ...sorted.map((r) => r.poweredSeconds));
+      const head = COLS.map(([k, label]) => `<th data-sort="${k}" data-active="${k === sortKey}">${label}${k === sortKey ? (sortDesc ? " ↓" : " ↑") : ""}</th>`).join("");
+      const body = sorted.map((r) => {
+        const where = [r.bus, r.id != null && r.id !== "" ? `id ${r.id}` : ""].filter(Boolean).join(" · ");
+        const past = r.identities.length > 1 ? `<span class="pill" title="renumbered, renamed or reflashed ${r.identities.length - 1} time(s)">${r.identities.length - 1} past</span>` : "";
+        const main = `<tr class="dev" data-serial="${esc(r.serial)}">
+          <td class="name">${esc(r.name) || '<span class="dim">unnamed</span>'}<small>${esc(where)} · ${esc(shortSerial(r.serial))} · ${esc(r.model)}${past}</small></td>
+          <td><span class="bar"><i style="width:${(100 * r.poweredSeconds / max).toFixed(1)}%"></i></span>${hours(r.poweredSeconds)}</td>
+          <td>${hours(r.runningSeconds)}</td>
+          <td>${hours(r.loadedSeconds)}</td>
+          <td>${revs(r.revolutions)}</td>
+          <td>${r.peakStatorAmps ? r.peakStatorAmps.toFixed(0) : "—"}</td>
+          <td class="${r.peakTempC >= HOT_C ? "warn" : ""}">${r.peakTempC ? r.peakTempC.toFixed(0) : "—"}</td>
+          <td class="${r.hotSeconds > 0 ? "warn" : ""}">${r.hotSeconds > 0 ? hours(r.hotSeconds) : "—"}</td>
+          <td>${r.boots}</td>
+          <td>${date(r.firstSeenMs, doc.clockTrusted)}</td>
+        </tr>`;
+        if (open !== r.serial) return main;
+        const ids = r.identities.map((i) => `<span class="t">${date(i.firstSeenMs, doc.clockTrusted)} – ${date(i.lastSeenMs, doc.clockTrusted)}</span><span>id ${esc(i.id)} on ${esc(i.bus)}</span><span>${esc(i.name) || "<i>unnamed</i>"} · ${esc(i.firmware) || "firmware unknown"}</span>`).join("");
+        const sessions = r.sessions.slice(-40);
+        const smax = Math.max(1, ...sessions.map((s) => s.revolutions || 0));
+        const bars = sessions.map((s) => `<i style="height:${Math.max(4, 100 * (s.revolutions || 0) / smax).toFixed(0)}%" data-hot="${(s.hotSeconds || 0) > 0}" title="${date(s.startMs, doc.clockTrusted)}: ${hours(s.seconds)} powered, ${revs(s.revolutions)} revs, peak ${(s.peakAmps || 0).toFixed(0)} A / ${(s.peakTempC || 0).toFixed(0)} °C"></i>`).join("");
+        const energy = r.energyJoules > 0 ? `${(r.energyJoules / 3600).toFixed(1)} Wh` : "—";
+        return main + `<tr class="detail"><td colspan="10">
+          <b>Identities</b> — every id, name and firmware this serial has carried
+          <div class="timeline" style="margin:6px 0 12px">${ids}</div>
+          <b>Recent boots</b> — one bar per boot, height is revolutions, amber had hot time (${sessions.length} of ${r.boots} on record)
+          <div class="sessions">${bars || '<span class="dim">none yet</span>'}</div>
+          <div style="margin-top:10px" class="dim">Energy through the windings ${energy} · sticky faults ever set: ${r.stickyFaults ? "0x" + r.stickyFaults.toString(16) : "none"} · serial ${esc(r.serial)} · ${esc(r.dev.hardwareRev ? "hardware " + r.dev.hardwareRev : "")} ${esc(r.dev.manufactured ? "made " + r.dev.manufactured : "")}</div>
+        </td></tr>`;
+      }).join("");
+      const rest = others.length ? `<div class="status">${others.length} other device${others.length === 1 ? "" : "s"} on record: ${others.map((o) => esc(o.name || shortSerial(o.serial)) + " (" + esc(o.model) + ")").join(", ")}</div>` : "";
+      $("#table").innerHTML = motors.length
+        ? `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>${rest}`
+        : `<div class="empty">No motors on record yet. The robot program writes the file once it has seen a motor.</div>${rest}`;
+      $("#table").querySelectorAll("th[data-sort]").forEach((th) => th.addEventListener("click", () => {
+        const k = th.dataset.sort;
+        if (sortKey === k) sortDesc = !sortDesc; else { sortKey = k; sortDesc = k !== "name"; }
+        render();
+      }));
+      $("#table").querySelectorAll("tr.dev").forEach((tr) => tr.addEventListener("click", () => {
+        open = open === tr.dataset.serial ? null : tr.dataset.serial;
+        render();
+      }));
+    }
+
+    function adopt(d, source) {
+      doc = d;
+      if (source) doc.__source = source;
+      rows = flatten(d);
+      $("#saveJson").disabled = false;
+      $("#saveCsv").disabled = false;
+      render();
+    }
+
+    async function fetchHistory() {
+      const host = hostFor();
+      if (!host) { status("Enter a team number or an address first.", "err"); return; }
+      settings.set("team", $("#team").value.trim());
+      settings.set("host", $("#host").value.trim());
+      const url = `http://${host}:${PORT}/api/motor-history`;
+      status(`Fetching ${url} …`);
+      $("#fetch").disabled = true;
+      try {
+        const ctl = new AbortController();
+        const timer = setTimeout(() => ctl.abort(), 6000);
+        const res = await fetch(url, { signal: ctl.signal, cache: "no-store" });
+        clearTimeout(timer);
+        const body = await res.json();
+        if (!res.ok || body.error) {
+          status(body.error ? `The robot says: ${body.error}` : `HTTP ${res.status} from the agent`, "err");
+          return;
+        }
+        adopt(body, url);
+        status(`Fetched ${rows.length} devices from ${host}.`, "ok");
+      } catch (e) {
+        status(`Could not reach ${host}: ${e.name === "AbortError" ? "no answer in 6 s" : e.message}. Is catalyst-agent 2.0.3 installed, and is this laptop on the robot's network?`, "err");
+      } finally {
+        $("#fetch").disabled = false;
+      }
+    }
+
+    async function save(kind) {
+      const text = kind === "csv" ? csv() : JSON.stringify(doc, (k, v) => (k === "__source" ? undefined : v), 2);
+      const stamp = new Date().toISOString().slice(0, 10);
+      const name = `motor-history-${stamp}.${kind}`;
+      if (TAURI && TAURI.dialog && TAURI.core) {
+        try {
+          const path = await TAURI.dialog.save({ defaultPath: name, filters: [{ name: kind.toUpperCase(), extensions: [kind] }] });
+          if (!path) { status("Not saved."); return; }
+          await TAURI.core.invoke("save_text_file", { path, content: text });
+          status(`Saved ${path}`, "ok");
+          return;
+        } catch (e) {
+          status(`Could not save: ${e}`, "err");
+          return;
+        }
+      }
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([text], { type: kind === "csv" ? "text/csv" : "application/json" }));
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      status(`Downloaded ${name}`, "ok");
+    }
+
+    $("#fetch").addEventListener("click", fetchHistory);
+    $("#saveJson").addEventListener("click", () => save("json"));
+    $("#saveCsv").addEventListener("click", () => save("csv"));
+    $("#load").addEventListener("click", () => $("#file").click());
+    $("#file").addEventListener("change", async (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      try { adopt(JSON.parse(await f.text()), f.name); status(`Opened ${f.name}: ${rows.length} devices.`, "ok"); }
+      catch (err) { status(`Not a motor history file: ${err.message}`, "err"); }
+      e.target.value = "";
+    });
+    document.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.target.id === "team" || e.target.id === "host")) fetchHistory(); });
+  </script>
+</body>
+</html>

@@ -232,6 +232,55 @@ class Endpoints(unittest.TestCase):
         self.assertEqual(handler_methods, ["do_GET"])
 
 
+class MotorHistory(unittest.TestCase):
+    DOC = {"format": "catalyst-motor-history", "version": 1, "updatedMs": 1, "clockTrusted": True,
+           "devices": [{"serial": "000E0B500C776800000A0001160000E3", "model": "Talon FX", "kind": "motor",
+                        "boots": 3, "firstSeenMs": 10, "lastSeenMs": 20,
+                        "identities": [{"id": 45, "name": "Intake Roller", "bus": "can_s2", "firmware": "26.1.0.0"},
+                                       {"id": 45, "name": "BL, \"Drive\"", "bus": "can_s2", "firmware": "26.1.1.1"}],
+                        "totals": {"poweredSeconds": 120.5, "runningSeconds": 30, "revolutions": 1500.25,
+                                   "peakStatorAmps": 80, "peakTempC": 61, "hotSeconds": 0, "stickyFaults": 4}}]}
+
+    def _with_file(self, text):
+        import tempfile
+        f = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8")
+        f.write(text)
+        f.close()
+        return f.name
+
+    def test_a_missing_file_is_an_answer_not_an_exception(self):
+        doc = agent.motor_history("/nonexistent/motor-history.json")
+        self.assertIn("error", doc)
+        self.assertEqual(doc["devices"], [])
+
+    def test_the_file_is_handed_over_as_it_is(self):
+        path = self._with_file(json.dumps(self.DOC))
+        doc = agent.motor_history(path)
+        self.assertNotIn("error", doc)
+        self.assertEqual(doc["devices"][0]["serial"], "000E0B500C776800000A0001160000E3")
+        self.assertEqual(doc["path"], path)
+        os.unlink(path)
+
+    def test_the_csv_is_the_latest_identity_and_the_totals(self):
+        csv = agent.motor_history_csv(self.DOC)
+        lines = csv.strip().split("\n")
+        self.assertEqual(lines[0].split(",")[:6], ["serial", "model", "kind", "bus", "id", "name"])
+        self.assertEqual(len(lines), 2)
+        self.assertIn('"BL, ""Drive"""', lines[1], "a name with a comma and quotes is quoted")
+        self.assertIn(",26.1.1.1,120.5,30,", lines[1], "the latest firmware, then the totals")
+        self.assertTrue(lines[1].endswith(",2,4"), "identity count and sticky faults close the row")
+
+    def test_garbage_is_reported_not_raised(self):
+        path = self._with_file("{not json")
+        doc = agent.motor_history(path)
+        self.assertIn("error", doc)
+        os.unlink(path)
+
+    def test_the_new_routes_are_still_only_gets(self):
+        handler_methods = [n for n in dir(agent.Handler) if n.startswith("do_")]
+        self.assertEqual(handler_methods, ["do_GET"])
+
+
 class Cameras(unittest.TestCase):
     AGGREGATED = {"cameras": [
         {"host": "limelight-left", "ip": "10.58.5.12", "type": "limelight4", "ntConnected": True,

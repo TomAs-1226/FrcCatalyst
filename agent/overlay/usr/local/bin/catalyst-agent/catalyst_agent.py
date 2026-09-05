@@ -659,6 +659,94 @@ def cameras():
 
 # --------------------------------------------------------------------------- assembly
 
+# --------------------------------------------------------------------------- motor history
+
+# The robot program (FrcCatalyst's MotorHistory) keeps what every motor has been through, by serial
+# number, in one JSON file beside itself. It is the record - loaded at boot, never re-derived - so
+# the right thing for this agent to do is hand the file over exactly as it is, plus a CSV of the
+# totals for a spreadsheet. The Console shows a summary of it from the snapshot; the App fetches
+# the whole thing and saves it wherever the team keeps such things.
+MOTOR_HISTORY_PATH = os.environ.get("CATALYST_MOTOR_HISTORY", "/home/systemcore/catalyst/motor-history.json")
+MOTOR_HISTORY_COLUMNS = ("serial", "model", "kind", "bus", "id", "name", "firmware", "poweredSeconds",
+                         "runningSeconds", "loadedSeconds", "revolutions", "peakStatorAmps", "peakTempC",
+                         "hotSeconds", "energyJoules", "boots", "firstSeenMs", "lastSeenMs", "identities",
+                         "stickyFaults")
+
+
+def motor_history(path=None):
+    """The file as it is on disk, with where it came from. A missing file is an answer, not a fault."""
+    path = path or MOTOR_HISTORY_PATH
+    try:
+        with open(path, encoding="utf-8") as f:
+            doc = json.load(f)
+    except FileNotFoundError:
+        return {"error": "no motor history yet - the robot program writes it once it has seen a motor",
+                "path": path, "devices": []}
+    except (OSError, ValueError) as exc:
+        return {"error": str(exc), "path": path, "devices": []}
+    if not isinstance(doc, dict):
+        return {"error": "not a motor history file", "path": path, "devices": []}
+    doc["path"] = path
+    try:
+        doc["fileModifiedAt"] = os.path.getmtime(path)
+    except OSError:
+        pass
+    return doc
+
+
+def _device_row(d):
+    """One device flattened to the CSV columns: the latest identity and the totals."""
+    identities = d.get("identities") or []
+    latest = identities[-1] if identities else {}
+    totals = d.get("totals") or {}
+    return {
+        "serial": d.get("serial", ""), "model": d.get("model", ""), "kind": d.get("kind", ""),
+        "bus": latest.get("bus", ""), "id": latest.get("id", ""), "name": latest.get("name", ""),
+        "firmware": latest.get("firmware", ""),
+        "poweredSeconds": totals.get("poweredSeconds", 0), "runningSeconds": totals.get("runningSeconds", 0),
+        "loadedSeconds": totals.get("loadedSeconds", 0), "revolutions": totals.get("revolutions", 0),
+        "peakStatorAmps": totals.get("peakStatorAmps", 0), "peakTempC": totals.get("peakTempC", 0),
+        "hotSeconds": totals.get("hotSeconds", 0), "energyJoules": totals.get("energyJoules", 0),
+        "boots": d.get("boots", 0), "firstSeenMs": d.get("firstSeenMs", 0), "lastSeenMs": d.get("lastSeenMs", 0),
+        "identities": len(identities), "stickyFaults": totals.get("stickyFaults", 0),
+    }
+
+
+def motor_history_csv(doc):
+    """One row per device, the totals only. Commas and quotes in names are quoted the RFC way."""
+    def cell(v):
+        s = "" if v is None else str(v)
+        return '"' + s.replace('"', '""') + '"' if any(c in s for c in ',"\n') else s
+    lines = [",".join(MOTOR_HISTORY_COLUMNS)]
+    for d in doc.get("devices") or []:
+        row = _device_row(d)
+        lines.append(",".join(cell(row[c]) for c in MOTOR_HISTORY_COLUMNS))
+    return "\n".join(lines) + "\n"
+
+
+_history_cache = {"mtime": None, "summary": None}
+
+
+def motor_history_summary():
+    """What the snapshot carries: the totals per device, re-read only when the file changes."""
+    try:
+        mtime = os.path.getmtime(MOTOR_HISTORY_PATH)
+    except OSError:
+        return {"devices": [], "present": False}
+    if _history_cache["mtime"] == mtime and _history_cache["summary"] is not None:
+        return _history_cache["summary"]
+    doc = motor_history()
+    summary = {
+        "present": "error" not in doc,
+        "updatedMs": doc.get("updatedMs"),
+        "clockTrusted": doc.get("clockTrusted"),
+        "devices": [_device_row(d) for d in doc.get("devices") or []],
+    }
+    _history_cache["mtime"] = mtime
+    _history_cache["summary"] = summary
+    return summary
+
+
 def snapshot():
     return {
         "identity": identity(),
@@ -671,6 +759,7 @@ def snapshot():
         "network": network(),
         "robotProgram": robot_program(),
         "cameras": cameras(),
+        "motorHistory": motor_history_summary(),
         "sampledAt": time.time(),
     }
 
@@ -679,6 +768,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
     # Every response is JSON and every route is a GET. There is no POST, PUT or DELETE anywhere in
     # this file, and there should not be - see the module docstring.
     protocol_version = "HTTP/1.1"
+
+    def _send_text(self, text, content_type, status=200, filename=None):
+        body = text.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        if filename:
+            self.send_header("Content-Disposition", 'attachment; filename="%s"' % filename)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(body)
 
     def _send(self, payload, status=200):
         body = json.dumps(payload).encode("utf-8")
@@ -700,11 +800,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
             elif route == "/api/health":
                 # A cheap route the Console can use to find out whether the agent is here at all,
                 # without paying for a full sample.
-                self._send({"ok": True, "agent": "catalyst-agent", "version": "2.0.2"})
+                self._send({"ok": True, "agent": "catalyst-agent", "version": "2.0.3"})
             elif route == "/api/robot":
                 self._send(robot_program())
             elif route == "/api/cameras":
                 self._send(cameras())
+            elif route == "/api/motor-history":
+                doc = motor_history()
+                self._send(doc, status=404 if "error" in doc else 200)
+            elif route == "/api/motor-history.csv":
+                doc = motor_history()
+                self._send_text(motor_history_csv(doc), "text/csv; charset=utf-8",
+                                status=404 if "error" in doc else 200, filename="motor-history.csv")
             else:
                 self._send({"error": "not found", "path": route}, status=404)
         except Exception as exc:            # noqa: BLE001 - a diagnostic tool must not die diagnosing

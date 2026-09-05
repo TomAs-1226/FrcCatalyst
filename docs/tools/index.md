@@ -8,7 +8,7 @@ has_children: false
 # Tools
 {: .no_toc }
 
-Eleven single-file browser tools, hosted right here. Nothing to install.
+Twelve single-file browser tools, hosted right here. Nothing to install.
 {: .fs-6 .fw-300 }
 
 <style>
@@ -201,3 +201,5 @@ Ten tabs, and the first one is the one to import if you only import one: the
 State timeline puts `State`, `StateConfirmed`, `Phase`, `Target` and `Blocker`
 side by side, which is enough to see a transition stall and read off the name
 of the mechanism that stalled it.
+
+- [Motor History](history/) — every motor's hours, peaks and past names, pulled off the Systemcore and saved as JSON or CSV
