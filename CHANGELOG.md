@@ -5,6 +5,51 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.0.0-alpha.2-a6] — 2026-09-04 — Four cameras on a Systemcore
+
+Built against four Limelight 4s on a Systemcore, which is where most of it came from. Additive:
+every existing call is unchanged, and the one validation that was removed only ever threw.
+
+### Added
+
+- **`VisionPoseSink`** — the three things vision fusion needs from a drivetrain, as an interface.
+  `SwerveSubsystem` implements it unchanged; `VisionConfig.builder().poseSink(...)` accepts
+  anything else. **`StandaloneVisionPose`** is the no-drivetrain case: the pose is the cameras'
+  latest accepted estimate, for a tank drive, a team's own swerve, or a bench. `hasPose()` lets the
+  two pose-relative filter gates stand down until the sink has a pose, so the first estimate is not
+  rejected for being far from an origin nobody is at.
+- **`VisionHealth`** — a state per camera (`OK`, `NO_TARGETS`, `DISCONNECTED`, `STALE`, `HOT`,
+  `LOW_FPS`, `REJECTING`) and a level for vision as a whole (`OK`, `DEGRADED`, `BLIND`), published
+  under `/Catalyst/Vision/Health/`, with alerts debounced by a second in both directions. Thresholds
+  on `VisionConfig.builder()`: `cameraHotCelsius` (80), `cameraMinFps` (10),
+  `staleFrameSeconds` (1). `VisionSubsystem.health()` returns the current picture.
+- **`LimelightSource.isConnected()`** now reads the camera's heartbeat when LimelightLib's own
+  answer is no, so it is true for a shipping camera. New: `secondsSinceHeartbeat()`,
+  `cameraFps()`, `cameraTemperatureC()`, `isUsingMegaTag2()`. `CameraSource.isConnected()` is a
+  new default method (true).
+- **`DeviceRoster`** — cameras, motors and the controller as *expected* and *connected* counts
+  with a row per device, under `/Catalyst/Devices/`. `CatalystMotor` (and its followers) and
+  `VisionSubsystem`'s cameras register themselves; `CatalystMotor.isConnected()` is new. Published
+  from `HealthMonitor.update()` at 4 Hz.
+- **`AutoStartCheck`** — distance and heading from the selected auto's starting pose while
+  disabled, under `/Catalyst/Auto/StartCheck/`, warning when out of tolerance.
+  `AutoSelector.selectedStartingPose()` and `AutoSelector.startCheck(poseSupplier)` wire it to
+  PathPlanner autos.
+- **catalyst-agent 2.0.2** — `/api/cameras`: the Systemcore vision aggregator's camera list
+  joined with each camera's own status (temperature, CPU, frame rate, pipeline), so the pit sees
+  a hot or unplugged camera with no robot code running.
+- **`VisionSubsystem` with no sink** now still polls the cameras, publishes their telemetry and
+  their health, and says at construction that nothing is being fused.
+
+### Changed
+
+- `VisionConfig.build()` no longer throws without a drive subsystem. It only ever threw; the
+  warning it was guarding was unreachable.
+- `docs/advanced/systemcore.md` — the camera section said a Limelight 4 plugs into a Systemcore
+  USB port. It does not: LL4s are Ethernet cameras to the OS, and the section now describes the
+  addressing that was measured to work and the OS's alias NAT that makes the cameras reachable from
+  the Driver Station laptop.
+
 ## [2.0.0-alpha.1-a6] — 2026-09-02 — Different computer, same library
 
 WPILib 2027 and Limelight Systemcore. Not a version bump: the package root moved from

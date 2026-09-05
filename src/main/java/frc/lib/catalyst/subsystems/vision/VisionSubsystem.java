@@ -70,7 +70,8 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
 
     /** Cross-camera transform check. Inert with fewer than two cameras. */
     private final CameraAgreement agreement = new CameraAgreement();
-    private final SwerveSubsystem driveSubsystem;
+    private final VisionPoseSink poseSink;
+    private final VisionHealth health;
 
     // Telemetry
     private int totalAccepted = 0;
@@ -81,7 +82,13 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
     public VisionSubsystem(VisionConfig config) {
         this.config = config;
         this.cameras = config.cameras;
-        this.driveSubsystem = config.driveSubsystem;
+        this.poseSink = config.poseSink;
+        this.health = new VisionHealth(VisionHealth.probesFor(cameras), new VisionHealth.Thresholds(
+                config.cameraHotCelsius, config.cameraMinFps, config.staleFrameSeconds, 0.2));
+        for (CameraSource c : cameras) {
+            String kind = c instanceof LimelightSource ? "Limelight" : c.getClass().getSimpleName();
+            frc.lib.catalyst.identity.DeviceRoster.registerCamera(c.getName(), kind, c::isConnected);
+        }
         // Commands v3's Mechanism has no constructor to hook, so periodic() is registered
         // explicitly. Without this the method compiles and is simply never called - see
         // CatalystSubsystem#registerPeriodic.
@@ -90,10 +97,21 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
         // Surface a loud warning if vision is constructed without a drive subsystem.
         // Previously this silently no-op'd in periodic(), which made the issue
         // invisible to teams expecting vision fusion to "just work."
-        if (driveSubsystem == null) {
+        if (poseSink == null) {
             AlertManager.getInstance().warning("Vision",
-                    "VisionSubsystem constructed without driveSubsystem — pose fusion is disabled. "
-                            + "Call VisionConfig.builder().driveSubsystem(...) to enable.");
+                    "VisionSubsystem constructed without a pose sink — pose fusion is disabled. "
+                            + "Call VisionConfig.builder().driveSubsystem(...) or .poseSink(...) to enable.");
+        }
+        // MegaTag2 needs a yaw from somewhere other than itself. Fed from a standalone pose it
+        // gets its own last answer back, which is not a constraint, it is a loop.
+        if (poseSink instanceof StandaloneVisionPose) {
+            for (CameraSource c : cameras) {
+                if (c instanceof LimelightSource ll && ll.isUsingMegaTag2()) {
+                    AlertManager.getInstance().warning("Vision",
+                            ll.getName() + " uses MegaTag2 with a standalone pose sink - there is no "
+                                    + "gyro to constrain it. Construct it with useMegaTag2=false.");
+                }
+            }
         }
 
         // Names only, not this subsystem: RobotIdentity must never have to load a vision class, so a
@@ -116,14 +134,19 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
 
     @Override
     public void periodic() {
-        if (driveSubsystem == null) return;
+        // No sink means nothing to fuse into, but the cameras are still worth watching: their
+        // health and per-camera telemetry are the whole point of a bench with no drivetrain.
+        boolean fusing = poseSink != null;
+        double now = Timer.getTimestamp();
 
         cycleAccepted = 0;
         cycleRejected = 0;
 
-        Pose2d currentPose = driveSubsystem.getPose();
+        Pose2d currentPose = fusing ? poseSink.getPose() : Pose2d.kZero;
+        // A sink with no pose yet cannot anchor the gates that compare against it.
+        boolean anchored = fusing && poseSink.hasPose();
         double yaw = currentPose.getRotation().getDegrees();
-        double yawRate = driveSubsystem.getChassisSpeeds().omega;
+        double yawRate = fusing ? poseSink.getChassisSpeeds().omega : 0.0;
 
         // ---- Phase 1: snapshot every camera once, filter independently ----
         // Snapshotting up front means an async NT update mid-loop can't make
@@ -144,7 +167,10 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
             }
 
             Optional<CameraSource.PoseEstimate> estimate = camera.getEstimatedPose();
-            if (estimate.isEmpty()) continue;
+            if (estimate.isEmpty()) {
+                health.observe(i, VisionHealth.Outcome.NONE, null, now);
+                continue;
+            }
 
             CameraSource.PoseEstimate pe = estimate.get();
 
@@ -153,19 +179,28 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
                 totalRejected++;
                 cycleRejected++;
                 logCamera(camera.getName(), "Rejected: NonFinite", pe);
+                health.observe(i, VisionHealth.Outcome.REJECTED, "NonFinite", now);
                 continue;
             }
 
-            String rejectReason = filterEstimate(pe, currentPose, camera.isPrefiltered());
+            if (!fusing) {
+                logCamera(camera.getName(), "Seen (no pose sink)", pe);
+                health.observe(i, VisionHealth.Outcome.SEEN, null, now);
+                continue;
+            }
+
+            String rejectReason = filterEstimate(pe, currentPose, camera.isPrefiltered(), anchored);
             if (rejectReason != null) {
                 totalRejected++;
                 cycleRejected++;
                 logCamera(camera.getName(), "Rejected: " + rejectReason, pe);
+                health.observe(i, VisionHealth.Outcome.REJECTED, rejectReason, now);
                 continue;
             }
 
             Matrix<N3, N1> stdDevs = calculateStdDevs(pe);
             accepted.add(new Accepted(i, camera.getName(), pe, stdDevs, qualityScore(pe)));
+            health.observe(i, VisionHealth.Outcome.ACCEPTED, null, now);
         }
 
         // ---- Phase 1b: check the cameras against each other ----
@@ -194,7 +229,7 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
 
         Accepted best = null;
         for (Accepted a : accepted) {
-            driveSubsystem.addVisionMeasurement(a.pe().pose(), a.pe().timestampSeconds(), a.stdDevs());
+            poseSink.addVisionMeasurement(a.pe().pose(), a.pe().timestampSeconds(), a.stdDevs());
             totalAccepted++;
             cycleAccepted++;
             logCamera(a.cameraName(), "Accepted", a.pe());
@@ -216,6 +251,13 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
         CatalystLog.log("Vision/CycleAccepted", (double) cycleAccepted);
         CatalystLog.log("Vision/CycleRejected", (double) cycleRejected);
         CatalystLog.log("Vision/CameraCount", (double) cameras.size());
+
+        health.update(now);
+    }
+
+    /** The current health picture, or null before the first loop. */
+    public VisionHealth.Summary health() {
+        return health.summary();
     }
 
     /** Higher = better. More tags and closer tags raise the score. */
@@ -247,7 +289,7 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
      * translational velocity, heading divergence. Those run for every source.
      */
     private String filterEstimate(CameraSource.PoseEstimate pe, Pose2d currentPose,
-                                  boolean prefiltered) {
+                                  boolean prefiltered, boolean anchored) {
         if (!prefiltered) {
             // Reject if no tags seen
             if (pe.tagCount() == 0) return "NoTags";
@@ -258,11 +300,15 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
             }
         }
 
-        // Reject if too far from current Kalman filter estimate (likely outlier)
-        double distFromCurrent = currentPose.getTranslation()
-                .getDistance(pe.pose().getTranslation());
-        if (distFromCurrent > config.maxAcceptableDistance) {
-            return "TooFar(" + String.format("%.1fm", distFromCurrent) + ")";
+        // Reject if too far from current Kalman filter estimate (likely outlier). Only once the
+        // sink has a pose: before that the "current" pose is a default nobody is at, and this gate
+        // would reject every real estimate forever.
+        if (anchored) {
+            double distFromCurrent = currentPose.getTranslation()
+                    .getDistance(pe.pose().getTranslation());
+            if (distFromCurrent > config.maxAcceptableDistance) {
+                return "TooFar(" + String.format("%.1fm", distFromCurrent) + ")";
+            }
         }
 
         if (!prefiltered) {
@@ -284,7 +330,7 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
 
         // Reject during high angular velocity (motion blur)
         if (config.rejectDuringSpinThreshold > 0) {
-            double spinRate = Math.abs(driveSubsystem.getChassisSpeeds().omega);
+            double spinRate = Math.abs(poseSink.getChassisSpeeds().omega);
             if (spinRate > config.rejectDuringSpinThreshold) {
                 return "Spinning(" + String.format("%.1frad/s", spinRate) + ")";
             }
@@ -292,7 +338,7 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
 
         // Reject during high translational speed (configurable)
         if (config.rejectDuringHighSpeedThreshold > 0) {
-            ChassisVelocities speeds = driveSubsystem.getChassisSpeeds();
+            ChassisVelocities speeds = poseSink.getChassisSpeeds();
             double speed = Math.hypot(speeds.vx, speeds.vy);
             if (speed > config.rejectDuringHighSpeedThreshold) {
                 return "HighSpeed(" + String.format("%.1fm/s", speed) + ")";
@@ -300,7 +346,7 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
         }
 
         // Reject based on heading consistency (vision heading vs gyro heading)
-        if (config.maxHeadingDivergenceDegrees > 0 && pe.tagCount() == 1) {
+        if (anchored && config.maxHeadingDivergenceDegrees > 0 && pe.tagCount() == 1) {
             double headingDiff = Math.abs(
                     currentPose.getRotation().getDegrees() - pe.pose().getRotation().getDegrees());
             if (headingDiff > 180) headingDiff = 360 - headingDiff;

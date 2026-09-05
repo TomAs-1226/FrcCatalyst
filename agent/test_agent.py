@@ -232,5 +232,71 @@ class Endpoints(unittest.TestCase):
         self.assertEqual(handler_methods, ["do_GET"])
 
 
+class Cameras(unittest.TestCase):
+    AGGREGATED = {"cameras": [
+        {"host": "limelight-left", "ip": "10.58.5.12", "type": "limelight4", "ntConnected": True,
+         "aliasIps": ["172.30.0.220", "172.26.0.220"], "fps": 55.0, "interface": "eth",
+         "uiUrl": "http://172.30.0.220:5801/", "mjpegUrl": "http://172.30.0.220:5800/",
+         "pipelineType": "pipe_fiducial"},
+        {"host": "limelight", "ip": "10.58.5.13", "ntConnected": False, "aliasIp": "172.26.0.221"},
+    ]}
+
+    def test_each_camera_status_is_joined_by_ip(self):
+        merged = agent.merge_cameras(self.AGGREGATED, {
+            "10.58.5.12": {"name": "limelight-left", "temp": 71.6, "cpu": 75.0, "fps": 56.6,
+                           "ram": 63.2, "pipelineType": "pipe_fiducial", "pipelineIndex": 0},
+        })
+        left = next(c for c in merged if c["ip"] == "10.58.5.12")
+        self.assertEqual(left["temperatureC"], 71.6)
+        self.assertEqual(left["fps"], 56.6)             # the camera's own number beats the OS's
+        self.assertTrue(left["ntConnected"])
+        self.assertTrue(left["statusReachable"])
+        self.assertEqual(left["aliasIps"], ["172.30.0.220", "172.26.0.220"])
+
+    def test_a_camera_that_did_not_answer_still_appears(self):
+        # The OS saw it, so it exists. Hiding it because its REST API timed out would turn a slow
+        # camera into an absent one on the dashboard, which is the opposite of the truth.
+        merged = agent.merge_cameras(self.AGGREGATED, {})
+        other = next(c for c in merged if c["ip"] == "10.58.5.13")
+        self.assertIsNone(other["temperatureC"])
+        self.assertFalse(other["statusReachable"])
+        self.assertFalse(other["ntConnected"])
+        self.assertEqual(other["aliasIps"], ["172.26.0.221"])
+        self.assertEqual(other["name"], "limelight")
+
+    def test_garbage_from_the_aggregator_is_an_empty_list(self):
+        self.assertEqual(agent.merge_cameras(None, {}), [])
+        self.assertEqual(agent.merge_cameras({"cameras": ["nonsense", 7]}, {}), [])
+
+    def test_an_unreachable_aggregator_is_reported_not_raised(self):
+        agent._camera_cache.update(at=0.0, value=None)
+        with mock.patch.object(agent, "_http_json", side_effect=OSError("connection refused")):
+            answer = agent.cameras()
+        self.assertFalse(answer["available"])
+        self.assertEqual(answer["cameras"], [])
+        self.assertIn("aggregator", answer["reason"])
+        agent._camera_cache.update(at=0.0, value=None)
+
+    def test_the_answer_is_cached_briefly(self):
+        agent._camera_cache.update(at=0.0, value=None)
+        calls = []
+
+        def fake(url, timeout):
+            calls.append(url)
+            return self.AGGREGATED if "4810" in url else {"name": "x", "temp": 50.0}
+
+        with mock.patch.object(agent, "_http_json", side_effect=fake):
+            first = agent.cameras()
+            second = agent.cameras()
+        self.assertIs(first, second)
+        self.assertEqual(sum(1 for u in calls if "4810" in u), 1)
+        agent._camera_cache.update(at=0.0, value=None)
+
+    def test_the_route_is_a_get_like_everything_else(self):
+        src = open(agent.__file__, encoding="utf-8").read()
+        self.assertIn('route == "/api/cameras"', src)
+        self.assertNotIn("def do_POST", src)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

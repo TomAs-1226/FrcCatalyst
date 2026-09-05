@@ -135,6 +135,10 @@ public final class HealthMonitor {
         // Forward to the optional cross-mechanism safety watchdog. Cheap no-op
         // when teams haven't called RobotSafety.configure(...).
         RobotSafety.tick(errorCount, warnCount);
+
+        // The device roster rides on this tick because it is the one Catalyst already drives
+        // whether the robot is enabled or not. Rate-limited inside; this is called at loop rate.
+        frc.lib.catalyst.identity.DeviceRoster.publish(now);
     }
 
     /**

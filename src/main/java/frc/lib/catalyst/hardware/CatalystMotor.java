@@ -92,6 +92,9 @@ public class CatalystMotor {
         // so a duplicate id surfaces at robotInit with a clear message rather
         // than waiting for Phoenix to fail later.
         CANRegistry.register(this.name, canId, builder.canBus, "TalonFX");
+        // The supplier is read later, so it is fine that the TalonFX is built on the next line.
+        frc.lib.catalyst.identity.DeviceRoster.registerMotor(
+                this.name, builder.canBus, canId, this::isConnected);
 
         this.motor = new TalonFX(canId, CatalystCANBus.of(builder.canBus).phoenix());
         this.gearRatio = builder.gearRatio;
@@ -251,6 +254,9 @@ public class CatalystMotor {
                             ? MotorAlignmentValue.Opposed
                             : MotorAlignmentValue.Aligned));
             followers.add(follower);
+            frc.lib.catalyst.identity.DeviceRoster.registerMotor(
+                    this.name + "Follower" + spec.canId(), builder.canBus, spec.canId(),
+                    follower::isConnected);
         }
 
         // Optional CAN-bus hygiene: raise only the status signals we actually
@@ -838,6 +844,21 @@ public class CatalystMotor {
 
         public CatalystMotor build() {
             return new CatalystMotor(this);
+        }
+    }
+
+    /**
+     * Whether the lead motor is answering on its CAN bus.
+     *
+     * <p>Phoenix decides this from the age of the device's status frames, so it costs nothing and
+     * needs no round trip. False means the controller has not heard from the motor recently: it is
+     * unpowered, unplugged, on a different bus than configured, or has the wrong id.
+     */
+    public boolean isConnected() {
+        try {
+            return motor.isConnected();
+        } catch (RuntimeException e) {
+            return false;
         }
     }
 }

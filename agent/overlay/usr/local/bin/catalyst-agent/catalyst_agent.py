@@ -32,6 +32,7 @@ control loop.
 Standard library only. The device has Python 3 and nothing else is guaranteed.
 """
 
+import concurrent.futures
 import http.server
 import json
 import os
@@ -42,6 +43,7 @@ import socketserver
 import subprocess
 import sys
 import time
+import urllib.request
 
 PORT = 9010
 
@@ -114,7 +116,7 @@ def identity():
         "kernel": kernel,
         "model": model,
         "uptimeSeconds": uptime,
-        "agentVersion": "2.0.0",
+        "agentVersion": "2.0.2",
     }
 
 
@@ -556,6 +558,105 @@ def _robot_log():
     return lines[-LOG_LINES:]
 
 
+# --------------------------------------------------------------------------- cameras
+
+# Systemcore's vision aggregator discovers every Limelight on the robot network, gives each one an
+# alias address on every interface the Driver Station might arrive by, and knows whether the camera
+# holds a NetworkTables session with the robot program. It does not know how hot the camera is.
+# The camera does: its REST API on 5807 answers /status with temperature, CPU, frame rate and the
+# pipeline it is running. This joins the two, so one poll from the Console answers "is every
+# camera up, is every camera talking to the robot, and is any of them about to throttle".
+AGGREGATOR_URL = "http://127.0.0.1:4810/api/cameras"
+CAMERA_STATUS_PORT = 5807
+AGGREGATOR_TIMEOUT = 0.8
+CAMERA_STATUS_TIMEOUT = 0.6
+
+# The Console polls every three seconds and four cameras cost up to four round trips, so the answer
+# is held for two. Long enough that two dashboards do not double the traffic; short enough that a
+# camera dropping out is visible before anyone reaches for it.
+CAMERA_CACHE_SECONDS = 2.0
+_camera_cache = {"at": 0.0, "value": None}
+
+
+def _http_json(url, timeout):
+    with urllib.request.urlopen(url, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8", "replace"))
+
+
+def camera_status(ip, timeout=CAMERA_STATUS_TIMEOUT):
+    """One camera's own account of itself, or None if it did not answer in time."""
+    try:
+        status = _http_json("http://%s:%d/status" % (ip, CAMERA_STATUS_PORT), timeout)
+        return status if isinstance(status, dict) else None
+    except Exception:                       # noqa: BLE001 - one silent camera must not hide the rest
+        return None
+
+
+def merge_cameras(aggregated, statuses):
+    """Join the OS's camera list with each camera's status, by IP. Pure, so it is testable."""
+    cameras = aggregated.get("cameras", []) if isinstance(aggregated, dict) else []
+    out = []
+    for cam in cameras:
+        if not isinstance(cam, dict):
+            continue
+        ip = cam.get("ip")
+        st = statuses.get(ip) or {}
+        aliases = cam.get("aliasIps") or ([cam["aliasIp"]] if cam.get("aliasIp") else [])
+        out.append({
+            "name": st.get("name") or cam.get("host") or cam.get("name"),
+            "host": cam.get("host"),
+            "ip": ip,
+            "type": cam.get("type"),
+            "interface": cam.get("interface"),
+            "ntConnected": bool(cam.get("ntConnected")),
+            "ntName": cam.get("ntName") or None,
+            "aliasIps": list(aliases),
+            "uiUrl": cam.get("uiUrl"),
+            "streamUrl": cam.get("mjpegUrl"),
+            "fps": st.get("fps", cam.get("fps")),
+            "temperatureC": st.get("temp"),
+            "cpuPercent": st.get("cpu"),
+            "ramPercent": st.get("ram"),
+            "pipelineType": st.get("pipelineType") or cam.get("pipelineType"),
+            "pipelineIndex": st.get("pipelineIndex"),
+            "statusReachable": bool(st),
+        })
+    out.sort(key=lambda c: (c["name"] or "", c["ip"] or ""))
+    return out
+
+
+def cameras():
+    """Every Limelight the OS can see, with what each says about itself. Cached briefly."""
+    now = time.time()
+    cached = _camera_cache["value"]
+    if cached is not None and now - _camera_cache["at"] < CAMERA_CACHE_SECONDS:
+        return cached
+    try:
+        aggregated = _http_json(AGGREGATOR_URL, AGGREGATOR_TIMEOUT)
+    except Exception as exc:                # noqa: BLE001 - reported, not raised
+        value = {"available": False, "cameras": [],
+                 "reason": "vision aggregator did not answer (%s)" % exc.__class__.__name__,
+                 "sampledAt": now}
+        _camera_cache.update(at=now, value=value)
+        return value
+
+    ips = []
+    for cam in aggregated.get("cameras", []) if isinstance(aggregated, dict) else []:
+        if isinstance(cam, dict) and cam.get("ip"):
+            ips.append(cam["ip"])
+    statuses = {}
+    if ips:
+        # In parallel, because they are independent machines and four sequential 0.6 s timeouts
+        # would be a 2.4 s stall inside a poll that expects to take milliseconds.
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(8, len(ips))) as pool:
+            for ip, status in zip(ips, pool.map(camera_status, ips)):
+                if status:
+                    statuses[ip] = status
+    value = {"available": True, "cameras": merge_cameras(aggregated, statuses), "sampledAt": now}
+    _camera_cache.update(at=now, value=value)
+    return value
+
+
 # --------------------------------------------------------------------------- assembly
 
 def snapshot():
@@ -569,6 +670,7 @@ def snapshot():
         "can": can_interfaces(),
         "network": network(),
         "robotProgram": robot_program(),
+        "cameras": cameras(),
         "sampledAt": time.time(),
     }
 
@@ -598,9 +700,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             elif route == "/api/health":
                 # A cheap route the Console can use to find out whether the agent is here at all,
                 # without paying for a full sample.
-                self._send({"ok": True, "agent": "catalyst-agent", "version": "2.0.0"})
+                self._send({"ok": True, "agent": "catalyst-agent", "version": "2.0.2"})
             elif route == "/api/robot":
                 self._send(robot_program())
+            elif route == "/api/cameras":
+                self._send(cameras())
             else:
                 self._send({"error": "not found", "path": route}, status=404)
         except Exception as exc:            # noqa: BLE001 - a diagnostic tool must not die diagnosing

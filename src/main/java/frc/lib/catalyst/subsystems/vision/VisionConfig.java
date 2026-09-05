@@ -35,6 +35,12 @@ public class VisionConfig {
 
     final List<CameraSource> cameras;
     final SwerveSubsystem driveSubsystem;
+    /** Where accepted poses go. The drive subsystem when one was given, else whatever poseSink() set. */
+    final VisionPoseSink poseSink;
+    // Health thresholds
+    final double cameraHotCelsius;
+    final double cameraMinFps;
+    final double staleFrameSeconds;
 
     // Filtering
     final double maxAmbiguity;
@@ -61,6 +67,10 @@ public class VisionConfig {
     private VisionConfig(Builder b) {
         this.cameras = List.copyOf(b.cameras);
         this.driveSubsystem = b.driveSubsystem;
+        this.poseSink = b.poseSink != null ? b.poseSink : b.driveSubsystem;
+        this.cameraHotCelsius = b.cameraHotCelsius;
+        this.cameraMinFps = b.cameraMinFps;
+        this.staleFrameSeconds = b.staleFrameSeconds;
         this.maxAmbiguity = b.maxAmbiguity;
         this.maxAcceptableDistance = b.maxAcceptableDistance;
         this.maxLatencySeconds = b.maxLatencySeconds;
@@ -82,6 +92,11 @@ public class VisionConfig {
     }
 
     public static class Builder {
+        private VisionPoseSink poseSink;
+        private double cameraHotCelsius = 80.0;
+        private double cameraMinFps = 10.0;
+        private double staleFrameSeconds = 1.0;
+
         private final List<CameraSource> cameras = new ArrayList<>();
         private SwerveSubsystem driveSubsystem;
 
@@ -135,6 +150,44 @@ public class VisionConfig {
         /** Set the swerve drive subsystem to feed vision poses to. */
         public Builder driveSubsystem(SwerveSubsystem drive) {
             this.driveSubsystem = drive;
+            return this;
+        }
+
+        /**
+         * Where accepted poses go, for a robot without a Catalyst drivetrain.
+         *
+         * <p>{@link #driveSubsystem(SwerveSubsystem)} is this with the swerve as the sink, and is
+         * still the normal call. This one is for everything else: a tank drive, a team's own swerve
+         * code, or a bench with four cameras and no drivetrain - give it a
+         * {@link StandaloneVisionPose} and the whole pipeline runs.
+         *
+         * <p>If both are set, this one wins.
+         */
+        public Builder poseSink(VisionPoseSink sink) {
+            this.poseSink = sink;
+            return this;
+        }
+
+        /**
+         * Camera temperature at which {@link VisionHealth} calls a camera hot (default 80 C).
+         *
+         * <p>A Limelight 4 throttles its pipeline when hot, which shows up as a slow camera and then
+         * as an absent one. The number is the camera's self-reported CPU temperature.
+         */
+        public Builder cameraHotCelsius(double celsius) {
+            this.cameraHotCelsius = celsius;
+            return this;
+        }
+
+        /** Reported frame rate below which a camera is called slow (default 10). */
+        public Builder cameraMinFps(double fps) {
+            this.cameraMinFps = fps;
+            return this;
+        }
+
+        /** How long a connected camera's frames may stop before it is called stale (default 1 s). */
+        public Builder staleFrameSeconds(double seconds) {
+            this.staleFrameSeconds = seconds;
             return this;
         }
 
@@ -265,9 +318,10 @@ public class VisionConfig {
             if (cameras.isEmpty()) {
                 throw new IllegalStateException("At least one camera must be added");
             }
-            if (driveSubsystem == null) {
-                throw new IllegalStateException("Drive subsystem must be set for vision to feed poses");
-            }
+            // No sink at all is allowed: the cameras are still watched, their health still published,
+            // and VisionSubsystem says at construction that nothing is being fused. A team on the
+            // bench with cameras and no drivetrain is exactly who needs that, and a thrown exception
+            // here was why the no-drivetrain path could never be reached.
             return new VisionConfig(this);
         }
     }

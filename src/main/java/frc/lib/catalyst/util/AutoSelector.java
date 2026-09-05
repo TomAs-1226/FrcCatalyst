@@ -83,6 +83,7 @@ public class AutoSelector {
      * @return this (for chaining)
      */
     public AutoSelector addPathPlannerAuto(String autoName) {
+        pathPlannerAutos.add(autoName);
         autos.put(autoName, () -> {
             try {
                 return LegacyCommands.fromV2(AutoBuilder.buildAuto(autoName));
@@ -222,5 +223,45 @@ public class AutoSelector {
      */
     public SendableChooser<String> getChooser() {
         return chooser;
+    }
+
+    /** Which entries are PathPlanner autos, and so have a starting pose in their file. */
+    private final java.util.Set<String> pathPlannerAutos = new java.util.HashSet<>();
+
+    /** Built once per auto; the pose is asked for fresh each time, because it flips with alliance. */
+    private final java.util.Map<String, com.pathplanner.lib.commands.PathPlannerAuto> startPoseSources =
+            new java.util.HashMap<>();
+
+    /**
+     * Where the currently selected auto expects the robot to start, if it can say.
+     *
+     * <p>PathPlanner autos carry their starting pose in the file, already on the alliance the
+     * Driver Station reports. A custom auto has no file, and an auto whose file cannot be loaded
+     * answers empty rather than with a pose nobody chose. Meant for {@link AutoStartCheck}, which
+     * compares it with where the robot actually is while the robot is still disabled.
+     */
+    public java.util.Optional<org.wpilib.math.geometry.Pose2d> selectedStartingPose() {
+        String selected = resolveSelection();
+        if (selected == null || !pathPlannerAutos.contains(selected)) {
+            return java.util.Optional.empty();
+        }
+        try {
+            com.pathplanner.lib.commands.PathPlannerAuto auto = startPoseSources.get(selected);
+            if (auto == null) {
+                auto = new com.pathplanner.lib.commands.PathPlannerAuto(selected);
+                startPoseSources.put(selected, auto);
+            }
+            return java.util.Optional.ofNullable(auto.getStartingPose());
+        } catch (RuntimeException e) {
+            return java.util.Optional.empty();
+        }
+    }
+
+    /**
+     * A start check wired to this selector: compares {@code currentPose} against the selected
+     * auto's starting pose. Call its {@code update()} from a disabled periodic.
+     */
+    public AutoStartCheck startCheck(java.util.function.Supplier<org.wpilib.math.geometry.Pose2d> currentPose) {
+        return new AutoStartCheck(currentPose, this::selectedStartingPose);
     }
 }

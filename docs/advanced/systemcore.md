@@ -433,19 +433,120 @@ The offsets have to be right. They are measured on the robot, in robot coordinat
 produces a confident wrong answer. Sensors closer together than 5 cm return empty rather than
 guessing — at that separation the difference between them is mostly noise divided by a small number.
 
-### Four cameras, no switch
+### Four cameras, and how they actually reach the robot
 
-Systemcore runs four independent vision instances on its USB ports.
+The earlier draft of this section said Systemcore runs four vision instances on its USB ports and
+that a Limelight 4 plugs into one. It does run four instances - `limelight_visionserver0-3` are
+there for plain USB cameras - but a **Limelight 4 is not a USB camera to Systemcore.** The OS's own
+notes say so ("USB Limelights (LL3A, LL3G) and ethernet Limelights (LL4, LL3, LL2)"), and it was
+confirmed with four LL4s and a switch: nothing appears on the USB bus, everything appears on
+`eth0`. So the LL4 wiring is Ethernet into a switch, the switch into the Systemcore's port, and the
+`LimelightSource.usb(...)` factory is for the two USB models only.
+
+What Systemcore does with an Ethernet Limelight is the useful part, and none of it is in the
+Limelight docs yet:
+
+- Its **vision aggregator** (`:4810`) discovers every Limelight on the wire and lists them at
+  `http://<systemcore>:4810/api/cameras`, with each camera's address, type, frame rate, pipeline,
+  and - the field that matters in the pit - `ntConnected`, whether the camera holds a
+  NetworkTables session with the robot program.
+- It then **alias-NATs** each camera to `.220`, `.221`, `.222`, `.223`… on *every* subnet the
+  Systemcore has: `172.26.0.22x` over USB from a Windows laptop, `172.27.0.22x` from Linux or
+  macOS, `172.30.0.22x` over its Wi-Fi, and `10.TE.AM.22x` on the robot network. Which means the
+  Driver Station laptop can open any camera's web UI at `http://172.26.0.220:5801` through the
+  Systemcore's USB cable, with no route to the robot network at all. Catalyst's on-device agent
+  serves this list joined with each camera's own status (temperature, CPU, frame rate), and Console
+  draws it.
+
+The addressing that makes the cameras find the robot is the one both sets of docs already
+recommend, and on a bench it is the *only* one that works: **cameras static at `10.TE.AM.11`,
+`.12`, `.13`, `.14` with gateway `10.TE.AM.1`, the Systemcore static at `10.TE.AM.2`.** A camera
+left on automatic addressing with no radio on the bench falls back to a link-local `169.254.x.x`
+address and can never reach `10.TE.AM.2`; it shows up in the aggregator's list, streams to the
+laptop, and never connects to NetworkTables - `ntConnected: false` is the tell. The Systemcore's
+static address is set on its web UI's network page (it writes `dhcpcd.conf` itself); the cameras'
+on their own settings page, team number included, and they need a power cycle before it takes.
 
 ```java
-LimelightSource front = LimelightSource.usb(0, robotToFrontCamera);
+// Team 581's names, which this robot is a clone of. MegaTag2 needs the drivetrain's yaw every
+// loop; VisionSubsystem publishes it once for all four.
+VisionSubsystem vision = new VisionSubsystem(VisionConfig.builder()
+        .addLimelight("limelight-shooter", robotToShooterCamera)
+        .addLimelight("limelight-left", robotToLeftCamera)
+        .addLimelight("limelight-right", robotToRightCamera)
+        .addLimelight("limelight-ground", robotToGroundCamera)
+        .driveSubsystem(drive)
+        .build());
 ```
 
 With a Hailo accelerator on ports 0–1, object detection runs alongside AprilTag tracking:
 
 ```java
-GamePieceDetector detector = new GamePieceDetector(front);
+GamePieceDetector detector = new GamePieceDetector(ground);
 detector.best("note").ifPresent(piece -> drive.turnTo(piece.bearing()));
+```
+
+### Vision with no drivetrain
+
+`VisionSubsystem` used to return on the first line of `periodic()` without a Catalyst
+`SwerveSubsystem` - and `VisionConfig.build()` threw before it got that far - so a tank drive, a
+team's own swerve code, or four cameras on a bench got no fusion, no per-camera telemetry and no
+health. The three things fusion needs from a drivetrain are now an interface, `VisionPoseSink`,
+which `SwerveSubsystem` implements unchanged, and `StandaloneVisionPose` is the case with no
+drivetrain at all: the pose is whatever the cameras last agreed on.
+
+```java
+StandaloneVisionPose pose = new StandaloneVisionPose();
+VisionSubsystem vision = new VisionSubsystem(VisionConfig.builder()
+        .addCamera(new LimelightSource("limelight-shooter", mount, false))   // MegaTag1: no gyro here
+        .poseSink(pose)
+        .build());
+```
+
+Use MegaTag1 (`useMegaTag2 = false`) with a standalone pose. MegaTag2 needs a yaw from something
+other than itself, and fed from a standalone pose it gets its own last answer back; Catalyst warns
+at construction if you do it.
+
+### Is vision working?
+
+Every camera now has a state - `OK`, `NO_TARGETS`, `DISCONNECTED`, `STALE`, `HOT`, `LOW_FPS`,
+`REJECTING` - and vision as a whole a level, `OK`, `DEGRADED` or `BLIND`, under
+`/Catalyst/Vision/Health/`. The signals were all there before; what was missing was anything that
+said "the left camera has been dead since the second match". A camera that loses its session
+produces no rejections, because it produces nothing, and a dashboard cannot notice a number that
+has stopped moving.
+
+The per-camera signals come from the classic API a shipping Limelight publishes: `hb`, the frame
+heartbeat, is what `LimelightSource.isConnected()` now reads (LimelightLib's own answer is about the
+2027 topic and reads false for every camera you can buy), and `hw` carries the camera's frame rate
+and CPU temperature. Limelight 4s run hot - 70–85 °C on the bench, in free air - and throttle when
+hotter, so `HOT` fires at a configurable 80 °C (`VisionConfig.builder().cameraHotCelsius(...)`).
+
+Faults become Driver Station alerts only after they have lasted a second, and clear only after
+they have been gone a second, so a dropped frame is not forty alerts a match. Console puts them in
+a bar over the dashboard.
+
+### What is on the robot, and is it answering
+
+`/Catalyst/Devices/` is three counts and a row per device: cameras, motors, and the controller,
+each as *expected* and *connected*. Every `CatalystMotor` registers itself (Phoenix says whether
+it is on the bus); every camera a `VisionSubsystem` owns registers itself (the heartbeat says); the
+Systemcore's system server is the controller's pulse. Console shows the three counts in its top
+right corner, `4/4 · 20/20 · Systemcore`, which is the first thing anyone looks for when a robot
+behaves strangely and used to be answered by walking round it.
+
+### Is the robot where the auto thinks it is
+
+`AutoStartCheck` compares the pose estimate against the selected auto's starting pose while the
+robot is disabled, publishes the distance and heading error under `/Catalyst/Auto/StartCheck/`,
+and warns when out of tolerance (0.30 m and 10° by default). It reports; it never moves the
+robot or resets its pose, because a check that reset the pose would hide exactly what it exists
+to reveal.
+
+```java
+AutoStartCheck startCheck = autos.startCheck(drive::getPose);   // PathPlanner autos know their start
+// in disabledPeriodic():
+startCheck.update();
 ```
 
 ### Autos on the Driver Station
@@ -461,7 +562,14 @@ autos.publishAsOpModes();
 
 ## If vision stops working
 
-**Check the camera's OS version first — Catalyst 2.x requires Limelight OS 2027.**
+**Check `/Catalyst/Vision/Health/Summary` first.** It names the camera and the fault. If it says
+`disconnected` for a camera that is plainly powered, the camera is not reaching the robot's
+NetworkTables: on a Systemcore that is nearly always addressing - see *Four cameras, and how they
+actually reach the robot* above - and the aggregator's `ntConnected` field confirms it from the
+other side.
+
+**Then the camera's OS version.** Catalyst 2.x reads either API a Limelight speaks, and says which
+at `/Catalyst/Vision/<camera>/Api`; the rest of this section is about what each one costs.
 
 This is the failure that costs a whole session, and it was written down backwards here until a real
 camera was put in front of the library. Both halves are true:

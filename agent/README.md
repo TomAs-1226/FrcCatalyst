@@ -15,6 +15,7 @@ What it does not cover is the detail behind a number that has gone the wrong way
 | CAN utilisation is 30% | whether the bus is dropping frames or restarting |
 | *(nothing)* | how many times the robot program has restarted, and what it printed |
 | *(nothing)* | which OS build this machine is on, and how long it has been up |
+| a camera is "connected" | whether each Limelight is talking to the robot program, and how hot it is |
 
 All of it is already in `/proc` and `/sys`. The agent serves it over HTTP so Console can ask.
 
@@ -35,6 +36,20 @@ than it sounds: `ExecStart` names `catalyst_agent.py` directly, and a Windows bu
 executable bit produces a service that fails at boot with `203/EXEC` — an error naming the file and
 saying nothing about why. Every build ends by reading its own output back and checking exactly that
 class of thing.
+
+## Cameras
+
+`/api/cameras` is the Systemcore vision aggregator's camera list (`:4810/api/cameras` on the
+device - every Limelight it discovered, the alias addresses it gave each one on each interface,
+and whether the camera holds a NetworkTables session with the robot program) joined with each
+camera's own `/status` from its REST API on port 5807: temperature, CPU, frame rate, pipeline.
+The join is by IP and is pure, so it is tested without a camera. Answers are held for two
+seconds; the per-camera fetches run in parallel with a 0.6 s timeout each, because four
+sequential timeouts would be a stall inside a poll that expects milliseconds. A camera that did
+not answer still appears, marked `statusReachable: false` - hiding it would turn a slow camera into
+an absent one.
+
+It is also part of `/api/system`, so Console's existing poll gets it.
 
 ## What it does not do
 

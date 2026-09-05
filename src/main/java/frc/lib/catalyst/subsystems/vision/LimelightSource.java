@@ -381,11 +381,17 @@ public class LimelightSource implements CameraSource {
 
     /** Whether the camera is connected and publishing. */
     public boolean isConnected() {
+        // LimelightLib answers for the 2027 results topic, which no shipping camera publishes, so
+        // on its own it reads false for every camera a team can buy today. The classic API's
+        // heartbeat is the second opinion, and it is the one that is usually right.
         try {
-            return limelight.isConnected();
+            if (limelight.isConnected()) {
+                return true;
+            }
         } catch (RuntimeException ignored) {
-            return false;
+            // fall through to the heartbeat
         }
+        return legacy.isAlive();
     }
 
     /**
@@ -487,6 +493,33 @@ public class LimelightSource implements CameraSource {
     }
 
     /**
+     * How long since the camera's heartbeat advanced, or empty if it never has.
+     *
+     * <p>The liveness signal behind {@link #isConnected()}: a camera with a NetworkTables session
+     * but a dead pipeline stops advancing it, and an unplugged camera leaves its last value in the
+     * table. Both read as a growing number here.
+     */
+    public java.util.OptionalDouble secondsSinceHeartbeat() {
+        return legacy.secondsSinceHeartbeat();
+    }
+
+    /** The frame rate the camera reports about itself, or empty if it does not. */
+    public java.util.OptionalDouble cameraFps() {
+        return legacy.fps();
+    }
+
+    /**
+     * The CPU temperature the camera reports about itself, in C, or empty.
+     *
+     * <p>Worth watching on a Limelight 4: it throttles its pipeline when hot, and a throttled camera
+     * is a slow one and then an absent one. {@code VisionHealth} raises an alert at the configured
+     * ceiling.
+     */
+    public java.util.OptionalDouble cameraTemperatureC() {
+        return legacy.cpuTemperatureC();
+    }
+
+    /**
      * Whether this camera is being read over the older per-key API.
      *
      * <p>Worth putting on a pit dashboard. It is not a fault - it is how every camera on a shipping
@@ -549,5 +582,10 @@ public class LimelightSource implements CameraSource {
     /** The underlying LimelightLib object, for pipeline control and everything not wrapped here. */
     public Limelight getLimelight() {
         return limelight;
+    }
+
+    /** Whether this source asks the camera for MegaTag2, which needs an external yaw every loop. */
+    public boolean isUsingMegaTag2() {
+        return useMegaTag2;
     }
 }

@@ -74,7 +74,8 @@ import frc.lib.catalyst.util.SlewRateLimiter;
  * can take the interface and work equally well with a plain drivetrain or with
  * {@code PhysicsCore}.
  */
-public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem implements RobotStateSource {
+public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
+        implements RobotStateSource, frc.lib.catalyst.subsystems.vision.VisionPoseSink {
 
     /**
      * The robot loop period, used by skew correction.

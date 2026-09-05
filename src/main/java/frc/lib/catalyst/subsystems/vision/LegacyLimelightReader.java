@@ -4,9 +4,11 @@ import org.wpilib.math.geometry.Pose2d;
 import org.wpilib.math.geometry.Rotation2d;
 import org.wpilib.math.geometry.Transform3d;
 import org.wpilib.networktables.DoubleArraySubscriber;
+import org.wpilib.networktables.DoubleSubscriber;
 import org.wpilib.networktables.NetworkTable;
 import org.wpilib.networktables.NetworkTableInstance;
 import org.wpilib.networktables.NetworkTablesJNI;
+import org.wpilib.networktables.TimestampedDouble;
 import org.wpilib.networktables.TimestampedDoubleArray;
 import org.wpilib.system.Timer;
 
@@ -85,6 +87,9 @@ final class LegacyLimelightReader {
     /** Never-published sentinel. NetworkTables stamps a real value with a non-zero time. */
     private static final long NEVER = 0L;
 
+    /** A heartbeat older than this means the camera has stopped, whatever its last value says. */
+    private static final double ALIVE_SECONDS = 1.0;
+
     private final String name;
     private final NetworkTable table;
 
@@ -101,6 +106,16 @@ final class LegacyLimelightReader {
     private final DoubleArraySubscriber megaTag2;
     private final DoubleArraySubscriber megaTag1;
 
+    /**
+     * {@code hb} counts frames and {@code hw} is {@code [fps, cpu temperature C, ram %, temp]}, both
+     * published by every Limelight OS since 2024. The heartbeat is the liveness signal: a camera
+     * whose session is up but whose pipeline has died stops advancing it, and a camera that is
+     * unplugged leaves its last value in the table forever. Either way its publish time stops moving,
+     * which is what {@link #secondsSinceHeartbeat()} measures.
+     */
+    private final DoubleSubscriber heartbeat;
+    private final DoubleArraySubscriber hardware;
+
     /** Publish time of the newest frame already handed over, in NetworkTables microseconds. */
     private long lastConsumedNt = NEVER;
 
@@ -111,6 +126,8 @@ final class LegacyLimelightReader {
                 .subscribe(new double[0]);
         this.megaTag1 = table.getDoubleArrayTopic("botpose_wpiblue")
                 .subscribe(new double[0]);
+        this.heartbeat = table.getDoubleTopic("hb").subscribe(0.0);
+        this.hardware = table.getDoubleArrayTopic("hw").subscribe(new double[0]);
 
         table.getEntry("camerapose_robotspace_set").setDoubleArray(new double[] {
                 robotToCamera.getX(),
@@ -243,6 +260,45 @@ final class LegacyLimelightReader {
         }
         return java.util.OptionalDouble.of(
                 (NetworkTablesJNI.now() - lastConsumedNt) / 1_000_000.0);
+    }
+
+    /**
+     * How long since the camera's heartbeat last advanced, or empty if it never has.
+     *
+     * <p>Measured from the NetworkTables publish time rather than by comparing values, so a camera
+     * that republishes the same count still reads as alive and one that stops publishing reads as
+     * dead even though its last value is still sitting in the table.
+     */
+    java.util.OptionalDouble secondsSinceHeartbeat() {
+        TimestampedDouble hb = heartbeat.getAtomic();
+        if (hb.timestamp == NEVER) {
+            return java.util.OptionalDouble.empty();
+        }
+        return java.util.OptionalDouble.of((NetworkTablesJNI.now() - hb.timestamp) / 1_000_000.0);
+    }
+
+    /** Whether the heartbeat advanced within the last second. */
+    boolean isAlive() {
+        java.util.OptionalDouble age = secondsSinceHeartbeat();
+        return age.isPresent() && age.getAsDouble() < ALIVE_SECONDS;
+    }
+
+    /** The camera's reported frame rate, or empty if it has not published {@code hw}. */
+    java.util.OptionalDouble fps() {
+        return hardwareField(0);
+    }
+
+    /** The camera's reported CPU temperature in C, or empty. Limelight 4s throttle from ~85 C. */
+    java.util.OptionalDouble cpuTemperatureC() {
+        return hardwareField(1);
+    }
+
+    private java.util.OptionalDouble hardwareField(int index) {
+        double[] hw = hardware.get();
+        if (hw == null || hw.length <= index || !Double.isFinite(hw[index])) {
+            return java.util.OptionalDouble.empty();
+        }
+        return java.util.OptionalDouble.of(hw[index]);
     }
 
     /** The camera's name, for messages. */

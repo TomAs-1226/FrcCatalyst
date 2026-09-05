@@ -52,6 +52,21 @@ public interface CameraSource {
         return false;
     }
 
+    /**
+     * Whether data is arriving from this camera at all.
+     *
+     * <p>Not "does it see a target" - that is {@link #getEstimatedPose()} being empty, which is
+     * normal for most of a match. This is the difference between a camera with nothing in view and
+     * a camera that is unplugged, and it is the one question about vision that is asked most often
+     * and was previously answerable only by walking round the robot.
+     *
+     * <p>A source that has no way to tell answers {@code true}: reporting a working camera as
+     * absent would be the worse error. {@code LimelightSource} answers from the camera's heartbeat.
+     */
+    default boolean isConnected() {
+        return true;
+    }
+
     /** A pose estimate from a vision camera. */
     record PoseEstimate(
             Pose2d pose,
