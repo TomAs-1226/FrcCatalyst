@@ -45,6 +45,8 @@ public class VisionConfig {
     // Filtering
     final double maxAmbiguity;
     final double maxAcceptableDistance;
+    final boolean seedFromVision;
+    final double reanchorAfterSeconds;
     final double maxLatencySeconds;
     final double rejectDuringSpinThreshold;
 
@@ -73,6 +75,8 @@ public class VisionConfig {
         this.staleFrameSeconds = b.staleFrameSeconds;
         this.maxAmbiguity = b.maxAmbiguity;
         this.maxAcceptableDistance = b.maxAcceptableDistance;
+        this.seedFromVision = b.seedFromVision;
+        this.reanchorAfterSeconds = b.reanchorAfterSeconds;
         this.maxLatencySeconds = b.maxLatencySeconds;
         this.rejectDuringSpinThreshold = b.rejectDuringSpinThreshold;
         this.baseXYStdDev = b.baseXYStdDev;
@@ -103,6 +107,8 @@ public class VisionConfig {
         // Filtering defaults
         private double maxAmbiguity = 0.3;
         private double maxAcceptableDistance = 5.0;
+        private boolean seedFromVision = true;
+        private double reanchorAfterSeconds = 1.0;
         private double maxLatencySeconds = 0.5;
         private double rejectDuringSpinThreshold = 0; // 0 = disabled
 
@@ -199,9 +205,40 @@ public class VisionConfig {
             return this;
         }
 
-        /** Max acceptable distance from current Kalman filter estimate in meters (default 5.0). */
+        /**
+         * Max acceptable distance from current Kalman filter estimate in meters (default 5.0).
+         *
+         * <p>Measured against the pose only once it has been seeded (see {@link #seedFromVision})
+         * or the sink reports {@link VisionPoseSink#hasPose()}. Before that there is nothing real
+         * to measure from.
+         */
         public Builder maxAcceptableDistance(double meters) {
             this.maxAcceptableDistance = meters;
+            return this;
+        }
+
+        /**
+         * Whether the first good estimate replaces the pose outright instead of being fused into it
+         * (default true). A drivetrain boots believing it is at the origin; a robot carried onto the
+         * field is not, and every estimate would fail the distance gate against that origin
+         * forever. Seeding resets the pose to the first estimate with two or more tags, or a single
+         * tag within three metres, and gates against it from then on. Limelights are read with
+         * MegaTag1 until seeded, because MegaTag2 needs the very heading the seed provides.
+         */
+        public Builder seedFromVision(boolean enabled) {
+            this.seedFromVision = enabled;
+            return this;
+        }
+
+        /**
+         * How long every camera may disagree with the pose - all of them rejected as too far, none
+         * accepted, and their estimates agreeing with each other - before the pose is reset to what
+         * they see (default 1.0 s; 0 disables). This is the recovery from odometry that has gone
+         * wrong: a wheel that slipped over a defence, a gyro that drifted, a pose reset to the
+         * wrong auto start. It is counted and alerted, because it means something upstream was wrong.
+         */
+        public Builder reanchorAfterSeconds(double seconds) {
+            this.reanchorAfterSeconds = seconds;
             return this;
         }
 

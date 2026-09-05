@@ -71,6 +71,8 @@ public class LimelightSource implements CameraSource {
 
     /** So the warning below is said once per camera, not fifty times a second. */
     private boolean warnedAboutMissingYaw = false;
+    /** While true, a MegaTag2 camera is read with MegaTag1. Set by VisionSubsystem until it has seeded. */
+    private volatile boolean seeding = false;
 
     /** The per-key reader, used when the camera does not speak the 2027 results topic. */
     private final LegacyLimelightReader legacy;
@@ -191,7 +193,10 @@ public class LimelightSource implements CameraSource {
      */
     @Override
     public Optional<PoseEstimate> getEstimatedPose() {
-        Limelight.PoseEstimateType type = useMegaTag2
+        // Seeding wants MegaTag1: a full pose with its own heading. MegaTag2 is only better once
+        // there is a trusted heading to give it, which is what the seed provides.
+        boolean mt2 = useMegaTag2 && !seeding;
+        Limelight.PoseEstimateType type = mt2
                 ? Limelight.PoseEstimateType.MT2_WPIBLUE
                 : Limelight.PoseEstimateType.MT1_WPIBLUE;
 
@@ -214,7 +219,7 @@ public class LimelightSource implements CameraSource {
         // than handing it nothing. A camera that has simply not been fed yet - the first loops
         // after boot - is the same case and is also correctly refused, because MT2 genuinely has
         // no answer yet.
-        if (useMegaTag2 && !orientationIsFresh()) {
+        if (mt2 && !orientationIsFresh()) {
             if (!warnedAboutMissingYaw) {
                 warnedAboutMissingYaw = true;
                 DriverStationErrors.reportWarning(
@@ -231,7 +236,7 @@ public class LimelightSource implements CameraSource {
         }
 
         if (useLegacyApi()) {
-            return legacy.read(useMegaTag2);
+            return legacy.read(mt2);
         }
 
         try {
@@ -582,6 +587,15 @@ public class LimelightSource implements CameraSource {
     /** The underlying LimelightLib object, for pipeline control and everything not wrapped here. */
     public Limelight getLimelight() {
         return limelight;
+    }
+
+    /**
+     * Read MegaTag1 for now even if configured for MegaTag2. {@link VisionSubsystem} sets this until the
+     * pose has been seeded; MegaTag2 resolves tags against a heading, and before the seed there is
+     * no heading worth giving it.
+     */
+    public void setSeeding(boolean seeding) {
+        this.seeding = seeding;
     }
 
     /** Whether this source asks the camera for MegaTag2, which needs an external yaw every loop. */

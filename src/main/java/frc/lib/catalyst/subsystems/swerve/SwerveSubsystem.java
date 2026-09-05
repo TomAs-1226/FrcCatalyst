@@ -253,6 +253,17 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
     }
 
     /**
+     * {@inheritDoc}
+     *
+     * <p>A drivetrain resets outright. The frame's timestamp is not needed: odometry restarts from
+     * the reset, and the few milliseconds of motion since the frame are inside the estimator's noise.
+     */
+    @Override
+    public void resetPose(Pose2d pose, double timestampSeconds) {
+        resetPose(pose);
+    }
+
+    /**
      * In simulation only, force the estimator pose to a physics-sim pose
      * (e.g. maple-sim's {@code SwerveDriveSimulation} pose), so Catalyst's
      * odometry tracks the simulated world. No-op on a real robot.

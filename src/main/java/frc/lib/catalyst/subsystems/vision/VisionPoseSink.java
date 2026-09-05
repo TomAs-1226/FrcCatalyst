@@ -3,6 +3,7 @@ package frc.lib.catalyst.subsystems.vision;
 import org.wpilib.math.geometry.Pose2d;
 import org.wpilib.math.kinematics.ChassisVelocities;
 import org.wpilib.math.linalg.Matrix;
+import org.wpilib.math.linalg.VecBuilder;
 import org.wpilib.math.numbers.N1;
 import org.wpilib.math.numbers.N3;
 
@@ -29,6 +30,16 @@ import org.wpilib.math.numbers.N3;
  * means something, and those two gates stand down until it does. A drivetrain's odometry always
  * means something, so the default is {@code true}.
  *
+ * <h2>resetPose()</h2>
+ *
+ * <p>A drivetrain's odometry always means <em>something</em>, but at boot it means "the origin",
+ * which is wherever the robot was switched on, and the too-far gate measured against that rejected
+ * every real estimate on a robot that had been carried onto the field. So {@link VisionSubsystem}
+ * now <em>seeds</em>: the first good estimate replaces the pose outright through this method, and
+ * only after that do the gates compare against it. It also re-anchors the same way when every
+ * camera has disagreed with the pose for a while. The default is a measurement the estimator cannot
+ * argue with; a sink that can reset properly overrides it, as {@code SwerveSubsystem} does.
+ *
  * @since 2.0.0
  */
 public interface VisionPoseSink {
@@ -51,5 +62,16 @@ public interface VisionPoseSink {
     /** Whether {@link #getPose()} is a real estimate rather than a placeholder. See the class note. */
     default boolean hasPose() {
         return true;
+    }
+
+    /**
+     * Replace the pose with a vision estimate outright - seeding at boot, or re-anchoring after the
+     * pose has gone wrong. See the class note.
+     *
+     * @param pose             field-relative pose the camera measured
+     * @param timestampSeconds when the frame was captured, on the robot's clock
+     */
+    default void resetPose(Pose2d pose, double timestampSeconds) {
+        addVisionMeasurement(pose, timestampSeconds, VecBuilder.fill(0.001, 0.001, 0.001));
     }
 }

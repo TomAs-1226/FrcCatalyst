@@ -79,6 +79,17 @@ public final class StandaloneVisionPose implements VisionPoseSink {
         CatalystLog.log("Vision/Standalone/Measurements", (double) measurements);
     }
 
+    /** A reset is a decision, not a sample: it overrides the newest-timestamp rule. */
+    @Override
+    public void resetPose(Pose2d visionPose, double timestampSeconds) {
+        pose = visionPose;
+        lastMeasurementTs = timestampSeconds;
+        measurements++;
+        CatalystLog.log("Vision/Standalone/Pose", new double[] {
+                visionPose.getX(), visionPose.getY(), visionPose.getRotation().getRadians()});
+        CatalystLog.log("Vision/Standalone/Measurements", (double) measurements);
+    }
+
     /** Capture time of the estimate currently held, or empty before the first. */
     public OptionalDouble lastMeasurementTimestamp() {
         return Double.isNaN(lastMeasurementTs) ? OptionalDouble.empty()

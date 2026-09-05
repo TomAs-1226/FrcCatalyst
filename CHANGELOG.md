@@ -5,6 +5,29 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.0.0-alpha.2-a7] — 2026-09-05 — Vision seeds the pose
+
+Found on the Catalyst X1: four cameras seeing tags from close range, every estimate rejected as
+`TooFar`. The gate measures against the drivetrain's pose, and a drivetrain boots believing it is at
+the origin - wherever the robot was switched on - so a robot carried onto the field could never be
+told where it was. Additive; no existing call changes.
+
+### Added
+
+- **Seeding.** The first estimate good enough to trust (two or more tags, or one within 3 m) now
+  *replaces* the pose through `VisionPoseSink.resetPose(...)` instead of being fused into it, and the
+  distance and heading gates measure against the pose only from then on. `VisionConfig.seedFromVision`
+  (default on) turns it off. `VisionSubsystem.isSeeded()`, `reseed()`; `Vision/Seeded`, `Vision/Seed/*`.
+- **Re-anchoring.** When every camera that sees tags is rejected as too far, none is accepted, and
+  what they see holds still relative to itself for `reanchorAfterSeconds` (default 1 s, 0 disables),
+  the pose is reset to it, counted on `Vision/Reanchor/Count` and alerted - because it means
+  odometry had gone wrong. `getReanchorCount()`.
+- **MegaTag1 until seeded.** A `LimelightSource` configured for MegaTag2 is read with MegaTag1 while
+  seeding (`setSeeding`): MegaTag2 resolves tags against a heading, and before the seed the heading
+  it would be given is the gyro's boot zero.
+- `VisionPoseSink.resetPose(Pose2d, double)`, defaulting to a measurement the estimator cannot
+  argue with; `SwerveSubsystem` and `StandaloneVisionPose` reset outright.
+
 ## [2.0.0-alpha.2-a6] — 2026-09-04 — Four cameras on a Systemcore
 
 Built against four Limelight 4s on a Systemcore, which is where most of it came from. Additive:

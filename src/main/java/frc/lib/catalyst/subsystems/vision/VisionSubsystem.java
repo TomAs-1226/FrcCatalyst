@@ -79,12 +79,24 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
     private int cycleAccepted = 0;
     private int cycleRejected = 0;
 
+    // Seeding and re-anchoring - see VisionPoseSink's class note.
+    /** A single tag this close is trusted to seed the pose; farther, wait for a better view. */
+    static final double SINGLE_TAG_SEED_RANGE_M = 3.0;
+    /** Rejected estimates must agree with each other this well to count as one disagreement. */
+    private static final double REANCHOR_AGREEMENT_M = 1.0;
+    private boolean seeded;
+    private double disagreementSince = Double.NaN;
+    private Pose2d disagreementPose = null;
+    private int reanchors = 0;
+
     public VisionSubsystem(VisionConfig config) {
         this.config = config;
         this.cameras = config.cameras;
         this.poseSink = config.poseSink;
         this.health = new VisionHealth(VisionHealth.probesFor(cameras), new VisionHealth.Thresholds(
                 config.cameraHotCelsius, config.cameraMinFps, config.staleFrameSeconds, 0.2));
+        // Without seeding, the pose is anchored whenever the sink says it has one - the old rule.
+        this.seeded = !config.seedFromVision;
         for (CameraSource c : cameras) {
             String kind = c instanceof LimelightSource ? "Limelight" : c.getClass().getSimpleName();
             frc.lib.catalyst.identity.DeviceRoster.registerCamera(c.getName(), kind, c::isConnected);
@@ -143,8 +155,17 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
         cycleRejected = 0;
 
         Pose2d currentPose = fusing ? poseSink.getPose() : Pose2d.kZero;
-        // A sink with no pose yet cannot anchor the gates that compare against it.
-        boolean anchored = fusing && poseSink.hasPose();
+        // A sink with no pose yet cannot anchor the gates that compare against it - and neither can
+        // a drivetrain that has a pose but has never been told where it really is.
+        boolean anchored = fusing && poseSink.hasPose() && seeded;
+        boolean seeding = fusing && !seeded;
+        for (CameraSource c : cameras) {
+            if (c instanceof LimelightSource ll) {
+                ll.setSeeding(seeding);
+            }
+        }
+        // The best too-far rejection this cycle: what the cameras would have the pose be.
+        Accepted disagreement = null;
         double yaw = currentPose.getRotation().getDegrees();
         double yawRate = fusing ? poseSink.getChassisSpeeds().omega : 0.0;
 
@@ -195,6 +216,12 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
                 cycleRejected++;
                 logCamera(camera.getName(), "Rejected: " + rejectReason, pe);
                 health.observe(i, VisionHealth.Outcome.REJECTED, rejectReason, now);
+                if (rejectReason.startsWith("TooFar") && seedWorthy(pe)) {
+                    double q = qualityScore(pe);
+                    if (disagreement == null || q > disagreement.quality()) {
+                        disagreement = new Accepted(i, camera.getName(), pe, null, q);
+                    }
+                }
                 continue;
             }
 
@@ -202,6 +229,59 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
             accepted.add(new Accepted(i, camera.getName(), pe, stdDevs, qualityScore(pe)));
             health.observe(i, VisionHealth.Outcome.ACCEPTED, null, now);
         }
+
+        // ---- Phase 1a: seed, or re-anchor ----
+        // The first estimate good enough to trust replaces the pose outright. Fusing it would only
+        // nudge the origin a little toward the truth, and the distance gate would then reject the
+        // next one against a pose that is still mostly wrong.
+        if (seeding) {
+            Accepted seed = null;
+            for (Accepted a : accepted) {
+                if (seedWorthy(a.pe()) && (seed == null || a.quality() > seed.quality())) {
+                    seed = a;
+                }
+            }
+            if (seed != null) {
+                poseSink.resetPose(seed.pe().pose(), seed.pe().timestampSeconds());
+                seeded = true;
+                accepted.remove(seed);
+                totalAccepted++;
+                cycleAccepted++;
+                currentPose = seed.pe().pose();
+                logCamera(seed.cameraName(), "Seeded", seed.pe());
+                CatalystLog.log("Vision/Seed/Camera", seed.cameraName());
+                CatalystLog.log("Vision/Seed/Pose", Pose2d.struct, seed.pe().pose());
+                CatalystLog.log("Vision/Seed/Tags", (double) seed.pe().tagCount());
+                AlertManager.getInstance().info("Vision", "Odometry seeded from vision");
+            }
+        } else if (anchored && config.reanchorAfterSeconds > 0) {
+            // Every camera that saw tags was rejected for distance, none accepted, and what they
+            // saw has held still relative to itself: the pose is what is wrong.
+            if (!accepted.isEmpty() || disagreement == null) {
+                disagreementSince = Double.NaN;
+                disagreementPose = null;
+            } else if (disagreementPose == null || disagreementPose.getTranslation()
+                    .getDistance(disagreement.pe().pose().getTranslation()) > REANCHOR_AGREEMENT_M) {
+                disagreementSince = now;
+                disagreementPose = disagreement.pe().pose();
+            } else if (now - disagreementSince >= config.reanchorAfterSeconds) {
+                double off = currentPose.getTranslation().getDistance(disagreement.pe().pose().getTranslation());
+                poseSink.resetPose(disagreement.pe().pose(), disagreement.pe().timestampSeconds());
+                reanchors++;
+                disagreementSince = Double.NaN;
+                disagreementPose = null;
+                currentPose = disagreement.pe().pose();
+                logCamera(disagreement.cameraName(), "Re-anchored", disagreement.pe());
+                CatalystLog.log("Vision/Reanchor/Count", (double) reanchors);
+                CatalystLog.log("Vision/Reanchor/Meters", off);
+                CatalystLog.log("Vision/Reanchor/Camera", disagreement.cameraName());
+                CatalystLog.log("Vision/Reanchor/Pose", Pose2d.struct, disagreement.pe().pose());
+                AlertManager.getInstance().warning("Vision",
+                        "Odometry re-anchored to vision - it had drifted; see Vision/Reanchor");
+            }
+        }
+        CatalystLog.log("Vision/Seeded", seeded);
+        CatalystLog.log("Vision/Anchored", anchored);
 
         // ---- Phase 1b: check the cameras against each other ----
         // Only possible with more than one camera, which is the point. A robotToCamera transform has
@@ -258,6 +338,40 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
     /** The current health picture, or null before the first loop. */
     public VisionHealth.Summary health() {
         return health.summary();
+    }
+
+    /**
+     * Good enough to move the pose to, rather than nudge it: multi-tag PnP, or one tag close
+     * enough that its solution is not ambiguous. A far single tag can put the robot on the wrong
+     * side of it, and a seed in the wrong place is the exact failure seeding exists to prevent.
+     */
+    private boolean seedWorthy(CameraSource.PoseEstimate pe) {
+        if (pe.tagCount() >= 2) {
+            return true;
+        }
+        return pe.tagCount() == 1
+                && pe.averageTagDistance() <= SINGLE_TAG_SEED_RANGE_M
+                && pe.ambiguity() <= config.maxAmbiguity;
+    }
+
+    /** Whether the pose has been seeded from vision (or seeding is off). Gates measure only after. */
+    public boolean isSeeded() {
+        return seeded;
+    }
+
+    /** How many times the pose has been reset because every camera disagreed with it. */
+    public int getReanchorCount() {
+        return reanchors;
+    }
+
+    /**
+     * Forget the seed: the next good estimate replaces the pose outright again. For a "re-localise"
+     * button, or after the pose has been reset to something known to be wrong.
+     */
+    public void reseed() {
+        if (config.seedFromVision) {
+            seeded = false;
+        }
     }
 
     /** Higher = better. More tags and closer tags raise the score. */
