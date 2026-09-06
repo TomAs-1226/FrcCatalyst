@@ -5,6 +5,24 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.0.0-alpha.2-a10] — 2026-09-06 — A parked robot is not asked to turn
+
+The Catalyst X1's first two enables: nobody touching the sticks, every module tangential, wheels
+spinning. Read as a steer-direction runaway, because that is what module runaway usually is. It was
+`advancedDrive`: with the rotation stick at rest it locked the heading to the nearest cardinal and
+ran the heading loop against it, always - on a robot on blocks, that is a robot that cannot turn
+being told to turn, from the moment of enable.
+
+### Fixed
+
+- **`advancedDrive` holds heading only while translating.** Parked, the rotation channel is zero
+  and no lock is taken. While translating, the hold engages on the current heading (snapped to a
+  preset within tolerance, as before), an error inside the loop's tolerance is ignored rather than
+  chased, and the correction is clamped to the rate the stick could ask for, scaled by the speed
+  multiplier - it was unclamped and ignored slow mode. `headingLockDrive` (an explicit button)
+  keeps holding while parked, with the same deadband and clamp. The decision is
+  `HeadingHold.decide(...)`, tested without a drivetrain.
+
 ## [2.0.0-alpha.2-a9] — 2026-09-05 — Motor history
 
 Asked for after a day of finding out that the X1's motors were not what their names said. A

@@ -521,20 +521,12 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
             double y = applyDeadband(ySupplier.getAsDouble(), deadband) * maxSpeedMPS;
             double rotInput = applyDeadband(rotSupplier.getAsDouble(), deadband);
 
-            double rot;
-            if (Math.abs(rotInput) > 0.0) {
-                // Driver is actively rotating — pass through and unlock heading
-                rot = rotInput * maxAngularRate;
-                lockedHeading = null;
-            } else {
-                // Driver released rotation — lock to current heading
-                if (lockedHeading == null) {
-                    lockedHeading = getHeading();
-                }
-                rot = headingPID.calculate(
-                        getHeading().getRadians(), lockedHeading.getRadians());
-            }
-            driveFieldCentric(x, y, rot);
+            // Held on purpose - the driver is holding the button - so the hold stays on while parked
+            // too, but a small error is ignored and the correction is clamped, like advancedDrive.
+            HeadingHold.Decision hold = HeadingHold.decide(rotInput, true, getHeading(), lockedHeading,
+                    null, 0, headingPID, maxAngularRate, 1.0);
+            lockedHeading = hold.locked();
+            driveFieldCentric(x, y, hold.rotRadPerSec());
         }).beforeStarting(() -> lockedHeading = null)
                 .withName("Swerve.HeadingLock");
     }
@@ -689,35 +681,16 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
                 y = yLimiter.calculate(y);
             }
 
-            double rot;
-            if (Math.abs(rawRot) > 0.0) {
-                // Driver actively rotating
-                rot = rawRot * maxAngularRate * speedMultiplier;
-                if (rotLimiter != null) rot = rotLimiter.calculate(rot);
-                lockedHeading = null;
-            } else {
-                // Auto-lock heading
-                if (lockedHeading == null) {
-                    Rotation2d currentHeading = getHeading();
-                    // Snap to nearest preset angle if configured
-                    if (snapAngles != null) {
-                        double bestAngle = currentHeading.getDegrees();
-                        double minDiff = Double.MAX_VALUE;
-                        for (double snapAngle : snapAngles) {
-                            double diff = Math.abs(normalizeAngle(currentHeading.getDegrees() - snapAngle));
-                            if (diff < minDiff && diff < snapTolerance) {
-                                minDiff = diff;
-                                bestAngle = snapAngle;
-                            }
-                        }
-                        lockedHeading = Rotation2d.fromDegrees(bestAngle);
-                    } else {
-                        lockedHeading = currentHeading;
-                    }
-                }
-                rot = headingPID.calculate(
-                        getHeading().getRadians(), lockedHeading.getRadians());
-                if (rotLimiter != null) rotLimiter.calculate(rot); // keep limiter in sync
+            // Rotation: the driver's, or a held heading while translating, or nothing while parked.
+            // A parked robot has no heading to keep straight, and one on blocks cannot turn: the old
+            // rule locked to the nearest cardinal on enable and spun every module on a bench.
+            boolean translating = Math.abs(rawX) > 0.0 || Math.abs(rawY) > 0.0;
+            HeadingHold.Decision hold = HeadingHold.decide(rawRot, translating, getHeading(), lockedHeading,
+                    snapAngles, snapTolerance, headingPID, maxAngularRate, speedMultiplier);
+            lockedHeading = hold.locked();
+            double rot = hold.rotRadPerSec();
+            if (rotLimiter != null) {
+                rot = rotLimiter.calculate(rot);
             }
 
             // Skew correction, via WPILib's own pose-exponential discretization.
