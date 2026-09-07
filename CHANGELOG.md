@@ -41,6 +41,13 @@ that was documented, or applied next door, and not applied here.
   has not moved for three seconds, and says which happened instead of publishing a radius computed
   from an arc that never occurred.
 
+- **Runtime motor configuration failures were silent.** `setPIDGains`, `setSlot1Gains`,
+  `setCurrentLimits` and `setMotionMagic` - the setters live tuning and runtime power budgeting go
+  through - discarded the status code. A rejected write is not rare on a real robot: an unlicensed
+  device refuses a Pro feature and rejects the whole group, and a device briefly off the bus answers
+  `RxTimeout`. A team moved a slider, saw no change, and had nothing to look at. Each now reports the
+  refusal to the driver station, rate-limited per motor so a device off the bus cannot flood it.
+
 ### Changed
 
 - The example project no longer calls the deprecated `timeoutAfter`; the library builds with no

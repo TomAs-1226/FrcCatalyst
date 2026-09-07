@@ -21,6 +21,7 @@ import com.ctre.phoenix6.controls.VelocityVoltage;
 import com.ctre.phoenix6.controls.VoltageOut;
 import com.ctre.phoenix6.hardware.CANcoder;
 import com.ctre.phoenix6.StatusCode;
+import org.wpilib.system.Timer;
 
 import org.wpilib.driverstation.DriverStationErrors;
 import com.ctre.phoenix6.hardware.TalonFX;
@@ -63,6 +64,11 @@ public class CatalystMotor {
     private final List<TalonFX> followers = new ArrayList<>();
     private final int canId;
     private final String name;
+
+    /** Rate limiting for {@link #applyOrReport}: the same refusal is reported this often. */
+    private static final double APPLY_REPORT_SECONDS = 5.0;
+    private String lastApplyFailure = null;
+    private double lastApplyFailureAt = Double.NEGATIVE_INFINITY;
 
     // Control requests (reused to avoid GC pressure)
     private final DutyCycleOut dutyCycleRequest = new DutyCycleOut(0);
@@ -452,7 +458,35 @@ public class CatalystMotor {
         slot.kP = kP; slot.kI = kI; slot.kD = kD;
         slot.kS = kS; slot.kV = kV; slot.kA = kA; slot.kG = kG;
         slot.GravityType = gravityType;
-        motor.getConfigurator().apply(slot);
+        applyOrReport(motor.getConfigurator().apply(slot), "Slot 0 gains");
+    }
+
+    /**
+     * Apply a runtime configuration change and say so when the device refuses it.
+     *
+     * <p>These setters exist for live tuning and runtime power budgeting, and they discarded the
+     * status code. A rejected write is not rare on a real robot - an unlicensed device refusing a
+     * Pro feature rejects the whole group, and a device that is briefly off the bus answers
+     * {@code RxTimeout} - so a team would move a slider, see the robot behave exactly as before,
+     * and have nothing to look at. Rate-limited per motor: a device that is off the bus would
+     * otherwise fill the driver station at loop rate.
+     */
+    private void applyOrReport(StatusCode status, String what) {
+        if (status.isOK()) {
+            lastApplyFailure = null;
+            return;
+        }
+        double now = Timer.getTimestamp();
+        String signature = what + ":" + status;
+        if (signature.equals(lastApplyFailure) && now - lastApplyFailureAt < APPLY_REPORT_SECONDS) {
+            return;
+        }
+        lastApplyFailure = signature;
+        lastApplyFailureAt = now;
+        DriverStationErrors.reportWarning(
+                "CatalystMotor " + name + " (id " + canId + "): " + what + " was rejected ("
+                        + status + "). The motor is still running its previous " + what + ".",
+                false);
     }
 
     /**
@@ -484,7 +518,7 @@ public class CatalystMotor {
         limits.SupplyCurrentLimit = supplyCurrentLimit;
         limits.StatorCurrentLimitEnable = true;
         limits.StatorCurrentLimit = statorCurrentLimit;
-        motor.getConfigurator().apply(limits);
+        applyOrReport(motor.getConfigurator().apply(limits), "current limits");
     }
 
     /**
@@ -497,7 +531,7 @@ public class CatalystMotor {
         Slot1Configs slot = new Slot1Configs();
         slot.kP = kP; slot.kI = kI; slot.kD = kD;
         slot.kS = kS; slot.kV = kV; slot.kA = kA;
-        motor.getConfigurator().apply(slot);
+        applyOrReport(motor.getConfigurator().apply(slot), "Slot 1 gains");
     }
 
     /**
@@ -510,7 +544,7 @@ public class CatalystMotor {
         mm.MotionMagicCruiseVelocity = cruiseVelocity;
         mm.MotionMagicAcceleration = acceleration;
         mm.MotionMagicJerk = jerk;
-        motor.getConfigurator().apply(mm);
+        applyOrReport(motor.getConfigurator().apply(mm), "Motion Magic profile");
     }
 
     /** Update telemetry. Call from subsystem periodic(). Publishes through CatalystLog. */
