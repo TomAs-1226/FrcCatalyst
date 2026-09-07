@@ -474,9 +474,9 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
     public CatalystCommand fieldCentricDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
                                      DoubleSupplier rotSupplier) {
         return run(() -> {
-            double x = xSupplier.getAsDouble() * maxSpeedMPS;
-            double y = ySupplier.getAsDouble() * maxSpeedMPS;
-            double rot = rotSupplier.getAsDouble() * maxAngularRate;
+            double x = xSupplier.getAsDouble() * maxSpeedMPS * speedMultiplier;
+            double y = ySupplier.getAsDouble() * maxSpeedMPS * speedMultiplier;
+            double rot = rotSupplier.getAsDouble() * maxAngularRate * speedMultiplier;
             driveFieldCentric(x, y, rot);
         }).withName("Swerve.FieldCentric");
     }
@@ -485,9 +485,9 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
     public CatalystCommand fieldCentricDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
                                      DoubleSupplier rotSupplier, double deadband) {
         return run(() -> {
-            double x = applyDeadband(xSupplier.getAsDouble(), deadband) * maxSpeedMPS;
-            double y = applyDeadband(ySupplier.getAsDouble(), deadband) * maxSpeedMPS;
-            double rot = applyDeadband(rotSupplier.getAsDouble(), deadband) * maxAngularRate;
+            double x = applyDeadband(xSupplier.getAsDouble(), deadband) * maxSpeedMPS * speedMultiplier;
+            double y = applyDeadband(ySupplier.getAsDouble(), deadband) * maxSpeedMPS * speedMultiplier;
+            double rot = applyDeadband(rotSupplier.getAsDouble(), deadband) * maxAngularRate * speedMultiplier;
             driveFieldCentric(x, y, rot);
         }).withName("Swerve.FieldCentric");
     }
@@ -496,9 +496,9 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
     public CatalystCommand robotCentricDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
                                      DoubleSupplier rotSupplier) {
         return run(() -> {
-            double x = xSupplier.getAsDouble() * maxSpeedMPS;
-            double y = ySupplier.getAsDouble() * maxSpeedMPS;
-            double rot = rotSupplier.getAsDouble() * maxAngularRate;
+            double x = xSupplier.getAsDouble() * maxSpeedMPS * speedMultiplier;
+            double y = ySupplier.getAsDouble() * maxSpeedMPS * speedMultiplier;
+            double rot = rotSupplier.getAsDouble() * maxAngularRate * speedMultiplier;
             driveRobotCentric(x, y, rot);
         }).withName("Swerve.RobotCentric");
     }
@@ -517,14 +517,14 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
     public CatalystCommand headingLockDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
                                      DoubleSupplier rotSupplier, double deadband) {
         return run(() -> {
-            double x = applyDeadband(xSupplier.getAsDouble(), deadband) * maxSpeedMPS;
-            double y = applyDeadband(ySupplier.getAsDouble(), deadband) * maxSpeedMPS;
+            double x = applyDeadband(xSupplier.getAsDouble(), deadband) * maxSpeedMPS * speedMultiplier;
+            double y = applyDeadband(ySupplier.getAsDouble(), deadband) * maxSpeedMPS * speedMultiplier;
             double rotInput = applyDeadband(rotSupplier.getAsDouble(), deadband);
 
             // Held on purpose - the driver is holding the button - so the hold stays on while parked
             // too, but a small error is ignored and the correction is clamped, like advancedDrive.
             HeadingHold.Decision hold = HeadingHold.decide(rotInput, true, getHeading(), lockedHeading,
-                    null, 0, headingPID, maxAngularRate, 1.0);
+                    null, 0, headingPID, maxAngularRate, speedMultiplier);
             lockedHeading = hold.locked();
             driveFieldCentric(x, y, hold.rotRadPerSec());
         }).beforeStarting(() -> lockedHeading = null)
@@ -544,10 +544,9 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
     public CatalystCommand driveWithHeading(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
                                      Supplier<Rotation2d> targetHeading, double deadband) {
         return run(() -> {
-            double x = applyDeadband(xSupplier.getAsDouble(), deadband) * maxSpeedMPS;
-            double y = applyDeadband(ySupplier.getAsDouble(), deadband) * maxSpeedMPS;
-            double rot = headingPID.calculate(
-                    getHeading().getRadians(), targetHeading.get().getRadians());
+            double x = applyDeadband(xSupplier.getAsDouble(), deadband) * maxSpeedMPS * speedMultiplier;
+            double y = applyDeadband(ySupplier.getAsDouble(), deadband) * maxSpeedMPS * speedMultiplier;
+            double rot = headingRate(getHeading().getRadians(), targetHeading.get().getRadians(), true);
             driveFieldCentric(x, y, rot);
         }).withName("Swerve.DriveWithHeading");
     }
@@ -565,16 +564,15 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
     public CatalystCommand pointAtTarget(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
                                   Supplier<Translation2d> targetPoint, double deadband) {
         return run(() -> {
-            double x = applyDeadband(xSupplier.getAsDouble(), deadband) * maxSpeedMPS;
-            double y = applyDeadband(ySupplier.getAsDouble(), deadband) * maxSpeedMPS;
+            double x = applyDeadband(xSupplier.getAsDouble(), deadband) * maxSpeedMPS * speedMultiplier;
+            double y = applyDeadband(ySupplier.getAsDouble(), deadband) * maxSpeedMPS * speedMultiplier;
 
             // Calculate angle from robot to target
             Translation2d robotPos = getPose().getTranslation();
             Translation2d toTarget = targetPoint.get().minus(robotPos);
             Rotation2d targetAngle = toTarget.getAngle();
 
-            double rot = headingPID.calculate(
-                    getHeading().getRadians(), targetAngle.getRadians());
+            double rot = headingRate(getHeading().getRadians(), targetAngle.getRadians(), true);
             driveFieldCentric(x, y, rot);
         }).withName("Swerve.PointAtTarget");
     }
@@ -643,9 +641,44 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
         this.snapTolerance = toleranceDegrees;
     }
 
-    /** Set a speed multiplier for slow/turbo mode (0.0 to 1.0). */
+    /**
+     * Set a speed multiplier for slow/turbo mode (0.0 to 1.0).
+     *
+     * <p>Applies to <em>every</em> driver-facing drive command, translation and rotation alike.
+     * It used to apply to only two of them, so a robot whose slip detector or slow-mode button had
+     * turned the multiplier down went back to full speed the moment the driver held the heading
+     * lock or the point-at button. A governor that some commands ignore is not a governor.
+     */
     public void setSpeedMultiplier(double multiplier) {
         this.speedMultiplier = Math.clamp(multiplier, 0.0, 1.0);
+    }
+
+    /** The current speed multiplier, in [0, 1]. */
+    public double getSpeedMultiplier() {
+        return speedMultiplier;
+    }
+
+    /**
+     * The heading loop's output as a rotation rate, bounded.
+     *
+     * <p>Raw {@code headingPID.calculate(...)} is a number of radians per second with no relation
+     * to what this drivetrain can do: at the default kP of 5, half a turn of error asks for
+     * 15.7 rad/s. Every heading-holding command sent that straight to the drivetrain, so a target
+     * behind the robot produced a full-rate spin rather than a turn. Inside the loop's tolerance
+     * the output is zero rather than a twitch, and the rest is clamped to the rate the driver's own
+     * stick could ask for, after the speed multiplier.
+     *
+     * @param currentRadians where the robot is pointing
+     * @param targetRadians  where it should point
+     * @param governed       whether the speed multiplier applies (false for autonomous moves)
+     */
+    private double headingRate(double currentRadians, double targetRadians, boolean governed) {
+        double rate = headingPID.calculate(currentRadians, targetRadians);
+        if (headingPID.atSetpoint()) {
+            return 0.0;
+        }
+        double limit = Math.abs(maxAngularRate * (governed ? speedMultiplier : 1.0));
+        return Math.clamp(rate, -limit, limit);
     }
 
     /**
@@ -769,8 +802,8 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
         return run(() -> {
             double x = applyDeadband(xSupplier.getAsDouble(), deadband) * maxSpeedMPS * speedMultiplier;
             double y = applyDeadband(ySupplier.getAsDouble(), deadband) * maxSpeedMPS * speedMultiplier;
-            double rot = headingPID.calculate(
-                    getHeading().getRadians(), targetPose.get().getRotation().getRadians());
+            double rot = headingRate(getHeading().getRadians(),
+                    targetPose.get().getRotation().getRadians(), true);
             driveFieldCentric(x, y, rot);
         }).withName("Swerve.AutoAlign");
     }
@@ -795,8 +828,11 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
 
             double xSpeed = xController.calculate(current.getX(), target.getX());
             double ySpeed = yController.calculate(current.getY(), target.getY());
-            double rotSpeed = headingPID.calculate(
-                    current.getRotation().getRadians(), target.getRotation().getRadians());
+            // The translation below was clamped and the rotation was not, in the same method. Not
+            // governed by the speed multiplier: this is an explicit "go to this pose" move with its
+            // own budget, and an auto should not change speed because a teleop flag was left set.
+            double rotSpeed = headingRate(current.getRotation().getRadians(),
+                    target.getRotation().getRadians(), false);
 
             // Clamp speeds
             double maxTranslation = maxSpeedMPS * 0.5;

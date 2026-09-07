@@ -15,6 +15,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
@@ -374,7 +375,15 @@ public final class MotorHistory {
     private static double lastPublish = Double.NEGATIVE_INFINITY;
     private static boolean wasEnabled = false;
     private static boolean warnedOnce = false;
-    private static String lastFailure = "";
+    /** Written by the scan and write threads, read by the robot loop. */
+    private static volatile String lastFailure = "";
+    /**
+     * Held for the whole of a write. Two writes can be in flight - the timed one and the one every
+     * disable triggers - and both used the same temporary file: one thread truncated the file the
+     * other was about to rename into place, so the history could be replaced by half of itself.
+     * This is the file that is never re-derived, so a torn write loses the record permanently.
+     */
+    private static final Object WRITE_LOCK = new Object();
 
     /** A motor being read: its Phoenix object and the signals, refreshed together. */
     private static final class Tracked {
@@ -651,25 +660,38 @@ public final class MotorHistory {
         dirty = false;
         Thread t = new Thread(() -> writeFile(text), "Catalyst motor history write");
         t.setDaemon(true);
+        // A write that is still going holds the lock; this one queues behind it rather than racing
+        // it. Both carry a complete document, so the later one wins and nothing is lost.
         t.start();
     }
 
     private static void writeFile(String text) {
-        File f = file();
-        try {
-            File dir = f.getParentFile();
-            if (dir != null) {
-                Files.createDirectories(dir.toPath());
-            }
-            File tmp = new File(f.getPath() + ".tmp");
-            Files.writeString(tmp.toPath(), text, StandardCharsets.UTF_8);
-            Files.move(tmp.toPath(), f.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (IOException e) {
+        synchronized (WRITE_LOCK) {
+            File f = file();
+            // Per-write name as well as the lock: another program, or a leftover from a power cut
+            // mid-write, must not be something this can rename into place.
+            File tmp = new File(f.getPath() + ".tmp." + ProcessHandle.current().pid() + "."
+                    + Thread.currentThread().threadId());
             try {
-                // Not every filesystem does atomic moves; the plain one is still better than nothing.
-                Files.writeString(f.toPath(), text, StandardCharsets.UTF_8);
-            } catch (IOException e2) {
-                lastFailure = "write: " + e2.getMessage();
+                File dir = f.getParentFile();
+                if (dir != null) {
+                    Files.createDirectories(dir.toPath());
+                }
+                Files.writeString(tmp.toPath(), text, StandardCharsets.UTF_8);
+                try {
+                    Files.move(tmp.toPath(), f.toPath(),
+                            StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+                } catch (AtomicMoveNotSupportedException notAtomic) {
+                    // Some filesystems cannot; a plain replace is still better than a partial file.
+                    Files.move(tmp.toPath(), f.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                }
+            } catch (IOException e) {
+                lastFailure = "write: " + e.getMessage();
+                try {
+                    Files.deleteIfExists(tmp.toPath());
+                } catch (IOException ignored) {
+                    // A leftover temporary file is untidy, not a fault.
+                }
             }
         }
     }

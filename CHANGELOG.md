@@ -5,6 +5,40 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.0.0-alpha.2-a11] — 2026-09-06 — Vetting pass: the governor, the heading loop, the history file
+
+A read of the library rather than a robot bug report. Three defects, all of the same shape: a bound
+that was documented, or applied next door, and not applied here.
+
+### Fixed
+
+- **`setSpeedMultiplier` was ignored by six of the eight drive commands.** It is the one governor
+  between the sticks and the wheels - slow mode goes through it, and so does Physics Core's slip
+  and tipping scale - and only `advancedDrive` and `autoAlignDrive` honoured it. A driver who
+  engaged slow mode and then held the heading-lock, point-at or nudge button got full speed, and a
+  robot whose slip detector had cut it to 60% went back to 100% for as long as that button was
+  held. Now applied to translation and rotation in every driver-facing command. Autonomous moves
+  (`driveToPose`) deliberately keep their own speed, so an auto does not change because a teleop
+  flag was left set. `getSpeedMultiplier()` added.
+- **The heading loop's output reached the drivetrain unbounded** in `driveWithHeading`,
+  `pointAtTarget`, `autoAlignDrive` and `driveToPose`. It is a rate in rad/s with no relation to
+  the drivetrain: at the default kP of 5, half a turn of error asks for 15.7 rad/s, so a target
+  behind the robot produced a full-rate spin rather than a turn. `driveToPose` clamped its
+  translation and not its rotation, in the same method. All four now go through one bounded helper
+  that also stops chasing an error inside the loop's own tolerance.
+- **The motor-history file could be written by two threads at once.** The timed flush and the
+  one every disable triggers both wrote the same temporary file and both renamed it into place, so
+  the history could be replaced by half of itself - and it is the file that is never re-derived.
+  Writes are serialised and each carries its own temporary name. `lastFailure` is volatile.
+- **`RobotSafety.tripped` and `.reason` were not volatile.** Every writer holds the lock and every
+  reader deliberately does not, so a poller was free to keep observing "not tripped" after the
+  trip - the one state the class exists to publish.
+
+### Changed
+
+- The example project no longer calls the deprecated `timeoutAfter`; the library builds with no
+  compiler warnings.
+
 ## [2.0.0-alpha.2-a10] — 2026-09-06 — A parked robot is not asked to turn
 
 The Catalyst X1's first two enables: nobody touching the sticks, every module tangential, wheels

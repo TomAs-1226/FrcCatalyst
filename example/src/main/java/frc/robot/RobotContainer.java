@@ -1097,8 +1097,8 @@ public class RobotContainer {
 
     public Command getAutonomousCommand() {
         return Commands.sequence(
-                director.pursue(INTAKE).timeoutAfter(1.5),
-                director.pursue(AIM_SHOOT).timeoutAfter(3.0),
+                director.pursue(INTAKE).withTimeout(1.5),
+                director.pursue(AIM_SHOOT).withTimeout(3.0),
                 director.pursue(IDLE)).withName("Auto.Demo");
     }
 

@@ -49,10 +49,17 @@ import frc.lib.catalyst.logging.CatalystLog;
 public final class RobotSafety {
 
     private static Config config = null;
-    private static boolean tripped = false;
+    /**
+     * Volatile because this is a watchdog: every writer holds the lock, and every reader
+     * ({@link #isTripped()}, {@link #trippedTrigger()}, {@link #reason()}) deliberately does not -
+     * a trigger polled from the scheduler must never block behind a health sweep. Without volatile
+     * the reader is free to keep observing "not tripped" after the trip, which is the one state
+     * this class exists to publish.
+     */
+    private static volatile boolean tripped = false;
     private static double overThresholdSince = -1;
     private static double underThresholdSince = -1;
-    private static String lastReason = "";
+    private static volatile String lastReason = "";
 
     private RobotSafety() {}
 
