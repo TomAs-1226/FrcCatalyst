@@ -31,8 +31,10 @@ import java.util.Set;
  * <p>Generic in the resource type so it can be tested with plain strings, and used with
  * {@code Mechanism} on a robot. Pure, deterministic, and free of any clock.
  *
- * @param <T> what a task is - a behaviour, a goal, an action, whatever the caller has
- * @param <R> what a resource is - {@code Mechanism} in production
+ * <p>Throughout, {@code T} is what a task is to the caller - a behaviour, a goal, an action - and
+ * {@code R} is what a resource is, which is {@code Mechanism} on a robot and a plain string in a
+ * test. Neither is ever looked inside.
+ *
  * @since 2.1.0
  */
 public final class TaskArbiter {

@@ -21,7 +21,9 @@ import java.util.Optional;
  *
  * <p>Pure and generic, so a season's worth of scoring rules can be tested at a desk.
  *
- * @param <T> whatever a target is to the caller
+ * <p>{@code T} throughout is whatever a target is to the caller - a detected game piece, a scoring
+ * location, a record of your own. This never looks inside it.
+ *
  * @since 2.1.0
  */
 public final class ChaseCore {
