@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [2.0.0-alpha.2] — 2026-09-06 — Vetting pass: the governor, the heading loop, the history file
 
+> **Install note.** This tag cannot be installed through the published vendordep. The library is
+> pinned to the *released* WPILib 2027 alpha-6, the build Systemcore OS beta 13 runs, and that
+> version is not on any public maven - so JitPack cannot build it. Build from source on a machine
+> with the WPILib 2027 installer, or stay on `v2.0.0-alpha.1`, which was cut against the public
+> development snapshot and is on JitPack. Re-pinning to alpha-7 resolves this. See the header of
+> `build.gradle`.
+
 A read of the library rather than a robot bug report. Three defects, all of the same shape: a bound
 that was documented, or applied next door, and not applied here.
 

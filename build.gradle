@@ -44,30 +44,36 @@ java {
 // Nothing here is a code fix. The pairing has to come from upstream: alpha-7 with OS beta 14. Until
 // then this is the honest state, and it belongs at the top of the file rather than in a changelog.
 //
-// The version below is a CI snapshot from WPILib's development repository, not a release, and that
-// is deliberate: the snapshot is NEWER than the released alpha-6, not merely different.
+// The version below is the RELEASED WPILib 2027 alpha-6, the build Systemcore OS beta 13 runs.
+// That is the whole reason it is pinned here, and it costs something real - read on before changing
+// it, because this file argued the opposite for a while after the code had already moved.
 //
-// This matters because a team who installs the WPILib 2027 alpha gets the release, and the release
-// cannot build this library. Measured by reading every jar in the installer's local maven:
+// Two candidate targets exist and they are not interchangeable:
 //
-//   - org.wpilib.telemetry does not exist in the released alpha-6. Neither does org.wpilib.tunables
-//     nor org.wpilib.fields. No class named Telemetry*, Selectable* or Tunable* appears in any jar
-//     it ships. WpiTelemetrySink, AutoSelector and the field layout all depend on those packages.
-//   - Commands v3's Mechanism is a CLASS in the release and an INTERFACE in the snapshot, so
-//     `interface CatalystSubsystem extends Mechanism` does not compile there at all.
-//   - The coordinate differs: the release publishes org.wpilib:commands3-java, the snapshot
-//     org.wpilib:commandsv3-java.
+//   2027.0.0-alpha-6                      the release. What the installer puts on a laptop and what
+//                                         the OS image runs. NOT on any public maven - not
+//                                         frcmaven/release, not frcmaven/development. Verified 404
+//                                         on both.
+//   2027.0.0-alpha-6-360-gcaf0fb2dc       a newer CI snapshot on frcmaven/development. Publicly
+//                                         resolvable. Carries org.wpilib.telemetry, .tunables and
+//                                         .fields, which the release does not, and makes Commands
+//                                         v3's Mechanism an interface where the release makes it a
+//                                         class. Its commands-v3 coordinate is commandsv3-java, not
+//                                         commands3-java.
 //
-// So retargeting to the released alpha-6 is not an option worth taking - it would mean deleting the
-// telemetry integration, reverting AutoSelector off Selectable, and giving up the field API, to aim
-// at an older build. The snapshot is the right target and the port is not at fault.
+// Targeting the release is what lets the jar run on the robot in front of us, and the four classes
+// that cannot compile against it are excluded from the source set below rather than deleted.
 //
-// What IS true, and has to be said plainly in the docs rather than discovered: Catalyst 2.x needs a
-// WPILib newer than the released 2027 alpha-6. A stock installer alone is not enough. Re-pin to
-// alpha-7 when it is published, and re-check these three things then - Systemcore OS beta 14
-// requires alpha-7, and until then this branch pairs with OS beta 13.
+// THE COST, which has to be stated rather than discovered: because the release is not on a public
+// maven, JitPack cannot build this library, so a tag cut from this branch is not installable through
+// the published vendordep - it can only be built from source on a machine that has the WPILib 2027
+// installer. v2.0.0-alpha.1 was cut against the snapshot and IS on JitPack; every tag since needs a
+// source build. Re-pin to alpha-7 when it is published on the development maven, which resolves
+// both problems at once - Systemcore OS beta 14 requires alpha-7, and until then this branch pairs
+// with OS beta 13.
 //
-// Established by porting a real 2026 robot project onto a machine with the installer present.
+// Established by reading every jar in the installer's local maven, and by a JitPack build that
+// failed to resolve a single org.wpilib coordinate.
 // ---------------------------------------------------------------------------
 ext {
     wpilibVersion = '2027.0.0-alpha-6'
