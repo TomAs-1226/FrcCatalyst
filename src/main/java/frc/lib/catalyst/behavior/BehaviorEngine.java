@@ -1,5 +1,6 @@
 package frc.lib.catalyst.behavior;
 
+import frc.lib.catalyst.autonomy.StepCore;
 import frc.lib.catalyst.command.CatalystCommand;
 import frc.lib.catalyst.logging.CatalystLog;
 import org.wpilib.system.Timer;
@@ -175,31 +176,30 @@ public final class BehaviorEngine {
                 stepCommands.add(Commands.defer(() -> {
                     CatalystLog.log(key + "Step", (long) (idx));
                     stepIndex.set(idx);
-                    if (step.action.canStart()) {
-                        CatalystLog.log(key + "Action", step.action.name());
-                        CatalystLog.log(key + "FellBack", false);
-                        return step.action.toCommand();
-                    }
-                    switch (step.fallback) {
-                        case SUBSTITUTE:
-                            if (step.substitute != null && step.substitute.canStart()) {
-                                CatalystLog.log(key + "Action", step.substitute.name() + " (sub)");
-                                CatalystLog.log(key + "FellBack", true);
-                                return step.substitute.toCommand();
-                            }
-                            CatalystLog.log(key + "Action", "(skipped " + step.action.name() + ")");
-                            CatalystLog.log(key + "FellBack", true);
-                            return Commands.none();
-                        case ABORT:
-                            CatalystLog.log(key + "Action", "(abort at " + step.action.name() + ")");
-                            CatalystLog.log(key + "FellBack", true);
-                            return Commands.runOnce(() -> abort.set(true));
-                        case SKIP:
-                        default:
-                            CatalystLog.log(key + "Action", "(skipped " + step.action.name() + ")");
-                            CatalystLog.log(key + "FellBack", true);
-                            return Commands.none();
-                    }
+
+                    // Preconditions are team code and were called bare here, so one that threw took
+                    // the whole autonomous sequence down at the step that needed it most. Evaluated
+                    // and guarded on this side; StepCore stays a pure function of the answers.
+                    StepCore.Decision decision = StepCore.decide(
+                            step.action.name(),
+                            safeCanStart(step.action),
+                            switch (step.fallback) {
+                                case SUBSTITUTE -> StepCore.Fallback.SUBSTITUTE;
+                                case ABORT -> StepCore.Fallback.ABORT;
+                                case SKIP -> StepCore.Fallback.SKIP;
+                            },
+                            step.substitute == null ? null : step.substitute.name(),
+                            step.substitute != null && safeCanStart(step.substitute));
+
+                    CatalystLog.log(key + "Action", decision.actionLabel());
+                    CatalystLog.log(key + "FellBack", decision.fellBack());
+
+                    return switch (decision.outcome()) {
+                        case RUN -> step.action.toCommand();
+                        case SUBSTITUTE -> step.substitute.toCommand();
+                        case ABORT -> Commands.runOnce(() -> abort.set(true));
+                        case SKIP -> Commands.none();
+                    };
                 }, reqs));
             }
 
@@ -233,7 +233,16 @@ public final class BehaviorEngine {
             }).withName("Behavior:" + name);
         }
 
-        private static boolean safeBool(BooleanSupplier s) {
+        /** A precondition that throws is a precondition that is not met, not a dead autonomous. */
+    private static boolean safeCanStart(Action action) {
+        try {
+            return action.canStart();
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    private static boolean safeBool(BooleanSupplier s) {
             try {
                 return s.getAsBoolean();
             } catch (Throwable t) {
