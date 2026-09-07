@@ -5,7 +5,7 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [2.0.0-alpha.2-a11] — 2026-09-06 — Vetting pass: the governor, the heading loop, the history file
+## [2.0.0-alpha.2] — 2026-09-06 — Vetting pass: the governor, the heading loop, the history file
 
 A read of the library rather than a robot bug report. Three defects, all of the same shape: a bound
 that was documented, or applied next door, and not applied here.

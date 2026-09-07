@@ -1,7 +1,7 @@
 {
   "fileName": "FrcCatalyst.json",
   "name": "FrcCatalyst",
-  "version": "2.0.0-alpha.1",
+  "version": "2.0.0-alpha.2",
   "wpilibYear": "2027_alpha5",
   "uuid": "a3f5c1e8-9d24-4b7a-bf12-6e0c3d8a91f4",
   "mavenUrls": [
@@ -16,7 +16,7 @@
     {
       "groupId": "com.github.TomAs-1226",
       "artifactId": "FrcCatalyst",
-      "version": "v2.0.0-alpha.1"
+      "version": "v2.0.0-alpha.2"
     },
     {
       "groupId": "org.wpilib.commandsv2",
