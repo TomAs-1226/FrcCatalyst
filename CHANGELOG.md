@@ -5,6 +5,68 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased] — Autonomy 2.0
+
+A new `frc.lib.catalyst.autonomy` package. Every decision in it is a pure function of its inputs
+returning a record, so a season of scoring rules can be exercised at a desk with no HAL, no
+scheduler and no robot. Nothing in it is required: a team that ignores the package keeps exactly the
+Catalyst they had.
+
+### Added — the decision cores
+
+- **`Situation`** and **`SituationSource`** — one physics snapshot per loop, with a validity flag on
+  every facet. Nothing invents a number: a robot with no power measurement reports
+  `power().valid() == false`, not `headroomAmps() == 0`. `cachedPerLoop()` makes every consumer in a
+  loop see the same snapshot, so they cannot disagree with each other inside one 20 ms window.
+  Measured at well under a microsecond per sample.
+- **`CycleCore`** — which phase of a repeating cycle to run, with dwell (a chattering sensor no
+  longer thrashes the cycle), stall detection, and a voluntary handback so an impossible phase is a
+  pause rather than a lockout. Generalises `Autopilot` to N phases.
+- **`StepCore`** — the reactive sequence's run / substitute / skip / abort decision, lifted out of a
+  deferred lambda inside a builder where nothing could reach it.
+- **`TaskArbiter`** — picks as many non-conflicting tasks as will fit, best first. The primitive the
+  library did not have: everything else chooses exactly one thing, so two behaviours sharing no
+  mechanisms still ran one at a time for no reason. Greedy by score, deterministic, and it says what
+  it held back and why.
+- **`ChaseCore`** — which target to pursue, ranked by value per second rather than by value or by
+  distance, refusing anything the match will not let you finish.
+- **`AuthorityCore`** — combines every limiter into one number and names the binding one. A limiter
+  can only ever slow the robot, which is what makes adding one safe without auditing the others.
+- **`ShedCore`** — who gives up current when there is not enough. Shed only, never boost, and every
+  claim carries a floor: an elevator holding its height is never shed below the current that holds
+  it, because the obvious implementation drops the load at the moment the robot is already in
+  trouble.
+- **`IntentCore`** — guesses what the driver is about to do and keeps score of how often it was
+  right. It has no way to command anything, and a test asserts that. The hit rate is the deliverable:
+  it is the evidence that decides whether inference is ever worth wiring to something.
+- **`AutonomyBoard`** — publishes all of the above under `/Catalyst/Autonomy/` on a fixed schema,
+  only when values change. Kept separate so the cores stay pure.
+
+### Changed
+
+- **`Autopilot`** runs on `CycleCore`: dwell and handback are opt-in (`dwellSeconds`,
+  `handBackAfterStalled`), an N-phase form is available via `phases(...)`, and the two-phase
+  `acquire`/`score` sugar and its build-time check are untouched.
+- **`Strategist.yieldWhen(...)`** — stand down while the driver wants the robot. Without it, a driver
+  who interrupted the selector's command got that command rescheduled on the very next loop and had
+  to fight for their own robot; the only thing keeping that out of teleop was a javadoc. A yield
+  condition that throws is read as "yes, yield", because a selector that is off can be turned back on
+  and one that fights the driver cannot be.
+- **`BehaviorEngine`** delegates to `StepCore` and guards the preconditions it evaluates. One that
+  threw used to take the whole autonomous sequence down at the step that needed it most.
+
+### Not built, deliberately
+
+- **Motor powerboost** — raising a limit above its configured value. The measurement half is solved
+  by a power distribution hub, but the other half is not: it is the exact shape of two bugs this
+  library shipped this week, with more energy behind it. `ShedCore` can only ever reduce.
+- **Battery allocation as remaining energy.** A hub integrates joules *out*; nothing knows the
+  battery's true state of charge going in. Energy spent per match is honest and is available;
+  "energy remaining" is not.
+- **A mode-switching core.** `CycleCore` already selects among N named states with hysteresis. A
+  second class doing that under a different noun would be a fifth near-synonym on the driver's
+  dashboard beside phase, goal, state and fire mode.
+
 ## [Unreleased] — Autonomy 2.0, Phase 0: the truth pass
 
 The first increment of the Autonomy 2.0 track. No new concepts and no new package: this is the
