@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Catalyst Autonomy 2.0 Planner</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0f1424; --panel: #1b2240; --panel2: #131831; --accent: #e94560; --accent2: #f0648a;
+      --text: #f4f4f8; --muted: #8a8aa8; --border: rgba(255,255,255,0.07);
+      --good: #4ade80; --warn: #fbbf24; --err: #f87171; --cool: #60a5fa;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      background:
+        radial-gradient(ellipse at 0% 0%, rgba(74,222,128,0.06), transparent 60%),
+        radial-gradient(ellipse at 100% 100%, rgba(233,69,96,0.08), transparent 60%),
+        var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, "SF Pro Text", Segoe UI, sans-serif;
+      min-height: 100vh;
+    }
+    header {
+      padding: 14px 24px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+      position: sticky; top: 0; z-index: 20;
+      background: linear-gradient(180deg, rgba(27,34,64,0.96) 0%, rgba(15,20,36,0.92) 100%);
+      backdrop-filter: blur(6px);
+    }
+    header h1 { margin: 0; font-size: 17px; font-weight: 700; }
+    .badge { padding: 2px 10px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 600; }
+    .hint { color: var(--muted); font-size: 12.5px; }
+    nav { margin-left: auto; display: flex; gap: 4px; }
+    nav button {
+      padding: 7px 14px; border-radius: 8px; border: 1px solid transparent; background: transparent;
+      color: var(--muted); font: inherit; font-size: 13px; cursor: pointer;
+    }
+    nav button[aria-selected="true"] { background: rgba(255,255,255,0.07); color: var(--text); border-color: var(--border); }
+    main { padding: 20px 24px 60px; }
+    .grid { display: grid; grid-template-columns: 420px 1fr; gap: 18px; align-items: start; }
+    @media (max-width: 1000px) { .grid { grid-template-columns: 1fr; } }
+    .card {
+      background: linear-gradient(180deg, var(--panel) 0%, var(--panel2) 100%);
+      border: 1px solid var(--border); border-radius: 14px; padding: 18px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.25); min-width: 0;
+    }
+    .card + .card { margin-top: 16px; }
+    h2 { margin: 0 0 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 1.3px; color: var(--muted); font-weight: 700; }
+    h3 { margin: 18px 0 8px; font-size: 13px; font-weight: 650; }
+    label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+    input, select, textarea {
+      width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
+      background: rgba(0,0,0,0.25); color: var(--text); font: inherit; font-size: 13px;
+    }
+    textarea { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12px; line-height: 1.5; }
+    input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--accent2); outline-offset: 1px; }
+    button {
+      padding: 8px 13px; border-radius: 8px; border: 1px solid var(--border);
+      background: rgba(255,255,255,0.06); color: var(--text); font: inherit; font-size: 13px; cursor: pointer;
+    }
+    button.primary { background: var(--accent); border-color: transparent; font-weight: 600; }
+    button.tiny { padding: 3px 8px; font-size: 11.5px; }
+    button:disabled { opacity: 0.45; cursor: default; }
+    .row { display: grid; gap: 8px; margin-bottom: 10px; }
+    .row.two { grid-template-columns: 1fr 1fr; }
+    .row.three { grid-template-columns: 1.6fr 1fr 1fr; }
+    .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+    th { text-align: left; font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); padding: 0 8px 7px 0; white-space: nowrap; }
+    td { padding: 7px 8px 7px 0; border-top: 1px solid var(--border); vertical-align: middle; }
+    td.num, th.num { text-align: right; }
+    tr.win td { background: rgba(74,222,128,0.07); }
+    tr.held td { opacity: .62; }
+    .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+    .pill.win { background: rgba(74,222,128,.16); color: var(--good); }
+    .pill.held { background: rgba(251,191,36,.14); color: var(--warn); }
+    .pill.res { background: rgba(96,165,250,.14); color: var(--cool); margin-right: 4px; font-weight: 500; }
+    .explain { margin-top: 12px; padding: 10px 12px; border-radius: 9px; background: rgba(0,0,0,.25); font-size: 13px; color: var(--text); }
+    .explain b { color: var(--accent2); }
+    .muted { color: var(--muted); font-size: 12.5px; line-height: 1.55; }
+    .matrix { overflow-x: auto; }
+    .matrix table { width: auto; }
+    .matrix th.v { writing-mode: vertical-rl; text-orientation: mixed; padding: 0 0 6px; height: 90px; }
+    .matrix td.cell { text-align: center; padding: 0; }
+    .dot { display: inline-block; width: 22px; height: 22px; line-height: 22px; border-radius: 6px; font-size: 12px; }
+    .dot.ok { background: rgba(74,222,128,.16); color: var(--good); }
+    .dot.no { background: rgba(248,113,113,.16); color: var(--err); }
+    .dot.self { background: rgba(255,255,255,.05); color: var(--muted); }
+    pre { margin: 0; padding: 14px; border-radius: 10px; background: rgba(0,0,0,.34); overflow-x: auto;
+          font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12px; line-height: 1.55; }
+    .tag { color: var(--muted); }
+    .warnbox { margin-top: 10px; padding: 10px 12px; border-radius: 9px; background: rgba(251,191,36,.10); border: 1px solid rgba(251,191,36,.25); font-size: 12.5px; color: var(--warn); }
+    .okbox { margin-top: 10px; padding: 10px 12px; border-radius: 9px; background: rgba(74,222,128,.08); border: 1px solid rgba(74,222,128,.22); font-size: 12.5px; color: var(--good); }
+    .view { display: none; }
+    .view[data-active="true"] { display: block; }
+    .kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 14px; font-size: 12.5px; }
+    .kv dt { color: var(--muted); }
+    .kv dd { margin: 0; font-variant-numeric: tabular-nums; }
+    .bar { height: 7px; background: rgba(255,255,255,.08); border-radius: 4px; overflow: hidden; }
+    .bar i { display: block; height: 100%; background: var(--accent); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Autonomy 2.0 Planner</h1>
+    <span class="badge">Catalyst</span>
+    <span class="hint">Assemble the logic, see what it will actually do, take the code.</span>
+    <nav>
+      <button data-tab="tasks" aria-selected="true">Tasks</button>
+      <button data-tab="power" aria-selected="false">Power</button>
+      <button data-tab="code" aria-selected="false">Code</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- ============================================================ TASKS -->
+    <section class="view" data-view="tasks" data-active="true">
+      <div class="grid">
+        <div>
+          <div class="card">
+            <h2>Add a task</h2>
+            <div class="row"><label for="tName">Name</label><input id="tName" placeholder="AlignToScore" /></div>
+            <div class="row two">
+              <div><label for="tScore">Score 0–1</label><input id="tScore" type="number" step="0.05" min="0" max="1" value="0.5" /></div>
+              <div><label for="tCan">Can start</label>
+                <select id="tCan"><option value="1">yes</option><option value="0">no</option></select></div>
+            </div>
+            <div class="row"><label for="tReq">Needs (comma separated mechanisms)</label>
+              <input id="tReq" placeholder="drivetrain, shooter" /></div>
+            <div class="btns"><button class="primary" id="tAdd">Add task</button><button id="tDemo">Load an example</button><button id="tClear">Clear</button></div>
+            <p class="muted" style="margin-top:12px">
+              This is <code>TaskArbiter</code>, the same greedy rule the robot runs: best score first,
+              keep anything whose mechanisms are still free. Two tasks that share nothing both run —
+              which is the thing Catalyst could not express before 2.1.
+            </p>
+          </div>
+
+          <div class="card">
+            <h2>Score floor</h2>
+            <div class="row"><input id="minScore" type="number" step="0.05" min="0" max="1" value="0" /></div>
+            <p class="muted">A task below this is not worth running at all.</p>
+          </div>
+        </div>
+
+        <div>
+          <div class="card">
+            <h2>What runs</h2>
+            <div id="arbOut"></div>
+          </div>
+          <div class="card">
+            <h2>Can these ever run together?</h2>
+            <div class="matrix" id="matrix"></div>
+            <p class="muted" style="margin-top:10px">
+              Green means the pair share no mechanism, so the arbiter can run both. A column of red is
+              worth knowing before a competition: it means that task can never share the robot, and
+              every behaviour you add beside it is waiting in line.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ POWER -->
+    <section class="view" data-view="power">
+      <div class="grid">
+        <div class="card">
+          <h2>Add a claim</h2>
+          <div class="row"><label for="pName">Mechanism</label><input id="pName" placeholder="Elevator" /></div>
+          <div class="row three">
+            <div><label for="pNow">Limit A</label><input id="pNow" type="number" step="1" value="40" /></div>
+            <div><label for="pFloor">Floor A</label><input id="pFloor" type="number" step="1" value="18" /></div>
+            <div><label for="pPri">Priority</label><input id="pPri" type="number" step="1" value="1" /></div>
+          </div>
+          <div class="btns"><button class="primary" id="pAdd">Add claim</button><button id="pDemo">Load an example</button><button id="pClear">Clear</button></div>
+          <div class="row" style="margin-top:14px"><label for="pDeficit">Amps to find</label>
+            <input id="pDeficit" type="number" step="5" value="40" /></div>
+          <div class="warnbox">
+            The <b>floor</b> is the current a mechanism needs just to hold what it is holding. An
+            elevator shed below its gravity feedforward does not slow down, it drops — at the moment
+            the robot is already in trouble. <code>ShedCore</code> never goes below it, and reports a
+            shortfall instead.
+          </div>
+        </div>
+        <div class="card">
+          <h2>What gets shed</h2>
+          <div id="shedOut"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ CODE -->
+    <section class="view" data-view="code">
+      <div class="card">
+        <h2>Generated Catalyst</h2>
+        <div class="btns" style="margin-bottom:12px">
+          <button class="primary" id="copyCode">Copy</button>
+          <span class="hint" id="copyNote"></span>
+        </div>
+        <pre id="code"></pre>
+        <p class="muted" style="margin-top:12px">
+          Paste into your robot project. The scores are yours to replace with real suppliers — the
+          arbiter, the requirement sets and the floors are what this page is for.
+        </p>
+        <p class="muted">
+          <b>Watching it run</b> is the Catalyst Console's job, not this page's: it holds the
+          NetworkTables connection, and the <b>Autonomy</b> tile there shows what the robot actually
+          decided, live, on the same schema this generates. A browser cannot speak NT4, and a planner
+          that pretended otherwise would be a tab that never works.
+        </p>
+      </div>
+    </section>
+
+    <!-- ============================================================ (live view lives in the Console) -->
+  </main>
+
+  <script>
+    "use strict";
+    const $ = (s) => document.querySelector(s);
+    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+    // ---------- tabs ----------
+    document.querySelectorAll("nav button").forEach((b) => b.addEventListener("click", () => {
+      document.querySelectorAll("nav button").forEach((x) => x.setAttribute("aria-selected", String(x === b)));
+      document.querySelectorAll(".view").forEach((v) => v.dataset.active = String(v.dataset.view === b.dataset.tab));
+      if (b.dataset.tab === "code") renderCode();
+    }));
+
+    // ---------- state ----------
+    let tasks = [];
+    let claims = [];
+
+    const store = {
+      save() {
+        try { localStorage.setItem("catalyst.autonomy", JSON.stringify({ tasks, claims })); } catch { /* private mode */ }
+      },
+      load() {
+        try {
+          const raw = JSON.parse(localStorage.getItem("catalyst.autonomy") || "null");
+          if (raw && Array.isArray(raw.tasks)) tasks = raw.tasks;
+          if (raw && Array.isArray(raw.claims)) claims = raw.claims;
+        } catch { /* corrupt storage is not worth a dialog */ }
+      },
+    };
+
+    // ---------- TaskArbiter, mirroring the Java exactly ----------
+    function arbitrate(list, minScore) {
+      const ordered = [...list].sort((a, b) => (b.score - a.score) || a.name.localeCompare(b.name));
+      const winners = [], skipped = [], claimed = new Set();
+      for (const t of ordered) {
+        if (!t.canStart) { skipped.push({ name: t.name, reason: "cannot start" }); continue; }
+        if (t.score < minScore) { skipped.push({ name: t.name, reason: `scored ${t.score.toFixed(2)}, below the ${minScore.toFixed(2)} floor` }); continue; }
+        const clash = t.needs.find((r) => claimed.has(r));
+        if (clash) { skipped.push({ name: t.name, reason: `needs ${clash}, already taken` }); continue; }
+        winners.push(t);
+        t.needs.forEach((r) => claimed.add(r));
+      }
+      return { winners, skipped };
+    }
+
+    // ---------- ShedCore, mirroring the Java exactly ----------
+    function shed(list, deficit, minCut = 1) {
+      if (deficit <= 0 || !list.length) {
+        return { cuts: [], found: 0, shortfall: Math.max(0, deficit), explain: deficit <= 0 ? "nothing to shed" : "no claims to shed from" };
+      }
+      const sheddable = (c) => Math.max(0, c.now - c.floor);
+      const order = [...list].sort((a, b) =>
+        (a.priority - b.priority) || (sheddable(b) - sheddable(a)) || a.name.localeCompare(b.name));
+      const cuts = []; let found = 0;
+      for (const c of order) {
+        if (found >= deficit) break;
+        const avail = sheddable(c);
+        if (avail < minCut) continue;
+        const take = Math.min(avail, deficit - found);
+        if (take < minCut) continue;
+        cuts.push({ name: c.name, to: c.now - take, take });
+        found += take;
+      }
+      const shortfall = Math.max(0, deficit - found);
+      let explain;
+      if (!cuts.length) explain = `need ${deficit.toFixed(0)} A and nothing can give it up safely`;
+      else if (shortfall > 1e-9) explain = `shed ${found.toFixed(0)} A of ${deficit.toFixed(0)} from ${cuts.length}, still ${shortfall.toFixed(0)} A short`;
+      else explain = `shed ${found.toFixed(0)} A from ${cuts.length} mechanism${cuts.length === 1 ? "" : "s"}`;
+      return { cuts, found, shortfall, explain };
+    }
+
+    // ---------- render: tasks ----------
+    function renderTasks() {
+      const minScore = parseFloat($("#minScore").value) || 0;
+      const { winners, skipped } = arbitrate(tasks, minScore);
+      const out = $("#arbOut");
+
+      if (!tasks.length) {
+        out.innerHTML = `<p class="muted">No tasks yet. Add a couple, or load the example.</p>`;
+        $("#matrix").innerHTML = "";
+        store.save();
+        return;
+      }
+
+      const row = (t, cls, status, note) => `
+        <tr class="${cls}">
+          <td>${esc(t.name)}</td>
+          <td class="num">${t.score.toFixed(2)}</td>
+          <td>${t.needs.length ? t.needs.map((r) => `<span class="pill res">${esc(r)}</span>`).join("") : '<span class="tag">nothing</span>'}</td>
+          <td><span class="pill ${cls}">${status}</span></td>
+          <td class="tag">${esc(note)}</td>
+        </tr>`;
+
+      const byName = Object.fromEntries(tasks.map((t) => [t.name, t]));
+      out.innerHTML = `
+        <table>
+          <thead><tr><th>Task</th><th class="num">Score</th><th>Needs</th><th>Verdict</th><th>Why</th></tr></thead>
+          <tbody>
+            ${winners.map((t) => row(t, "win", "runs", "")).join("")}
+            ${skipped.map((s) => row(byName[s.name], "held", "held", s.reason)).join("")}
+          </tbody>
+        </table>
+        <div class="explain"><b>${winners.length}</b> running, <b>${skipped.length}</b> held.
+          ${winners.length > 1 ? "Two or more tasks are sharing the robot — that is the point of the arbiter." : ""}</div>`;
+
+      renderMatrix();
+      store.save();
+    }
+
+    function renderMatrix() {
+      if (tasks.length < 2) { $("#matrix").innerHTML = `<p class="muted">Add two or more tasks.</p>`; return; }
+      const head = tasks.map((t) => `<th class="v">${esc(t.name)}</th>`).join("");
+      const rows = tasks.map((a) => `
+        <tr><td>${esc(a.name)}</td>${tasks.map((b) => {
+          if (a === b) return `<td class="cell"><span class="dot self">·</span></td>`;
+          const clash = a.needs.some((r) => b.needs.includes(r));
+          return `<td class="cell"><span class="dot ${clash ? "no" : "ok"}" title="${clash ? "shares a mechanism" : "can run together"}">${clash ? "✕" : "✓"}</span></td>`;
+        }).join("")}</tr>`).join("");
+      $("#matrix").innerHTML = `<table><thead><tr><th></th>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+    }
+
+    // ---------- render: power ----------
+    function renderPower() {
+      const deficit = parseFloat($("#pDeficit").value) || 0;
+      const plan = shed(claims, deficit);
+      const out = $("#shedOut");
+      if (!claims.length) { out.innerHTML = `<p class="muted">No claims yet.</p>`; store.save(); return; }
+
+      const cutBy = Object.fromEntries(plan.cuts.map((c) => [c.name, c]));
+      out.innerHTML = `
+        <table>
+          <thead><tr><th>Mechanism</th><th class="num">Pri</th><th class="num">Limit</th><th class="num">Floor</th><th class="num">New</th><th>Effect</th></tr></thead>
+          <tbody>${claims.map((c) => {
+            const cut = cutBy[c.name];
+            const to = cut ? cut.to : c.now;
+            const pct = c.now > 0 ? (to / c.now) * 100 : 100;
+            return `<tr class="${cut ? "held" : ""}">
+              <td>${esc(c.name)}</td>
+              <td class="num">${c.priority}</td>
+              <td class="num">${c.now.toFixed(0)}</td>
+              <td class="num">${c.floor.toFixed(0)}</td>
+              <td class="num">${to.toFixed(0)}</td>
+              <td><div class="bar"><i style="width:${pct.toFixed(0)}%"></i></div></td>
+            </tr>`;
+          }).join("")}</tbody>
+        </table>
+        <div class="${plan.shortfall > 1e-9 ? "warnbox" : "okbox"}" style="margin-top:14px">${esc(plan.explain)}</div>
+        ${plan.shortfall > 1e-9 ? `<p class="muted" style="margin-top:10px">The floors bind. Something else has to give: stop a mechanism outright, or accept the sag. Shedding past a floor is not an option the robot will take.</p>` : ""}`;
+      store.save();
+    }
+
+    // ---------- render: code ----------
+    function renderCode() {
+      const minScore = parseFloat($("#minScore").value) || 0;
+      const mechanisms = [...new Set(tasks.flatMap((t) => t.needs))];
+      const id = (s) => s.replace(/[^A-Za-z0-9]/g, "");
+      const lower = (s) => { const t = id(s); return t.charAt(0).toLowerCase() + t.slice(1); };
+
+      const lines = [];
+      lines.push("// Generated by the Catalyst Autonomy 2.0 Planner.");
+      lines.push("// The scores below are placeholders - replace them with your own suppliers.");
+      lines.push("");
+      lines.push("import frc.lib.catalyst.autonomy.TaskArbiter;");
+      if (claims.length) lines.push("import frc.lib.catalyst.autonomy.ShedCore;");
+      lines.push("import java.util.List;");
+      lines.push("import java.util.Set;");
+      lines.push("");
+
+      if (tasks.length) {
+        lines.push("/** Rebuilt every loop: scores move, and a stale candidate list decides on stale facts. */");
+        lines.push("private List<TaskArbiter.Candidate<Runnable, Mechanism>> candidates() {");
+        lines.push("    return List.of(");
+        tasks.forEach((t, i) => {
+          const needs = t.needs.length ? t.needs.map(lower).join(", ") : "";
+          lines.push(`            new TaskArbiter.Candidate<>(`);
+          lines.push(`                    this::${lower(t.name)},   // the task itself`);
+          lines.push(`                    "${t.name}",`);
+          lines.push(`                    ${t.score.toFixed(2)},   // TODO: a real score`);
+          lines.push(`                    Set.of(${needs}),`);
+          lines.push(`                    ${t.canStart ? "true" : "false"})${i < tasks.length - 1 ? "," : ");"}`);
+        });
+        lines.push("}");
+        lines.push("");
+        lines.push("public void autonomyPeriodic() {");
+        lines.push(`    var selection = TaskArbiter.select(candidates(), ${minScore.toFixed(2)});`);
+        lines.push("    board.publish(selection);");
+        lines.push("    for (Runnable task : selection.tasks()) {");
+        lines.push("        task.run();   // or schedule its command");
+        lines.push("    }");
+        lines.push("}");
+      }
+
+      if (claims.length) {
+        lines.push("");
+        lines.push("/** Every mechanism's stake. The floor is what it needs just to hold its load. */");
+        lines.push("private List<ShedCore.Claim> claims() {");
+        lines.push("    return List.of(");
+        claims.forEach((c, i) => {
+          lines.push(`            new ShedCore.Claim("${c.name}", ${c.priority}, ${c.now}, ${c.floor})${i < claims.length - 1 ? "," : ");"}`);
+        });
+        lines.push("}");
+        lines.push("");
+        lines.push("private void manageCurrent(double deficitAmps) {");
+        lines.push("    ShedCore.Plan plan = ShedCore.plan(claims(), deficitAmps, 2.0);");
+        lines.push("    board.publish(plan, deficitAmps);");
+        lines.push("    for (ShedCore.Cut cut : plan.cuts()) {");
+        lines.push("        // Apply cut.toAmps() to the named mechanism's motor. Never raise a limit here.");
+        lines.push("    }");
+        lines.push("}");
+      }
+
+      if (!tasks.length && !claims.length) lines.push("// Nothing to generate yet - add tasks or power claims.");
+      $("#code").textContent = lines.join("\n");
+    }
+
+    // ---------- wiring ----------
+    $("#tAdd").addEventListener("click", () => {
+      const name = $("#tName").value.trim();
+      if (!name) return;
+      if (tasks.some((t) => t.name === name)) { $("#tName").focus(); return; }
+      tasks.push({
+        name,
+        score: Math.max(0, Math.min(1, parseFloat($("#tScore").value) || 0)),
+        canStart: $("#tCan").value === "1",
+        needs: $("#tReq").value.split(",").map((s) => s.trim()).filter(Boolean),
+      });
+      $("#tName").value = ""; $("#tReq").value = "";
+      renderTasks();
+    });
+    $("#tClear").addEventListener("click", () => { tasks = []; renderTasks(); });
+    $("#tDemo").addEventListener("click", () => {
+      tasks = [
+        { name: "AlignToScore", score: 0.9, canStart: true, needs: ["drivetrain"] },
+        { name: "SpinUpShooter", score: 0.8, canStart: true, needs: ["shooter"] },
+        { name: "ChasePiece", score: 0.6, canStart: true, needs: ["drivetrain", "intake"] },
+        { name: "FeedNote", score: 0.4, canStart: true, needs: ["feeder"] },
+        { name: "Climb", score: 0.95, canStart: false, needs: ["drivetrain", "climber"] },
+      ];
+      renderTasks();
+    });
+    $("#minScore").addEventListener("input", renderTasks);
+
+    $("#pAdd").addEventListener("click", () => {
+      const name = $("#pName").value.trim();
+      if (!name) return;
+      claims.push({
+        name,
+        now: parseFloat($("#pNow").value) || 0,
+        floor: parseFloat($("#pFloor").value) || 0,
+        priority: parseInt($("#pPri").value, 10) || 1,
+      });
+      $("#pName").value = "";
+      renderPower();
+    });
+    $("#pClear").addEventListener("click", () => { claims = []; renderPower(); });
+    $("#pDemo").addEventListener("click", () => {
+      claims = [
+        { name: "Elevator", now: 40, floor: 18, priority: 5 },
+        { name: "Shooter", now: 60, floor: 0, priority: 3 },
+        { name: "Intake", now: 30, floor: 0, priority: 1 },
+        { name: "Wrist", now: 20, floor: 20, priority: 5 },
+      ];
+      renderPower();
+    });
+    $("#pDeficit").addEventListener("input", renderPower);
+
+    $("#copyCode").addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText($("#code").textContent);
+        $("#copyNote").textContent = "Copied.";
+      } catch {
+        $("#copyNote").textContent = "Select the text and copy.";
+      }
+      setTimeout(() => { $("#copyNote").textContent = ""; }, 2500);
+    });
+
+
+    store.load();
+    renderTasks();
+    renderPower();
+    renderCode();
+  </script>
+</body>
+</html>
