@@ -22,6 +22,15 @@ import frc.lib.catalyst.util.RobotState;
  *         .cachedPerLoop();
  * }</pre>
  *
+ * <h2>Power without a power module</h2>
+ *
+ * <p>The power facet needs a current measurement, not a {@code PowerDistribution}. Bus voltage comes
+ * from the robot controller and is reported either way; {@link PowerPredictor} takes a
+ * {@code DoubleSupplier} for current, so a robot with nothing on CAN to measure total draw can sum
+ * its Talon FX supply currents instead. With no current source at all the facet is
+ * {@code Power.unmeasured(volts)} - valid is false, and every core that reads power declines rather
+ * than acting on a zero.
+ *
  * @since 2.1.0
  */
 public final class PhysicsSituationSource implements SituationSource {

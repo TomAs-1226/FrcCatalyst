@@ -56,9 +56,22 @@ One immutable snapshot per loop, in five facets:
 | `match()` | `enabled`, `autonomous`, `secondsRemaining` |
 
 **Each facet carries its own `valid` flag**, and that is the part that matters. A robot with no
-`PhysicsCore` has no traction estimate; a robot whose PDH is not on CAN has no power estimate. An
+`PhysicsCore` has no traction estimate; a robot with no current measurement has no power estimate. An
 invalid facet says so rather than reporting a plausible zero, and every core is written to do
 nothing rather than something wrong when the facet it needs is invalid.
+
+`power()` is the one worth understanding, because a robot can be part-way there. `busVolts` comes
+from the robot controller and is always real - the record's own javadoc says it is "meaningful even
+when the rest is not". What needs measuring is *current*, and `PowerPredictor` takes a
+`DoubleSupplier` for it rather than a `PowerDistribution`, so a robot with no power module on CAN can
+still feed it the sum of its Talon FX supply currents. Without any current source the facet is
+`Power.unmeasured(volts)`: `valid()` is false, `AuthorityCore.fromSituation` skips its power branch,
+and `ShedCore` has nothing to shed. Nothing degrades; that half of the layer simply does not run.
+
+There is a second, subtler invalid case. A `PowerPredictor` with no breaker budget set reports a
+*battery-sag* headroom - true physics, and roughly twice what a 120 A main breaker allows. The facet
+stays invalid in that state rather than handing an allocator a number that reads like a budget and
+is not one.
 
 ```java
 Situation.blind()            // every facet invalid; what a robot with no instrumentation sees

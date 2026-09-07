@@ -290,6 +290,19 @@ BrownoutMonitor brownout = BrownoutMonitor.builder()
 brownout.update();   // outputScale() stays 1.0, nothing trips
 ```
 
+{: .note }
+> **No power module on CAN?** `totalCurrent` is a supplier, not a `PowerDistribution`. Every Talon FX
+> reports its own supply current over CAN, so the sum across your motors is a real current figure
+> without a PDH or PDP in the loop:
+>
+> ```java
+> .totalCurrent(() -> drive.motors().stream().mapToDouble(CatalystMotor::getSupplyCurrent).sum())
+> ```
+>
+> It misses whatever is not on CAN — the radio, the controller itself, servos, LEDs — which on most
+> robots is a small and fairly constant load you can add as a constant. Bus voltage never needed the
+> power module at all: it comes from the robot controller.
+
 {: .warning }
 The two aggressive behaviours — output throttling and a preemptive
 `RobotSafety` trip — are **off by default and genuinely aggressive.**

@@ -454,6 +454,10 @@ battery.addSample(RobotController.getBatteryVoltage(), pdh.getTotalCurrent());
 battery.recommendation().ifPresent(r -> System.out.println(r.describe()));
 ```
 
+`addSample` wants amps, not a `PowerDistribution`. With no power module on CAN, sum the Talon FX
+supply currents instead - `motors.stream().mapToDouble(CatalystMotor::getSupplyCurrent).sum()`. The
+fit only needs current to *vary* against voltage, and the drivetrain is what makes it vary.
+
 Both are recursive least squares — constant time, constant memory, mathematically identical to a batch
 fit over the whole log.
 
