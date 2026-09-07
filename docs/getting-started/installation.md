@@ -51,8 +51,8 @@ https://tomas-1226.github.io/FrcCatalyst/beta/vendordep/FrcCatalyst.json
 ```
 
 That adds FrcCatalyst to your project and lets WPILib check for updates.
-Make sure the Phoenix 6, PathPlanner, and PhotonVision vendordeps are also
-installed (Catalyst depends on them).
+Make sure the Phoenix 6, PathPlanner and LimelightLib vendordeps are also
+installed - Catalyst depends on them. PhotonVision is **not** one of them; see above.
 
 ## Option 2: JitPack (build.gradle)
 

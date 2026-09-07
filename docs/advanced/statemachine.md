@@ -106,7 +106,7 @@ operator.b().onTrue(superstructure.goTo(ArmState.SCORE,  "op.b"));
 
 That is a working state machine. Note what you did **not** have to write: no
 `setDefaultCommand` for either mechanism (the builder installs one per bound mechanism),
-no periodic call (`Superstructure` extends `SubsystemBase` and steps the engine in
+no periodic call (`Superstructure` extends `CatalystSubsystem` and steps the engine in
 `periodic()`), and no telemetry (it is publishing the full schema under
 `/Catalyst/Superstructure/` already).
 
@@ -220,7 +220,7 @@ superstructure.engine().seed(SuperState.STOW);
 // bindings
 operator.a().onTrue(superstructure.goTo(SuperState.INTAKE, "op.a"));
 operator.y().onTrue(superstructure.goTo(SuperState.AIM,    "op.y"));
-superstructure.arrivedAt(SuperState.CARRY).onTrue(leds.flash(Color.kGreen));
+superstructure.arrivedAt(SuperState.CARRY).onTrue(leds.flash(Color.GREEN));
 ```
 
 Nine mechanisms and six states in about forty lines, and every one of those forty lines
@@ -965,8 +965,8 @@ it is the difference between a wasted cycle and a penalty.
 | `overridden()` | A bound mechanism is currently held by another command |
 
 ```java
-superstructure.arrivedAt(SuperState.CARRY).onTrue(leds.flash(Color.kGreen));
-superstructure.faulted().onTrue(leds.strobe(Color.kRed, 8));
+superstructure.arrivedAt(SuperState.CARRY).onTrue(leds.flash(Color.GREEN));
+superstructure.faulted().onTrue(leds.strobe(Color.RED, 8));
 superstructure.rejected().onTrue(driverRumble.pulse());
 ```
 
@@ -1018,7 +1018,7 @@ static final class FakeBinding implements Binding<Double> {
 }
 ```
 
-Plus a fake clock, because a test that calls `Timer.getFPGATimestamp()` is a test that
+Plus a fake clock, because a test that calls `Timer.getTimestamp()` is a test that
 needs a HAL:
 
 ```java

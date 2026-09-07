@@ -27,7 +27,7 @@ One line in `RobotContainer`, and the robot publishes its own spec sheet on Netw
 RobotIdentity.declare("Ratchet");
 ```
 
-Team number, season, which roboRIO this is with its serial and image, the Catalyst and WPILib
+Team number, season, which robot controller this is with its serial and image, the Catalyst and WPILib
 versions, the brownout threshold, the CAN inventory, the gyro — and, as soon as a `SwerveSubsystem`
 exists, drivetrain type, module count and positions, track width, wheelbase, odometry rate and top
 speed. None of that is a parameter: anything passed in can drift, and a team that regears the drive
@@ -206,7 +206,7 @@ Calculates the derivative of a signal with built-in smoothing:
 
 ```java
 var rateCalc = new SignalProcessor.RateOfChange(0.3); // smoothing alpha
-double velocity = rateCalc.calculate(position, Timer.getFPGATimestamp());
+double velocity = rateCalc.calculate(position, Timer.getTimestamp());
 ```
 
 ---
@@ -428,8 +428,8 @@ Run code when entering or leaving a state:
 superstructure.defineState("SCORE_HIGH")
     .setLinear("elevator", 1.1)
     .setRotational("arm", 95.0)
-    .onEntry(() -> leds.setSolidColor(Color.kGreen))
-    .onExit(() -> leds.setSolidColor(Color.kBlue))
+    .onEntry(() -> leds.setSolidColor(Color.GREEN))
+    .onExit(() -> leds.setSolidColor(Color.BLUE))
     .done();
 ```
 
@@ -468,8 +468,8 @@ Eight new pattern commands beyond the original set:
 leds.fire();
 
 // Show scoring progress
-leds.dynamicProgress(Color.kGreen, () -> elevator.getPosition() / 1.2);
+leds.dynamicProgress(Color.GREEN, () -> elevator.getPosition() / 1.2);
 
 // Alignment feedback for driver
-leds.alignmentIndicator(Color.kGreen, () -> alignProgress);
+leds.alignmentIndicator(Color.GREEN, () -> alignProgress);
 ```

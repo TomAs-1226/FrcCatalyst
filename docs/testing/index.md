@@ -50,12 +50,19 @@ This launches the WPILib Sim GUI with:
 
 ### Dashboard Visualization
 
+{: .warning }
+> **Not built on the 2027 branch.** `MechanismVisualizer` publishes through
+> `Sendable`/`Mechanism2d`, and it is excluded from the source set in `build.gradle` on
+> Catalyst 2.x rather than deleted. The class is in the tree and returns the moment WPILib
+> ships those packages in a release the OS accepts - it is not on the classpath today, so
+> code written against this section will not compile against Catalyst 2.x.
+
 Use `MechanismVisualizer` to see your mechanisms in real-time on the dashboard:
 
 ```java
 MechanismVisualizer viz = new MechanismVisualizer("Robot", 1.0, 2.0);
-var elevatorViz = viz.addElevator("Elevator", 0.5, 0.0, 1.2, Color.kBlue);
-var armViz = viz.addArm("Arm", 0.5, 0.0, 0.5, Color.kRed);
+var elevatorViz = viz.addElevator("Elevator", 0.5, 0.0, 1.2, Color.BLUE);
+var armViz = viz.addArm("Arm", 0.5, 0.0, 0.5, Color.RED);
 
 // Update in periodic
 elevatorViz.setLength(elevator.getPosition());
@@ -232,7 +239,7 @@ void tearDown() {
 takes **no WPILib imports at all**. Two decisions bought that:
 
 1. **Time is injected, not read.** The engine takes a `DoubleSupplier clock`. On a robot,
-   `Superstructure.Builder` defaults it to `Timer::getFPGATimestamp`; in a test it is a mutable
+   `Superstructure.Builder` defaults it to `Timer::getTimestamp`; in a test it is a mutable
    field the test advances by hand. Nothing anywhere calls `Timer` directly, so a test can jump
    four seconds forward to check a deadline without waiting four seconds — or ever loading the HAL.
 2. **Mechanisms are behind an interface.** The engine knows only `Binding<G>`, an interface of

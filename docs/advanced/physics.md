@@ -78,8 +78,10 @@ PhysicsCore physics = PhysicsCore.builder()
 One line in `robotPeriodic()`, after the drivetrain has updated:
 
 ```java
-public void robotPeriodic() {
-    CommandScheduler.getInstance().run();
+// Once per loop, after the scheduler has ticked. On a CatalystOpMode that is
+// onPeriodic(); on a TimedRobot it is robotPeriodic(), after your own
+// Scheduler.getDefault().run().
+@Override protected void onPeriodic() {
     physics.update();
 }
 ```

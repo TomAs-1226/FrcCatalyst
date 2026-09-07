@@ -29,11 +29,11 @@ A Java library of pre-built mechanism building blocks for FRC robots on Phoenix 
 {% include hero3d.html %}
 
 <p style="margin-top: -8px">
-  <img src="https://img.shields.io/badge/WPILib-2026.2.1-1f6feb?style=flat-square" alt="WPILib"/>
-  <img src="https://img.shields.io/badge/Phoenix%206-26.1.1-e94560?style=flat-square" alt="Phoenix 6"/>
-  <img src="https://img.shields.io/badge/Java-17-orange?style=flat-square&logo=openjdk" alt="Java 17"/>
-  <img src="https://img.shields.io/badge/PathPlanner-2026.1.2-7c3aed?style=flat-square" alt="PathPlanner"/>
-  <img src="https://img.shields.io/badge/PhotonVision-v2026.3.1-22c55e?style=flat-square" alt="PhotonVision"/>
+  <img src="https://img.shields.io/badge/WPILib-2027.0.0--alpha--6-1f6feb?style=flat-square" alt="WPILib"/>
+  <img src="https://img.shields.io/badge/Phoenix%206-26.50.0--alpha--1-e94560?style=flat-square" alt="Phoenix 6"/>
+  <img src="https://img.shields.io/badge/Java-25-orange?style=flat-square&logo=openjdk" alt="Java 25"/>
+  <img src="https://img.shields.io/badge/PathPlanner-2027.0.0--alpha--3-7c3aed?style=flat-square" alt="PathPlanner"/>
+  <img src="https://img.shields.io/badge/LimelightLib-2.0.0--beta2-22c55e?style=flat-square" alt="LimelightLib"/>
 </p>
 
 ## Latest release
@@ -51,7 +51,7 @@ built under, so the list is what came up rather than what a team meant to use. T
 declare and nothing to keep in step.
 
 **v1.10.0** made the robot say who it is. `RobotIdentity.declare("Ratchet")` publishes that
-[spec sheet](advanced/robot-identity.html) under `/Catalyst/Robot/` — team number, season, roboRIO and
+[spec sheet](advanced/robot-identity.html) under `/Catalyst/Robot/` — team number, season, controller and
 image, library versions, drivetrain geometry, CAN inventory — all of it derived rather than typed in,
 and anything the library does not know is absent from the wire rather than published as a zero.
 Catalyst also names its own build: `CatalystVersion.describe()`.
@@ -273,8 +273,8 @@ HealthCheck-based fault monitoring, multi-follower support, pre-built commands,
 
 | Component | Version |
 |-----------|---------|
-| WPILib | 2026.2.1 |
-| CTRE Phoenix 6 | 26.1.1 |
-| PhotonVision | v2026.3.1 |
-| PathPlanner | 2026.1.2 |
-| Java | 17+ |
+| WPILib | 2027.0.0-alpha-6 |
+| CTRE Phoenix 6 | 26.50.0-alpha-1 |
+| LimelightLib | 2.0.0-beta2 |
+| PathPlanner | 2027.0.0-alpha-3 |
+| Java | 25 |

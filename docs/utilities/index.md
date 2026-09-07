@@ -98,6 +98,13 @@ SmartDashboard.putData("Dyn Rev", charHelper.dynamicReverse());
 
 ## MechanismVisualizer
 
+{: .warning }
+> **Not built on the 2027 branch.** `MechanismVisualizer` publishes through
+> `Sendable`/`Mechanism2d`, and it is excluded from the source set in `build.gradle` on
+> Catalyst 2.x rather than deleted. The class is in the tree and returns the moment WPILib
+> ships those packages in a release the OS accepts - it is not on the classpath today, so
+> code written against this section will not compile against Catalyst 2.x.
+
 Dashboard visualization using WPILib's Mechanism2d. Creates a canvas with elevator and arm visualizations for real-time monitoring:
 
 ```java
@@ -106,11 +113,11 @@ MechanismVisualizer viz = new MechanismVisualizer("Robot", 1.0, 2.0);
 
 // Add an elevator visualization
 // (name, rootX, rootY, maxHeight, color)
-var elevatorViz = viz.addElevator("Elevator", 0.5, 0.0, 1.2, Color.kBlue);
+var elevatorViz = viz.addElevator("Elevator", 0.5, 0.0, 1.2, Color.BLUE);
 
 // Add an arm on top of the elevator
 // (name, rootX, rootY, length, color)
-var armViz = viz.addArm("Arm", 0.5, 0.0, 0.5, Color.kRed);
+var armViz = viz.addArm("Arm", 0.5, 0.0, 0.5, Color.RED);
 
 // In periodic: update positions
 elevatorViz.setLength(elevator.getPosition());
