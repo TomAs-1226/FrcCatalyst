@@ -44,7 +44,7 @@ import java.util.OptionalInt;
  * throwing — so on a machine without them, a test that constructs this class kills the Gradle
  * worker and takes every other result with it, and no {@code catch (Throwable)} can prevent it
  * because the process is gone before the catch runs. This repository extracts the desktop natives
- * before {@code test} runs, which is what makes {@link SystemCoreAvailabilityTest} possible; it is
+ * before {@code test} runs, which is what makes {@code SystemCoreAvailabilityTest} possible; it is
  * the same bet the Phoenix tests already make. An earlier version of this note said the class could
  * not be tested at all, and that was too strong — believing it is what let
  * {@link #isAvailable()} answer true in simulation, unnoticed, for as long as it did.

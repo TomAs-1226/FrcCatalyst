@@ -452,9 +452,11 @@ public final class Superstructure<S extends Enum<S>> extends frc.lib.catalyst.co
      * matter of pointing a dashboard at it rather than laying out seven widgets.
      *
      * <p><b>Changed in 2.0.0.</b> This used to build a {@code Sendable} and hand it to
-     * {@code Shuffleboard}. WPILib 2027 removed both, so it now writes to {@link Telemetry} — the
-     * facade that replaced SmartDashboard and that Elastic, AdvantageScope and the FIRST Driver
-     * Station all read. The published keys are the same, so an existing layout keeps working.
+     * {@code Shuffleboard}. WPILib 2027 removed both, so it now writes through
+     * {@link frc.lib.catalyst.logging.CatalystLog} instead - not {@code org.wpilib.telemetry},
+     * which the release the Systemcore image accepts does not carry. The published keys are the
+     * same, so an existing layout keeps working; what is lost is the type tag that let a smart
+     * dashboard render the whole thing as one unit.
      *
      * <p>One real difference: a {@code Sendable} was polled by the dashboard, so it stayed current
      * on its own. Telemetry is written, not polled, so this must be called every loop to keep

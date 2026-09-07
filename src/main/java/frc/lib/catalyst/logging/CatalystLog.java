@@ -69,16 +69,17 @@ public final class CatalystLog {
     }
 
     /**
-     * The currently active sink, constructing the default {@link WpiTelemetrySink} on first use.
+     * The currently active sink, constructing the default {@link NetworkTablesSink} on first use.
      *
      * <p>Every {@code log(...)} overload goes through here rather than touching the field
      * directly, so the default sink is never built on a machine that only ever installs its own.
      *
-     * <p>The default changed in 2.0.0 from {@link NetworkTablesSink} to {@link WpiTelemetrySink}.
-     * WPILib 2027 owns a telemetry facade of its own now, and routing through it is what makes
-     * Catalyst data visible to Elastic, AdvantageScope and the FIRST Driver Station without any of
-     * them knowing Catalyst's schema. Published key paths are unchanged, and
-     * {@code setSink(new NetworkTablesSink())} restores the old behaviour exactly.
+     * <p>The default is {@code NetworkTablesSink} - the sink this library has always used, and the
+     * one its tests cover. It was going to become a sink over {@code org.wpilib.telemetry}, and this
+     * javadoc said so for a while, but that package is not in a WPILib release the Systemcore image
+     * accepts; {@code WpiTelemetrySink} is written and is excluded from the source set until it is
+     * (see {@code build.gradle}). Nothing about the published key paths depends on which is
+     * installed, and {@code setSink(...)} replaces it either way.
      */
     public static synchronized LogSink getSink() {
         if (sink == null) sink = new NetworkTablesSink();

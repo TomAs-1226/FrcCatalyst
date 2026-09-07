@@ -135,7 +135,7 @@ public final class AimingSolver {
      *                             via {@link PoseHistory} if you have it).
      * @param fieldRelativeSpeeds  chassis speeds in the FIELD frame. If you only
      *                             have robot-relative speeds, rotate them first
-     *                             with {@link ChassisVelocities#fromRobotRelativeSpeeds}.
+     *                             with {@code ChassisVelocities.fromRobotRelativeSpeeds}.
      */
     public Solution solve(Pose2d robotPose, ChassisVelocities fieldRelativeSpeeds) {
         Translation2d robotXY = robotPose.getTranslation();

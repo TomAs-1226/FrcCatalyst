@@ -23,7 +23,7 @@ import frc.lib.catalyst.identity.CatalystFeatures;
  * — skip this package entirely and every other part of Catalyst is unchanged.
  *
  * <h2>Driver override is free</h2>
- * A pursued goal {@linkplain Command#getRequirements() requires} the same
+ * A pursued goal {@linkplain Command#requirements() requires} the same
  * subsystems its transition and setup touch (via the coordinator and your
  * setup command). So the instant the driver triggers anything that needs
  * those subsystems — including their default commands — WPILib interrupts the

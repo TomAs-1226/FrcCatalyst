@@ -91,7 +91,7 @@ public final class RobotState {
         return Optional.ofNullable(alliance);
     }
 
-    /** Alliance, or {@link Alliance#Blue} as a safe default before the DS connects. */
+    /** Alliance, or {@link Alliance#BLUE} as a safe default before the DS connects. */
     public static Alliance alliance() {
         maybeRefresh();
         return alliance == null ? Alliance.BLUE : alliance;

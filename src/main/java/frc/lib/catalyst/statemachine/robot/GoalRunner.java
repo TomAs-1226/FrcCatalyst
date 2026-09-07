@@ -19,7 +19,7 @@ import java.util.function.DoubleSupplier;
  * <p>Installed as the <b>default command</b> of each bound mechanism's subsystem. That one choice
  * buys driver override for free: a driver's {@code whileTrue(elevator.jogUp(2))} interrupts this
  * runner on the elevator alone, the state machine notices and logs the loss of ownership, and when
- * the button is released WPILib re-schedules the default, {@link #initialize()} clears the applied
+ * the button is released WPILib re-schedules the default, {@code initialize()} clears the applied
  * goal, and the machine's goal is re-applied on the very next loop. No policy flag, no reassertion
  * race, no fighting the driver.
  *

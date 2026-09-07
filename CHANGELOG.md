@@ -34,10 +34,28 @@ that was documented, or applied next door, and not applied here.
   reader deliberately does not, so a poller was free to keep observing "not tripped" after the
   trip - the one state the class exists to publish.
 
+- **Wheel radius calibration could not finish on a test bench.** It turned the drivetrain until the
+  gyro had accumulated the requested rotations, with no other way out - and a robot on blocks never
+  rotates however long its wheels spin, so the command drove the drivetrain until somebody
+  disabled it. It now stops on a timeout derived from the commanded rate, and sooner if the heading
+  has not moved for three seconds, and says which happened instead of publishing a radius computed
+  from an arc that never occurred.
+
 ### Changed
 
 - The example project no longer calls the deprecated `timeoutAfter`; the library builds with no
-  compiler warnings.
+  compiler warnings and no broken javadoc references.
+
+### Documentation
+
+- **`CatalystLog.getSink()` documented a default the code does not use.** It said the default sink
+  became a wrapper over `org.wpilib.telemetry` in 2.0.0; that class is excluded from the source set
+  because the package is not in a WPILib release the Systemcore image accepts, and the code has
+  always fallen back to `NetworkTablesSink`. A team reading it would believe its data reached
+  Elastic and AdvantageScope through WPILib's facade when it went to plain NetworkTables.
+  `Superstructure.addToDashboard` carried the same claim, contradicted by the comment three lines
+  below it.
+- Stale 2026 API names in javadoc references: `Command#getRequirements()`, `Alliance#Blue`.
 
 ## [2.0.0-alpha.2-a10] — 2026-09-06 — A parked robot is not asked to turn
 
