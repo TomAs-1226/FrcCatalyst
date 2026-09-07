@@ -5,6 +5,54 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased] — Autonomy 2.0, Phase 0: the truth pass
+
+The first increment of the Autonomy 2.0 track. No new concepts and no new package: this is the
+defects the autonomy and power code already had, and making three things that were silently inert
+say so. Everything here is independently useful whatever the rest of the track turns into.
+
+### Fixed
+
+- **`Autopilot` ignored `Action.canStart()`**, alone among everything that consumes a precondition.
+  An acquire that could not succeed - no piece in view, a camera down - was scheduled anyway and the
+  repeating cycle ran it forever, so the driver was locked out of the drivetrain until they noticed
+  and released the button, with nothing on the dashboard saying why. It now checks, publishes
+  `Stalled: <action> cannot start`, and holds its requirements in a wait rather than letting the
+  repeating sequence re-defer at loop rate. It resumes the moment the precondition clears or the
+  piece state flips.
+- **A team's readiness lambda could take down the command that called it.** `GoalDirector` invoked
+  `Goal.readyNow()` and `SuperstructureCoordinator.isAtState(...)` unguarded from inside the pursue
+  command's monitor. Both are now guarded: a goal that cannot say whether it is ready is not ready,
+  and `WhyNotReady` names the cause.
+- **Two `GoalDirector`s on one robot overwrote each other.** Both wrote `Goal/Active` every loop and
+  the dashboard showed whichever ran last. `GoalDirector.Builder.name(...)` namespaces one as
+  `Goal/<name>/...`; leave it unset and every key is exactly what it was.
+- **`BrownoutMonitor` was inert by default and did not say so.** Its current supplier defaulted to
+  `() -> 0`, and the prediction is `v - I*R`, so the "predicted" voltage was just the present voltage
+  and the look-ahead the class exists for never happened. There is no default any more: unset means
+  unarmed, `isArmed()` and `Power/Brownout/Armed` report it, and the reflex is honest about being a
+  voltmeter until it is given a current source.
+
+### Added
+
+- **`PowerPredictor.breakerBudgetAmps(...)`.** `headroomAmps()` answered a battery question and was
+  being reached for as a power budget: at 12.4 V it reports 245 A of room, which is true of the
+  battery and false of a 120 A main breaker. With a budget set it returns the smaller of the two,
+  `sagHeadroomAmps()` keeps the battery answer, and `bindingLimit()` says which one is holding.
+  Unset, the number is unchanged. The class had no tests; it has seven.
+- **`RecordingSink`** (test scope) - a `LogSink` that keeps what was written, so telemetry is an
+  assertion target with no NT server, no HAL and no robot.
+
+### Changed
+
+- `behavior/` and `goal/` publish through `CatalystLog` instead of writing straight at
+  NetworkTables. The key paths are byte-identical, so no dashboard moves, but their reasoning now
+  reaches every installed sink - it lands in the WPILOG beside the match - and can be tested. It is
+  also marginally cheaper: the sink caches entries where the raw calls re-resolved a path each time.
+  Values that are stable for seconds at a time (`Phase`, `Active`, `Ready`, `WhyNotReady`,
+  `LastSwitchReason`) publish only when they change.
+- The `goal` package had no tests. It has five.
+
 ## [2.0.0-alpha.2] — 2026-09-06 — Vetting pass: the governor, the heading loop, the history file
 
 > **Install note.** This tag cannot be installed through the published vendordep. The library is

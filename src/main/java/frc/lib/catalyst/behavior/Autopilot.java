@@ -1,8 +1,7 @@
 package frc.lib.catalyst.behavior;
 
 import frc.lib.catalyst.command.CatalystCommand;
-import org.wpilib.networktables.NetworkTable;
-import org.wpilib.networktables.NetworkTableInstance;
+import frc.lib.catalyst.logging.CatalystLog;
 import org.wpilib.command3.Command;
 import frc.lib.catalyst.command.Commands;
 import org.wpilib.command3.Mechanism;
@@ -57,7 +56,10 @@ public final class Autopilot {
     private final Action score;
     private final BooleanSupplier hasPiece;
     private final Set<Mechanism> requirements;
-    private final NetworkTable nt;
+    /** Key prefix under CatalystLog's root, e.g. {@code Behavior/Cycle/} - the path is unchanged. */
+    private final String key;
+    /** Last value written to Phase. Skipping unchanged writes keeps this off the loop's budget. */
+    private String lastPhase;
 
     private Autopilot(Builder b) {
         this.name = b.name;
@@ -67,8 +69,7 @@ public final class Autopilot {
         this.requirements = new HashSet<>();
         this.requirements.addAll(acquire.requirements());
         this.requirements.addAll(score.requirements());
-        this.nt = NetworkTableInstance.getDefault()
-                .getTable("Catalyst").getSubTable("Behavior").getSubTable(name);
+        this.key = "Behavior/" + name + "/";
     }
 
     /**
@@ -78,24 +79,55 @@ public final class Autopilot {
     public CatalystCommand run() {
         Command step = Commands.defer(() -> {
             boolean holding = safeHasPiece();
-            if (holding) {
-                nt.getEntry("Phase").setString("Score");
-                return score.toCommand();
-            } else {
-                nt.getEntry("Phase").setString("Acquire");
-                return acquire.toCommand();
+            Action chosen = holding ? score : acquire;
+
+            // An Action carries a precondition and this used to ignore it, alone among everything
+            // that consumes one. An acquire that cannot succeed - no piece in view, a camera down -
+            // was scheduled anyway and the repeating sequence ran it forever, so the driver was
+            // locked out of the drivetrain until they noticed and released the button, with nothing
+            // on the dashboard saying why.
+            if (!safeCanStart(chosen)) {
+                publishPhase("Stalled: " + chosen.name() + " cannot start");
+                // Hold the requirements and wait. Returning a finished command instead would let
+                // repeatingSequence re-defer at loop rate, allocating a command every 20 ms; and
+                // dropping the requirements here would hand the drivetrain back mid-cycle, which
+                // is a different surprise. Resumes the moment the precondition clears, or the
+                // moment the piece state flips and the other phase becomes the right one.
+                return Commands.waitUntil(() -> safeCanStart(chosen) || safeHasPiece() != holding)
+                        .withName("Autopilot:" + name + "/stalled");
             }
+
+            publishPhase(holding ? "Score" : "Acquire");
+            return chosen.toCommand();
         }, requirements);
 
         return Commands.repeatingSequence(step)
-                .beforeStarting(() -> nt.getEntry("Phase").setString("Engaged"))
-                .finallyDo(interrupted -> nt.getEntry("Phase").setString("DriverControl"))
+                .beforeStarting(() -> publishPhase("Engaged"))
+                .finallyDo(interrupted -> publishPhase("DriverControl"))
                 .withName("Autopilot:" + name);
+    }
+
+    /** Publish only on change: Phase is stable for seconds at a time and NT writes are not free. */
+    private void publishPhase(String phase) {
+        if (phase.equals(lastPhase)) {
+            return;
+        }
+        lastPhase = phase;
+        CatalystLog.log(key + "Phase", phase);
     }
 
     private boolean safeHasPiece() {
         try {
             return hasPiece.getAsBoolean();
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /** A precondition is team code. It failing must not take the co-pilot down with it. */
+    private boolean safeCanStart(Action action) {
+        try {
+            return action.canStart();
         } catch (Throwable t) {
             return false;
         }

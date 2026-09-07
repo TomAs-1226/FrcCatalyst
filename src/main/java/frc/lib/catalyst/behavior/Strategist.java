@@ -1,8 +1,7 @@
 package frc.lib.catalyst.behavior;
 
 import frc.lib.catalyst.command.CatalystCommand;
-import org.wpilib.networktables.NetworkTable;
-import org.wpilib.networktables.NetworkTableInstance;
+import frc.lib.catalyst.logging.CatalystLog;
 import org.wpilib.system.Timer;
 import org.wpilib.command3.Command;
 import org.wpilib.command3.Coroutine;
@@ -137,7 +136,10 @@ public final class Strategist {
         private final List<Behavior> behaviors;
         private final double minScore;
         private final BehaviorArbiter arbiter;
-        private final NetworkTable nt;
+        private final String key;
+        /** Active and the switch reason are stable for seconds; this evaluates every loop. */
+        private String lastActive;
+        private String lastReason;
         private final String commandName;
         private BehaviorContext ctx;
 
@@ -149,8 +151,7 @@ public final class Strategist {
             this.behaviors = behaviors;
             this.minScore = minScore;
             this.arbiter = new BehaviorArbiter(minScore, switchMargin, minDwellSeconds);
-            this.nt = NetworkTableInstance.getDefault()
-                    .getTable("Catalyst").getSubTable("Behavior").getSubTable(name);
+            this.key = "Behavior/" + name + "/";
             this.commandName = "Strategist:" + name;
         }
 
@@ -185,6 +186,21 @@ public final class Strategist {
             }
         }
 
+        /** Published only when it changes - see the fields. */
+        private void publishActive(String value) {
+            if (!value.equals(lastActive)) {
+                lastActive = value;
+                CatalystLog.log(key + "Active", value);
+            }
+        }
+
+        private void publishReason(String value) {
+            if (value != null && !value.equals(lastReason)) {
+                lastReason = value;
+                CatalystLog.log(key + "LastSwitchReason", value);
+            }
+        }
+
         private void evaluate() {
             // Clear a finished behaviour so it can be re-evaluated next loop.
             if (activeCommand != null && !Scheduler.getDefault().isScheduledOrRunning(activeCommand)) {
@@ -196,7 +212,7 @@ public final class Strategist {
             java.util.Map<String, Behavior> byName = new java.util.HashMap<>();
             for (Behavior b : behaviors) {
                 double score = safeScore(b);
-                nt.getSubTable("Scores").getEntry(b.name()).setDouble(score);
+                CatalystLog.log(key + "Scores/" + b.name(), score);
                 candidates.add(new BehaviorArbiter.Candidate(b.name(), score, safeCanStart(b)));
                 byName.put(b.name(), b);
             }
@@ -217,13 +233,13 @@ public final class Strategist {
             }
             if (decision.winner() == null) {
                 activeName = "";
-                nt.getEntry("Active").setString("(none)");
+                publishActive("(none)");
                 return;
             }
             activeCommand = byName.get(decision.winner()).action().toCommand();
             activeName = decision.winner();
             Scheduler.getDefault().schedule(activeCommand);
-            nt.getEntry("Active").setString(activeName);
+            publishActive(activeName);
         }
 
         @Override
@@ -231,7 +247,7 @@ public final class Strategist {
             if (activeCommand != null) Scheduler.getDefault().cancel(activeCommand);
             activeCommand = null;
             activeName = "";
-            nt.getEntry("Active").setString("(stopped)");
+            publishActive("(stopped)");
         }
 
         /**
@@ -242,10 +258,11 @@ public final class Strategist {
          * on the same keys, as a HeldSeconds that keeps climbing with a stale reason.
          */
         private void publishArbitration(double now) {
-            nt.getEntry("Switches").setDouble(arbiter.switches());
-            nt.getEntry("SwitchesPerSecond").setDouble(arbiter.switchesPerSecond(now));
-            nt.getEntry("HeldSeconds").setDouble(arbiter.heldSeconds(now));
-            nt.getEntry("LastSwitchReason").setString(arbiter.lastSwitchReason());
+            // These three move every loop by construction, so gating them would only add a compare.
+            CatalystLog.log(key + "Switches", arbiter.switches());
+            CatalystLog.log(key + "SwitchesPerSecond", arbiter.switchesPerSecond(now));
+            CatalystLog.log(key + "HeldSeconds", arbiter.heldSeconds(now));
+            publishReason(arbiter.lastSwitchReason());
         }
 
         /** A scorer that throws must not be able to decide the match; nor must canStart(). */
