@@ -31,7 +31,7 @@ class SystemCoreIMUFrameTest {
 
     /** An IMU that reports a fixed acceleration, standing in for the Pigeon. */
     private record FixedIMU(Translation2d accel) implements CatalystIMU {
-        @Override public Rotation2d getHeading() { return Rotation2d.kZero; }
+        @Override public Rotation2d getHeading() { return Rotation2d.ZERO; }
 
         @Override public double getYaw() { return 0; }
 
@@ -54,7 +54,7 @@ class SystemCoreIMUFrameTest {
 
         MovableIMU(Translation2d accel) { this.accel = accel; }
 
-        @Override public Rotation2d getHeading() { return Rotation2d.kZero; }
+        @Override public Rotation2d getHeading() { return Rotation2d.ZERO; }
 
         @Override public double getYaw() { return 0; }
 
@@ -73,7 +73,7 @@ class SystemCoreIMUFrameTest {
 
     /** An IMU that cannot say, standing in for a Systemcore mounted in an unknown frame. */
     private record SilentIMU() implements CatalystIMU {
-        @Override public Rotation2d getHeading() { return Rotation2d.kZero; }
+        @Override public Rotation2d getHeading() { return Rotation2d.ZERO; }
 
         @Override public double getYaw() { return 0; }
 
@@ -101,7 +101,7 @@ class SystemCoreIMUFrameTest {
                 new FixedIMU(new Translation2d(0.2, 0.0)),
                 new SilentIMU(),
                 new Translation2d(0.30, 0.0),
-                Translation2d.kZero);
+                Translation2d.ZERO);
 
         assertTrue(fused.angularAccelerationRadPerSecSq().isEmpty(),
                 "one silent sensor is not a measurement, and -1.89 rad/s^2 on a stationary robot is "
@@ -116,7 +116,7 @@ class SystemCoreIMUFrameTest {
                 new FixedIMU(new Translation2d(0.0, 0.60)),
                 new FixedIMU(new Translation2d(0.0, 0.0)),
                 new Translation2d(0.30, 0.0),
-                Translation2d.kZero);
+                Translation2d.ZERO);
 
         OptionalDouble alpha = fused.angularAccelerationRadPerSecSq();
         assertTrue(alpha.isPresent(), "both sensors reported, so there is a measurement");
@@ -132,7 +132,7 @@ class SystemCoreIMUFrameTest {
                 new FixedIMU(new Translation2d(0.0, 9.81)),
                 new FixedIMU(new Translation2d(0.0, 9.81)),
                 new Translation2d(0.30, 0.0),
-                Translation2d.kZero);
+                Translation2d.ZERO);
 
         assertEquals(0.0, fused.angularAccelerationRadPerSecSq().orElseThrow(), 1e-9,
                 "a common acceleration is not a rotation");
@@ -142,7 +142,7 @@ class SystemCoreIMUFrameTest {
 
     @Test
     void aFlatBoardReportsAccelerationAndATiltedOneDoesNot() {
-        assertTrue(HAL.initialize(500, 0), "no HAL, no IMU");
+        assertTrue(HAL.initialize(), "no HAL, no IMU");
 
         SystemCoreIMU flat = new SystemCoreIMU(OnboardIMU.MountOrientation.FLAT);
         assertTrue(flat.getAcceleration().isPresent(),
@@ -160,7 +160,7 @@ class SystemCoreIMUFrameTest {
 
     @Test
     void supplyingTheRotationBringsATiltedBoardBack() {
-        assertTrue(HAL.initialize(500, 0), "no HAL, no IMU");
+        assertTrue(HAL.initialize(), "no HAL, no IMU");
 
         // The opt-in half of the design: a caller who knows how the board sits gets its readings.
         SystemCoreIMU told = new SystemCoreIMU(OnboardIMU.MountOrientation.LANDSCAPE,
@@ -183,7 +183,7 @@ class SystemCoreIMUFrameTest {
 
         DualIMU fused = new DualIMU(
                 new FixedIMU(pigeonAtRest), new FixedIMU(onboardAtRest),
-                new Translation2d(0.30, 0.0), Translation2d.kZero);
+                new Translation2d(0.30, 0.0), Translation2d.ZERO);
 
         assertEquals(-1.8673, fused.angularAccelerationRadPerSecSq().orElseThrow(), 1e-3,
                 "uncalibrated, this is what the rig actually reported");
@@ -201,8 +201,8 @@ class SystemCoreIMUFrameTest {
         var bias = new Translation2d(-0.0623, -0.5602);
         MovableIMU pigeon = new MovableIMU(bias);
 
-        DualIMU fused = new DualIMU(pigeon, new FixedIMU(Translation2d.kZero),
-                new Translation2d(0.30, 0.0), Translation2d.kZero);
+        DualIMU fused = new DualIMU(pigeon, new FixedIMU(Translation2d.ZERO),
+                new Translation2d(0.30, 0.0), Translation2d.ZERO);
 
         assertTrue(fused.calibrateAtRest());
         assertEquals(0.0, fused.angularAccelerationRadPerSecSq().orElseThrow(), 1e-9,
@@ -219,7 +219,7 @@ class SystemCoreIMUFrameTest {
     void calibratingWithASilentSensorChangesNothing() {
         DualIMU fused = new DualIMU(
                 new FixedIMU(new Translation2d(0.2, 0.0)), new SilentIMU(),
-                new Translation2d(0.30, 0.0), Translation2d.kZero);
+                new Translation2d(0.30, 0.0), Translation2d.ZERO);
 
         assertFalse(fused.calibrateAtRest(), "nothing to learn from a sensor that did not report");
         assertEquals(0.0, fused.restBias().getNorm(), 1e-12);

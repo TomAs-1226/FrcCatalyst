@@ -570,9 +570,13 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
             // Calculate angle from robot to target
             Translation2d robotPos = getPose().getTranslation();
             Translation2d toTarget = targetPoint.get().minus(robotPos);
-            Rotation2d targetAngle = toTarget.getAngle();
+            Rotation2d heading = getHeading();
+            // A robot standing on the target has no bearing to it. Holding the current heading makes
+            // the error zero, so the driver keeps translating instead of being spun to field +X by a
+            // question that has no answer.
+            Rotation2d targetAngle = toTarget.getAngle().orElse(heading);
 
-            double rot = headingRate(getHeading().getRadians(), targetAngle.getRadians(), true);
+            double rot = headingRate(heading.getRadians(), targetAngle.getRadians(), true);
             driveFieldCentric(x, y, rot);
         }).withName("Swerve.PointAtTarget");
     }
@@ -1123,7 +1127,7 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
         if (!hasAppliedOperatorPerspective || RobotState.isDisabled()) {
             RobotState.allianceOpt()
             .ifPresent(AllianceColor -> {
-                drivetrain.setOperatorPerspectiveForward(AllianceColor == Alliance.RED ? Rotation2d.k180deg : Rotation2d.kZero);
+                drivetrain.setOperatorPerspectiveForward(AllianceColor == Alliance.RED ? Rotation2d.k180deg : Rotation2d.ZERO);
                 hasAppliedOperatorPerspective = true;
             });
         }

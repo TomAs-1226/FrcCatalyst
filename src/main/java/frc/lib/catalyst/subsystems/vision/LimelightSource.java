@@ -301,7 +301,15 @@ public class LimelightSource implements CameraSource {
             // no heading at all - and MegaTag2 with no heading is exactly the wrong-pose case the
             // guard above exists to prevent. Writing both is two NetworkTables sets and settles as
             // soon as the path is known.
-            limelight.setRobotOrientation(yawDegrees, yawRate, pitchDegrees, 0, rollDegrees, 0);
+            //
+            // The trailing true is a flush. LimelightLib beta8 folded its four orientation setters
+            // into two, replacing the setRobotOrientation / setRobotOrientation_NoFlush pair with a
+            // boolean; the old six-argument call this replaces was the flushing one, so true keeps
+            // the behaviour rather than changing it in an upgrade. Flushing is also what the
+            // yaw feed is for: MegaTag2 resolves each frame against the heading the camera holds
+            // when that frame is processed, and a heading still sitting in the NetworkTables send
+            // buffer is one the camera does not have yet.
+            limelight.setRobotOrientation(yawDegrees, yawRate, pitchDegrees, 0, rollDegrees, 0, true);
             legacy.setRobotOrientation(yawDegrees, yawRate, pitchDegrees, rollDegrees);
         } catch (RuntimeException ignored) {
             // A camera that is not connected yet is normal at startup, not an error.

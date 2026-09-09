@@ -21,7 +21,7 @@ class VisionSeedingTest {
 
     /** Odometry that is stuck: measurements do not move it, only a reset does. */
     static final class StuckOdometry implements VisionPoseSink {
-        Pose2d pose = Pose2d.kZero;
+        Pose2d pose = Pose2d.ZERO;
         int measurements = 0;
         int resets = 0;
 
@@ -71,7 +71,7 @@ class VisionSeedingTest {
 
     @Test
     void aFarSingleTagIsFusedButDoesNotSeed() {
-        Pose2d[] truth = {new Pose2d(12.0, 6.0, Rotation2d.kZero)};
+        Pose2d[] truth = {new Pose2d(12.0, 6.0, Rotation2d.ZERO)};
         StuckOdometry odometry = new StuckOdometry();
         VisionSubsystem vision = new VisionSubsystem(VisionConfig.builder()
                 .addCamera(camera(truth, 1, 5.0))
@@ -88,7 +88,7 @@ class VisionSeedingTest {
 
     @Test
     void persistentDisagreementReanchorsThePose() throws InterruptedException {
-        Pose2d[] truth = {new Pose2d(5.0, 5.0, Rotation2d.kZero)};
+        Pose2d[] truth = {new Pose2d(5.0, 5.0, Rotation2d.ZERO)};
         StuckOdometry odometry = new StuckOdometry();
         VisionSubsystem vision = new VisionSubsystem(VisionConfig.builder()
                 .addCamera(camera(truth, 2, 2.0))
@@ -101,7 +101,7 @@ class VisionSeedingTest {
         assertEquals(1, odometry.resets, "seeded");
 
         // Odometry goes wrong: a slip, a drift, a bad reset. The cameras keep seeing (5, 5).
-        odometry.pose = Pose2d.kZero;
+        odometry.pose = Pose2d.ZERO;
         vision.periodic();
         assertEquals(1, vision.getTotalRejected(), "too far from where odometry thinks it is");
         assertEquals(1, odometry.resets, "one frame of disagreement is not enough");
@@ -115,7 +115,7 @@ class VisionSeedingTest {
 
     @Test
     void seedingOffKeepsTheOldRule() {
-        Pose2d[] truth = {new Pose2d(12.0, 6.0, Rotation2d.kZero)};
+        Pose2d[] truth = {new Pose2d(12.0, 6.0, Rotation2d.ZERO)};
         StuckOdometry odometry = new StuckOdometry();
         VisionSubsystem vision = new VisionSubsystem(VisionConfig.builder()
                 .addCamera(camera(truth, 2, 2.0))

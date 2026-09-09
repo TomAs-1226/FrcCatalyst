@@ -162,7 +162,7 @@ class FieldHeightmapTest {
 
     @Test
     void flatCarpetIsClear() {
-        var v = testField().test(new Pose2d(0.3, 0.5, Rotation2d.kZero), HALF, HALF, TALL, 0);
+        var v = testField().test(new Pose2d(0.3, 0.5, Rotation2d.ZERO), HALF, HALF, TALL, 0);
         assertFalse(v.blocked(), v.reason());
         assertEquals(0.0, v.groundHeight(), 1e-9);
     }
@@ -172,7 +172,7 @@ class FieldHeightmapTest {
     @Test
     void aGentleRampIsDrivable() {
         // 30 mm per 100 mm cell is a step well under the climb limit, so it should not block.
-        var v = testField().test(new Pose2d(0.75, 0.5, Rotation2d.kZero), HALF, HALF, TALL, 0);
+        var v = testField().test(new Pose2d(0.75, 0.5, Rotation2d.ZERO), HALF, HALF, TALL, 0);
         assertFalse(v.blocked(), "a ramp must be drivable, got: " + v.reason());
     }
 
@@ -181,9 +181,9 @@ class FieldHeightmapTest {
         FieldHeightmap f = testField();
         // Sampled below the point where the footprint reaches the flat top — a 30 cm robot at x=0.85
         // already has its nose on the 150 mm plateau, so it reports the top rather than the slope.
-        double low = f.test(new Pose2d(0.3, 0.5, Rotation2d.kZero), HALF, HALF, TALL, 0).groundHeight();
-        double mid = f.test(new Pose2d(0.75, 0.5, Rotation2d.kZero), HALF, HALF, TALL, 0).groundHeight();
-        double top = f.test(new Pose2d(1.2, 0.5, Rotation2d.kZero), HALF, HALF, TALL, 0).groundHeight();
+        double low = f.test(new Pose2d(0.3, 0.5, Rotation2d.ZERO), HALF, HALF, TALL, 0).groundHeight();
+        double mid = f.test(new Pose2d(0.75, 0.5, Rotation2d.ZERO), HALF, HALF, TALL, 0).groundHeight();
+        double top = f.test(new Pose2d(1.2, 0.5, Rotation2d.ZERO), HALF, HALF, TALL, 0).groundHeight();
 
         assertEquals(0.0, low, 1e-9);
         assertTrue(mid > low, "ground height should rise along the ramp: " + low + " -> " + mid);
@@ -196,14 +196,14 @@ class FieldHeightmapTest {
         // The climb limit is a step between adjacent ground, not the rise across the footprint. An
         // 86 cm robot on a 20 mm-per-cell ramp spans 180 mm of climb; read across the footprint that
         // is a wall three times the limit, and this test failed for exactly that reason.
-        var v = rampField().test(new Pose2d(1.4, 0.5, Rotation2d.kZero), BIG, BIG, TALL, 0);
+        var v = rampField().test(new Pose2d(1.4, 0.5, Rotation2d.ZERO), BIG, BIG, TALL, 0);
         assertFalse(v.blocked(), "a ramp gentler than the limit must be drivable, got: " + v.reason());
         assertEquals(0.18, v.groundHeight(), 1e-9, "and the robot rides up it");
     }
 
     @Test
     void aSingleLipOfTheSameHeightIsNotClimbable() {
-        var v = lipField().test(new Pose2d(1.4, 0.5, Rotation2d.kZero), BIG, BIG, TALL, 0);
+        var v = lipField().test(new Pose2d(1.4, 0.5, Rotation2d.ZERO), BIG, BIG, TALL, 0);
         assertTrue(v.blocked(), "200 mm in one cell is a wall however long the robot is");
         assertTrue(v.reason().contains("step"), "and it should say why: " + v.reason());
         assertTrue(v.normal().getX() < 0, "the way out of a lip in +x is back toward -x");
@@ -219,7 +219,7 @@ class FieldHeightmapTest {
     @Test
     void aRampTooSteepForTheRobotBlocks() {
         // Same ramp, but a robot that can only manage a 1 cm step.
-        var v = testField().test(new Pose2d(0.75, 0.5, Rotation2d.kZero), HALF, HALF, TALL, 0.01);
+        var v = testField().test(new Pose2d(0.75, 0.5, Rotation2d.ZERO), HALF, HALF, TALL, 0.01);
         assertTrue(v.blocked(), "a 3 cm step should stop a robot with a 1 cm climb limit");
     }
 
@@ -231,7 +231,7 @@ class FieldHeightmapTest {
         // under the robot's centre, so a robot teleported inside the wall is "standing" on it and
         // sees no step at all — correct for a ramp top, meaningless for a wall, and not a state a
         // robot reaches by driving.
-        var v = testField().test(new Pose2d(1.32, 0.5, Rotation2d.kZero), HALF, HALF, TALL, 0);
+        var v = testField().test(new Pose2d(1.32, 0.5, Rotation2d.ZERO), HALF, HALF, TALL, 0);
         assertTrue(v.blocked(), "the front of the robot is in an 80 cm wall");
         assertTrue(v.normal().getNorm() > 0.5, "a blocked verdict has to say which way is out");
         assertTrue(v.normal().getX() < 0, "the way out of a wall in +x is back toward -x");
@@ -239,7 +239,7 @@ class FieldHeightmapTest {
 
     @Test
     void drivingOffTheFieldIsBlocked() {
-        var v = testField().test(new Pose2d(-0.2, 0.5, Rotation2d.kZero), HALF, HALF, TALL, 0);
+        var v = testField().test(new Pose2d(-0.2, 0.5, Rotation2d.ZERO), HALF, HALF, TALL, 0);
         assertTrue(v.blocked());
         // Containment reports how far out it is rather than a bare label, because that depth is what
         // recovers the robot in one step instead of nudging it a cell at a time.
@@ -257,7 +257,7 @@ class FieldHeightmapTest {
         for (double y : new double[] {-0.4, 0.5, 1.4}) {
             for (double x : new double[] {-0.4, 1.0, 2.4}) {
                 if (x > 0 && x < 2.0 && y > 0 && y < 1.0) continue;
-                var v = f.test(new Pose2d(x, y, Rotation2d.kZero), HALF, HALF, TALL, 0);
+                var v = f.test(new Pose2d(x, y, Rotation2d.ZERO), HALF, HALF, TALL, 0);
                 assertTrue(v.blocked(), "escaped the map at " + x + ", " + y);
                 assertTrue(v.penetration() > 0, "an escape needs a real depth to recover from");
                 assertTrue(v.normal().getNorm() > 0.5, "and a direction back in");
@@ -274,7 +274,7 @@ class FieldHeightmapTest {
         // the map should report exactly it. It used to report one cell — 0.1 m — for every one of
         // these, which is 100x too much at the top of the list and too little at the bottom.
         for (double overlap : new double[] {0.001, 0.01, 0.03, 0.08, 0.13}) {
-            Pose2d at = new Pose2d(1.5 - BIG + overlap, 0.5, Rotation2d.kZero);
+            Pose2d at = new Pose2d(1.5 - BIG + overlap, 0.5, Rotation2d.ZERO);
             var v = f.test(at, BIG, BIG, TALL, 0);
             assertTrue(v.blocked(), "the bumper is " + overlap + " m into an 80 cm wall");
             assertEquals(overlap, v.penetration(), 1e-6,
@@ -284,7 +284,7 @@ class FieldHeightmapTest {
 
     @Test
     void aClearVerdictHasNoPenetrationToResolve() {
-        var v = wallAt(1.5).test(new Pose2d(0.6, 0.5, Rotation2d.kZero), BIG, BIG, TALL, 0);
+        var v = wallAt(1.5).test(new Pose2d(0.6, 0.5, Rotation2d.ZERO), BIG, BIG, TALL, 0);
         assertFalse(v.blocked(), v.reason());
         assertEquals(0.0, v.penetration(), 1e-12);
     }
@@ -298,7 +298,7 @@ class FieldHeightmapTest {
         // second and third impulse land in one timestep, and it is what the jitter was made of.
         for (int i = 0; i < 12; i++) {
             double nudge = i * 0.0037;
-            var v = f.test(new Pose2d(1.09 + nudge, 0.5 + nudge, Rotation2d.kZero), BIG, BIG, TALL, 0);
+            var v = f.test(new Pose2d(1.09 + nudge, 0.5 + nudge, Rotation2d.ZERO), BIG, BIG, TALL, 0);
             assertTrue(v.blocked());
             assertEquals(-1.0, v.normal().getX(), 1e-12, "nudge " + nudge);
             assertEquals(0.0, v.normal().getY(), 1e-12, "nudge " + nudge + " must not steer sideways");
@@ -307,7 +307,7 @@ class FieldHeightmapTest {
 
     @Test
     void theWayOutOfACornerIsTheBisectorOfBothWalls() {
-        var v = cornerField().test(new Pose2d(1.4, 0.5, Rotation2d.kZero), HALF, HALF, TALL, 0);
+        var v = cornerField().test(new Pose2d(1.4, 0.5, Rotation2d.ZERO), HALF, HALF, TALL, 0);
         assertTrue(v.blocked());
         assertEquals(-Math.sqrt(0.5), v.normal().getX(), 1e-9);
         assertEquals(-Math.sqrt(0.5), v.normal().getY(), 1e-9);
@@ -317,7 +317,7 @@ class FieldHeightmapTest {
     void theWayOffTheFieldPointsBackOntoIt() {
         // It used to point further out, so a robot that ended up outside was pushed away for ever at
         // a cell a step. Twelve metres past the wall was reachable.
-        var v = testField().test(new Pose2d(-0.2, 0.5, Rotation2d.kZero), HALF, HALF, TALL, 0);
+        var v = testField().test(new Pose2d(-0.2, 0.5, Rotation2d.ZERO), HALF, HALF, TALL, 0);
         assertTrue(v.blocked());
         assertTrue(v.normal().getX() > 0.5, "the way back on is +x, got " + v.normal());
         assertTrue(v.penetration() > 0.3, "and it is a real distance: " + v.penetration());
@@ -327,7 +327,7 @@ class FieldHeightmapTest {
     void aWallTheBumperIsTouchingIsNotGroundToStandOn() {
         // groundHeight folded every sample's floor into one maximum, walls included, so brushing an
         // 80 cm wall reported a robot standing 80 cm above the carpet it was demonstrably sitting on.
-        var v = wallAt(1.5).test(new Pose2d(1.09, 0.5, Rotation2d.kZero), BIG, BIG, TALL, 0);
+        var v = wallAt(1.5).test(new Pose2d(1.09, 0.5, Rotation2d.ZERO), BIG, BIG, TALL, 0);
         assertTrue(v.blocked());
         assertEquals(0.0, v.groundHeight(), 1e-9,
                 "the robot is on carpet with its bumper in a wall, not levitating on top of it");
@@ -337,7 +337,7 @@ class FieldHeightmapTest {
 
     @Test
     void aShortRobotFitsThroughTheTrench() {
-        var v = testField().test(new Pose2d(1.8, 0.5, Rotation2d.kZero), HALF, HALF, SHORT, 0);
+        var v = testField().test(new Pose2d(1.8, 0.5, Rotation2d.ZERO), HALF, HALF, SHORT, 0);
         assertFalse(v.blocked(),
                 "40 cm of robot under a 60 cm bar should pass, got: " + v.reason());
         assertEquals(0.6, v.lowestClearance(), 1e-6);
@@ -345,7 +345,7 @@ class FieldHeightmapTest {
 
     @Test
     void aTallRobotDoesNotFitThroughTheTrench() {
-        var v = testField().test(new Pose2d(1.8, 0.5, Rotation2d.kZero), HALF, HALF, TALL, 0);
+        var v = testField().test(new Pose2d(1.8, 0.5, Rotation2d.ZERO), HALF, HALF, TALL, 0);
         assertTrue(v.blocked(), "90 cm of robot must not fit under a 60 cm bar");
         assertTrue(v.reason().contains("clearance"), "and it should say why: " + v.reason());
     }
@@ -376,7 +376,7 @@ class FieldHeightmapTest {
                 "the library's sentinel has to be the number the file writes");
 
         // Taller than the sentinel itself, which is the case a subtraction would get wrong.
-        var v = f.test(new Pose2d(1.5, 0.5, Rotation2d.kZero), BIG, BIG, 40.0, 0);
+        var v = f.test(new Pose2d(1.5, 0.5, Rotation2d.ZERO), BIG, BIG, 40.0, 0);
         assertFalse(v.blocked(), "open sky cannot stop a robot of any height, got: " + v.reason());
         assertEquals(FieldHeightmap.OPEN_SKY, v.lowestClearance(), 1e-9,
                 "and the verdict reports the sentinel, not a number of its own");
@@ -388,7 +388,7 @@ class FieldHeightmapTest {
 
     @Test
     void aShortRobotDrivesUnderABarTheHeightGridCallsSolid() {
-        var v = barOverCarpetField().test(new Pose2d(0.95, 0.5, Rotation2d.kZero), BIG, BIG, SHORT, 0);
+        var v = barOverCarpetField().test(new Pose2d(0.95, 0.5, Rotation2d.ZERO), BIG, BIG, SHORT, 0);
         assertFalse(v.blocked(),
                 "40 cm of robot under a 60 cm bar should pass, got: " + v.reason());
         assertEquals(0.6, v.lowestClearance(), 1e-6);
@@ -397,7 +397,7 @@ class FieldHeightmapTest {
 
     @Test
     void aTallRobotIsStoppedByTheBarItCannotFitUnder() {
-        var v = barOverCarpetField().test(new Pose2d(0.95, 0.5, Rotation2d.kZero), BIG, BIG, TALL, 0);
+        var v = barOverCarpetField().test(new Pose2d(0.95, 0.5, Rotation2d.ZERO), BIG, BIG, TALL, 0);
         assertTrue(v.blocked(), "90 cm of robot must not fit under a 60 cm bar");
         assertTrue(v.reason().contains("clearance"),
                 "and it is the clearance that stops it, not a phantom step: " + v.reason());

@@ -78,7 +78,7 @@ public final class CapabilityEvaluator {
         if (distance < 1e-6) {
             return new Capability(true, OptionalDouble.of(0.0),
                     state.quality().translationStdDevMeters(),
-                    marginAt(Translation2d.kZero, state), voltageAt(expectedAmps), 0.0,
+                    marginAt(Translation2d.ZERO, state), voltageAt(expectedAmps), 0.0,
                     Risk.LOW, "already there");
         }
 

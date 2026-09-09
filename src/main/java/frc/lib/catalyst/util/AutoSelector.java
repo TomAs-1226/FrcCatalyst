@@ -5,8 +5,8 @@ import frc.lib.catalyst.command.CatalystCommand;
 import org.wpilib.driverstation.DriverStationErrors;
 import com.pathplanner.lib.auto.AutoBuilder;
 import org.wpilib.driverstation.DriverStation;
-import org.wpilib.smartdashboard.SendableChooser;
-import org.wpilib.smartdashboard.SmartDashboard;
+import org.wpilib.tunable.Selectable;
+import org.wpilib.tunable.Tunables;
 import org.wpilib.command3.Command;
 import frc.lib.catalyst.command.Commands;
 
@@ -16,18 +16,16 @@ import java.util.Map;
 /**
  * Auto routine selector with PathPlanner integration and safe defaults.
  *
- * <p>Wraps {@link SendableChooser} to provide a clean interface for selecting autonomous routines
+ * <p>Wraps {@link Selectable} to provide a clean interface for selecting autonomous routines
  * from the dashboard, with built-in error handling and a "Do Nothing" fallback.
  *
- * <p><b>This class was excluded from the 2027 build for a while, and it should not have been.</b>
- * It had been ported to {@code org.wpilib.tunable.Selectable} on the belief that
- * {@code SendableChooser} was removed in 2027, and then dropped from the source set when that
- * package turned out to be missing from the released alpha-6. Only the second half was true.
- * Checked against the shipped jars: {@code org.wpilib.tunables} is genuinely absent, but
- * {@code SendableChooser}, {@code SmartDashboard}, {@code Sendable} and {@code SendableBuilder} are
- * all present in {@code wpilibj-java}. The removal claim came from the development snapshot, where
- * {@code org.wpilib.telemetry} replaced them - a different build that happens to share the alpha-6
- * name. The cost of the mistake was that teams on this branch had no auto chooser at all.
+ * <p>Backed by {@code org.wpilib.tunable} as of WPILib 2027 alpha-7, which removed
+ * {@code SendableChooser} and {@code SmartDashboard}. The {@code org.wpilib.smartdashboard} package
+ * still exists, but only {@code Field2d} and the {@code Mechanism2d} family remain in it, so there
+ * is nothing left there to wrap. {@link Selectable} is the intended replacement and is a close
+ * match: {@code addDefault} and {@code add} for what were {@code setDefaultOption} and
+ * {@code addOption}, and a {@code getSelected()} that falls back to the default the same way. One
+ * signature could not survive the swap - see {@link #getChooser()}.
  *
  * <p>Supports both PathPlanner named autos and custom command-based autos.
  *
@@ -47,7 +45,7 @@ import java.util.Map;
  */
 public class AutoSelector {
 
-    private final SendableChooser<String> chooser = new SendableChooser<>();
+    private final Selectable<String> chooser = new Selectable<>();
     private final Map<String, java.util.function.Supplier<Command>> autos = new LinkedHashMap<>();
     private final String dashboardKey;
     private boolean firstAdded = false;
@@ -69,10 +67,17 @@ public class AutoSelector {
         this.dashboardKey = dashboardKey;
 
         // Always have a safe "do nothing" option
-        chooser.setDefaultOption("Do Nothing", "Do Nothing");
+        chooser.addDefault("Do Nothing", "Do Nothing");
         autos.put("Do Nothing", Commands::none);
 
-        SmartDashboard.putData(dashboardKey, chooser);
+        // Tunable paths are absolute, so the key now lands at "/Auto Selector" instead of under
+        // "/SmartDashboard/". That is the visible cost of the alpha-7 removal: a dashboard layout
+        // that hardcoded the old path has to be repointed.
+        //
+        // The boolean is ignored deliberately. publish() returns false when no tunable backend is
+        // registered - a desktop build or a unit test - and that is not a failure here: the
+        // selector keeps its options and its default in memory and getSelected() still answers.
+        Tunables.publish(dashboardKey, chooser);
     }
 
     /**
@@ -97,10 +102,10 @@ public class AutoSelector {
         });
 
         if (!firstAdded) {
-            chooser.setDefaultOption(autoName, autoName);
+            chooser.addDefault(autoName, autoName);
             firstAdded = true;
         } else {
-            chooser.addOption(autoName, autoName);
+            chooser.add(autoName, autoName);
         }
         return this;
     }
@@ -116,10 +121,10 @@ public class AutoSelector {
         autos.put(name, commandSupplier);
 
         if (!firstAdded) {
-            chooser.setDefaultOption(name, name);
+            chooser.addDefault(name, name);
             firstAdded = true;
         } else {
-            chooser.addOption(name, name);
+            chooser.add(name, name);
         }
         return this;
     }
@@ -219,11 +224,14 @@ public class AutoSelector {
     /**
      * The underlying chooser, for anything this class does not wrap.
      *
-     * <p>Back to {@link SendableChooser}, the type it always returned. The 2027 notes recorded this
-     * as the one signature Catalyst was forced to break; that turned out to be wrong, so there is no
-     * break and nothing for a migrating team to change here.
+     * <p><b>This is a public API break, and the only one in this class.</b> It returned
+     * {@code SendableChooser<String>}; alpha-7 deleted that class outright, so there is no type left
+     * to return and no way to absorb the change behind the old signature. The replacement is close
+     * but not identical, so a team calling through this accessor has two renames to make:
+     * {@code setDefaultOption} is now {@code addDefault} and {@code addOption} is now {@code add}.
+     * Selection semantics are unchanged, and every other method on this class is untouched.
      */
-    public SendableChooser<String> getChooser() {
+    public Selectable<String> getChooser() {
         return chooser;
     }
 

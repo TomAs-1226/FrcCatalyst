@@ -258,7 +258,7 @@ public final class SimulatedGamePiece {
     /** Put it somewhere and stop it. */
     public void reset(Translation3d where) {
         this.position = where;
-        this.velocity = Translation3d.kZero;
+        this.velocity = Translation3d.ZERO;
         this.contacts = 0;
     }
 
@@ -278,7 +278,7 @@ public final class SimulatedGamePiece {
         private double fieldWidth = 8.07;
         private double dragCoefficient = 0.08;
         private Translation3d position = new Translation3d(8.27, 4.03, 0.12);
-        private Translation3d velocity = Translation3d.kZero;
+        private Translation3d velocity = Translation3d.ZERO;
 
         /** Radius in metres. */
         public Builder radius(double value) {

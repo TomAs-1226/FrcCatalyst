@@ -50,7 +50,7 @@ class GyroSignalRateTest {
 
     @Test
     void anExplicitRateIsTheRateThatGetsApplied() {
-        assertTrue(HAL.initialize(500, 0), "no HAL, no Phoenix devices");
+        assertTrue(HAL.initialize(), "no HAL, no Phoenix devices");
 
         // 50, not 100: simulation's default is already 100, so asserting 100 would prove nothing.
         // Asking for something the simulator would not have chosen is what makes this a test.
@@ -69,7 +69,7 @@ class GyroSignalRateTest {
 
     @Test
     void everySignalCatalystReadsIsCovered() {
-        assertTrue(HAL.initialize(500, 0), "no HAL, no Phoenix devices");
+        assertTrue(HAL.initialize(), "no HAL, no Phoenix devices");
 
         // The rate call names signals one at a time, so a reading added to CatalystGyro later can
         // quietly keep the 10 Hz default. Setting an unusual rate and checking all three come back
@@ -89,7 +89,7 @@ class GyroSignalRateTest {
 
     @Test
     void nothingElseOnTheDeviceIsSilenced() {
-        assertTrue(HAL.initialize(500, 0), "no HAL, no Phoenix devices");
+        assertTrue(HAL.initialize(), "no HAL, no Phoenix devices");
 
         // Deliberately no optimizeBusUtilization() alongside the rate change. That call silences
         // every signal nobody explicitly asked for, which would be a quiet trap for a team reading

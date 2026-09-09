@@ -59,7 +59,7 @@ class PhysicsCoreTest {
     /** A loop's worth of measurements for a robot driving straight and rolling cleanly. */
     private static PhysicsSample driving(double t, double vx, Translation2d acceleration) {
         ChassisVelocities speeds = new ChassisVelocities(vx, 0.0, 0.0);
-        return new PhysicsSample(t, Pose2d.kZero, speeds, rolling(speeds), acceleration, 0.0);
+        return new PhysicsSample(t, Pose2d.ZERO, speeds, rolling(speeds), acceleration, 0.0);
     }
 
     @Test
@@ -79,7 +79,7 @@ class PhysicsCoreTest {
         double[] clock = {0.0};
         PhysicsCore physics = core(clock);
 
-        PhysicalRobotState state = physics.update(driving(0.0, 3.0, Translation2d.kZero));
+        PhysicalRobotState state = physics.update(driving(0.0, 3.0, Translation2d.ZERO));
 
         assertEquals(3.0, state.fieldVelocity().vx, 1e-9);
         assertTrue(physics.health().running());
@@ -91,7 +91,7 @@ class PhysicsCoreTest {
     void healthGoesStaleWhenUpdatesStop() {
         double[] clock = {0.0};
         PhysicsCore physics = core(clock);
-        physics.update(driving(0.0, 3.0, Translation2d.kZero));
+        physics.update(driving(0.0, 3.0, Translation2d.ZERO));
 
         clock[0] = 2.0;   // two seconds with no update
 
@@ -104,15 +104,15 @@ class PhysicsCoreTest {
     void aSlippingModuleReachesTheAnalysisAndCostsConfidence() {
         double[] clock = {0.0};
         PhysicsCore physics = core(clock);
-        physics.update(driving(0.00, 3.0, Translation2d.kZero));
+        physics.update(driving(0.00, 3.0, Translation2d.ZERO));
 
         ChassisVelocities speeds = new ChassisVelocities(3.0, 0.0, 0.0);
         SwerveModuleVelocity[] measured = rolling(speeds);
         measured[1] = new SwerveModuleVelocity(6.0, measured[1].angle);   // module 1 is spinning
 
         for (int i = 1; i <= 5; i++) {   // let the smoothing settle
-            physics.update(new PhysicsSample(i * 0.02, Pose2d.kZero, speeds, measured,
-                    Translation2d.kZero, 0.0));
+            physics.update(new PhysicsSample(i * 0.02, Pose2d.ZERO, speeds, measured,
+                    Translation2d.ZERO, 0.0));
         }
 
         PhysicsAnalysis analysis = physics.analyze();
@@ -130,7 +130,7 @@ class PhysicsCoreTest {
 
         // Coasting at a steady 2 m/s, then the IMU sees a hard sideways acceleration the wheels
         // never produced.
-        physics.update(driving(0.00, 2.0, Translation2d.kZero));
+        physics.update(driving(0.00, 2.0, Translation2d.ZERO));
         for (int i = 1; i <= 8; i++) {
             physics.update(driving(i * 0.02, 2.0, new Translation2d(0.0, -15.0)));
         }
@@ -147,7 +147,7 @@ class PhysicsCoreTest {
 
         for (int i = 0; i <= 5; i++) {
             ChassisVelocities speeds = new ChassisVelocities(2.0, 0.0, 0.0);
-            physics.update(new PhysicsSample(i * 0.02, Pose2d.kZero, speeds, rolling(speeds), null, 0.0));
+            physics.update(new PhysicsSample(i * 0.02, Pose2d.ZERO, speeds, rolling(speeds), null, 0.0));
         }
 
         assertEquals(2.0, physics.state().fieldVelocity().vx, 1e-9);
@@ -161,13 +161,13 @@ class PhysicsCoreTest {
         PhysicsCore physics = core(clock);
 
         // Accelerometer present, then absent for a second while the robot speeds up, then back.
-        physics.update(driving(0.00, 1.0, Translation2d.kZero));
-        physics.update(driving(0.02, 1.0, Translation2d.kZero));
+        physics.update(driving(0.00, 1.0, Translation2d.ZERO));
+        physics.update(driving(0.02, 1.0, Translation2d.ZERO));
         for (int i = 2; i <= 50; i++) {
             ChassisVelocities speeds = new ChassisVelocities(1.0 + i * 0.05, 0.0, 0.0);
-            physics.update(new PhysicsSample(i * 0.02, Pose2d.kZero, speeds, rolling(speeds), null, 0.0));
+            physics.update(new PhysicsSample(i * 0.02, Pose2d.ZERO, speeds, rolling(speeds), null, 0.0));
         }
-        physics.update(driving(1.02, 3.5, Translation2d.kZero));
+        physics.update(driving(1.02, 3.5, Translation2d.ZERO));
 
         // The wheel-acceleration derivative restarts across the gap rather than differencing a
         // fresh velocity against a one-second-old one, so nothing looks like a collision.
@@ -192,7 +192,7 @@ class PhysicsCoreTest {
         measured[0] = new SwerveModuleVelocity(9.0, measured[0].angle);   // wildly slipping
 
         for (int i = 0; i <= 5; i++) {
-            physics.update(new PhysicsSample(i * 0.02, Pose2d.kZero, speeds, measured,
+            physics.update(new PhysicsSample(i * 0.02, Pose2d.ZERO, speeds, measured,
                     new Translation2d(0.0, -20.0), 0.0));
         }
 
@@ -206,14 +206,14 @@ class PhysicsCoreTest {
     void aTeleportingVisionFrameIsRejectedRatherThanBelieved() {
         double[] clock = {0.0};
         PhysicsCore physics = core(clock);
-        physics.update(driving(0.0, 0.0, Translation2d.kZero));   // pose is the origin
+        physics.update(driving(0.0, 0.0, Translation2d.ZERO));   // pose is the origin
 
         assertFalse(physics.observe(new PoseObservation(
-                new Pose2d(5.0, 5.0, Rotation2d.kZero), 0.0, 0.05, "limelight")));
+                new Pose2d(5.0, 5.0, Rotation2d.ZERO), 0.0, 0.05, "limelight")));
         assertEquals(1, physics.rejectedObservationCount());
 
         assertTrue(physics.observe(PoseObservation.of(
-                new Pose2d(0.3, 0.0, Rotation2d.kZero), 0.0, "limelight")));
+                new Pose2d(0.3, 0.0, Rotation2d.ZERO), 0.0, "limelight")));
         assertEquals(1, physics.rejectedObservationCount());
     }
 
@@ -224,11 +224,11 @@ class PhysicsCoreTest {
         Pose2d truth = new Pose2d(2.0, 1.0, Rotation2d.fromDegrees(30));
 
         ChassisVelocities speeds = new ChassisVelocities(1.0, 0.0, 0.0);
-        physics.update(new PhysicsSample(0.0, truth, speeds, rolling(speeds), Translation2d.kZero, 0.0));
+        physics.update(new PhysicsSample(0.0, truth, speeds, rolling(speeds), Translation2d.ZERO, 0.0));
         double before = physics.state().quality().confidence();
 
         physics.observe(PoseObservation.of(new Pose2d(2.1, 1.0, Rotation2d.fromDegrees(30)), 0.0, "cam"));
-        physics.update(new PhysicsSample(0.02, truth, speeds, rolling(speeds), Translation2d.kZero, 0.0));
+        physics.update(new PhysicsSample(0.02, truth, speeds, rolling(speeds), Translation2d.ZERO, 0.0));
 
         assertTrue(physics.state().quality().confidence() > before);
         assertEquals(truth, physics.state().pose());   // the observation never moved the pose
@@ -244,7 +244,7 @@ class PhysicsCoreTest {
         assertFalse(physics.observe(new VelocityObservation(
                 new Translation2d(2.0, 0.0), 0.0, 0.1, "flow")));
 
-        physics.update(driving(0.0, 2.0, Translation2d.kZero));
+        physics.update(driving(0.0, 2.0, Translation2d.ZERO));
         assertTrue(physics.observe(new VelocityObservation(
                 new Translation2d(2.0, 0.0), 0.0, 0.1, "flow")));
         assertFalse(physics.observe(null));
@@ -254,7 +254,7 @@ class PhysicsCoreTest {
     void theLaunchStateLeadsTheRobotByTheConfiguredReleaseDelay() {
         double[] clock = {0.0};
         PhysicsCore physics = core(clock);
-        physics.update(driving(0.0, 4.0, Translation2d.kZero));
+        physics.update(driving(0.0, 4.0, Translation2d.ZERO));
 
         LaunchState launch = physics.predictLaunchState();
 
@@ -273,7 +273,7 @@ class PhysicsCoreTest {
         PhysicsCore physics = core(clock);
 
         // Accelerate from rest to 0.2 m/s in one 20 ms loop: 10 m/s^2, just over one g.
-        physics.update(driving(0.00, 0.0, Translation2d.kZero));
+        physics.update(driving(0.00, 0.0, Translation2d.ZERO));
         physics.update(driving(0.02, 0.2, new Translation2d(10.0, 0.0)));
 
         assertTrue(physics.analyze().tractionUsage() > 0.0);
@@ -289,7 +289,7 @@ class PhysicsCoreTest {
         Pose2d pose = new Pose2d(1.0, 2.0, Rotation2d.fromDegrees(45));
 
         ChassisVelocities speeds = new ChassisVelocities(2.0, 0.0, 0.0);
-        physics.update(new PhysicsSample(1.5, pose, speeds, rolling(speeds), Translation2d.kZero, 0.0));
+        physics.update(new PhysicsSample(1.5, pose, speeds, rolling(speeds), Translation2d.ZERO, 0.0));
 
         UncertainRobotStateSource source = physics;
         assertEquals(pose, source.pose());
@@ -308,7 +308,7 @@ class PhysicsCoreTest {
     void resetClearsEverything() {
         double[] clock = {0.0};
         PhysicsCore physics = core(clock);
-        physics.update(driving(0.0, 3.0, Translation2d.kZero));
+        physics.update(driving(0.0, 3.0, Translation2d.ZERO));
         assertTrue(physics.health().running());
 
         physics.reset();
@@ -343,6 +343,6 @@ class PhysicsCoreTest {
         assertThrows(IllegalArgumentException.class,
                 () -> new PhysicsSample(0.0, null, new ChassisVelocities(), null, null, 0.0));
         assertThrows(IllegalArgumentException.class,
-                () -> new PoseObservation(Pose2d.kZero, 0.0, 0.0, "cam"));
+                () -> new PoseObservation(Pose2d.ZERO, 0.0, 0.0, "cam"));
     }
 }

@@ -48,7 +48,7 @@ class ContactResolverNonFiniteTest {
     void aZeroNormalIsStillRejected() {
         // The case the original guard was written for. It must survive the rewrite.
         assertThrows(IllegalArgumentException.class, () -> ContactResolver.resolveAgainstStatic(
-                FALLING, Translation3d.kZero, 0.27, M, M));
+                FALLING, Translation3d.ZERO, 0.27, M, M));
     }
 
     // --- velocity and mass ---------------------------------------------------
@@ -72,7 +72,7 @@ class ContactResolverNonFiniteTest {
         // written as Double.isFinite(massA) would pass every test above and break the library's own
         // most common call — every wall, floor and robot contact passes IMMOVABLE.
         var after = ContactResolver.resolve(
-                FALLING, Translation3d.kZero, UP,
+                FALLING, Translation3d.ZERO, UP,
                 0.27, ContactResolver.IMMOVABLE, M, M);
 
         assertTrue(after.resolved(), "a ball landing on an immovable floor is a contact");

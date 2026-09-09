@@ -221,18 +221,18 @@ class ArticulatedModelTest {
                 .chassis(chassis()).add(elevator(h)).add(elevator(h)).build());
 
         assertThrows(IllegalArgumentException.class,
-                () -> MechanismModel.fixed("Bad", 0.0, Translation3d.kZero));
+                () -> MechanismModel.fixed("Bad", 0.0, Translation3d.ZERO));
         assertThrows(IllegalStateException.class,
                 () -> MechanismModel.linear("NoPosition", 1.0).build());
         assertThrows(IllegalStateException.class,
                 () -> MechanismModel.rotational("NoAngle", 1.0).build());
         assertThrows(IllegalStateException.class, () -> MechanismModel.linear("ZeroAxis", 1.0)
-                .along(Translation3d.kZero).position(() -> 0).build());
+                .along(Translation3d.ZERO).position(() -> 0).build());
     }
 
     @Test
     void aParentCycleIsRejectedRatherThanLoopingForever() {
-        MechanismModel a = MechanismModel.fixed("A", 1.0, Translation3d.kZero);
+        MechanismModel a = MechanismModel.fixed("A", 1.0, Translation3d.ZERO);
         MechanismModel selfParented = MechanismModel.linear("B", 1.0)
                 .childOf("B").position(() -> 0.0).build();
 

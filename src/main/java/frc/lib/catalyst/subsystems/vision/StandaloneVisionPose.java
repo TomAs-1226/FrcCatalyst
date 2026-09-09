@@ -42,7 +42,7 @@ public final class StandaloneVisionPose implements VisionPoseSink {
 
     private static final ChassisVelocities AT_REST = new ChassisVelocities();
 
-    private Pose2d pose = Pose2d.kZero;
+    private Pose2d pose = Pose2d.ZERO;
     private double lastMeasurementTs = Double.NaN;
     private int measurements = 0;
 
@@ -109,7 +109,7 @@ public final class StandaloneVisionPose implements VisionPoseSink {
 
     /** Forget everything. {@link #hasPose()} goes false again. */
     public void reset() {
-        pose = Pose2d.kZero;
+        pose = Pose2d.ZERO;
         lastMeasurementTs = Double.NaN;
         measurements = 0;
     }

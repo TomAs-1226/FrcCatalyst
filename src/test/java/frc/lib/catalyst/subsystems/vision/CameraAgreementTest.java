@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class CameraAgreementTest {
 
     private static CameraAgreement.Sighting at(String name, double x, double y) {
-        return new CameraAgreement.Sighting(name, new Pose2d(x, y, Rotation2d.kZero));
+        return new CameraAgreement.Sighting(name, new Pose2d(x, y, Rotation2d.ZERO));
     }
 
     /** Feed the same geometry n times at a fixed heading. */
@@ -36,7 +36,7 @@ class CameraAgreementTest {
     @Test
     void camerasThatAgreeShowNoOffset() {
         CameraAgreement a = new CameraAgreement();
-        feed(a, 60, Rotation2d.kZero, List.of(
+        feed(a, 60, Rotation2d.ZERO, List.of(
                 at("front", 4.0, 2.0),
                 at("left", 4.0, 2.0),
                 at("right", 4.0, 2.0)));
@@ -50,7 +50,7 @@ class CameraAgreementTest {
         // "front" thinks the robot is 0.4 m further along +X than the other two do. With the robot
         // pointing along +X, that is 0.4 m forward in the robot frame.
         CameraAgreement a = new CameraAgreement();
-        feed(a, 60, Rotation2d.kZero, List.of(
+        feed(a, 60, Rotation2d.ZERO, List.of(
                 at("front", 4.4, 2.0),
                 at("left", 4.0, 2.0),
                 at("right", 4.0, 2.0)));
@@ -71,7 +71,7 @@ class CameraAgreementTest {
         CameraAgreement a = new CameraAgreement();
 
         // Facing +X: the bad camera reads 0.4 m along field +X.
-        feed(a, 30, Rotation2d.kZero, List.of(
+        feed(a, 30, Rotation2d.ZERO, List.of(
                 at("front", 4.4, 2.0), at("left", 4.0, 2.0), at("right", 4.0, 2.0)));
         // Now facing +Y: the same physical error now points along field +Y.
         feed(a, 30, Rotation2d.fromDegrees(90), List.of(
@@ -103,7 +103,7 @@ class CameraAgreementTest {
         // The single-camera case is exactly the one that cannot be checked. It must record nothing
         // rather than invent a consensus from one opinion.
         CameraAgreement a = new CameraAgreement();
-        feed(a, 60, Rotation2d.kZero, List.of(at("only", 4.0, 2.0)));
+        feed(a, 60, Rotation2d.ZERO, List.of(at("only", 4.0, 2.0)));
 
         assertTrue(a.medianOffset("only").isEmpty(),
                 "a lone camera has nothing to be compared against and must not be scored");
@@ -113,7 +113,7 @@ class CameraAgreementTest {
     void aVerdictNeedsEnoughSamples() {
         // A handful of bad frames while the robot is moving must not accuse a camera.
         CameraAgreement a = new CameraAgreement();
-        feed(a, 5, Rotation2d.kZero, List.of(
+        feed(a, 5, Rotation2d.ZERO, List.of(
                 at("front", 9.0, 2.0), at("left", 4.0, 2.0), at("right", 4.0, 2.0)));
 
         assertTrue(a.medianOffset("front").isEmpty(), "five samples is not a verdict");
@@ -124,9 +124,9 @@ class CameraAgreementTest {
         // Median rather than mean, on purpose: one frame where a camera reads the far end of the
         // field must not drag the number. A mean over these samples would sit around 0.1 m.
         CameraAgreement a = new CameraAgreement();
-        feed(a, 59, Rotation2d.kZero, List.of(
+        feed(a, 59, Rotation2d.ZERO, List.of(
                 at("front", 4.0, 2.0), at("left", 4.0, 2.0), at("right", 4.0, 2.0)));
-        feed(a, 1, Rotation2d.kZero, List.of(
+        feed(a, 1, Rotation2d.ZERO, List.of(
                 at("front", 12.0, 2.0), at("left", 4.0, 2.0), at("right", 4.0, 2.0)));
 
         assertEquals(0.0, a.medianOffset("front").orElseThrow().getNorm(), 1e-9,

@@ -19,7 +19,7 @@ import org.wpilib.math.geometry.Rotation2d;
  * <pre>{@code
  * // squared up against the driver-station wall at x = 0
  * physics.observe(new ContactObservation(
- *     0.0, Rotation2d.kZero, BUMPER_HALF_LENGTH, timestamp, 0.02, "wall-square"));
+ *     0.0, Rotation2d.ZERO, BUMPER_HALF_LENGTH, timestamp, 0.02, "wall-square"));
  * }</pre>
  *
  * @param constraintCoordinate the field coordinate of the contact surface along its normal, in metres

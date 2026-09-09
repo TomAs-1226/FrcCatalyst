@@ -1,7 +1,7 @@
 package frc.lib.catalyst.util;
 
 import org.junit.jupiter.api.Test;
-import org.wpilib.smartdashboard.SendableChooser;
+import org.wpilib.tunable.Selectable;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -34,12 +34,16 @@ class AutoSelectorTest {
     }
 
     @Test
-    void theChooserIsASendableChooserAgain() {
-        // Not a cosmetic assertion: getChooser()'s return type was recorded in the 2027 notes as
-        // the one signature Catalyst was forced to break. It was not, so a team migrating from 1.x
-        // has nothing to change here, and this pins that.
+    void theChooserIsASelectableAndTheBreakIsReal() {
+        // getChooser() is the one Catalyst signature the 2027 port genuinely could not preserve.
+        // This test previously asserted the opposite - that the break had been avoided - which was
+        // true against the released alpha-6, where SendableChooser still existed. Alpha-7 removed
+        // SendableChooser, SmartDashboard, Sendable and SendableBuilder outright, so there is no
+        // longer a type to return and no wrapper that would not be a bigger break than the rename.
+        // Pinned here so nobody re-litigates it: a team calling getChooser() renames two methods,
+        // setDefaultOption -> addDefault and addOption -> add. getSelected() is unchanged.
         AutoSelector autos = new AutoSelector("AutoSelectorTest/Type");
-        SendableChooser<String> chooser = autos.getChooser();
+        Selectable<String> chooser = autos.getChooser();
 
         assertNotNull(chooser);
         assertEquals("Do Nothing", chooser.getSelected());
@@ -50,7 +54,7 @@ class AutoSelectorTest {
         AutoSelector autos = new AutoSelector("AutoSelectorTest/Custom")
                 .addCustom("Taxi", frc.lib.catalyst.command.Commands::none);
 
-        autos.getChooser().setDefaultOption("Taxi", "Taxi");
+        autos.getChooser().addDefault("Taxi", "Taxi");
 
         assertEquals("Taxi", autos.getSelectedName());
         assertNotNull(autos.getSelected());
@@ -61,8 +65,8 @@ class AutoSelectorTest {
         // The dashboard and the code can disagree — a renamed auto, a stale saved selection. The
         // robot must still be enable-able, and it must not run something arbitrary.
         AutoSelector autos = new AutoSelector("AutoSelectorTest/Unknown");
-        autos.getChooser().addOption("Ghost", "Ghost");
-        autos.getChooser().setDefaultOption("Ghost", "Ghost");
+        autos.getChooser().add("Ghost", "Ghost");
+        autos.getChooser().addDefault("Ghost", "Ghost");
 
         assertNotNull(autos.getSelected(),
                 "a selection with no registered command must still yield a command, not null");

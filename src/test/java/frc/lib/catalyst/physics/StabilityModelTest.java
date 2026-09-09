@@ -38,12 +38,12 @@ class StabilityModelTest {
     void aStationaryBalancedRobotSitsInTheMiddleOfItsFootprint() {
         StabilityModel stability = centred();
 
-        Translation2d zmp = stability.zeroMomentPoint(Translation2d.kZero);
+        Translation2d zmp = stability.zeroMomentPoint(Translation2d.ZERO);
         assertEquals(0.0, zmp.getX(), 1e-9);
         assertEquals(0.0, zmp.getY(), 1e-9);
         // Half the 0.8 m footprint: 0.4 m of margin in every direction.
-        assertEquals(0.4, stability.tipMarginMeters(Translation2d.kZero), 1e-9);
-        assertFalse(stability.isTipping(Translation2d.kZero));
+        assertEquals(0.4, stability.tipMarginMeters(Translation2d.ZERO), 1e-9);
+        assertFalse(stability.isTipping(Translation2d.ZERO));
     }
 
     @Test
@@ -126,7 +126,7 @@ class StabilityModelTest {
         StabilityModel stability = centred();
         double weight = 60.0 * RobotModel.GRAVITY;
 
-        double[] resting = stability.wheelLoadsNewtons(Translation2d.kZero);
+        double[] resting = stability.wheelLoadsNewtons(Translation2d.ZERO);
         assertEquals(weight, resting[0] + resting[1] + resting[2] + resting[3], 1e-6);
         for (double load : resting) assertEquals(weight / 4.0, load, 1e-6);
 
@@ -153,7 +153,7 @@ class StabilityModelTest {
     void loadBalanceIsOneWhenPlantedAndFallsAsItLeans() {
         StabilityModel stability = centred();
 
-        assertEquals(1.0, stability.loadBalance(Translation2d.kZero), 1e-9);
+        assertEquals(1.0, stability.loadBalance(Translation2d.ZERO), 1e-9);
         double leaning = stability.loadBalance(new Translation2d(5.0, 0.0));
         assertTrue(leaning > 0 && leaning < 1.0);
     }
@@ -174,7 +174,7 @@ class StabilityModelTest {
 
         assertEquals(0.4, stability.tipMarginMeters(null), 1e-9);
         assertEquals(0.0, stability.maxAccelerationMpsSq(null), 1e-9);
-        assertEquals(0.0, stability.maxAccelerationMpsSq(Translation2d.kZero), 1e-9);
+        assertEquals(0.0, stability.maxAccelerationMpsSq(Translation2d.ZERO), 1e-9);
         assertThrows(IllegalArgumentException.class, () -> new StabilityModel(null));
     }
 

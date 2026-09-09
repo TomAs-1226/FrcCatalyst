@@ -33,7 +33,7 @@ class RobotCollisionTest {
     private static SimulatedRobot robotIn(CollisionField field) {
         return SimulatedRobot.builder()
                 .robotModel(chassis()).kinematics(KINEMATICS).loopPeriod(0.02)
-                .startingPose(new Pose2d(8.0, 4.0, Rotation2d.kZero))
+                .startingPose(new Pose2d(8.0, 4.0, Rotation2d.ZERO))
                 .collisionField(field).build();
     }
 
@@ -42,13 +42,13 @@ class RobotCollisionTest {
     @Test
     void aRobotInOpenFieldTouchesNothing() {
         CollisionField field = CollisionField.rebuilt().build();
-        assertTrue(field.contact(new Pose2d(8.0, 4.0, Rotation2d.kZero), 0.43, 0.43).isEmpty());
+        assertTrue(field.contact(new Pose2d(8.0, 4.0, Rotation2d.ZERO), 0.43, 0.43).isEmpty());
     }
 
     @Test
     void aRobotOverlappingTheWallIsDetected() {
         CollisionField field = CollisionField.rebuilt().build();
-        var hit = field.contact(new Pose2d(0.2, 4.0, Rotation2d.kZero), 0.43, 0.43);
+        var hit = field.contact(new Pose2d(0.2, 4.0, Rotation2d.ZERO), 0.43, 0.43);
         assertTrue(hit.isPresent());
         assertEquals(1.0, hit.get().normal().getX(), 1e-9, "it should be pushed back into the field");
         assertEquals(0.23, hit.get().penetration(), 1e-6);
@@ -57,7 +57,7 @@ class RobotCollisionTest {
     @Test
     void aDiagonalRobotNeedsMoreRoomThanASquareOne() {
         CollisionField field = CollisionField.rebuilt().build();
-        Pose2d square = new Pose2d(0.45, 4.0, Rotation2d.kZero);
+        Pose2d square = new Pose2d(0.45, 4.0, Rotation2d.ZERO);
         Pose2d turned = new Pose2d(0.45, 4.0, Rotation2d.fromDegrees(45));
 
         assertTrue(field.contact(square, 0.43, 0.43).isEmpty(),
@@ -73,7 +73,7 @@ class RobotCollisionTest {
                 .build();
 
         // Approaching from -x, overlapping slightly.
-        var hit = field.contact(new Pose2d(7.0, 4.0, Rotation2d.kZero), 0.43, 0.43);
+        var hit = field.contact(new Pose2d(7.0, 4.0, Rotation2d.ZERO), 0.43, 0.43);
         assertTrue(hit.isPresent());
         assertEquals("hub", hit.get().what());
         assertTrue(hit.get().normal().getX() < 0, "the way out is back the way it came");
@@ -84,7 +84,7 @@ class RobotCollisionTest {
         CollisionField field = CollisionField.rebuilt()
                 .addObstacle("hub", new Translation2d(8.0, 4.0), 0.6, 0.6, ContactMaterial.ALUMINIUM)
                 .build();
-        assertTrue(field.contact(new Pose2d(6.0, 4.0, Rotation2d.kZero), 0.43, 0.43).isEmpty());
+        assertTrue(field.contact(new Pose2d(6.0, 4.0, Rotation2d.ZERO), 0.43, 0.43).isEmpty());
     }
 
     // ------------------------------------------------------------------ response
@@ -222,7 +222,7 @@ class RobotCollisionTest {
     private static SimulatedRobot robotOn(FieldHeightmap map, double x, double y) {
         return SimulatedRobot.builder()
                 .robotModel(chassis()).kinematics(KINEMATICS).loopPeriod(0.02)
-                .startingPose(new Pose2d(x, y, Rotation2d.kZero))
+                .startingPose(new Pose2d(x, y, Rotation2d.ZERO))
                 .heightmap(map, 0.85, 0.0).build();
     }
 

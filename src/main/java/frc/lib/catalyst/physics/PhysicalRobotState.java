@@ -47,7 +47,7 @@ public record PhysicalRobotState(
      * so this returns {@link Rotation2d#kZero} below 1 cm/s rather than amplifying noise.
      */
     public Rotation2d headingOfTravel() {
-        if (speedMetersPerSecond() < 0.01) return Rotation2d.kZero;
+        if (speedMetersPerSecond() < 0.01) return Rotation2d.ZERO;
         return new Rotation2d(fieldVelocity.vx, fieldVelocity.vy);
     }
 
@@ -63,7 +63,7 @@ public record PhysicalRobotState(
      * to trust it, rather than a {@code NullPointerException} on the first loop.
      */
     public static PhysicalRobotState unknown() {
-        return new PhysicalRobotState(0.0, Pose2d.kZero, new ChassisVelocities(),
-                Translation2d.kZero, 0.0, LocalizationQuality.unknown());
+        return new PhysicalRobotState(0.0, Pose2d.ZERO, new ChassisVelocities(),
+                Translation2d.ZERO, 0.0, LocalizationQuality.unknown());
     }
 }

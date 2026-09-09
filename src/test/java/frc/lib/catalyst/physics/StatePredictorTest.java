@@ -27,7 +27,7 @@ class StatePredictorTest {
     private static PhysicalRobotState moving(double vx, double ax, double omega) {
         return new PhysicalRobotState(
                 0.0,
-                Pose2d.kZero,
+                Pose2d.ZERO,
                 new ChassisVelocities(vx, 0.0, omega),
                 new Translation2d(ax, 0.0),
                 0.0,
@@ -159,7 +159,7 @@ class StatePredictorTest {
     @Test
     void missRadiusGrowsWithFlightTimeAndGatesTheShot() {
         LaunchState launch = new LaunchState(
-                Pose2d.kZero,
+                Pose2d.ZERO,
                 new ChassisVelocities(3.0, 0.0, 0.0),
                 0.12,
                 0.12,
@@ -175,9 +175,9 @@ class StatePredictorTest {
 
     @Test
     void anUncertainRobotProducesAWiderMissRadius() {
-        LaunchState confident = new LaunchState(Pose2d.kZero, new ChassisVelocities(), 0.1, 0.1,
+        LaunchState confident = new LaunchState(Pose2d.ZERO, new ChassisVelocities(), 0.1, 0.1,
                 new LocalizationQuality(0.95, 0.02, 0.01, 0.05, 0.0, "nominal"));
-        LaunchState lost = new LaunchState(Pose2d.kZero, new ChassisVelocities(), 0.1, 0.1,
+        LaunchState lost = new LaunchState(Pose2d.ZERO, new ChassisVelocities(), 0.1, 0.1,
                 new LocalizationQuality(0.10, 0.90, 0.30, 1.40, 8.0, "vision stale 8.0 s"));
 
         assertTrue(lost.missRadiusMeters(1.0) > confident.missRadiusMeters(1.0));
@@ -198,7 +198,7 @@ class StatePredictorTest {
     @Test
     void rotationHelpersOnTheStateBehaveAtAStandstill() {
         PhysicalRobotState stopped = moving(0.0, 0.0);
-        assertEquals(Rotation2d.kZero, stopped.headingOfTravel());
+        assertEquals(Rotation2d.ZERO, stopped.headingOfTravel());
 
         PhysicalRobotState rolling = moving(2.0, 0.0);
         assertEquals(0.0, rolling.headingOfTravel().getDegrees(), 1e-9);

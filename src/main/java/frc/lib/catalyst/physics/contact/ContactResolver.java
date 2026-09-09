@@ -30,7 +30,7 @@ import org.wpilib.math.geometry.Translation3d;
  * <pre>{@code
  * // A game piece hitting the field wall, which does not move.
  * ContactResolution after = ContactResolver.resolve(
- *         pieceVelocity, Translation3d.kZero,
+ *         pieceVelocity, Translation3d.ZERO,
  *         wallNormal,                       // unit vector, pointing out of the wall
  *         pieceMassKg, ContactResolver.IMMOVABLE,
  *         ContactMaterial.FOAM_GAME_PIECE, ContactMaterial.POLYCARBONATE);
@@ -195,7 +195,7 @@ public final class ContactResolver {
             double mass,
             ContactMaterial moving,
             ContactMaterial fixed) {
-        return resolve(velocity, Translation3d.kZero, normal, mass, IMMOVABLE, moving, fixed);
+        return resolve(velocity, Translation3d.ZERO, normal, mass, IMMOVABLE, moving, fixed);
     }
 
     /** Dot product. {@link Translation3d} does not offer one. */

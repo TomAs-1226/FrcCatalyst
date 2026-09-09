@@ -154,7 +154,7 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
         cycleAccepted = 0;
         cycleRejected = 0;
 
-        Pose2d currentPose = fusing ? poseSink.getPose() : Pose2d.kZero;
+        Pose2d currentPose = fusing ? poseSink.getPose() : Pose2d.ZERO;
         // A sink with no pose yet cannot anchor the gates that compare against it - and neither can
         // a drivetrain that has a pose but has never been told where it really is.
         boolean anchored = fusing && poseSink.hasPose() && seeded;

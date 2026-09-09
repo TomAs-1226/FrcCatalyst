@@ -37,7 +37,7 @@ class SlipBudgetResetTest {
     private static void step(PhysicalStateEstimator est, double t, double slipFactor) {
         est.update(
                 t,
-                new Pose2d(0, 0, Rotation2d.kZero),
+                new Pose2d(0, 0, Rotation2d.ZERO),
                 new ChassisVelocities(1.0, 0, 0),
                 new Translation2d(0, 0),
                 0.0,

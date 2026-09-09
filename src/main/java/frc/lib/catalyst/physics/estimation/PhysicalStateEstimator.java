@@ -177,7 +177,7 @@ public final class PhysicalStateEstimator {
         Translation2d wheelVelocity =
                 new Translation2d(kinematicField.vx, kinematicField.vy);
         Translation2d measuredAccelField = robotRelativeAcceleration == null
-                ? Translation2d.kZero
+                ? Translation2d.ZERO
                 : robotRelativeAcceleration.rotateBy(heading);
 
         double dt = initialized ? timestampSeconds - lastTimestamp : Double.NaN;
@@ -192,7 +192,7 @@ public final class PhysicalStateEstimator {
             // (disabled period, loop overrun, replay seek). Take the wheels at face value and
             // restart the derivative filters rather than emitting a huge false acceleration.
             fusedVelocity = wheelVelocity;
-            fusedAccel = Translation2d.kZero;
+            fusedAccel = Translation2d.ZERO;
             fusedAngularAccel = 0.0;
             lastDisagreement = 0.0;
             accelX.reset();

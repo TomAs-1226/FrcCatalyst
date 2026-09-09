@@ -125,18 +125,18 @@ public final class SimulatedRobot {
     /** Whether the previous step ended in contact — the difference between an impact and a lean. */
     private boolean touching = false;
 
-    private Pose2d truePose = Pose2d.kZero;
-    private Translation2d trueVelocity = Translation2d.kZero;
-    private Translation2d trueAcceleration = Translation2d.kZero;
+    private Pose2d truePose = Pose2d.ZERO;
+    private Translation2d trueVelocity = Translation2d.ZERO;
+    private Translation2d trueAcceleration = Translation2d.ZERO;
     private double trueOmega = 0.0;
 
     /** What the wheels believe, which diverges from the truth whenever they slip. */
-    private Translation2d wheelVelocity = Translation2d.kZero;
+    private Translation2d wheelVelocity = Translation2d.ZERO;
     /** The pose a drivetrain estimator would report, integrated from wheel velocity. */
-    private Pose2d odometryPose = Pose2d.kZero;
+    private Pose2d odometryPose = Pose2d.ZERO;
 
     private ChassisVelocities commandedRobotRelative = new ChassisVelocities();
-    private Translation2d externalAcceleration = Translation2d.kZero;
+    private Translation2d externalAcceleration = Translation2d.ZERO;
     /** Per-module over-reporting, for the differential slip a uniform model cannot produce. */
     private final double[] moduleSlipBias;
     private double frictionScale = 1.0;
@@ -189,7 +189,7 @@ public final class SimulatedRobot {
      * @param fieldAcceleration acceleration the drivetrain did not command, m/s^2
      */
     public void applyExternalAcceleration(Translation2d fieldAcceleration) {
-        this.externalAcceleration = fieldAcceleration == null ? Translation2d.kZero : fieldAcceleration;
+        this.externalAcceleration = fieldAcceleration == null ? Translation2d.ZERO : fieldAcceleration;
     }
 
     /**
@@ -299,7 +299,7 @@ public final class SimulatedRobot {
         odometryPose = new Pose2d(odometryPose.getTranslation().plus(wheelVelocity.times(dt)),
                 new Rotation2d(heading2));
 
-        externalAcceleration = Translation2d.kZero;
+        externalAcceleration = Translation2d.ZERO;
         timestamp += dt;
     }
 
@@ -592,15 +592,15 @@ public final class SimulatedRobot {
     public void reset() {
         truePose = startingPose;
         odometryPose = startingPose;
-        trueVelocity = Translation2d.kZero;
-        wheelVelocity = Translation2d.kZero;
-        trueAcceleration = Translation2d.kZero;
+        trueVelocity = Translation2d.ZERO;
+        wheelVelocity = Translation2d.ZERO;
+        trueAcceleration = Translation2d.ZERO;
         trueOmega = 0.0;
         timestamp = 0.0;
         slipping = false;
         slipUntil = Double.NEGATIVE_INFINITY;
         frictionScale = 1.0;
-        externalAcceleration = Translation2d.kZero;
+        externalAcceleration = Translation2d.ZERO;
         commandedRobotRelative = new ChassisVelocities();
         lastContact = null;
         collisions = 0;
@@ -626,12 +626,12 @@ public final class SimulatedRobot {
         private FieldHeightmap heightmap = null;
         private double robotHeightMeters = 0.85;
         private double climbLimitMeters = 0.0;
-        private Pose2d startingPose = Pose2d.kZero;
+        private Pose2d startingPose = Pose2d.ZERO;
         private SwerveDriveKinematics kinematics;
         private int moduleCount = 4;
         private double loopPeriod = 0.02;
         private double wheelRadiusError = 1.0;
-        private Translation2d accelerometerBias = Translation2d.kZero;
+        private Translation2d accelerometerBias = Translation2d.ZERO;
         private double accelerometerNoise = 0.0;
         private double moduleSpeedNoise = 0.0;
         private double gyroNoise = 0.0;

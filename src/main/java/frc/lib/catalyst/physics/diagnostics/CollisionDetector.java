@@ -42,7 +42,7 @@ public final class CollisionDetector {
 
     private int consecutiveLoops = 0;
     private double peakMagnitude = 0.0;
-    private Rotation2d peakDirection = Rotation2d.kZero;
+    private Rotation2d peakDirection = Rotation2d.ZERO;
     private CollisionEvent lastEvent = null;
     private double lastEventTimestamp = Double.NEGATIVE_INFINITY;
 
@@ -120,7 +120,7 @@ public final class CollisionDetector {
     public void reset() {
         consecutiveLoops = 0;
         peakMagnitude = 0.0;
-        peakDirection = Rotation2d.kZero;
+        peakDirection = Rotation2d.ZERO;
         lastEvent = null;
         lastEventTimestamp = Double.NEGATIVE_INFINITY;
     }

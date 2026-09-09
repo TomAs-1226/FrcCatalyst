@@ -49,7 +49,7 @@ public record PhysicsAnalysis(
 
     /** Nothing measured yet — what {@link PhysicsCore#analyze()} returns before the first update. */
     public static PhysicsAnalysis nominal() {
-        return new PhysicsAnalysis(0.0, 0.0, -1, 0.0, 0.0, 0.0, 0.0, Rotation2d.kZero, Optional.empty());
+        return new PhysicsAnalysis(0.0, 0.0, -1, 0.0, 0.0, 0.0, 0.0, Rotation2d.ZERO, Optional.empty());
     }
 
     /** True when any module is slipping enough to be worth reacting to (peak above 0.5). */

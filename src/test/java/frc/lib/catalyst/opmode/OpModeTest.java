@@ -62,7 +62,7 @@ class OpModeTest {
      * {@code theSchedulerAlsoTicksWhileDisabled} still covers.
      */
     private static void enabled() {
-        assertTrue(HAL.initialize(500, 0), "no HAL, no Driver Station state");
+        assertTrue(HAL.initialize(), "no HAL, no Driver Station state");
         DriverStationSim.setDsAttached(true);
         DriverStationSim.setEnabled(true);
         DriverStationSim.notifyNewData();

@@ -44,7 +44,7 @@ class SystemCoreAvailabilityTest {
 
     @Test
     void anAbsentSystemServerReadsAsAbsent() {
-        assertTrue(HAL.initialize(500, 0), "no HAL, nothing to resolve");
+        assertTrue(HAL.initialize(), "no HAL, nothing to resolve");
 
         SystemCoreStatus.useSource(null);
         assertFalse(SystemCoreStatus.getInstance().isAvailable(),
@@ -56,7 +56,7 @@ class SystemCoreAvailabilityTest {
         // The point of the fix, stated as the thing that is actually true. If this assertion ever
         // starts failing, `resolved != null` became a sufficient test and the guard can be
         // simplified - but until then, removing it silently restores the bug.
-        assertTrue(HAL.initialize(500, 0));
+        assertTrue(HAL.initialize());
 
         var resolved = SystemServer.getSystemServer();
         assertNotEquals(null, resolved,
@@ -70,7 +70,7 @@ class SystemCoreAvailabilityTest {
         // The failure mode this was NOT: if handle 0 aliased the default instance, every /sys read
         // would resolve against the robot program's own tables, and a team that happened to publish
         // under /sys would get plausible readings from the wrong place.
-        assertTrue(HAL.initialize(500, 0));
+        assertTrue(HAL.initialize());
 
         NetworkTableInstance.getDefault().getTable("sys").getEntry("battery").setDouble(12.34);
 
@@ -85,7 +85,7 @@ class SystemCoreAvailabilityTest {
     void preflightSaysNotPresentRatherThanReporting() {
         // The user-visible half. With the bug, teamNumber() was empty so the ternary fell through
         // to "reporting" - the one word that tells a student the opposite of the truth.
-        assertTrue(HAL.initialize(500, 0));
+        assertTrue(HAL.initialize());
         SystemCoreStatus.useSource(null);
 
         String line = Preflight.run().findings().stream()

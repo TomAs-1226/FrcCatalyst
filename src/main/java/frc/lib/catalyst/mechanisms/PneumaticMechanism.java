@@ -2,6 +2,7 @@ package frc.lib.catalyst.mechanisms;
 
 import frc.lib.catalyst.hardware.CatalystCANBus;
 import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.hardware.bus.CANPort;
 import org.wpilib.hardware.pneumatic.Compressor;
 import org.wpilib.hardware.pneumatic.DoubleSolenoid;
 import org.wpilib.hardware.pneumatic.PneumaticsModuleType;
@@ -44,14 +45,39 @@ import frc.lib.catalyst.util.HealthMonitor;
  */
 public class PneumaticMechanism extends CatalystMechanism {
 
-    /**
-     * CAN id a pneumatics module answers at when nobody says otherwise.
-     *
-     * <p>Only used on this branch. The development snapshot addresses the module by bus; the
-     * released alpha-6 this branch targets addresses it by id, and this config has no field for one.
-     */
-    private static final int DEFAULT_PNEUMATICS_MODULE_ID = 1;
+    // WPILib's CANPort constants indexed the way CatalystCANBus numbers its buses. Written out
+    // rather than resolved by name so a rename upstream fails the build instead of the match.
+    private static final CANPort[] SYSTEMCORE_PORTS = {
+            CANPort.CAN_S0, CANPort.CAN_S1, CANPort.CAN_S2, CANPort.CAN_S3, CANPort.CAN_S4
+    };
 
+    private static final CANPort[] MOTIONCORE_PORTS = {
+            CANPort.CAN_D0, CANPort.CAN_D1, CANPort.CAN_D2, CANPort.CAN_D3, CANPort.CAN_D4,
+            CANPort.CAN_D5, CANPort.CAN_D6, CANPort.CAN_D7, CANPort.CAN_D8, CANPort.CAN_D9,
+            CANPort.CAN_D10, CANPort.CAN_D11, CANPort.CAN_D12, CANPort.CAN_D13, CANPort.CAN_D14,
+            CANPort.CAN_D15, CANPort.CAN_D16, CANPort.CAN_D17, CANPort.CAN_D18, CANPort.CAN_D19
+    };
+
+    /**
+     * The WPILib port a Catalyst bus corresponds to.
+     *
+     * <p>Lives here rather than on {@link CatalystCANBus} because that type's {@code wpilib()}
+     * accessor still refuses to hand a port out — it was written off when the released alpha-6 had
+     * no such WPILib type at all. Fold this back into {@code CatalystCANBus.wpilib()} once that
+     * accessor is restored; every WPILib device will want the same mapping.
+     */
+    private static CANPort canPort(CatalystCANBus bus) {
+        int index = bus.index().orElse(-1);
+        if (bus.isSystemcore() && index >= 0 && index < SYSTEMCORE_PORTS.length) {
+            return SYSTEMCORE_PORTS[index];
+        }
+        if (bus.isMotioncore() && index >= 0 && index < MOTIONCORE_PORTS.length) {
+            return MOTIONCORE_PORTS[index];
+        }
+        throw new IllegalStateException(
+                "WPILib's CANPort enum covers only can_s0-can_s4 and can_d0-can_d19, so " + bus.name()
+                        + " cannot carry a pneumatics module. CANivores are Phoenix-only.");
+    }
 
     /** Logical state of a pneumatic actuator. */
     public enum State { FORWARD, REVERSE, OFF }
@@ -71,28 +97,28 @@ public class PneumaticMechanism extends CatalystMechanism {
         super(config.name);
         this.config = config;
 
+        // 2027 requires a CAN bus: Systemcore has no rio-attached pneumatics module, so a
+        // REVPH/CTREPCM is reached over CAN like any other device.
+        CANPort port = canPort(config.canBus);
+
+        // Every overload below omits the module id, leaving WPILib to fill in the default for the
+        // module type - 1 for a REV PH, 0 for a CTRE PCM. Alpha-6 addressed the module by a single
+        // int that had to serve as both, so Catalyst hardcoded 1 and quietly mis-addressed a PCM.
+        // A module moved off its default id still needs a config field Catalyst does not have.
         if (config.isDouble) {
-            // 2027 requires a CAN bus: Systemcore has no rio-attached pneumatics module, so a
-            // REVPH/CTREPCM is reached over CAN like any other device.
             this.doubleSolenoid = new DoubleSolenoid(
-                    // The released alpha-6 takes a module id, not a bus: it predates
-                    // org.wpilib.hardware.bus.CANBus entirely. A REV PH answers at CAN id 1 by
-                    // default, which is the only sensible constant available here - a robot with the
-                    // module elsewhere has to say so, and there is no field on this config for it
-                    // yet because the snapshot API did not need one.
-                    DEFAULT_PNEUMATICS_MODULE_ID,
+                    port,
                     config.moduleType,
                     config.forwardChannel,
                     config.reverseChannel);
             this.singleSolenoid = null;
         } else {
             this.doubleSolenoid = null;
-            this.singleSolenoid = new Solenoid(
-                    DEFAULT_PNEUMATICS_MODULE_ID, config.moduleType, config.forwardChannel);
+            this.singleSolenoid = new Solenoid(port, config.moduleType, config.forwardChannel);
         }
 
         this.compressor = config.attachCompressor
-                ? new Compressor(DEFAULT_PNEUMATICS_MODULE_ID, config.moduleType)
+                ? new Compressor(port, config.moduleType)
                 : null;
 
         if (compressor != null && config.minPressurePSI > 0) {

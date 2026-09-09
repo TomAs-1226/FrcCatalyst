@@ -40,28 +40,30 @@ class WpiTelemetrySinkTest {
 
         @Override
         public TelemetryEntry getEntry(String path) {
+            // alpha-7 gave every log method a trailing timestamp (microseconds). This stub ignores
+            // it: the tests assert what was written and in what order, not when.
             return new TelemetryEntry() {
                 @Override public void keepDuplicates() {}
                 @Override public void setProperty(String key, String value) {}
 
-                @Override public void logBoolean(boolean value)  { put(path, value); }
-                @Override public void logLong(long value)        { put(path, value); }
-                @Override public void logFloat(float value)      { put(path, value); }
-                @Override public void logDouble(double value)    { put(path, value); }
-                @Override public void logString(String value, String type) { put(path, value); }
+                @Override public void logBoolean(boolean value, long ts)  { put(path, value); }
+                @Override public void logLong(long value, long ts)        { put(path, value); }
+                @Override public void logFloat(float value, long ts)      { put(path, value); }
+                @Override public void logDouble(double value, long ts)    { put(path, value); }
+                @Override public void logString(String value, String type, long ts) { put(path, value); }
 
-                @Override public void logBooleanArray(boolean[] value) { put(path, value); }
-                @Override public void logShortArray(short[] value)     { put(path, value); }
-                @Override public void logIntArray(int[] value)         { put(path, value); }
-                @Override public void logLongArray(long[] value)       { put(path, value); }
-                @Override public void logFloatArray(float[] value)     { put(path, value); }
-                @Override public void logDoubleArray(double[] value)   { put(path, value); }
-                @Override public void logStringArray(String[] value)   { put(path, value); }
-                @Override public void logRaw(byte[] value, String type) { put(path, value); }
+                @Override public void logBooleanArray(boolean[] value, long ts) { put(path, value); }
+                @Override public void logShortArray(short[] value, long ts)     { put(path, value); }
+                @Override public void logIntArray(int[] value, long ts)         { put(path, value); }
+                @Override public void logLongArray(long[] value, long ts)       { put(path, value); }
+                @Override public void logFloatArray(float[] value, long ts)     { put(path, value); }
+                @Override public void logDoubleArray(double[] value, long ts)   { put(path, value); }
+                @Override public void logStringArray(String[] value, long ts)   { put(path, value); }
+                @Override public void logRaw(byte[] value, String type, long ts) { put(path, value); }
 
-                @Override public <T> void logStruct(T value, Struct<? super T> struct) { put(path, value); }
-                @Override public <T> void logStructArray(T[] value, Struct<? super T> struct) { put(path, value); }
-                @Override public <T> void logProtobuf(T value, Protobuf<? super T, ?> proto) { put(path, value); }
+                @Override public <T> void logStruct(T value, Struct<? super T> struct, long ts) { put(path, value); }
+                @Override public <T> void logStructArray(T[] value, Struct<? super T> struct, long ts) { put(path, value); }
+                @Override public <T> void logProtobuf(T value, Protobuf<? super T, ?> proto, long ts) { put(path, value); }
             };
         }
 

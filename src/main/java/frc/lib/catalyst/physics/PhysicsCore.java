@@ -148,7 +148,7 @@ public final class PhysicsCore implements UncertainRobotStateSource {
             new SignalProcessor.ExponentialMovingAverage(0.25);
 
     private PhysicsAnalysis analysis = PhysicsAnalysis.nominal();
-    private Translation2d lastKinematicFieldVelocity = Translation2d.kZero;
+    private Translation2d lastKinematicFieldVelocity = Translation2d.ZERO;
     private double lastSampleTimestamp = Double.NaN;
     /**
      * Timestamp of the last sample the diagnostics actually ran on. Tracked separately from
@@ -396,7 +396,7 @@ public final class PhysicsCore implements UncertainRobotStateSource {
         wheelAccelX.reset();
         wheelAccelY.reset();
         analysis = PhysicsAnalysis.nominal();
-        lastKinematicFieldVelocity = Translation2d.kZero;
+        lastKinematicFieldVelocity = Translation2d.ZERO;
         lastSampleTimestamp = Double.NaN;
         lastDiagnosticsTimestamp = Double.NaN;
     }
@@ -480,7 +480,7 @@ public final class PhysicsCore implements UncertainRobotStateSource {
                 new Translation2d(kinematicField.vx, kinematicField.vy);
 
         double dt = sample.timestampSeconds() - lastDiagnosticsTimestamp;
-        Translation2d wheelAcceleration = Translation2d.kZero;
+        Translation2d wheelAcceleration = Translation2d.ZERO;
         if (!Double.isNaN(lastDiagnosticsTimestamp) && dt > 0 && dt <= 0.25) {
             Translation2d raw = kinematicVelocity.minus(lastKinematicFieldVelocity).div(dt);
             wheelAcceleration = new Translation2d(
@@ -507,7 +507,7 @@ public final class PhysicsCore implements UncertainRobotStateSource {
         double disturbanceFraction =
                 disturbanceEstimator == null ? 0.0 : disturbanceEstimator.normalizedMagnitude();
         Rotation2d disturbanceDirection =
-                disturbanceEstimator == null ? Rotation2d.kZero : disturbanceEstimator.direction();
+                disturbanceEstimator == null ? Rotation2d.ZERO : disturbanceEstimator.direction();
         Optional<CollisionEvent> lastCollision = collision.isPresent()
                 ? collision
                 : (collisionDetector == null ? Optional.empty() : collisionDetector.lastEvent());

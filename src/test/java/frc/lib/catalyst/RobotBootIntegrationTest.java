@@ -54,7 +54,7 @@ class RobotBootIntegrationTest {
 
     @BeforeAll
     static void bootTheHal() {
-        assertTrue(HAL.initialize(500, 0), "the simulated HAL must come up, or none of this means anything");
+        assertTrue(HAL.initialize(), "the simulated HAL must come up, or none of this means anything");
     }
 
     @AfterAll
@@ -213,7 +213,7 @@ class RobotBootIntegrationTest {
 
         // periodic() only runs while enabled, which is the framework's own contract and now also
         // CatalystOpMode's. Driving it while disabled tested a state the robot never reaches.
-        assertTrue(HAL.initialize(500, 0));
+        assertTrue(HAL.initialize());
         DriverStationSim.setDsAttached(true);
         DriverStationSim.setEnabled(true);
         DriverStationSim.notifyNewData();

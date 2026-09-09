@@ -331,7 +331,7 @@ public final class DualIMU implements CatalystIMU {
 
     /** Forget any rest calibration, so readings are raw again. */
     public void clearRestCalibration() {
-        restBias = Translation2d.kZero;
+        restBias = Translation2d.ZERO;
     }
 
     /**
@@ -348,7 +348,7 @@ public final class DualIMU implements CatalystIMU {
      * What the sensors disagree about at rest, removed from every reading. Zero until
      * {@link #calibrateAtRest()} is called.
      */
-    private Translation2d restBias = Translation2d.kZero;
+    private Translation2d restBias = Translation2d.ZERO;
 
     /** Whether both sensors are reporting acceleration, so the reading above is available. */
     public boolean canMeasureAngularAcceleration() {

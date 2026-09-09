@@ -45,7 +45,7 @@ class DisturbanceAndCollisionTest {
         assertEquals(0.0, disturbance.magnitudeMpsSq(), 1e-9);
         assertEquals(0.0, disturbance.normalizedMagnitude(), 1e-9);
         assertEquals(0.0, disturbance.externalForceNewtons(), 1e-9);
-        assertEquals(Rotation2d.kZero, disturbance.direction());   // too small to have a direction
+        assertEquals(Rotation2d.ZERO, disturbance.direction());   // too small to have a direction
     }
 
     @Test
@@ -65,7 +65,7 @@ class DisturbanceAndCollisionTest {
         DisturbanceEstimator disturbance = unfiltered();
 
         // Wheels coasting; the IMU sees a sideways slam.
-        disturbance.update(Translation2d.kZero, new Translation2d(0.0, -12.0));
+        disturbance.update(Translation2d.ZERO, new Translation2d(0.0, -12.0));
 
         assertEquals(12.0, disturbance.magnitudeMpsSq(), 1e-9);
         assertTrue(disturbance.normalizedMagnitude() > 1.0);   // more than the carpet could deliver
@@ -87,8 +87,8 @@ class DisturbanceAndCollisionTest {
     void smoothingStopsOneNoisyFrameFromDominating() {
         DisturbanceEstimator disturbance = new DisturbanceEstimator(drivetrain(), 0.4);
 
-        disturbance.update(Translation2d.kZero, Translation2d.kZero);          // settle at zero
-        disturbance.update(Translation2d.kZero, new Translation2d(10.0, 0.0)); // one spike
+        disturbance.update(Translation2d.ZERO, Translation2d.ZERO);          // settle at zero
+        disturbance.update(Translation2d.ZERO, new Translation2d(10.0, 0.0)); // one spike
 
         assertEquals(4.0, disturbance.magnitudeMpsSq(), 1e-6);   // 40% of the way there
     }
@@ -98,7 +98,7 @@ class DisturbanceAndCollisionTest {
         DisturbanceEstimator disturbance = unfiltered();
         CollisionDetector detector = CollisionDetector.builder().disturbance(disturbance).build();
 
-        disturbance.update(Translation2d.kZero, new Translation2d(12.0, 0.0));
+        disturbance.update(Translation2d.ZERO, new Translation2d(12.0, 0.0));
         assertTrue(detector.update(0.00).isEmpty());    // one loop over threshold is not enough
         assertTrue(detector.isImpactInProgress());
 
@@ -114,15 +114,15 @@ class DisturbanceAndCollisionTest {
         DisturbanceEstimator disturbance = unfiltered();
         CollisionDetector detector = CollisionDetector.builder().disturbance(disturbance).build();
 
-        disturbance.update(Translation2d.kZero, new Translation2d(12.0, 0.0));
+        disturbance.update(Translation2d.ZERO, new Translation2d(12.0, 0.0));
         assertTrue(detector.update(0.00).isEmpty());
 
-        disturbance.update(Translation2d.kZero, Translation2d.kZero);   // back to normal
+        disturbance.update(Translation2d.ZERO, Translation2d.ZERO);   // back to normal
         assertTrue(detector.update(0.02).isEmpty());
         assertFalse(detector.isImpactInProgress());
 
         // The streak was broken, so a later spike has to build up again from scratch.
-        disturbance.update(Translation2d.kZero, new Translation2d(12.0, 0.0));
+        disturbance.update(Translation2d.ZERO, new Translation2d(12.0, 0.0));
         assertTrue(detector.update(0.04).isEmpty());
     }
 
@@ -132,11 +132,11 @@ class DisturbanceAndCollisionTest {
         CollisionDetector detector = CollisionDetector.builder()
                 .disturbance(disturbance).requiredLoops(3).build();
 
-        disturbance.update(Translation2d.kZero, new Translation2d(8.0, 0.0));
+        disturbance.update(Translation2d.ZERO, new Translation2d(8.0, 0.0));
         detector.update(0.00);
-        disturbance.update(Translation2d.kZero, new Translation2d(20.0, 0.0));   // the real hit
+        disturbance.update(Translation2d.ZERO, new Translation2d(20.0, 0.0));   // the real hit
         detector.update(0.02);
-        disturbance.update(Translation2d.kZero, new Translation2d(9.0, 0.0));
+        disturbance.update(Translation2d.ZERO, new Translation2d(9.0, 0.0));
         Optional<CollisionEvent> event = detector.update(0.04);
 
         assertTrue(event.isPresent());
@@ -150,7 +150,7 @@ class DisturbanceAndCollisionTest {
 
         int fired = 0;
         for (int i = 0; i < 20; i++) {   // 400 ms of sustained over-threshold acceleration
-            disturbance.update(Translation2d.kZero, new Translation2d(12.0, 0.0));
+            disturbance.update(Translation2d.ZERO, new Translation2d(12.0, 0.0));
             if (detector.update(i * 0.02).isPresent()) fired++;
         }
 
@@ -165,7 +165,7 @@ class DisturbanceAndCollisionTest {
         assertTrue(Double.isInfinite(detector.secondsSinceLastEvent(1.0)));
         assertTrue(detector.lastEvent().isEmpty());
 
-        disturbance.update(Translation2d.kZero, new Translation2d(12.0, 0.0));
+        disturbance.update(Translation2d.ZERO, new Translation2d(12.0, 0.0));
         detector.update(0.00);
         detector.update(0.02);
 
@@ -190,7 +190,7 @@ class DisturbanceAndCollisionTest {
         DisturbanceEstimator disturbance = unfiltered();
         CollisionDetector detector = CollisionDetector.builder().disturbance(disturbance).build();
 
-        disturbance.update(Translation2d.kZero, new Translation2d(12.0, 0.0));
+        disturbance.update(Translation2d.ZERO, new Translation2d(12.0, 0.0));
         detector.update(0.00);
         detector.update(0.02);
         assertTrue(detector.lastEvent().isPresent());

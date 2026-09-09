@@ -285,7 +285,7 @@ public final class FieldHeightmap {
         }
 
         if (blockedCount == 0) {
-            return new Verdict(false, Translation2d.kZero, 0, support, lowestClearance, "clear");
+            return new Verdict(false, Translation2d.ZERO, 0, support, lowestClearance, "clear");
         }
 
         /* Containment is absolute, and it is checked before anything derived from the samples.

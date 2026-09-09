@@ -56,7 +56,7 @@ class PhysicsIntegrationTest {
 
     private static PhysicsSample driving(double t, double vx, Translation2d accel) {
         ChassisVelocities speeds = new ChassisVelocities(vx, 0.0, 0.0);
-        return new PhysicsSample(t, Pose2d.kZero, speeds,
+        return new PhysicsSample(t, Pose2d.ZERO, speeds,
                 KINEMATICS.toSwerveModuleVelocities(speeds), accel, 0.0);
     }
 
@@ -67,7 +67,7 @@ class PhysicsIntegrationTest {
     @Test
     void aConfidentVelocityObservationPullsTheEstimateTowardItAndTightensIt() {
         PhysicalStateEstimator estimator = PhysicalStateEstimator.builder().build();
-        estimator.update(0.0, Pose2d.kZero, new ChassisVelocities(2.0, 0, 0), Translation2d.kZero, 0, 0);
+        estimator.update(0.0, Pose2d.ZERO, new ChassisVelocities(2.0, 0, 0), Translation2d.ZERO, 0, 0);
         double before = estimator.state().quality().velocityStdDevMetersPerSecond();
 
         // The wheels say 2.0; an optical-flow sensor with a very tight standard deviation says 3.0.
@@ -81,7 +81,7 @@ class PhysicsIntegrationTest {
     @Test
     void aVagueObservationBarelyMovesTheEstimate() {
         PhysicalStateEstimator estimator = PhysicalStateEstimator.builder().build();
-        estimator.update(0.0, Pose2d.kZero, new ChassisVelocities(2.0, 0, 0), Translation2d.kZero, 0, 0);
+        estimator.update(0.0, Pose2d.ZERO, new ChassisVelocities(2.0, 0, 0), Translation2d.ZERO, 0, 0);
 
         // A 5 m/s standard deviation against an estimate good to ~0.6 m/s: almost no information.
         estimator.applyVelocityObservation(new Translation2d(10.0, 0.0), 5.0);
@@ -94,7 +94,7 @@ class PhysicsIntegrationTest {
     void fusionFollowsTheInverseVarianceFormulaExactly() {
         PhysicalStateEstimator estimator = PhysicalStateEstimator.builder().build();
         estimator.recordAbsoluteFix(0.0);
-        estimator.update(0.0, Pose2d.kZero, new ChassisVelocities(2.0, 0, 0), Translation2d.kZero, 0, 0);
+        estimator.update(0.0, Pose2d.ZERO, new ChassisVelocities(2.0, 0, 0), Translation2d.ZERO, 0, 0);
 
         double estimateStdDev = estimator.state().quality().velocityStdDevMetersPerSecond();
         double observationStdDev = 0.2;
@@ -115,14 +115,14 @@ class PhysicsIntegrationTest {
     void theBenefitOfAnObservationDecaysAsTheRobotKeepsMoving() {
         PhysicalStateEstimator estimator = PhysicalStateEstimator.builder().build();
         estimator.recordAbsoluteFix(0.0);
-        estimator.update(0.0, Pose2d.kZero, new ChassisVelocities(2.0, 0, 0), Translation2d.kZero, 0, 0);
+        estimator.update(0.0, Pose2d.ZERO, new ChassisVelocities(2.0, 0, 0), Translation2d.ZERO, 0, 0);
         estimator.applyVelocityObservation(new Translation2d(2.0, 0.0), 0.01);
 
         double tightened = estimator.state().quality().velocityStdDevMetersPerSecond();
         assertTrue(tightened < 0.02);
 
         for (int i = 1; i <= 100; i++) {
-            estimator.update(i * 0.02, Pose2d.kZero, new ChassisVelocities(2.0, 0, 0), Translation2d.kZero, 0, 0);
+            estimator.update(i * 0.02, Pose2d.ZERO, new ChassisVelocities(2.0, 0, 0), Translation2d.ZERO, 0, 0);
         }
 
         assertTrue(estimator.state().quality().velocityStdDevMetersPerSecond() > tightened * 5,
@@ -139,7 +139,7 @@ class PhysicsIntegrationTest {
     void physicsCoreRoutesAVelocityObservationIntoTheEstimator() {
         double[] clock = {0.0};
         PhysicsCore physics = core(clock);
-        physics.update(driving(0.0, 2.0, Translation2d.kZero));
+        physics.update(driving(0.0, 2.0, Translation2d.ZERO));
 
         assertTrue(physics.observe(new VelocityObservation(
                 new Translation2d(3.0, 0.0), 0.0, 0.005, "flow")));
@@ -173,7 +173,7 @@ class PhysicsIntegrationTest {
     void aBearingResidualIsZeroWhenTheEstimateAgrees() {
         var bearing = new BearingObservation(new Translation2d(4.0, 3.0),
                 new Rotation2d(Math.atan2(3.0, 4.0)), 0.0, 0.02, "cam");
-        assertEquals(0.0, bearing.residualFrom(Translation2d.kZero), 1e-12);
+        assertEquals(0.0, bearing.residualFrom(Translation2d.ZERO), 1e-12);
         // Degenerate: sitting on the target has no bearing at all.
         assertEquals(0.0, bearing.residualFrom(new Translation2d(4.0, 3.0)), 1e-12);
     }
@@ -181,7 +181,7 @@ class PhysicsIntegrationTest {
     @Test
     void aContactObservationConstrainsOneAxisOnly() {
         // Squared against a wall at x = 0 facing +X, with a 0.45 m bumper half-length.
-        var contact = new ContactObservation(0.0, Rotation2d.kZero, 0.45, 0.0, 0.02, "wall");
+        var contact = new ContactObservation(0.0, Rotation2d.ZERO, 0.45, 0.0, 0.02, "wall");
 
         assertEquals(0.45, contact.impliedCoordinate(), 1e-12);
         assertEquals(0.0, contact.residualFrom(0.45, 0.0), 1e-12);
@@ -193,13 +193,13 @@ class PhysicsIntegrationTest {
     @Test
     void everyObservationRejectsAnImpossibleUncertainty() {
         assertThrows(IllegalArgumentException.class,
-                () -> new RangeObservation(Translation2d.kZero, 1.0, 0.0, 0.0, "x"));
+                () -> new RangeObservation(Translation2d.ZERO, 1.0, 0.0, 0.0, "x"));
         assertThrows(IllegalArgumentException.class,
-                () -> new RangeObservation(Translation2d.kZero, -1.0, 0.0, 0.1, "x"));
+                () -> new RangeObservation(Translation2d.ZERO, -1.0, 0.0, 0.1, "x"));
         assertThrows(IllegalArgumentException.class,
-                () -> new BearingObservation(Translation2d.kZero, Rotation2d.kZero, 0.0, 0.0, "x"));
+                () -> new BearingObservation(Translation2d.ZERO, Rotation2d.ZERO, 0.0, 0.0, "x"));
         assertThrows(IllegalArgumentException.class,
-                () -> new ContactObservation(0.0, Rotation2d.kZero, 0.4, 0.0, -0.1, "x"));
+                () -> new ContactObservation(0.0, Rotation2d.ZERO, 0.4, 0.0, -0.1, "x"));
     }
 
     // ===========================================
@@ -216,8 +216,8 @@ class PhysicsIntegrationTest {
         double[] clock = {0.0};
         PhysicsCore physics = core(clock);
         physics.observe(frc.lib.catalyst.physics.observation.PoseObservation.of(
-                Pose2d.kZero, 0.0, "cam"));
-        physics.update(driving(0.0, 2.0, Translation2d.kZero));
+                Pose2d.ZERO, 0.0, "cam"));
+        physics.update(driving(0.0, 2.0, Translation2d.ZERO));
 
         var limits = constraints(physics, StabilityModel.ofChassisOnly(chassis()));
 
@@ -231,7 +231,7 @@ class PhysicsIntegrationTest {
     void aRobotThatHasNotSeenATagInAgesIsSlowedDown() {
         double[] clock = {0.0};
         PhysicsCore physics = core(clock);
-        physics.update(driving(0.0, 2.0, Translation2d.kZero));   // never any absolute fix
+        physics.update(driving(0.0, 2.0, Translation2d.ZERO));   // never any absolute fix
 
         var limits = constraints(physics, StabilityModel.ofChassisOnly(chassis()));
 
@@ -244,8 +244,8 @@ class PhysicsIntegrationTest {
     void slippingWheelsReduceTheSpeedScale() {
         double[] clock = {0.0};
         PhysicsCore physics = core(clock);
-        physics.observe(frc.lib.catalyst.physics.observation.PoseObservation.of(Pose2d.kZero, 0.0, "cam"));
-        physics.update(driving(0.0, 3.0, Translation2d.kZero));
+        physics.observe(frc.lib.catalyst.physics.observation.PoseObservation.of(Pose2d.ZERO, 0.0, "cam"));
+        physics.update(driving(0.0, 3.0, Translation2d.ZERO));
 
         var limits = constraints(physics, StabilityModel.ofChassisOnly(chassis()));
         double clean = limits.speedScale();
@@ -258,9 +258,9 @@ class PhysicsIntegrationTest {
         }
         for (int i = 1; i <= 6; i++) {
             physics.observe(frc.lib.catalyst.physics.observation.PoseObservation.of(
-                    Pose2d.kZero, i * 0.02, "cam"));
-            physics.update(new PhysicsSample(i * 0.02, Pose2d.kZero, speeds, slipping,
-                    Translation2d.kZero, 0.0));
+                    Pose2d.ZERO, i * 0.02, "cam"));
+            physics.update(new PhysicsSample(i * 0.02, Pose2d.ZERO, speeds, slipping,
+                    Translation2d.ZERO, 0.0));
         }
 
         assertTrue(limits.speedScale() < clean,
@@ -273,7 +273,7 @@ class PhysicsIntegrationTest {
         double[] clock = {0.0};
         double[] height = {0.0};
         PhysicsCore physics = core(clock);
-        physics.update(driving(0.0, 1.0, Translation2d.kZero));
+        physics.update(driving(0.0, 1.0, Translation2d.ZERO));
 
         ArticulatedRobotModel articulated = ArticulatedRobotModel.builder()
                 .chassis(chassis())
@@ -291,7 +291,7 @@ class PhysicsIntegrationTest {
     void theSpeedScaleNeverFallsBelowItsFloor() {
         double[] clock = {0.0};
         PhysicsCore physics = core(clock);
-        physics.update(driving(0.0, 0.0, Translation2d.kZero));
+        physics.update(driving(0.0, 0.0, Translation2d.ZERO));
 
         var limits = PhysicsConstraints.builder()
                 .physics(physics).minimumSpeedScale(0.3).build();
@@ -306,7 +306,7 @@ class PhysicsIntegrationTest {
     /** Twelve loops of steady driving. */
     private static List<PhysicsSample> steadyRun() {
         List<PhysicsSample> samples = new ArrayList<>();
-        for (int i = 0; i < 12; i++) samples.add(driving(i * 0.02, 3.0, Translation2d.kZero));
+        for (int i = 0; i < 12; i++) samples.add(driving(i * 0.02, 3.0, Translation2d.ZERO));
         return samples;
     }
 
@@ -344,7 +344,7 @@ class PhysicsIntegrationTest {
         var withVision = replay.run(() -> {
             PhysicsCore physics = core(clock);
             physics.observe(frc.lib.catalyst.physics.observation.PoseObservation.of(
-                    Pose2d.kZero, 0.0, "cam"));
+                    Pose2d.ZERO, 0.0, "cam"));
             return physics;
         });
         var blind = replay.run(() -> core(clock));
@@ -376,16 +376,16 @@ class PhysicsIntegrationTest {
         PhysicsCore physics = core(clock);
         DisturbanceInjector injector = DisturbanceInjector.builder().slipModule(2, 2.5).build();
 
-        physics.update(driving(0.0, 3.0, Translation2d.kZero));
+        physics.update(driving(0.0, 3.0, Translation2d.ZERO));
         for (int i = 1; i <= 8; i++) {
-            physics.update(injector.apply(driving(i * 0.02, 3.0, Translation2d.kZero)));
+            physics.update(injector.apply(driving(i * 0.02, 3.0, Translation2d.ZERO)));
         }
         assertTrue(physics.analyze().isSlipping(), "one module reading 2.5 m/s fast must be detected");
         assertEquals(2, physics.analyze().worstModule());
 
         injector.setEnabled(false);
         for (int i = 9; i <= 30; i++) {
-            physics.update(injector.apply(driving(i * 0.02, 3.0, Translation2d.kZero)));
+            physics.update(injector.apply(driving(i * 0.02, 3.0, Translation2d.ZERO)));
         }
         assertFalse(physics.analyze().isSlipping(), "the detector must clear once the slip stops");
     }
@@ -399,12 +399,12 @@ class PhysicsIntegrationTest {
         PhysicsCore physics = core(clock);
         DisturbanceInjector injector = DisturbanceInjector.builder().build();
 
-        physics.update(driving(0.0, 3.0, Translation2d.kZero));
+        physics.update(driving(0.0, 3.0, Translation2d.ZERO));
         for (int i = 1; i <= 10; i++) {
             // The wheels wind up 0.25 m/s per loop - 12.5 m/s^2 of implied acceleration - while the
             // IMU reports the robot is not accelerating at all.
             injector.setWheelSpeedBias(i * 0.25);
-            physics.update(injector.apply(driving(i * 0.02, 3.0, Translation2d.kZero)));
+            physics.update(injector.apply(driving(i * 0.02, 3.0, Translation2d.ZERO)));
         }
 
         assertEquals(0.0, physics.analyze().slipFactor(), 1e-9,
@@ -422,9 +422,9 @@ class PhysicsIntegrationTest {
         DisturbanceInjector injector = DisturbanceInjector.builder()
                 .impact(new Translation2d(0.0, -16.0)).build();
 
-        physics.update(driving(0.0, 2.0, Translation2d.kZero));
+        physics.update(driving(0.0, 2.0, Translation2d.ZERO));
         for (int i = 1; i <= 6; i++) {
-            physics.update(injector.apply(driving(i * 0.02, 2.0, Translation2d.kZero)));
+            physics.update(injector.apply(driving(i * 0.02, 2.0, Translation2d.ZERO)));
         }
 
         assertTrue(physics.analyze().lastCollision().isPresent());

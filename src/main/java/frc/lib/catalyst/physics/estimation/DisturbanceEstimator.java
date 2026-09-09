@@ -40,7 +40,7 @@ public final class DisturbanceEstimator {
     private final SignalProcessor.ExponentialMovingAverage slipFilter;
     private final SignalProcessor.ExponentialMovingAverage impactFilter;
 
-    private Translation2d residual = Translation2d.kZero;
+    private Translation2d residual = Translation2d.ZERO;
     private double slipEvidence = 0.0;
     private double impactEvidence = 0.0;
 
@@ -71,8 +71,8 @@ public final class DisturbanceEstimator {
      * @return the smoothed residual after this update
      */
     public Translation2d update(Translation2d wheelAccelerationField, Translation2d measuredAccelerationField) {
-        Translation2d wheels = wheelAccelerationField == null ? Translation2d.kZero : wheelAccelerationField;
-        Translation2d measured = measuredAccelerationField == null ? Translation2d.kZero : measuredAccelerationField;
+        Translation2d wheels = wheelAccelerationField == null ? Translation2d.ZERO : wheelAccelerationField;
+        Translation2d measured = measuredAccelerationField == null ? Translation2d.ZERO : measuredAccelerationField;
         Translation2d raw = measured.minus(wheels);
         residual = new Translation2d(filterX.calculate(raw.getX()), filterY.calculate(raw.getY()));
         decompose(wheels, measured);
@@ -171,11 +171,13 @@ public final class DisturbanceEstimator {
 
     /**
      * Field-relative direction the disturbance is pushing. Meaningless when the residual is tiny, so
-     * this returns {@link Rotation2d#kZero} below 0.05 m/s^2 rather than reporting the angle of noise.
+     * this returns {@link Rotation2d#ZERO} below 0.05 m/s^2 rather than reporting the angle of noise.
      */
     public Rotation2d direction() {
-        if (residual.getNorm() < 0.05) return Rotation2d.kZero;
-        return residual.getAngle();
+        if (residual.getNorm() < 0.05) return Rotation2d.ZERO;
+        // The norm guard above already excludes the only vector that has no angle, so this fallback
+        // is unreachable; it agrees with the guard rather than throwing on a value we never see.
+        return residual.getAngle().orElse(Rotation2d.ZERO);
     }
 
     /**
@@ -188,7 +190,7 @@ public final class DisturbanceEstimator {
 
     /** Clear the residual and the filter history. */
     public void reset() {
-        residual = Translation2d.kZero;
+        residual = Translation2d.ZERO;
         slipEvidence = 0.0;
         impactEvidence = 0.0;
         filterX.reset();

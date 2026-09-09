@@ -20,7 +20,7 @@ import frc.lib.catalyst.physics.estimation.PhysicalStateEstimator;
  */
 class PhysicalStateEstimatorTest {
 
-    private static final Pose2d ORIGIN = Pose2d.kZero;
+    private static final Pose2d ORIGIN = Pose2d.ZERO;
 
     private static ChassisVelocities forward(double vx) {
         return new ChassisVelocities(vx, 0.0, 0.0);
@@ -30,7 +30,7 @@ class PhysicalStateEstimatorTest {
     void theFirstSampleTakesTheWheelsAtFaceValue() {
         PhysicalStateEstimator estimator = PhysicalStateEstimator.builder().build();
 
-        PhysicalRobotState state = estimator.update(0.0, ORIGIN, forward(2.0), Translation2d.kZero, 0.0, 0.0);
+        PhysicalRobotState state = estimator.update(0.0, ORIGIN, forward(2.0), Translation2d.ZERO, 0.0, 0.0);
 
         assertEquals(2.0, state.fieldVelocity().vx, 1e-9);
         assertEquals(0.0, state.accelerationMetersPerSecSq(), 1e-9);   // nothing to differentiate yet
@@ -54,11 +54,11 @@ class PhysicalStateEstimatorTest {
     @Test
     void aLongSlipEventuallyReAnchorsToTheWheels() {
         PhysicalStateEstimator estimator = PhysicalStateEstimator.builder().slipBudget(1.0).build();
-        estimator.update(0.0, ORIGIN, forward(2.0), Translation2d.kZero, 0.0, 0.0);
+        estimator.update(0.0, ORIGIN, forward(2.0), Translation2d.ZERO, 0.0, 0.0);
 
         // Under 60% of the budget, the floor stays down and the estimate rides the IMU.
         for (int i = 1; i <= 25; i++) {
-            estimator.update(i * 0.02, ORIGIN, forward(2.0), Translation2d.kZero, 0.0, 1.0);
+            estimator.update(i * 0.02, ORIGIN, forward(2.0), Translation2d.ZERO, 0.0, 1.0);
         }
         assertEquals(0.0, estimator.slipBudgetExhaustion(), 0.6);
         double duringNormalSlip = estimator.kinematicWeight(1.0);
@@ -66,7 +66,7 @@ class PhysicalStateEstimatorTest {
         // Keep "slipping" well past the budget and the wheels have to be trusted again, because
         // dead reckoning that never ends is not dead reckoning, it is drift.
         for (int i = 26; i <= 80; i++) {
-            estimator.update(i * 0.02, ORIGIN, forward(2.0), Translation2d.kZero, 0.0, 1.0);
+            estimator.update(i * 0.02, ORIGIN, forward(2.0), Translation2d.ZERO, 0.0, 1.0);
         }
         assertEquals(1.0, estimator.slipBudgetExhaustion(), 1e-9);
         assertEquals(0.98, estimator.kinematicWeight(1.0), 1e-9);
@@ -76,15 +76,15 @@ class PhysicalStateEstimatorTest {
     @Test
     void theSlipBudgetRefillsWhileTheWheelsGrip() {
         PhysicalStateEstimator estimator = PhysicalStateEstimator.builder().slipBudget(1.0).build();
-        estimator.update(0.0, ORIGIN, forward(2.0), Translation2d.kZero, 0.0, 0.0);
+        estimator.update(0.0, ORIGIN, forward(2.0), Translation2d.ZERO, 0.0, 0.0);
 
         for (int i = 1; i <= 60; i++) {
-            estimator.update(i * 0.02, ORIGIN, forward(2.0), Translation2d.kZero, 0.0, 1.0);
+            estimator.update(i * 0.02, ORIGIN, forward(2.0), Translation2d.ZERO, 0.0, 1.0);
         }
         assertTrue(estimator.slipSeconds() > 0.5);
 
         for (int i = 61; i <= 200; i++) {
-            estimator.update(i * 0.02, ORIGIN, forward(2.0), Translation2d.kZero, 0.0, 0.0);
+            estimator.update(i * 0.02, ORIGIN, forward(2.0), Translation2d.ZERO, 0.0, 0.0);
         }
         assertEquals(0.0, estimator.slipSeconds(), 1e-9);
     }
@@ -92,11 +92,11 @@ class PhysicalStateEstimatorTest {
     @Test
     void aSlippingWheelIsLargelyIgnoredInFavourOfTheImu() {
         PhysicalStateEstimator estimator = PhysicalStateEstimator.builder().build();
-        estimator.update(0.00, ORIGIN, forward(2.0), Translation2d.kZero, 0.0, 0.0);
+        estimator.update(0.00, ORIGIN, forward(2.0), Translation2d.ZERO, 0.0, 0.0);
 
         // The wheels suddenly claim 4 m/s; the IMU says the robot is not accelerating at all.
         PhysicalRobotState slipping =
-                estimator.update(0.02, ORIGIN, forward(4.0), Translation2d.kZero, 0.0, 1.0);
+                estimator.update(0.02, ORIGIN, forward(4.0), Translation2d.ZERO, 0.0, 1.0);
 
         // 0.005 * 4.0 + 0.995 * 2.0 - the wheels barely get a vote, which is the whole point.
         assertEquals(2.01, slipping.fieldVelocity().vx, 1e-9);
@@ -106,10 +106,10 @@ class PhysicalStateEstimatorTest {
     @Test
     void withNoSlipTheWheelsWinAlmostOutright() {
         PhysicalStateEstimator estimator = PhysicalStateEstimator.builder().build();
-        estimator.update(0.00, ORIGIN, forward(2.0), Translation2d.kZero, 0.0, 0.0);
+        estimator.update(0.00, ORIGIN, forward(2.0), Translation2d.ZERO, 0.0, 0.0);
 
         PhysicalRobotState rolling =
-                estimator.update(0.02, ORIGIN, forward(4.0), Translation2d.kZero, 0.0, 0.0);
+                estimator.update(0.02, ORIGIN, forward(4.0), Translation2d.ZERO, 0.0, 0.0);
 
         assertEquals(3.96, rolling.fieldVelocity().vx, 1e-9);   // 0.98 * 4 + 0.02 * 2
     }
@@ -134,7 +134,7 @@ class PhysicalStateEstimatorTest {
 
         // Driving straight ahead while facing +Y means moving along the field's +Y axis.
         PhysicalRobotState state =
-                estimator.update(0.0, facingLeft, forward(3.0), Translation2d.kZero, 0.0, 0.0);
+                estimator.update(0.0, facingLeft, forward(3.0), Translation2d.ZERO, 0.0, 0.0);
 
         assertEquals(0.0, state.fieldVelocity().vx, 1e-9);
         assertEquals(3.0, state.fieldVelocity().vy, 1e-9);
@@ -145,19 +145,19 @@ class PhysicalStateEstimatorTest {
         PhysicalStateEstimator estimator = PhysicalStateEstimator.builder().build();
 
         estimator.recordAbsoluteFix(0.0);
-        PhysicalRobotState fresh = estimator.update(0.0, ORIGIN, forward(2.0), Translation2d.kZero, 0.0, 0.0);
+        PhysicalRobotState fresh = estimator.update(0.0, ORIGIN, forward(2.0), Translation2d.ZERO, 0.0, 0.0);
         assertEquals(1.0, fresh.quality().confidence(), 1e-9);
         assertEquals(LocalizationQuality.Level.HIGH, fresh.quality().level());
 
         // Four seconds with no vision saturates the staleness penalty at 0.40.
-        PhysicalRobotState stale = estimator.update(4.0, ORIGIN, forward(2.0), Translation2d.kZero, 0.0, 0.0);
+        PhysicalRobotState stale = estimator.update(4.0, ORIGIN, forward(2.0), Translation2d.ZERO, 0.0, 0.0);
         assertEquals(0.60, stale.quality().confidence(), 1e-9);
         assertEquals(LocalizationQuality.Level.MODERATE, stale.quality().level());
         assertTrue(stale.quality().reason().startsWith("vision stale"));
 
         estimator.recordAbsoluteFix(4.0);
         PhysicalRobotState corrected =
-                estimator.update(4.02, ORIGIN, forward(2.0), Translation2d.kZero, 0.0, 0.0);
+                estimator.update(4.02, ORIGIN, forward(2.0), Translation2d.ZERO, 0.0, 0.0);
         assertTrue(corrected.quality().confidence() > 0.99);
     }
 
@@ -165,7 +165,7 @@ class PhysicalStateEstimatorTest {
     void aRobotThatHasNeverSeenATagSaysSo() {
         PhysicalStateEstimator estimator = PhysicalStateEstimator.builder().build();
 
-        PhysicalRobotState state = estimator.update(0.0, ORIGIN, forward(1.0), Translation2d.kZero, 0.0, 0.0);
+        PhysicalRobotState state = estimator.update(0.0, ORIGIN, forward(1.0), Translation2d.ZERO, 0.0, 0.0);
 
         assertEquals(0.60, state.quality().confidence(), 1e-9);
         assertEquals("no absolute fix yet", state.quality().reason());
@@ -176,10 +176,10 @@ class PhysicalStateEstimatorTest {
     void slipCostsConfidenceAndIsNamedAsTheReason() {
         PhysicalStateEstimator estimator = PhysicalStateEstimator.builder().build();
         estimator.recordAbsoluteFix(0.0);
-        estimator.update(0.00, ORIGIN, forward(2.0), Translation2d.kZero, 0.0, 0.0);
+        estimator.update(0.00, ORIGIN, forward(2.0), Translation2d.ZERO, 0.0, 0.0);
 
         PhysicalRobotState state =
-                estimator.update(0.02, ORIGIN, forward(2.0), Translation2d.kZero, 0.0, 1.0);
+                estimator.update(0.02, ORIGIN, forward(2.0), Translation2d.ZERO, 0.0, 1.0);
 
         assertTrue(state.quality().confidence() < 0.7);
         assertTrue(state.quality().reason().startsWith("wheel slip"));
@@ -191,9 +191,9 @@ class PhysicalStateEstimatorTest {
 
         estimator.recordAbsoluteFix(0.0);
         PhysicalRobotState confident =
-                estimator.update(0.0, ORIGIN, forward(2.0), Translation2d.kZero, 0.0, 0.0);
+                estimator.update(0.0, ORIGIN, forward(2.0), Translation2d.ZERO, 0.0, 0.0);
         PhysicalRobotState unsure =
-                estimator.update(10.0, ORIGIN, forward(2.0), Translation2d.kZero, 0.0, 0.0);
+                estimator.update(10.0, ORIGIN, forward(2.0), Translation2d.ZERO, 0.0, 0.0);
 
         assertTrue(unsure.quality().confidence() < confident.quality().confidence());
         assertTrue(unsure.quality().translationStdDevMeters() > confident.quality().translationStdDevMeters());
@@ -219,8 +219,8 @@ class PhysicalStateEstimatorTest {
     @Test
     void sensorDisagreementIsReportedForCalibrationHunting() {
         PhysicalStateEstimator estimator = PhysicalStateEstimator.builder().build();
-        estimator.update(0.00, ORIGIN, forward(2.0), Translation2d.kZero, 0.0, 0.0);
-        estimator.update(0.02, ORIGIN, forward(3.0), Translation2d.kZero, 0.0, 0.0);
+        estimator.update(0.00, ORIGIN, forward(2.0), Translation2d.ZERO, 0.0, 0.0);
+        estimator.update(0.02, ORIGIN, forward(3.0), Translation2d.ZERO, 0.0, 0.0);
 
         // Wheels say 3.0, IMU integration says 2.0.
         assertEquals(1.0, estimator.sensorDisagreementMps(), 1e-9);
@@ -231,7 +231,7 @@ class PhysicalStateEstimatorTest {
         PhysicalStateEstimator estimator = PhysicalStateEstimator.builder().build();
         Pose2d pose = new Pose2d(3.0, 4.0, Rotation2d.fromDegrees(45));
 
-        PhysicalRobotState state = estimator.update(0.0, pose, forward(2.0), Translation2d.kZero, 0.0, 0.0);
+        PhysicalRobotState state = estimator.update(0.0, pose, forward(2.0), Translation2d.ZERO, 0.0, 0.0);
 
         assertEquals(pose, state.pose());
     }
@@ -239,7 +239,7 @@ class PhysicalStateEstimatorTest {
     @Test
     void resetReturnsItToTheUnknownState() {
         PhysicalStateEstimator estimator = PhysicalStateEstimator.builder().build();
-        estimator.update(0.0, ORIGIN, forward(2.0), Translation2d.kZero, 0.0, 0.0);
+        estimator.update(0.0, ORIGIN, forward(2.0), Translation2d.ZERO, 0.0, 0.0);
         assertTrue(estimator.isInitialized());
 
         estimator.reset();

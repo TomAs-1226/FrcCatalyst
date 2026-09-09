@@ -270,6 +270,6 @@ public final class ArticulatedRobotModel {
 
     /** The rotation-free identity frame, exposed so callers can compose their own transforms. */
     public static Transform3d identity() {
-        return new Transform3d(Translation3d.kZero, Rotation3d.kZero);
+        return new Transform3d(Translation3d.ZERO, Rotation3d.ZERO);
     }
 }

@@ -142,8 +142,8 @@ public final class MechanismModel {
         // The position goes in the transform, not the CoM offset, so that poseOf(name) reports where
         // the link actually is. Putting it in the offset would give the right centre of mass and a
         // link that appears to sit at the robot origin.
-        Transform3d at = new Transform3d(position, Rotation3d.kZero);
-        return new MechanismModel(name, null, massKg, () -> at, Translation3d.kZero);
+        Transform3d at = new Transform3d(position, Rotation3d.ZERO);
+        return new MechanismModel(name, null, massKg, () -> at, Translation3d.ZERO);
     }
 
     private static void requirePositiveMass(String name, double massKg) {
@@ -158,8 +158,8 @@ public final class MechanismModel {
         final String name;
         final double massKg;
         String parentName;
-        Translation3d mountOffset = Translation3d.kZero;
-        Translation3d comOffset = Translation3d.kZero;
+        Translation3d mountOffset = Translation3d.ZERO;
+        Translation3d comOffset = Translation3d.ZERO;
 
         Base(String name, double massKg) {
             this.name = name;
@@ -233,7 +233,7 @@ public final class MechanismModel {
             Translation3d mount = mountOffset;
             DoubleSupplier live = position;
             return new MechanismModel(name, parentName, massKg,
-                    () -> new Transform3d(mount.plus(unit.times(live.getAsDouble())), Rotation3d.kZero),
+                    () -> new Transform3d(mount.plus(unit.times(live.getAsDouble())), Rotation3d.ZERO),
                     comOffset);
         }
     }

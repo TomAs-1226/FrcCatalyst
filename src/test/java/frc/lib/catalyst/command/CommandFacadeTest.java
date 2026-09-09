@@ -40,8 +40,17 @@ class CommandFacadeTest {
     /** A mechanism with no behaviour, to check that requirements are carried and honoured. */
     // Mechanism is a class in the released alpha-6, not an interface, so a fixture extends it and
     // lets it hold the name rather than implementing getName().
-    private static final class Mech extends Mechanism {
-        Mech(String name) { super(name); }
+    /**
+     * A bare mechanism, which on alpha-7 means implementing an interface rather than extending a
+     * class. Mechanism has changed shape across the alphas; the name has to live in a field here
+     * because an interface has nowhere to keep one.
+     */
+    private static final class Mech implements Mechanism {
+        private final String name;
+
+        Mech(String name) { this.name = name; }
+
+        @Override public String getName() { return name; }
     }
 
     @BeforeEach

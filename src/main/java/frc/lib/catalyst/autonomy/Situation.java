@@ -59,7 +59,7 @@ public record Situation(
         }
 
         static Localization unknown() {
-            return new Localization(Pose2d.kZero, 0.0, Level.LOST, Double.POSITIVE_INFINITY, false);
+            return new Localization(Pose2d.ZERO, 0.0, Level.LOST, Double.POSITIVE_INFINITY, false);
         }
     }
 

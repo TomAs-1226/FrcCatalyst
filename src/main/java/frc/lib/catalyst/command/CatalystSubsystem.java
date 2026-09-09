@@ -29,26 +29,40 @@ import org.wpilib.framework.RobotBase;
  *
  * @since 2.0.0
  */
-public abstract class CatalystSubsystem extends Mechanism {
+public abstract class CatalystSubsystem implements Mechanism {
+
+    /**
+     * The name this mechanism reports, or null to let the interface generate one.
+     *
+     * <p>Held here because {@code Mechanism} is an interface again in alpha-7 and an interface has
+     * no field to put it in. The named constructor still exists and still behaves the same way, so
+     * nothing a team wrote changes.
+     */
+    private final String name;
 
     /**
      * A mechanism with a generated name.
      *
-     * <p>This is a class rather than an interface on this branch, and not by choice: Commands v3's
-     * {@code Mechanism} is an interface in WPILib's development snapshot and a CLASS in the released
-     * alpha-6, and an interface cannot extend a class. The released build is the one Systemcore OS
-     * beta 13 will actually run, so this follows it.
+     * <p>{@code Mechanism} has changed shape twice across the 2027 alphas: an interface in the
+     * development snapshot, a CLASS in the released alpha-6, and an interface again in alpha-7. This
+     * follows whichever the released build says, because that is what the paired Systemcore OS runs
+     * - alpha-7 with OS beta 14 here.
      *
-     * <p>For a team the difference is invisible: mechanisms extend {@code CatalystMechanism}, which
-     * extends this, exactly as before.
+     * <p>For a team the difference is invisible either way: mechanisms extend
+     * {@code CatalystMechanism}, which extends this, exactly as before.
      */
     protected CatalystSubsystem() {
-        super();
+        this.name = null;
     }
 
     /** A mechanism with an explicit name, as it appears in telemetry and the command list. */
     protected CatalystSubsystem(String name) {
-        super(name);
+        this.name = name;
+    }
+
+    @Override
+    public String getName() {
+        return name != null ? name : Mechanism.super.getName();
     }
 
     /** Run {@code action} every loop until the command is cancelled. Requires this mechanism. */

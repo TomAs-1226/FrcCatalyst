@@ -36,7 +36,7 @@ class GamePieceContactTest {
 
     /** A robot longer than it is wide, which is what makes one branch reachable. */
     private static Pose2d robot() {
-        return new Pose2d(1.0, 4.0, Rotation2d.kZero);
+        return new Pose2d(1.0, 4.0, Rotation2d.ZERO);
     }
 
     @Test

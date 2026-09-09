@@ -93,7 +93,7 @@ public final class StabilityModel {
      */
     public Translation2d zeroMomentPoint(Translation2d robotRelativeAccel) {
         Translation3d com = robot.centerOfMass();
-        Translation2d accel = robotRelativeAccel == null ? Translation2d.kZero : robotRelativeAccel;
+        Translation2d accel = robotRelativeAccel == null ? Translation2d.ZERO : robotRelativeAccel;
         double lever = com.getZ() / RobotModel.GRAVITY;
         return new Translation2d(com.getX() - lever * accel.getX(),
                                  com.getY() - lever * accel.getY());
@@ -210,7 +210,7 @@ public final class StabilityModel {
 
     /** Rotate a field-relative vector into the robot frame. */
     public static Translation2d toRobotFrame(Translation2d fieldVector, Rotation2d heading) {
-        if (fieldVector == null) return Translation2d.kZero;
+        if (fieldVector == null) return Translation2d.ZERO;
         return fieldVector.rotateBy(heading.unaryMinus());
     }
 
@@ -219,7 +219,7 @@ public final class StabilityModel {
         return String.format(Locale.ROOT,
                 "StabilityModel[CoM h=%.3f m, worst-case tip limit %.1f m/s^2, margin at rest %.3f m]",
                 robot.centerOfMassHeightMeters(), worstCaseAccelerationMpsSq(),
-                tipMarginMeters(Translation2d.kZero));
+                tipMarginMeters(Translation2d.ZERO));
     }
 
     /**

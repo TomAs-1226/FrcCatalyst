@@ -149,7 +149,7 @@ class ContactTest {
     void aNormalWithNoDirectionIsRejected() {
         assertThrows(IllegalArgumentException.class,
                 () -> ContactResolver.resolveAgainstStatic(
-                        new Translation3d(0, 0, -1), Translation3d.kZero, 1.0,
+                        new Translation3d(0, 0, -1), Translation3d.ZERO, 1.0,
                         ContactMaterial.CARPET, ContactMaterial.CARPET));
     }
 
@@ -232,7 +232,7 @@ class ContactTest {
                 .build();
 
         // Robot just behind it, driving forward in +x.
-        Pose2d robot = new Pose2d(4.0, 4.0, Rotation2d.kZero);
+        Pose2d robot = new Pose2d(4.0, 4.0, Rotation2d.ZERO);
         boolean touched = piece.interactWithRobot(robot, new Translation2d(2.0, 0), 0.45, 0.45);
 
         assertTrue(touched, "the bumper is overlapping the ball, so this is a contact");
@@ -245,7 +245,7 @@ class ContactTest {
                 .position(new Translation3d(10.0, 4.0, 0.12))
                 .build();
         boolean touched = piece.interactWithRobot(
-                new Pose2d(4.0, 4.0, Rotation2d.kZero), new Translation2d(2.0, 0), 0.45, 0.45);
+                new Pose2d(4.0, 4.0, Rotation2d.ZERO), new Translation2d(2.0, 0), 0.45, 0.45);
         assertFalse(touched);
         assertEquals(0.0, piece.velocity().getNorm(), EPS);
     }
@@ -256,7 +256,7 @@ class ContactTest {
                 .position(new Translation3d(4.5, 4.0, 0.12))
                 .build();
         piece.interactWithRobot(
-                new Pose2d(4.0, 4.0, Rotation2d.kZero), Translation2d.kZero, 0.45, 0.45);
+                new Pose2d(4.0, 4.0, Rotation2d.ZERO), Translation2d.ZERO, 0.45, 0.45);
         assertTrue(piece.velocity().getX() >= -1e-9, "resting contact must never pull the piece inward");
     }
 

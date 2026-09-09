@@ -47,7 +47,7 @@ class HealthMonitorSelfTickTest {
     void setUp() {
         HealthMonitor.getInstance().clear();
         SystemCoreStatus.useSource(SystemCoreSim.healthy().withAvailable(false));
-        assertTrue(HAL.initialize(500, 0), "no HAL, no Driver Station state");
+        assertTrue(HAL.initialize(), "no HAL, no Driver Station state");
     }
 
     @AfterEach

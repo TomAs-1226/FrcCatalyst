@@ -18,7 +18,7 @@ class StandaloneVisionPoseTest {
     void startsWithNoPose() {
         StandaloneVisionPose p = new StandaloneVisionPose();
         assertFalse(p.hasPose());
-        assertEquals(Pose2d.kZero, p.getPose());
+        assertEquals(Pose2d.ZERO, p.getPose());
         assertEquals(0, p.measurementCount());
         assertTrue(p.lastMeasurementTimestamp().isEmpty());
         assertEquals(0.0, p.getChassisSpeeds().vx);

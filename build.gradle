@@ -76,10 +76,10 @@ java {
 // failed to resolve a single org.wpilib coordinate.
 // ---------------------------------------------------------------------------
 ext {
-    wpilibVersion = '2027.0.0-alpha-6'
+    wpilibVersion = '2027.0.0-alpha-7'
     phoenixVersion = '26.50.0-alpha-1'
     pathplannerVersion = '2027.0.0-alpha-3'
-    limelightVersion = '2.0.0-beta2'
+    limelightVersion = '2.0.0-beta8-alpha7'
 }
 
 repositories {
@@ -136,20 +136,14 @@ sourceSets {
         java {
             // org.wpilib.telemetry - CatalystLog falls back to NetworkTablesSink, which is the
             // sink this library used before 2027 and is still fully tested.
-            exclude 'frc/lib/catalyst/logging/WpiTelemetrySink.java'
-            exclude 'frc/lib/catalyst/util/TelemetryUtil.java'
-            exclude 'frc/lib/catalyst/util/MechanismVisualizer.java'
 
             // DriverStationDisplay does not exist in the release at all, and DriverBoard is a
             // wrapper around it.
-            exclude 'frc/lib/catalyst/driverstation/DriverBoard.java'
         }
     }
     test {
         java {
             // Tests for the classes excluded above.
-            exclude 'frc/lib/catalyst/logging/WpiTelemetrySinkTest.java'
-            exclude 'frc/lib/catalyst/driverstation/DriverBoardTest.java'
         }
     }
 }
@@ -177,6 +171,10 @@ dependencies {
     api "org.wpilib.hal:hal-java:${wpilibVersion}"
     api "org.wpilib.apriltag:apriltag-java:${wpilibVersion}"
     api "org.wpilib.datalog:datalog-java:${wpilibVersion}"
+    // New in the alpha-7 release. On alpha-6 these existed only in the development snapshot, which
+    // is why five classes were excluded from the source set below; they come back with these.
+    api "org.wpilib.telemetry:telemetry-java:${wpilibVersion}"
+    api "org.wpilib.tunables:tunables-java:${wpilibVersion}"
 
     // New in 2027. `telemetry` is what replaced SmartDashboard and is where Catalyst's logging
     // now lands (see WpiTelemetrySink); `tunables` is what replaced SendableChooser and backs
@@ -186,7 +184,7 @@ dependencies {
     // Commands v3 replaces wpilibNewCommands. Catalyst's own command-facing API is unchanged for
     // teams - Superstructure, the mechanism builders and the binding DSL keep their signatures.
     // v3 is an implementation detail below that line.
-    api "org.wpilib:commands3-java:${wpilibVersion}"
+    api "org.wpilib:commandsv3-java:${wpilibVersion}"
 
     // Commands v2, present only so PathPlanner works.
     //
@@ -227,6 +225,18 @@ dependencies {
     // 2027's poms are flat - no transitive dependencies - so anything WPILib needs at runtime has to
     // be declared here or it does not exist. Found by running the example rather than by testing it.
     runtimeOnly 'us.hebi.quickbuf:quickbuf-runtime:1.4'
+
+    // The same trap as quickbuf, found the same way and one alpha later. org.wpilib.tunables reads
+    // and writes its option lists as JSON through avaje-jsonb, and 2027's poms are flat - the
+    // tunables pom declares no dependencies at all - so nothing pulls it in. Without this,
+    // constructing an AutoSelector throws NoClassDefFoundError: io/avaje/json/JsonException from
+    // Selectable's constructor, on a robot, at startup.
+    //
+    // runtimeOnly rather than testRuntimeOnly, deliberately: as a test-only dependency every test
+    // here would pass while every consumer of the published jar crashed. That exact mistake is
+    // recorded above for quickbuf; this is it recurring on a new package.
+    runtimeOnly 'io.avaje:avaje-jsonb:3.11'
+    runtimeOnly 'io.avaje:avaje-json-core:3.11'
 
     // Only the tests name the type. TelemetryBackend's entries declare logProtobuf(T, Protobuf),
     // so a fake backend has to implement it, and Protobuf's signature reaches into quickbuf. The
