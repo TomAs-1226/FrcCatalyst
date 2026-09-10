@@ -11,32 +11,44 @@
          heading", a reader has to stop and work out which. -->
 <style>
   :root {
-    /* Ground stack. Panels lift by sitting one step lighter than the page, not by casting
-       a shadow, so the whole site can stay flat and still read as layered. */
-    --cat-ink-900:  #0b0f1a;
-    --cat-ink-800:  #111726;
-    --cat-ink-700:  #182034;
+    /* REV 2 - THE DRAWING SET.
 
-    --cat-hair:     rgba(255, 255, 255, 0.07);
-    --cat-hair-str: rgba(255, 255, 255, 0.13);
+       The site is the Plotter print: the same drafting sheet as banner.svg and
+       social-card.svg, run on a pen plotter with white ink. Mylar and Graphite swap roles
+       wholesale and nothing else moves, which is why every rule below still resolves.
 
-    /* The one accent. -lt is hover, -dk is pressed; neither is a second colour. */
-    --cat-coral:    #e94560;
-    --cat-coral-lt: #ff6b81;
-    --cat-coral-dk: #c0314e;
-    /* The aurora wash. Spelled out rather than derived, so the one place coral appears at
-       low alpha is declared here with the rest and not buried in a gradient. */
-    --cat-wash:     rgba(233, 69, 96, 0.05);
+       Token NAMES are unchanged from Rev 1 on purpose. They are shared with CatalystApp and
+       CatalystConsole, so re-cutting the values here re-cuts three applications at once, and
+       every one of the 700 rules under this block keeps working without being touched. */
 
-    --cat-text:     #d5dbe8;
-    --cat-white:    #f4f7fc;
-    --cat-muted:    #7f8aa3;
+    /* Ground stack. Panels lift by sitting one step lighter than the sheet, never by casting
+       a shadow - a drawing has no shadows, only line weights. */
+    --cat-ink-900:  #0D100E;   /* Plotter: the sheet */
+    --cat-ink-800:  #141815;
+    --cat-ink-700:  #1C211D;
+
+    /* Hairlines are the annotation layer, and they are the only thing that separates
+       surfaces. Two weights, matching a drawing's: extension line and geometry line. */
+    --cat-hair:     rgba(228, 231, 225, 0.10);
+    --cat-hair-str: rgba(228, 231, 225, 0.20);
+
+    /* The one chromatic colour in the system, and it means exactly one thing: revision.
+       The delta mark, the active nav item, the primary action. Never body copy. */
+    --cat-coral:    #E9583D;   /* Vermilion, on Plotter */
+    --cat-coral-lt: #FF7358;
+    --cat-coral-dk: #C4432C;
+    --cat-wash:     rgba(233, 88, 61, 0.045);
+
+    --cat-text:     #C9CFC7;   /* Mylar, dropped to reading weight */
+    --cat-white:    #E4E7E1;   /* Mylar proper: headings and geometry */
+    --cat-muted:    #98A09A;   /* Rule: dimension text, field labels, captions */
+    --cat-ghost:    #2A2F2B;   /* Underlay: Rev 1, disabled, the drafting grid */
 
     /* State only. Never reach for these to make something look nice. */
-    --cat-ok:       #4ade80;
-    --cat-warn:     #fbbf24;
-    --cat-bad:      #f87171;
-    --cat-info:     #60a5fa;
+    --cat-ok:       #6FBF73;
+    --cat-warn:     #D9A441;
+    --cat-bad:      #E0574B;
+    --cat-info:     #7FA8C9;
 
     /* Type scale. Anything outside this list is a mistake, not a decision. */
     --cat-fs-caption: 12px;
@@ -44,7 +56,7 @@
     --cat-fs-body:    15px;
     --cat-fs-h3:      18px;
     --cat-fs-h2:      24px;
-    --cat-fs-h1:      32px;
+    --cat-fs-h1:      34px;
 
     /* 4 px grid. --cat-pad is a panel's inside, --cat-gap is between siblings,
        --cat-group is between groups of them. */
@@ -52,8 +64,10 @@
     --cat-gap:   12px;
     --cat-group: 24px;
 
-    --cat-radius:    10px;
-    --cat-radius-sm: 6px;
+    /* A drawing has square corners. 2px is the largest radius in the system, and it exists
+       only so a 1px hairline does not alias into a hard point at the join. */
+    --cat-radius:    2px;
+    --cat-radius-sm: 2px;
 
     --cat-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
                 "Liberation Mono", monospace;
@@ -759,5 +773,170 @@
 
   ::-webkit-scrollbar-thumb:hover {
     background: var(--cat-hair-str);
+  }
+
+  /* ==========================================================================
+     12. The drawing set
+
+     Rev 2's visual language, applied over the sections above. Three ideas do all the work:
+
+       LINE TYPE IS A CLAIM.  Continuous geometry is what exists. Phantom dash is what ships
+       but is not engaged. Ghost is the previous revision. Nothing is styled dashed because
+       dashes look technical - a dashed border on this site means the thing it surrounds is
+       not yet true.
+
+       THE FILL RULE.  A filled mark means it was proven; an unfilled phantom mark means it
+       was only attempted. Lifted from StateMachineCore's own invariant, where current() is
+       only ever a state whose arrival every gating mechanism confirmed. This is why the
+       "not yet driven on a robot" status is an unticked field rather than an apology.
+
+       DEPTH BY LINE WEIGHT, NEVER BY SHADOW.  A drawing has no shadows. Anything that was
+       lifting a panel with a box-shadow now lifts it with a hairline and a ground step.
+     ========================================================================== */
+
+  .main-content h1,
+  .main-content h2 {
+    letter-spacing: -0.01em;
+  }
+
+  /* Section marks. A drawing numbers its sections A-A, B-B; this site numbers them the same
+     way, in the margin, so a heading carries a locator instead of an ornament. */
+  .main-content h2::before {
+    content: "";
+    display: block;
+    width: 34px;
+    height: 1px;
+    background: var(--cat-coral);
+    margin-bottom: 10px;
+  }
+
+  /* Tables become title blocks: hairline-ruled, no zebra, labels in Rule caps, figures
+     tabular so a column of numbers lines up on the decimal the way a drawing's do. */
+  .main-content table {
+    border: 1px solid var(--cat-hair-str);
+    border-radius: var(--cat-radius);
+    box-shadow: none;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .main-content thead th {
+    font-family: var(--cat-mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--cat-muted);
+    background: transparent;
+    border-bottom: 1px solid var(--cat-hair-str);
+  }
+
+  .main-content tbody tr:nth-child(2n) { background: transparent; }
+  .main-content tbody td { border-bottom: 1px solid var(--cat-hair); }
+  .main-content tbody tr:last-child td { border-bottom: 0; }
+
+  /* Code blocks are detail views: a bubble and a leader, not a filled panel. */
+  .main-content div.highlighter-rouge,
+  .main-content pre.highlight {
+    box-shadow: none;
+    border: 1px solid var(--cat-hair);
+    border-left: 2px solid var(--cat-hair-str);
+    border-radius: var(--cat-radius);
+  }
+
+  /* Callouts are general notes. A drawing files its notes in a numbered list at the bottom
+     of the sheet, in the same weight as everything else - not in a coloured box competing
+     with the geometry. The left rule is the only thing that distinguishes them. */
+  .main-content .warning,
+  .main-content .note,
+  .main-content .important,
+  .main-content .highlight-callout {
+    box-shadow: none;
+    border-radius: 0;
+    border-left-width: 2px;
+    background: var(--cat-ink-800);
+  }
+
+  /* ---- The fill rule, as two utility classes ----------------------------------------
+     Use `.proven` for anything measured and `.attempted` for anything only tried. They are
+     deliberately the same size and weight as each other: a checklist with one box left, not
+     a badge and a disclaimer. Written as spans in Markdown:
+       <span class="proven">867 tests, 0 failures</span>
+       <span class="attempted">driven on a robot</span> */
+  .proven,
+  .attempted {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--cat-mono);
+    font-size: var(--cat-fs-small);
+    letter-spacing: 0.02em;
+  }
+
+  .proven { color: var(--cat-white); }
+  .attempted { color: var(--cat-muted); }
+
+  .proven::before,
+  .attempted::before {
+    content: "";
+    width: 10px;
+    height: 10px;
+    flex: none;
+  }
+
+  .proven::before {
+    background: var(--cat-white);
+  }
+
+  .attempted::before {
+    background: transparent;
+    border: 1.5px dashed var(--cat-coral);
+  }
+
+  /* ---- Revision block ---------------------------------------------------------------
+     Rev 1 is never deleted from the sheet. Where a page states what changed, the previous
+     revision stays visible and demoted rather than being dropped:
+       <span class="rev-1">ChassisSpeeds</span> <span class="rev-2">ChassisVelocities</span> */
+  .rev-1 {
+    font-family: var(--cat-mono);
+    color: var(--cat-ghost);
+    text-decoration: line-through;
+    text-decoration-color: var(--cat-hair-str);
+  }
+
+  .rev-2 {
+    font-family: var(--cat-mono);
+    color: var(--cat-white);
+  }
+
+  .rev-2::before {
+    content: "\2192\00a0";
+    color: var(--cat-coral);
+  }
+
+  /* ---- Sheet margin ------------------------------------------------------------------
+     The drafting grid, at the same 32px pitch as the sheets, washed to the point where it
+     is ground rather than signal. Dropped entirely on narrow viewports, where it would only
+     compete with the text - the same reduction rule the 200px thumbnail follows. */
+  @media (min-width: 1100px) {
+    body {
+      background-image:
+        linear-gradient(rgba(228, 231, 225, 0.032) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(228, 231, 225, 0.032) 1px, transparent 1px),
+        radial-gradient(900px 560px at 106% -10%, var(--cat-wash), transparent 62%);
+      background-size: 32px 32px, 32px 32px, auto;
+      background-attachment: fixed;
+      background-blend-mode: normal;
+    }
+
+    .side-bar,
+    .main {
+      background-color: var(--cat-ink-900);
+    }
+
+    .main { background-color: transparent; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
   }
 </style>

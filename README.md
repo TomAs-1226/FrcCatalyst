@@ -17,9 +17,16 @@
   <img src="https://img.shields.io/badge/LimelightLib-2.0.0--beta8--alpha7-182034?style=flat-square&labelColor=0b0f1a" alt="LimelightLib 2.0.0-beta8-alpha7"/>
 </p>
 
-**A Java library for FRC robots on CTRE Phoenix 6** — mechanisms, swerve, a whole-robot state
-machine, autonomy and telemetry, configured through builders instead of rewritten every season.
-This branch is Catalyst 2.x: WPILib 2027 on Limelight Systemcore, a hard cut with no 2026 shims.
+**The whole-robot library for FRC, on CTRE Phoenix 6.** Mechanisms, swerve, a state machine for the
+entire robot, physics, autonomy and telemetry — configured through builders instead of rewritten
+every season.
+
+Catalyst 2.0 is Rev 2 of that library. New computer, new JVM, new command framework underneath —
+and **974 of its 986 public methods kept their name.** Of the twelve that did not, nine were
+Commands v2 lifecycle overrides that no team ever called (`initialize`, `execute`, `end`,
+`isFinished`); the other three are `getServo`, `getModuleStates` and `addPhotonCamera`, all in the
+migration notes. That is what a second generation is supposed to cost you, and it is the number to
+hold this release to.
 
 ```gradle
 implementation 'com.github.TomAs-1226:FrcCatalyst:v2.0.0-beta.1'
@@ -27,10 +34,17 @@ implementation 'com.github.TomAs-1226:FrcCatalyst:v2.0.0-beta.1'
 
 ## What state this is in
 
-**`2.0.0-beta.1` has never been driven on a robot.** It has run on a bench — deploy, OpMode enable,
-a Pigeon on `can_s0`, the onboard IMU, the board's own status topics. Swerve, mechanisms, autos and
-vision have not been driven by hardware. 867 tests pass with 0 failures, and that is a fact about
-the code, not a fact about a robot.
+A drawing files status in the title block, so this one does too. A ticked box was measured. An
+unticked box was not.
+
+| | | |
+|:--|:--|:--|
+| **&#9632;** | **Tested** | 867 tests, 0 failures, across 93 test classes |
+| **&#9632;** | **Run on a bench** | deploy, OpMode enable, a Pigeon on `can_s0`, the onboard IMU, the board's own status topics |
+| **&#9744;** | **Driven on a robot** | not yet — swerve, mechanisms, autos and vision have not been driven by hardware |
+
+867 passing tests is a fact about the code, not a fact about a robot. Two boxes ticked and one not
+is the entire claim being made here; nothing below widens it.
 
 It is a beta because of what it stands on. It is pinned to WPILib `2027.0.0-alpha-7`, which has
 already changed `Mechanism` from an interface to a class and back across three builds, and it

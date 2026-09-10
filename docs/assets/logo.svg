@@ -1,39 +1,37 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Catalyst mark. This is the same construction as the panel-and-bolt on banner.svg,
-     enlarged, so the sidebar icon and the social card read as one identity.
+<!-- Catalyst mark, Rev 2.
+
+     The same part, redrawn. The bolt geometry is unchanged from Rev 1 - it is the one thing on
+     the sheet that did not need re-cutting - but it is now drawn in the drawing-set language:
+     continuous vermilion geometry on drafting film, inside a sheet border, with corner datum
+     ticks. Continuity is the point. A second generation that arrives as a stranger is a rebrand,
+     not a revision.
 
      No lettering. just-the-docs renders `logo:` as a background-image inside a 60px-tall
      .site-title, so a wordmark drawn on a 512 canvas arrives about 7px tall and is a smudge.
-     A mark survives that, and survives a 16px favicon.
+     A mark survives that, and survives a 16px favicon - which is also why the ghosted Rev 1
+     outline is set at a weight that resolves to nothing rather than to mud when it is scaled down.
 
-     Tokens: #111726 panel, rgba(255,255,255,0.13/0.07) hairlines, #e94560 the one accent. -->
+     Tokens: #E4E7E1 Mylar, #1A1E1B Graphite, #C4CAC3 Underlay, #D6412A Vermilion. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512"
-     role="img" aria-label="FrcCatalyst">
-  <title>FrcCatalyst</title>
+     role="img" aria-label="Catalyst">
+  <title>Catalyst</title>
 
-  <defs>
-    <clipPath id="markClip">
-      <rect x="0" y="0" width="512" height="512" rx="128"/>
-    </clipPath>
-    <radialGradient id="markWash" cx="82%" cy="10%" r="78%">
-      <stop offset="0%" stop-color="#e94560" stop-opacity="0.10"/>
-      <stop offset="100%" stop-color="#e94560" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
+  <rect x="0" y="0" width="512" height="512" rx="12" fill="#E4E7E1"/>
+  <rect x="24.5" y="24.5" width="463" height="463" rx="4" fill="none" stroke="#1A1E1B" stroke-width="1"/>
 
-  <g clip-path="url(#markClip)">
-    <rect x="0" y="0" width="512" height="512" fill="#111726"/>
-    <rect x="0" y="0" width="512" height="512" fill="url(#markWash)"/>
+  <!-- corner datum ticks: the sheet's own origin marks -->
+  <g stroke="#5C635E" stroke-width="2" opacity="0.55">
+    <path d="M24 64h28M64 24v28M488 448h-28M448 488v-28"/>
   </g>
 
-  <!-- Depth by ground and hairline, never by shadow. The inner ring is craft at 512 and
-       vanishes cleanly at favicon size instead of turning into mud. -->
-  <rect x="32" y="32" width="448" height="448" rx="96"
-        fill="none" stroke="#ffffff" stroke-opacity="0.07"/>
-  <rect x="0.5" y="0.5" width="511" height="511" rx="127.5"
-        fill="none" stroke="#ffffff" stroke-opacity="0.13"/>
+  <!-- Rev 1 ghosted behind, offset by the width of the change -->
+  <g transform="translate(113.9 83.2) scale(13.4)" opacity="0.85">
+    <path d="M13 2L3 14h7v8l10-12h-7V2z" fill="none" stroke="#C4CAC3" stroke-width="0.55"/>
+  </g>
 
+  <!-- Rev 2: continuous geometry, filled -->
   <g transform="translate(101.9 95.2) scale(13.4)">
-    <path d="M13 2L3 14h7v8l10-12h-7V2z" fill="#e94560"/>
+    <path d="M13 2L3 14h7v8l10-12h-7V2z" fill="#D6412A"/>
   </g>
 </svg>
