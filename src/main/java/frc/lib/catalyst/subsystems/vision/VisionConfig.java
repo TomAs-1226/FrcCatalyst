@@ -125,7 +125,9 @@ public class VisionConfig {
 
         // Field dimensions
         private double fieldLengthMeters = 16.54;
-        private double fieldWidthMeters = 8.21;
+        // REBUILT 2026, matching AllianceFlipUtil and CollisionField. Was 8.21, the REEFSCAPE
+        // width, which put every field-bounds vision reject 14 cm off on one edge.
+        private double fieldWidthMeters = 8.07;
         private double fieldBoundsMargin = 0.5;
 
         /**
@@ -342,7 +344,7 @@ public class VisionConfig {
 
         /**
          * Set field dimensions for off-field rejection.
-         * Defaults to 2025+ FRC field (16.54m x 8.21m).
+         * Defaults to the REBUILT 2026 field, 16.54 m x 8.07 m.
          * @param lengthMeters field length (X dimension)
          * @param widthMeters field width (Y dimension)
          */

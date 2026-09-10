@@ -21,59 +21,38 @@ java {
 // commands v3 (coroutines on JDK continuations, which is why Java 25 above is a hard requirement
 // and not a preference).
 //
-// MEASURED ON HARDWARE 2026-08-26: A BUILD ON THIS SNAPSHOT WILL NOT START ON SYSTEMCORE OS BETA 13.
+// PINNED TO WPILIB 2027.0.0-alpha-7, PAIRED WITH SYSTEMCORE OS BETA 14.
 //
-// Deployed to a real board (limelightosr-2027.0.0-beta13, CM5 Rev 1.0) and it aborts immediately,
-// before any robot code runs:
+// The pairing is declared upstream rather than inferred: the OS release is titled
+// "(REQUIRES WPILIB ALPHA 7)" - limelightosr-2027.0.0-beta14-210, published 2026-09-02, one day
+// after alpha-7 itself. They move together. A robot flashed to beta 13 will not run a build made
+// against alpha-7, and the failure is not graceful: on the alpha-6/beta-13 mismatch the program
+// aborted before any robot code ran, with "MRC API version mismatch", and systemd restarted it 22
+// times in two minutes. Check the OS image before blaming the code.
 //
-//     NT: CONNECTED NT4 to 127.0.0.1 port 6810
-//     Error: MRC API version mismatch. Restarting app and retrying...
-//     terminate called without an active exception
-//     robot.service: Main process exited, code=exited, status=134
+// What alpha-7 settled, all of which the alpha-6 pin had to work around:
 //
-// systemd restarted it 22 times in a couple of minutes. A minimal robot program built on the
-// RELEASED alpha-6, deployed to the same board over the same path minutes later, ran cleanly at
-// 50 Hz with zero restarts - so the variable is the WPILib version and nothing else.
+//   * It is on a PUBLIC maven. Every coordinate here resolves from frcmaven/release - verified,
+//     not assumed. Alpha-6's release was on no public maven at all, so JitPack could not build
+//     this library and a tag cut from that branch could only be built from source on a machine
+//     with the installer. That is over: tags are installable through the published vendordep again.
+//   * org.wpilib.telemetry and .tunables exist in a release for the first time, so WpiTelemetrySink,
+//     TelemetryUtil, MechanismVisualizer and DriverBoard are back in the source set below instead
+//     of excluded from it.
+//   * Commands v3's Mechanism is an INTERFACE again. It was an interface in the development
+//     snapshot, a class in released alpha-6, and is an interface once more here. CatalystSubsystem
+//     follows whatever the released build says, because that is what the paired OS runs.
+//   * The commands artifact is `commandsv3-java`. Alpha-6's release called it `commands3-java`.
 //
-// That closes a loop the compile-time findings below could not. The release cannot build this
-// library, because it has no org.wpilib.telemetry, tunables or fields. The snapshot builds it and
-// cannot run on the shipping OS. Catalyst 2.x is currently pinned to a WPILib that no released
-// Systemcore OS will accept, which means it does not run on hardware at all today - the desktop
-// tests are green and the robot never gets past startup.
+// Two traps worth keeping, because both cost real time and neither announces itself:
 //
-// Nothing here is a code fix. The pairing has to come from upstream: alpha-7 with OS beta 14. Until
-// then this is the honest state, and it belongs at the top of the file rather than in a changelog.
+//   The Java package is `org.wpilib.tunable`, SINGULAR. Only the maven group id is plural
+//   (`org.wpilib.tunables:tunables-java`). The obvious import does not resolve.
 //
-// The version below is the RELEASED WPILib 2027 alpha-6, the build Systemcore OS beta 13 runs.
-// That is the whole reason it is pinned here, and it costs something real - read on before changing
-// it, because this file argued the opposite for a while after the code had already moved.
-//
-// Two candidate targets exist and they are not interchangeable:
-//
-//   2027.0.0-alpha-6                      the release. What the installer puts on a laptop and what
-//                                         the OS image runs. NOT on any public maven - not
-//                                         frcmaven/release, not frcmaven/development. Verified 404
-//                                         on both.
-//   2027.0.0-alpha-6-360-gcaf0fb2dc       a newer CI snapshot on frcmaven/development. Publicly
-//                                         resolvable. Carries org.wpilib.telemetry, .tunables and
-//                                         .fields, which the release does not, and makes Commands
-//                                         v3's Mechanism an interface where the release makes it a
-//                                         class. Its commands-v3 coordinate is commandsv3-java, not
-//                                         commands3-java.
-//
-// Targeting the release is what lets the jar run on the robot in front of us, and the four classes
-// that cannot compile against it are excluded from the source set below rather than deleted.
-//
-// THE COST, which has to be stated rather than discovered: because the release is not on a public
-// maven, JitPack cannot build this library, so a tag cut from this branch is not installable through
-// the published vendordep - it can only be built from source on a machine that has the WPILib 2027
-// installer. v2.0.0-alpha.1 was cut against the snapshot and IS on JitPack; every tag since needs a
-// source build. Re-pin to alpha-7 when it is published on the development maven, which resolves
-// both problems at once - Systemcore OS beta 14 requires alpha-7, and until then this branch pairs
-// with OS beta 13.
-//
-// Established by reading every jar in the installer's local maven, and by a JitPack build that
-// failed to resolve a single org.wpilib coordinate.
+//   2027's poms are flat - they declare no transitive dependencies whatsoever. Anything a WPILib
+//   jar needs at runtime has to be named here explicitly or it is simply absent on a robot. See
+//   the quickbuf and avaje-jsonb entries below; both were found as a NoClassDefFoundError rather
+//   than as a build failure, which is the expensive way round.
 // ---------------------------------------------------------------------------
 ext {
     wpilibVersion = '2027.0.0-alpha-7'
@@ -116,38 +95,15 @@ repositories {
     maven { url "https://limelightvision.github.io/limelightlib-public/maven/" }
 }
 
-// Source that cannot exist on the released alpha-6.
+// Source that cannot compile here.
 //
-// org.wpilib.telemetry and .tunables are not in that build - no class named Telemetry* or Tunable*
-// appears in any jar it ships. The files below are the only ones that touch them, and each has a
-// working alternative already in the tree: CatalystLog defaults to NetworkTablesSink.
+// One file, for one reason: PhotonVision has no 2027 vendordep at all, so PhotonSource cannot
+// build. It is excluded rather than deleted, so it returns unchanged if PhotonVision ships one.
+// Catalyst is Limelight-first regardless - that pipeline is built into Systemcore.
 //
-// AutoSelector used to be on this list and should not have been. It was excluded because its port
-// to org.wpilib.tunable.Selectable would not compile - true - on the belief that SendableChooser
-// had been removed in 2027, which is false. Checked against the shipped jars: SendableChooser,
-// SmartDashboard, Sendable and SendableBuilder are all present in wpilibj-java. That claim came
-// from the development snapshot, a different build sharing the alpha-6 name. AutoSelector is back
-// on SendableChooser and back in the build.
-//
-// Excluded rather than deleted. They are the better implementations and they come back the moment a
-// WPILib ships those packages in a release the OS accepts.
-sourceSets {
-    main {
-        java {
-            // org.wpilib.telemetry - CatalystLog falls back to NetworkTablesSink, which is the
-            // sink this library used before 2027 and is still fully tested.
-
-            // DriverStationDisplay does not exist in the release at all, and DriverBoard is a
-            // wrapper around it.
-        }
-    }
-    test {
-        java {
-            // Tests for the classes excluded above.
-        }
-    }
-}
-
+// This list used to be five files long. WpiTelemetrySink, TelemetryUtil, MechanismVisualizer and
+// DriverBoard were all excluded on alpha-6 because org.wpilib.telemetry and DriverStationDisplay
+// existed only in a development snapshot. Alpha-7 ships both, so all four compile and are back in.
 dependencies {
     // WPILib core
     // WPILib 2027. Every coordinate below was verified resolvable against
@@ -249,8 +205,8 @@ dependencies {
     runtimeOnly 'org.ejml:ejml-simple:0.44.0'
 }
 
-// PhotonVision has no 2027 release. Keep the source file in the tree but out of the compile,
-// so the branch builds and nothing is lost if PhotonVision ships a 2027 vendordep later.
+// Keep the source file in the tree but out of the compile, so the branch builds and nothing is
+// lost if PhotonVision ships a 2027 vendordep later.
 sourceSets {
     main {
         java {

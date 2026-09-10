@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class AllianceFlipUtilTest {
 
-    private static final double L = 16.54, W = 8.21;
+    private static final double L = 16.54, W = 8.07;   // REBUILT 2026
 
     @Test
     void rotationalFlipMirrorsBothAxesAndAddsHalfTurn() {
@@ -49,5 +49,34 @@ class AllianceFlipUtilTest {
     void flipXUsesFieldLength() {
         AllianceFlipUtil.setFieldLength(L);
         assertEquals(L - 2.0, AllianceFlipUtil.flipX(2.0), 1e-9);
+    }
+
+    /**
+     * The DEFAULT field, unconfigured, must be the current season's.
+     *
+     * <p>Every other test here calls {@code configure(...)} first, so none of them ever looked at
+     * the default - and the default width sat at 8.21 m, the REEFSCAPE number, a season after the
+     * field changed to 8.07 m. A team that never called configure got every red-alliance Y flipped
+     * about an axis 7 cm off centre: 14 cm of error, on one alliance only, in a value that looks
+     * entirely reasonable.
+     *
+     * <p>Pinned against WPILib's own 2026-rebuilt layout (16.541 x 8.069) rather than against the
+     * constant this class holds, so the two cannot drift together and still agree.
+     */
+    @Test
+    void theUnconfiguredDefaultIsTheCurrentField() {
+        AllianceFlipUtil.configure(CatalystMath.FIELD_LENGTH, CatalystMath.FIELD_WIDTH,
+                AllianceFlipUtil.Symmetry.ROTATIONAL);
+
+        assertEquals(16.541, CatalystMath.FIELD_LENGTH, 0.01,
+                "field length must match the REBUILT 2026 layout");
+        assertEquals(8.069, CatalystMath.FIELD_WIDTH, 0.01,
+                "field width must match the REBUILT 2026 layout - 8.21 is REEFSCAPE");
+
+        // A point on the centre line must flip to itself. This is the property the wrong width
+        // actually broke, and it holds for no other value.
+        Translation2d centre = new Translation2d(4.0, CatalystMath.FIELD_WIDTH / 2);
+        assertEquals(centre.getY(), AllianceFlipUtil.flip(centre).getY(), 1e-9,
+                "the field's centre line must be its own mirror");
     }
 }
