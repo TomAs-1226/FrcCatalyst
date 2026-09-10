@@ -3,18 +3,18 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/TomAs-1226/FrcCatalyst/actions"><img src="https://img.shields.io/github/actions/workflow/status/TomAs-1226/FrcCatalyst/build.yml?style=for-the-badge&logo=github&label=Build" alt="Build Status"/></a>
-  <a href="https://github.com/TomAs-1226/FrcCatalyst/releases"><img src="https://img.shields.io/github/v/release/TomAs-1226/FrcCatalyst?style=for-the-badge&logo=semanticrelease&color=e94560" alt="Release"/></a>
-  <a href="https://github.com/TomAs-1226/FrcCatalyst/blob/main/LICENSE"><img src="https://img.shields.io/github/license/TomAs-1226/FrcCatalyst?style=for-the-badge&color=0f3460" alt="License"/></a>
-  <a href="https://tomas-1226.github.io/FrcCatalyst/beta/"><img src="https://img.shields.io/badge/Docs-beta-blue?style=for-the-badge&logo=github" alt="Docs"/></a>
+  <a href="https://github.com/TomAs-1226/FrcCatalyst/actions"><img src="https://img.shields.io/github/actions/workflow/status/TomAs-1226/FrcCatalyst/build.yml?style=flat-square&logo=github&logoColor=9a9ba1&label=build&color=2c2e34" alt="Build Status"/></a>
+  <a href="https://github.com/TomAs-1226/FrcCatalyst/releases"><img src="https://img.shields.io/github/v/release/TomAs-1226/FrcCatalyst?style=flat-square&color=e94560&label=release" alt="Release"/></a>
+  <a href="https://github.com/TomAs-1226/FrcCatalyst/blob/main/LICENSE"><img src="https://img.shields.io/github/license/TomAs-1226/FrcCatalyst?style=flat-square&color=2c2e34" alt="License"/></a>
+  <a href="https://tomas-1226.github.io/FrcCatalyst/beta/"><img src="https://img.shields.io/badge/docs-beta-2c2e34?style=flat-square" alt="Docs"/></a>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/WPILib-2027%20alpha--6-green?style=flat-square" alt="WPILib"/>
+  <img src="https://img.shields.io/badge/WPILib-2027%20alpha--6-2c2e34?style=flat-square" alt="WPILib"/>
   <img src="https://img.shields.io/badge/Systemcore-OS%20beta%2013-e94560?style=flat-square" alt="Systemcore"/>
-  <img src="https://img.shields.io/badge/Phoenix%206-26.50.0--alpha--1-orange?style=flat-square" alt="Phoenix 6"/>
-  <img src="https://img.shields.io/badge/Java-25-blue?style=flat-square&logo=openjdk" alt="Java 25"/>
-  <img src="https://img.shields.io/badge/PathPlanner-2027.0.0--alpha--3-purple?style=flat-square" alt="PathPlanner"/>
+  <img src="https://img.shields.io/badge/Phoenix%206-26.50.0--alpha--1-2c2e34?style=flat-square" alt="Phoenix 6"/>
+  <img src="https://img.shields.io/badge/Java-25-2c2e34?style=flat-square&logo=openjdk&logoColor=9a9ba1" alt="Java 25"/>
+  <img src="https://img.shields.io/badge/PathPlanner-2027.0.0--alpha--3-2c2e34?style=flat-square" alt="PathPlanner"/>
 </p>
 
 ---
@@ -26,6 +26,10 @@
 > For a robot that is competing on a roboRIO, use
 > [1.12.0](https://github.com/TomAs-1226/FrcCatalyst/releases/tag/v1.12.0) and the
 > [stable documentation](https://tomas-1226.github.io/FrcCatalyst/).
+
+<p align="center">
+  <img src="docs/assets/release-2.0.svg" alt="FrcCatalyst 2.0 — what moved underneath, and the five command decorators you have to rename" width="100%"/>
+</p>
 
 ## What is FrcCatalyst?
 

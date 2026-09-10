@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 120" width="1200" height="120" role="img" aria-label="FrcCatalyst 2.0 — mechanisms, autonomy and Physics Core for FRC. Version 2.0.0-alpha.2.">
+  <title>FrcCatalyst 2.0</title>
+
+  <!--
+    A slim header for documentation sub-pages, where the full banner would take a third of the first
+    screen before a single sentence. No robot: at 120px tall it would be a smudge, and the trajectory
+    alone carries enough of the family to be recognisable next to the full one.
+  -->
+  <defs>
+    <linearGradient id="ground" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#191a20"/>
+      <stop offset="60%" stop-color="#101116"/>
+      <stop offset="100%" stop-color="#08090b"/>
+    </linearGradient>
+    <radialGradient id="rimLight" cx="14%" cy="20%" r="60%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="keyLight" cx="86%" cy="70%" r="46%">
+      <stop offset="0%" stop-color="#e94560" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#e94560" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="traj" gradientUnits="userSpaceOnUse" x1="560" y1="0" x2="1180" y2="0">
+      <stop offset="0%" stop-color="#e94560" stop-opacity="0"/>
+      <stop offset="60%" stop-color="#ff5d76" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#ff6b81" stop-opacity="0.95"/>
+    </linearGradient>
+    <filter id="softGlow" x="-30%" y="-300%" width="160%" height="700%">
+      <feGaussianBlur stdDeviation="5"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="120" rx="12" fill="url(#ground)"/>
+  <rect width="1200" height="120" rx="12" fill="url(#rimLight)"/>
+  <rect width="1200" height="120" rx="12" fill="url(#keyLight)"/>
+
+  <g clip-path="inset(0 round 12)">
+    <path id="route" d="M560 112 C740 108 880 92 1010 72 C1090 60 1140 52 1210 46"
+          fill="none" stroke="url(#traj)" stroke-width="7" stroke-linecap="round"
+          stroke-opacity="0.4" filter="url(#softGlow)"/>
+    <use href="#route" stroke="url(#traj)" stroke-width="2.4"/>
+    <g fill="#ff8fa0">
+      <circle cx="760" cy="106" r="2.4" fill-opacity="0.35"/>
+      <circle cx="940" cy="83"  r="2.6" fill-opacity="0.6"/>
+      <circle cx="1090" cy="60" r="2.8" fill-opacity="0.85"/>
+    </g>
+  </g>
+
+  <g transform="translate(40 34) scale(1.85)">
+    <path d="M13.5 2 5 13h5l-1.5 9L19 10h-5.5z" fill="#e94560"/>
+  </g>
+
+  <text x="86" y="74" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="38">
+    <tspan font-weight="200" letter-spacing="-1.1" fill="#8d8f97">Frc</tspan><tspan
+           font-weight="700" letter-spacing="-1.6" fill="#ffffff">Catalyst</tspan><tspan
+           font-weight="200" letter-spacing="-1.1" fill="#ff5d76" dx="11">2.0</tspan>
+  </text>
+
+  <text x="368" y="74" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif"
+        font-size="15" font-weight="500" fill="#7c7e86">Mechanisms, autonomy and Physics Core for FRC.</text>
+
+  <g transform="translate(1006 45)">
+    <rect width="146" height="30" rx="15" fill="#e94560" fill-opacity="0.14" stroke="#e94560" stroke-opacity="0.6"/>
+    <circle cx="19" cy="15" r="4" fill="#ff5d76"/>
+    <text x="33" y="20" font-family="Consolas, ui-monospace, monospace" font-size="13" font-weight="600" fill="#ff92a3">2.0.0-alpha.2</text>
+  </g>
+</svg>

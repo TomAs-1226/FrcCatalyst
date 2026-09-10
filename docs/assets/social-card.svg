@@ -1,0 +1,138 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640" role="img" aria-label="FrcCatalyst 2.0 — different computer, same library. A swerve robot following an autonomous trajectory. WPILib 2027, Limelight Systemcore and Commands v3.">
+  <title>FrcCatalyst 2.0</title>
+
+  <!--
+    GitHub's social preview, read at about 600px wide in a feed and as a thumbnail in search, so the
+    type is large and everything that has to survive that sits in the top half. Same subject and the
+    same robot construction as the banner.
+  -->
+  <defs>
+    <linearGradient id="ground" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#191a20"/>
+      <stop offset="55%" stop-color="#101116"/>
+      <stop offset="100%" stop-color="#08090b"/>
+    </linearGradient>
+    <radialGradient id="keyLight" cx="74%" cy="62%" r="50%">
+      <stop offset="0%" stop-color="#e94560" stop-opacity="0.20"/>
+      <stop offset="45%" stop-color="#e94560" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#e94560" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="rimLight" cx="14%" cy="12%" r="52%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.07"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+
+    <linearGradient id="traj" gradientUnits="userSpaceOnUse" x1="-20" y1="0" x2="1000" y2="0">
+      <stop offset="0%" stop-color="#e94560" stop-opacity="0"/>
+      <stop offset="28%" stop-color="#e94560" stop-opacity="0.40"/>
+      <stop offset="68%" stop-color="#ff5d76" stop-opacity="0.92"/>
+      <stop offset="100%" stop-color="#ff6b81" stop-opacity="1"/>
+    </linearGradient>
+    <linearGradient id="trajGlow" gradientUnits="userSpaceOnUse" x1="-20" y1="0" x2="1000" y2="0">
+      <stop offset="0%" stop-color="#e94560" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#ff5d76" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#ff5d76" stop-opacity="0.42"/>
+    </linearGradient>
+
+    <filter id="softGlow" x="-30%" y="-200%" width="160%" height="500%">
+      <feGaussianBlur stdDeviation="11"/>
+    </filter>
+    <filter id="tightGlow" x="-30%" y="-200%" width="160%" height="500%">
+      <feGaussianBlur stdDeviation="4"/>
+    </filter>
+    <filter id="drop" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="13"/>
+    </filter>
+
+    <linearGradient id="hair" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#e94560" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#e94560" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1280" height="640" fill="url(#ground)"/>
+  <rect width="1280" height="640" fill="url(#keyLight)"/>
+  <rect width="1280" height="640" fill="url(#rimLight)"/>
+
+  <text x="1252" y="612" text-anchor="end"
+        font-family="Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="440" font-weight="700"
+        letter-spacing="-24" fill="#ffffff" fill-opacity="0.03">2.0</text>
+
+  <path id="route" d="M-20 618 C260 612 480 588 660 530 C820 478 900 448 1000 428"
+        fill="none" stroke="url(#trajGlow)" stroke-width="13" stroke-linecap="round" filter="url(#softGlow)"/>
+  <use href="#route" stroke="url(#trajGlow)" stroke-width="5" filter="url(#tightGlow)"/>
+  <use href="#route" stroke="url(#traj)" stroke-width="3.8"/>
+
+  <g fill="#ff8fa0">
+    <circle cx="150" cy="615" r="3"   fill-opacity="0.16"/>
+    <circle cx="360" cy="600" r="3.2" fill-opacity="0.30"/>
+    <circle cx="560" cy="562" r="3.4" fill-opacity="0.46"/>
+    <circle cx="740" cy="498" r="3.6" fill-opacity="0.64"/>
+    <circle cx="890" cy="452" r="3.8" fill-opacity="0.84"/>
+  </g>
+
+  <path d="M1000 428 C1060 410 1130 400 1206 396"
+        fill="none" stroke="#ff5d76" stroke-opacity="0.5" stroke-width="3"
+        stroke-linecap="round" stroke-dasharray="2 13"/>
+  <circle cx="1206" cy="396" r="7" fill="none" stroke="#ff8fa0" stroke-width="2.4" stroke-opacity="0.75"/>
+
+  <!-- The robot. -->
+  <g transform="translate(1000 428) rotate(-14) scale(1.26)">
+    <rect x="-56" y="-44" width="112" height="92" rx="16" fill="#000000" fill-opacity="0.55" filter="url(#drop)"/>
+
+    <rect x="-58" y="-48" width="116" height="96" rx="15" fill="none" stroke="#8e2739" stroke-width="7.5"/>
+    <path d="M43 -48 h0 a15 15 0 0 1 15 15 v66 a15 15 0 0 1 -15 15 h0"
+          fill="none" stroke="#ff5d76" stroke-width="7.5" stroke-linecap="butt"/>
+
+    <rect x="-52" y="-42" width="104" height="84" rx="9" fill="#14151a" stroke="#3d404a" stroke-width="1.4"/>
+    <path d="M-45 -41.3 h90" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.4" stroke-linecap="round"/>
+
+    <g>
+      <g transform="translate(-32 -27)">
+        <rect x="-13" y="-11" width="26" height="22" rx="5" fill="#1e2127" stroke="#474a53" stroke-width="1.2"/>
+        <g transform="rotate(-24)"><rect x="-12" y="-4.5" width="24" height="9" rx="4.5" fill="#0c0d11" stroke="#82858f" stroke-width="1.3"/></g>
+      </g>
+      <g transform="translate(32 -27)">
+        <rect x="-13" y="-11" width="26" height="22" rx="5" fill="#1e2127" stroke="#474a53" stroke-width="1.2"/>
+        <g transform="rotate(-24)"><rect x="-12" y="-4.5" width="24" height="9" rx="4.5" fill="#0c0d11" stroke="#82858f" stroke-width="1.3"/></g>
+      </g>
+      <g transform="translate(-32 27)">
+        <rect x="-13" y="-11" width="26" height="22" rx="5" fill="#1e2127" stroke="#474a53" stroke-width="1.2"/>
+        <g transform="rotate(-24)"><rect x="-12" y="-4.5" width="24" height="9" rx="4.5" fill="#0c0d11" stroke="#82858f" stroke-width="1.3"/></g>
+      </g>
+      <g transform="translate(32 27)">
+        <rect x="-13" y="-11" width="26" height="22" rx="5" fill="#1e2127" stroke="#474a53" stroke-width="1.2"/>
+        <g transform="rotate(-24)"><rect x="-12" y="-4.5" width="24" height="9" rx="4.5" fill="#0c0d11" stroke="#82858f" stroke-width="1.3"/></g>
+      </g>
+    </g>
+
+    <circle cx="0" cy="0" r="3" fill="#82858f"/>
+  </g>
+
+  <!-- The mark -->
+  <g transform="translate(92 122) scale(3.4)">
+    <path d="M13.5 2 5 13h5l-1.5 9L19 10h-5.5z" fill="#e94560"/>
+  </g>
+
+  <text x="178" y="204" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="86">
+    <tspan font-weight="200" letter-spacing="-2.6" fill="#8d8f97">Frc</tspan><tspan
+           font-weight="700" letter-spacing="-3.6" fill="#ffffff">Catalyst</tspan><tspan
+           font-weight="200" letter-spacing="-2.6" fill="#ff5d76" dx="24">2.0</tspan>
+  </text>
+
+  <rect x="180" y="234" width="420" height="2" fill="url(#hair)"/>
+
+  <text x="179" y="292" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif"
+        font-size="34" font-weight="600" fill="#e6e7ea">Different computer, same library.</text>
+
+  <text x="180" y="330" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif"
+        font-size="19" font-weight="500" fill="#83858d">WPILib 2027 · Limelight Systemcore · Commands v3</text>
+
+  <g transform="translate(180 358)">
+    <rect width="176" height="36" rx="18" fill="#e94560" fill-opacity="0.14" stroke="#e94560" stroke-opacity="0.6" stroke-width="1.5"/>
+    <circle cx="23" cy="18" r="5" fill="#ff5d76"/>
+    <text x="40" y="24" font-family="Consolas, ui-monospace, monospace" font-size="15" font-weight="600" fill="#ff92a3">2.0.0-alpha.2</text>
+  </g>
+  <text x="372" y="382" font-family="Consolas, ui-monospace, monospace" font-size="13"
+        font-weight="700" letter-spacing="1.8" fill="#6b6d75">PRE-SEASON</text>
+</svg>
