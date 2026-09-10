@@ -214,7 +214,7 @@ VisionSubsystem vision = new VisionSubsystem(
         .rejectDuringSpin(2.0)
         .rejectDuringHighSpeed(3.0)       // reject when > 3 m/s
         .maxHeadingDivergence(15.0)       // reject if heading disagrees > 15 deg
-        .fieldDimensions(16.54, 8.21)     // custom field bounds
+        .fieldDimensions(16.54, 8.07)     // REBUILT 2026 bounds
         .maxLatency(0.5)
         .build()
 );

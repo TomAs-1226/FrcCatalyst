@@ -1,168 +1,763 @@
-<!-- Catalyst custom polish layered on top of just-the-docs -->
+<!-- Catalyst design system, layered over just-the-docs' dark scheme.
+
+     This include is the site's only styling hook, so the whole system lives here. It is
+     ordered ground -> type -> navigation -> content -> state, because later sections lean
+     on the tokens and grounds the earlier ones establish.
+
+     Two habits are deliberate throughout:
+       - Coral marks the primary action and the active nav item, and nothing else. An accent
+         that appears on every heading stops being able to point at anything.
+       - ok / warn / bad / info carry state only. If green can mean "healthy" or "just a
+         heading", a reader has to stop and work out which. -->
 <style>
   :root {
-    --catalyst-accent:    #e94560;
-    --catalyst-accent-2:  #f0648a;
-    --catalyst-accent-d:  #c0314e;
-    --catalyst-blue:      #60a5fa;
-    --catalyst-green:     #4ade80;
-    --catalyst-amber:     #fbbf24;
-    --catalyst-panel:     rgba(255,255,255,0.04);
-    --catalyst-border:    rgba(255,255,255,0.08);
+    /* Ground stack. Panels lift by sitting one step lighter than the page, not by casting
+       a shadow, so the whole site can stay flat and still read as layered. */
+    --cat-ink-900:  #0b0f1a;
+    --cat-ink-800:  #111726;
+    --cat-ink-700:  #182034;
+
+    --cat-hair:     rgba(255, 255, 255, 0.07);
+    --cat-hair-str: rgba(255, 255, 255, 0.13);
+
+    /* The one accent. -lt is hover, -dk is pressed; neither is a second colour. */
+    --cat-coral:    #e94560;
+    --cat-coral-lt: #ff6b81;
+    --cat-coral-dk: #c0314e;
+    /* The aurora wash. Spelled out rather than derived, so the one place coral appears at
+       low alpha is declared here with the rest and not buried in a gradient. */
+    --cat-wash:     rgba(233, 69, 96, 0.05);
+
+    --cat-text:     #d5dbe8;
+    --cat-white:    #f4f7fc;
+    --cat-muted:    #7f8aa3;
+
+    /* State only. Never reach for these to make something look nice. */
+    --cat-ok:       #4ade80;
+    --cat-warn:     #fbbf24;
+    --cat-bad:      #f87171;
+    --cat-info:     #60a5fa;
+
+    /* Type scale. Anything outside this list is a mistake, not a decision. */
+    --cat-fs-caption: 12px;
+    --cat-fs-small:   13px;
+    --cat-fs-body:    15px;
+    --cat-fs-h3:      18px;
+    --cat-fs-h2:      24px;
+    --cat-fs-h1:      32px;
+
+    /* 4 px grid. --cat-pad is a panel's inside, --cat-gap is between siblings,
+       --cat-group is between groups of them. */
+    --cat-pad:   16px;
+    --cat-gap:   12px;
+    --cat-group: 24px;
+
+    --cat-radius:    10px;
+    --cat-radius-sm: 6px;
+
+    --cat-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+                "Liberation Mono", monospace;
   }
 
-  /* ---------- Background aurora ---------- */
+  /* ==========================================================================
+     1. Ground
+
+     just-the-docs' dark scheme is a warm grey (#27262b family). Catalyst is navy.
+     Rather than tint over the grey and end up with grey seams at every panel edge,
+     the grounds are restated outright so every surface comes from the same stack.
+     ========================================================================== */
+
+  html,
+  body {
+    background-color: var(--cat-ink-900);
+    color: var(--cat-text);
+  }
+
+  /* A single low-alpha coral wash. It is ground, not signal - at 5% it cannot be
+     mistaken for something marked. The blue wash this replaced was --cat-info doing
+     decorative work, which is exactly what makes an info colour stop being readable. */
   body {
     background-image:
-      radial-gradient(900px 600px at 110% -10%, rgba(233,69,96,0.06), transparent 60%),
-      radial-gradient(800px 600px at -10% 110%, rgba(96,165,250,0.05), transparent 60%);
+      radial-gradient(1000px 620px at 108% -12%, var(--cat-wash), transparent 62%);
+    background-attachment: fixed;
   }
 
-  /* ---------- Page titles ---------- */
+  .side-bar {
+    background-color: var(--cat-ink-900);
+    border-right: 1px solid var(--cat-hair);
+  }
+
+  .main {
+    background-color: transparent;
+  }
+
+  .main-header,
+  .site-header,
+  .site-footer,
+  .site-nav {
+    border-color: var(--cat-hair);
+  }
+
+  .site-footer {
+    color: var(--cat-muted);
+    font-size: var(--cat-fs-caption);
+    line-height: 1.5;
+    padding-top: var(--cat-pad);
+  }
+
+  .site-title,
+  .site-title:hover {
+    color: var(--cat-white);
+    background-image: none;
+  }
+
+  /* ==========================================================================
+     2. Type
+     ========================================================================== */
+
+  .main-content {
+    font-size: var(--cat-fs-body);
+    line-height: 1.55;
+    color: var(--cat-text);
+  }
+
+  .main-content h1,
+  .main-content h2,
+  .main-content h3,
+  .main-content h4 {
+    color: var(--cat-white);
+    letter-spacing: -0.02em;
+  }
+
+  /* No !important here on purpose: pages that opt into a theme size utility
+     (.fs-9 on the homepage title) should still win. */
+  .main-content h1 {
+    font-size: var(--cat-fs-h1);
+    line-height: 1.2;
+    font-weight: 700;
+    margin-bottom: var(--cat-pad);
+  }
+
+  /* The page title used to be a coral-to-pink gradient fill. It read as an accent on
+     every single page, which left coral with nothing left to point at, and gradient
+     text loses subpixel antialiasing on the way. Solid white, one weight up. */
   .main-content h1:first-child {
-    background: linear-gradient(135deg, #e94560 0%, #f0648a 55%, #ffd6e0 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    letter-spacing: -0.025em;
+    background-image: none;
+    -webkit-text-fill-color: currentColor;
+    color: var(--cat-white);
     font-weight: 800;
   }
 
-  /* ---------- Top page-action buttons (.btn / .btn-primary) ---------- */
-  /* These are the buttons on the homepage and other landing pages. The
-     just-the-docs defaults are pill-shaped + colourful; we drop the
-     gradient in favour of a sharper, flatter look that matches the
-     dark-theme aesthetic. */
+  .main-content h2 {
+    font-size: var(--cat-fs-h2);
+    line-height: 1.3;
+    font-weight: 700;
+    margin-top: var(--cat-group);
+    padding-top: var(--cat-gap);
+    border-top: 1px solid var(--cat-hair);
+  }
+
+  .main-content h3 {
+    font-size: var(--cat-fs-h3);
+    line-height: 1.4;
+    font-weight: 650;
+    margin-top: var(--cat-group);
+  }
+
+  .main-content h4 {
+    font-size: var(--cat-fs-body);
+    line-height: 1.45;
+    font-weight: 650;
+    margin-top: var(--cat-pad);
+  }
+
+  /* h5/h6 stop being headings and start being labels. Uppercase gets the +0.06em
+     it needs to stay legible. */
+  .main-content h5,
+  .main-content h6 {
+    font-size: var(--cat-fs-caption);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 700;
+    color: var(--cat-muted);
+    margin-top: var(--cat-pad);
+  }
+
+  .main-content p,
+  .main-content li {
+    font-size: var(--cat-fs-body);
+    line-height: 1.55;
+  }
+
+  .main-content hr {
+    border: 0;
+    border-top: 1px solid var(--cat-hair);
+    margin: var(--cat-group) 0;
+  }
+
+  .main-content blockquote {
+    border-left: 2px solid var(--cat-hair-str);
+    color: var(--cat-muted);
+    padding-left: var(--cat-pad);
+    margin-left: 0;
+  }
+
+  /* Links carry an underline rather than the accent. A docs page is mostly links, so
+     colouring them all coral is the spraying that leaves coral unable to mark anything -
+     and the theme's own link blue is the info token, which owes its meaning to state.
+     The underline is the affordance; coral arrives on hover, where it is feedback. */
+  .main-content a {
+    color: var(--cat-white);
+    text-decoration: underline;
+    text-decoration-color: var(--cat-hair-str);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+    transition: color 0.12s ease, text-decoration-color 0.12s ease;
+  }
+
+  .main-content a:hover {
+    color: var(--cat-coral-lt);
+    text-decoration-color: currentColor;
+  }
+
+  /* ==========================================================================
+     3. Sidebar navigation
+
+     One active state, and it is unmistakable: the item sits on a raised ground with a
+     coral rule down its edge. Hover only lifts the ground, so hovering never looks like
+     being on the page you are already on.
+     ========================================================================== */
+
+  .nav-list .nav-list-item .nav-list-link {
+    font-size: var(--cat-fs-small);
+    line-height: 1.5;
+    color: var(--cat-text);
+    border-left: 2px solid transparent;
+    border-radius: 0 var(--cat-radius-sm) var(--cat-radius-sm) 0;
+    transition: background-color 0.12s ease, color 0.12s ease;
+  }
+
+  .nav-list .nav-list-item .nav-list-link:hover {
+    background-color: var(--cat-ink-800);
+    color: var(--cat-white);
+  }
+
+  .nav-list .nav-list-item .nav-list-link.active {
+    background-image: none;
+    background-color: var(--cat-ink-700);
+    border-left: 2px solid var(--cat-coral);
+    color: var(--cat-white);
+    font-weight: 600;
+  }
+
+  .nav-list .nav-list-item .nav-list-link.active:hover {
+    background-color: var(--cat-ink-700);
+  }
+
+  /* Child items read as subordinate by weight and colour, not by another accent. */
+  .nav-list .nav-list .nav-list-item .nav-list-link {
+    color: var(--cat-muted);
+  }
+
+  .nav-list .nav-list .nav-list-item .nav-list-link:hover,
+  .nav-list .nav-list .nav-list-item .nav-list-link.active {
+    color: var(--cat-white);
+  }
+
+  .nav-category {
+    font-size: var(--cat-fs-caption);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 700;
+    color: var(--cat-muted);
+    border-bottom: 1px solid var(--cat-hair);
+    padding-bottom: 8px;
+    margin-top: var(--cat-group);
+  }
+
+  .nav-list-expander {
+    color: var(--cat-muted);
+    border-radius: var(--cat-radius-sm);
+  }
+
+  .nav-list-expander:hover {
+    background-color: var(--cat-ink-700);
+    color: var(--cat-white);
+  }
+
+  /* ==========================================================================
+     4. Aux nav (top right)
+
+     Every one of these is a uniform ghost button. The previous rule painted
+     :first-child coral to mark "Tools", but the first aux_link in _config.yml is
+     "Stable docs" - so the accent was landing on a link away from this site, while
+     the page's real primary action (Get Started) was also coral. One coral per view.
+     ========================================================================== */
+
+  .aux-nav-list .aux-nav-list-item .site-button {
+    height: 32px;
+    padding: 0 var(--cat-gap);
+    border-radius: var(--cat-radius-sm);
+    background-color: transparent;
+    border: 1px solid var(--cat-hair-str);
+    color: var(--cat-text);
+    font-weight: 500;
+    font-size: var(--cat-fs-small);
+    margin-right: 8px;
+    transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  }
+
+  .aux-nav-list .aux-nav-list-item .site-button:hover {
+    background-color: var(--cat-ink-700);
+    border-color: var(--cat-hair-str);
+    color: var(--cat-white);
+  }
+
+  .breadcrumb-nav-list-item {
+    font-size: var(--cat-fs-caption);
+    color: var(--cat-muted);
+  }
+
+  .breadcrumb-nav-list-item a {
+    color: var(--cat-muted);
+  }
+
+  .breadcrumb-nav-list-item a:hover {
+    color: var(--cat-white);
+  }
+
+  /* ==========================================================================
+     5. Buttons
+     ========================================================================== */
+
   .main-content .btn {
-    display: inline-flex; align-items: center; gap: 8px;
-    height: 40px; padding: 0 18px;
-    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 40px;
+    padding: 0 var(--cat-pad);
+    border-radius: var(--cat-radius);
     font-weight: 600;
     font-size: 14px;
     letter-spacing: 0.01em;
-    transition: transform 0.12s ease, border-color 0.12s ease,
-                background-color 0.12s ease, box-shadow 0.12s ease;
-    border: 1px solid rgba(255,255,255,0.12);
-    background: rgba(255,255,255,0.03);
-    color: inherit !important;
+    border: 1px solid var(--cat-hair-str);
+    background-color: var(--cat-ink-800);
+    background-image: none;
+    color: var(--cat-text) !important;
     box-shadow: none !important;
+    transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
   }
+
   .main-content .btn:hover {
-    transform: translateY(-1px);
-    border-color: rgba(255,255,255,0.28);
-    background: rgba(255,255,255,0.06);
+    background-color: var(--cat-ink-700);
+    border-color: var(--cat-hair-str);
+    color: var(--cat-white) !important;
     text-decoration: none;
   }
 
-  /* Primary = solid accent, no gaudy gradient. */
+  /* The one place coral is allowed to be a fill. */
   .main-content .btn-primary {
-    background: var(--catalyst-accent) !important;
-    border-color: var(--catalyst-accent) !important;
-    color: #fff !important;
+    background-color: var(--cat-coral) !important;
+    background-image: none !important;
+    border-color: var(--cat-coral) !important;
+    color: var(--cat-white) !important;
   }
+
   .main-content .btn-primary:hover {
-    background: var(--catalyst-accent-2) !important;
-    border-color: var(--catalyst-accent-2) !important;
-    transform: translateY(-1px);
-    box-shadow: 0 6px 14px rgba(233,69,96,0.25) !important;
+    background-color: var(--cat-coral-lt) !important;
+    border-color: var(--cat-coral-lt) !important;
+  }
+
+  .main-content .btn-primary:active {
+    background-color: var(--cat-coral-dk) !important;
+    border-color: var(--cat-coral-dk) !important;
   }
 
   .main-content .btn-outline {
-    border-color: rgba(255,255,255,0.16) !important;
-    background: transparent !important;
+    background-color: transparent !important;
+    border-color: var(--cat-hair-str) !important;
   }
+
   .main-content .btn-outline:hover {
-    border-color: var(--catalyst-accent-2) !important;
-    color: var(--catalyst-accent-2) !important;
+    background-color: var(--cat-ink-800) !important;
   }
 
-  /* ---------- Aux nav (top right) ---------- */
-  /* Make the Tools / Releases / GitHub buttons consistent + understated. */
-  .aux-nav-list .aux-nav-list-item .site-button {
-    height: 32px;
-    padding: 0 12px;
-    border-radius: 8px;
-    background: transparent;
-    border: 1px solid rgba(255,255,255,0.12);
-    color: inherit;
-    font-weight: 500;
-    font-size: 13px;
-    margin-right: 6px;
-    transition: all 0.12s ease;
-  }
-  .aux-nav-list .aux-nav-list-item .site-button:hover {
-    background: rgba(255,255,255,0.06);
-    border-color: rgba(255,255,255,0.28);
-    color: inherit;
-  }
-  /* The first aux link (Tools) gets the accent treatment. */
-  .aux-nav-list .aux-nav-list-item:first-child .site-button {
-    background: var(--catalyst-accent);
-    border-color: var(--catalyst-accent);
-    color: #fff;
-  }
-  .aux-nav-list .aux-nav-list-item:first-child .site-button:hover {
-    background: var(--catalyst-accent-2);
-    border-color: var(--catalyst-accent-2);
-    box-shadow: 0 4px 10px rgba(233,69,96,0.25);
+  /* ==========================================================================
+     6. Search
+     ========================================================================== */
+
+  .search-input {
+    background-color: var(--cat-ink-800);
+    color: var(--cat-text);
+    font-size: var(--cat-fs-body);
   }
 
-  /* ---------- Tables ---------- */
+  .search-input:focus {
+    background-color: var(--cat-ink-700);
+  }
+
+  .search-results {
+    background-color: var(--cat-ink-800);
+    border: 1px solid var(--cat-hair);
+    border-radius: var(--cat-radius);
+    box-shadow: none;
+  }
+
+  .search-result {
+    color: var(--cat-text);
+    border-radius: var(--cat-radius-sm);
+  }
+
+  .search-result:hover,
+  .search-result.active {
+    background-color: var(--cat-ink-700);
+  }
+
+  .search-result-title {
+    color: var(--cat-white);
+    font-size: var(--cat-fs-small);
+  }
+
+  .search-result-doc-parent,
+  .search-result-previews,
+  .search-result-preview {
+    color: var(--cat-muted);
+    font-size: var(--cat-fs-caption);
+  }
+
+  .search-result-highlight {
+    color: var(--cat-coral-lt);
+    font-weight: 700;
+  }
+
+  .search-no-result {
+    color: var(--cat-muted);
+    font-size: var(--cat-fs-small);
+  }
+
+  /* ==========================================================================
+     7. Tables
+
+     These pages are mostly reference: CAN ids, gear ratios, version matrices. The
+     numbers are the content, so tabular-nums is not cosmetic here - proportional
+     digits change column width as values change and the eye loses the column.
+     ========================================================================== */
+
+  .table-wrapper {
+    background-color: transparent;
+    box-shadow: none;
+    border-radius: var(--cat-radius);
+    overflow-x: auto;
+    margin: var(--cat-gap) 0 var(--cat-group);
+  }
+
   .main-content table {
     border-collapse: separate;
     border-spacing: 0;
-    border-radius: 10px;
+    border-radius: var(--cat-radius);
     overflow: hidden;
-    border: 1px solid var(--catalyst-border);
+    border: 1px solid var(--cat-hair);
+    background-color: var(--cat-ink-800);
+    font-size: var(--cat-fs-small);
+    line-height: 1.5;
+    font-variant-numeric: tabular-nums;
+    box-shadow: none;
+    margin: var(--cat-gap) 0 var(--cat-group);
   }
+
   .main-content table th {
-    background: var(--catalyst-panel);
-    border-bottom: 1px solid var(--catalyst-border);
+    background-color: var(--cat-ink-700);
+    color: var(--cat-white);
+    border-bottom: 1px solid var(--cat-hair-str);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    font-size: 12px;
+    letter-spacing: 0.06em;
+    font-size: var(--cat-fs-caption);
+    font-weight: 700;
+    white-space: nowrap;
+    padding: 10px var(--cat-gap);
+  }
+
+  .main-content table td {
+    border-bottom: 1px solid var(--cat-hair);
+    color: var(--cat-text);
+    padding: 10px var(--cat-gap);
+    vertical-align: top;
+  }
+
+  /* just-the-docs rules its columns with border-left in the theme's warm grey. Left
+     alone those verticals are the one place the old scheme shows through a navy table. */
+  .main-content table th,
+  .main-content table td {
+    border-left: 1px solid var(--cat-hair);
+  }
+
+  .main-content table th:first-child,
+  .main-content table td:first-child {
+    border-left: 0;
+  }
+
+  .main-content table tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .main-content table tr:hover td {
+    background-color: var(--cat-ink-700);
+  }
+
+  /* A code span inside a table is usually a symbol name, and at that size a chip
+     around each one turns the column into a fence. Strip it back to plain mono. */
+  .main-content table :not(pre) > code {
+    background-color: transparent;
+    border: 0;
+    padding: 0;
+    font-size: var(--cat-fs-caption);
+  }
+
+  /* ==========================================================================
+     8. Code
+
+     just-the-docs' dark scheme ships a OneDark-family rouge palette. Those token
+     colours are kept - they are what makes a Java block scannable - and only the
+     ground beneath them is moved onto the Catalyst stack, which raises contrast
+     rather than lowering it.
+     ========================================================================== */
+
+  .main-content pre.highlight,
+  .main-content figure.highlight,
+  .main-content div.highlighter-rouge {
+    background-color: var(--cat-ink-800);
+    border: 1px solid var(--cat-hair);
+    border-radius: var(--cat-radius);
+    box-shadow: none;
+    margin: var(--cat-gap) 0 var(--cat-group);
+  }
+
+  .main-content pre.highlight,
+  .main-content figure.highlight pre {
+    padding: var(--cat-pad);
+    font-size: var(--cat-fs-small);
+    line-height: 1.6;
+    font-family: var(--cat-mono);
+    overflow-x: auto;
+  }
+
+  .main-content .highlight,
+  .main-content .highlight pre {
+    background-color: transparent;
+  }
+
+  /* Rouge nests pre.highlight inside div.highlighter-rouge, so the frame above lands on
+     both and the two hairlines stack 1px apart into a muddy edge with two fighting radii.
+     Only the outermost element keeps the frame. */
+  .main-content div.highlighter-rouge pre.highlight,
+  .main-content div.highlighter-rouge .highlight,
+  .main-content figure.highlight pre {
+    background-color: transparent;
+    border: 0;
+    border-radius: 0;
+    margin: 0;
+  }
+
+  /* Inline code was coral, which put the accent into the middle of ordinary
+     sentences on every page. It is a chip now: raised ground, hairline, no colour. */
+  .main-content :not(pre) > code {
+    background-color: var(--cat-ink-700);
+    border: 1px solid var(--cat-hair);
+    border-radius: var(--cat-radius-sm);
+    color: var(--cat-white);
+    font-family: var(--cat-mono);
+    font-size: 0.875em;
+    font-variant-numeric: tabular-nums;
+    padding: 1px 5px;
+  }
+
+  .main-content a > code {
+    color: inherit;
+  }
+
+  /* just-the-docs' own label/code-example wrappers. */
+  .main-content .code-example {
+    background-color: var(--cat-ink-800);
+    border: 1px solid var(--cat-hair);
+    border-radius: var(--cat-radius);
+    padding: var(--cat-pad);
+    margin: var(--cat-gap) 0;
+  }
+
+  /* ==========================================================================
+     9. Callouts
+
+     _config.yml maps warning->red, note->blue, tip->green, which is state, so the
+     semantic tokens belong here and only here. The ring the old rules drew was a
+     box-shadow, and coral was standing in for red on .warning - the accent doing
+     semantic duty is the fastest way to make both unreadable.
+     ========================================================================== */
+
+  .main-content .note,
+  .main-content .tip,
+  .main-content .warning {
+    background-color: var(--cat-ink-800);
+    border: 1px solid var(--cat-hair);
+    border-left-width: 3px;
+    border-radius: var(--cat-radius);
+    box-shadow: none;
+    padding: var(--cat-pad);
+    margin: var(--cat-gap) 0 var(--cat-group);
+    font-size: var(--cat-fs-body);
+    line-height: 1.55;
+  }
+
+  .main-content .note    { border-left-color: var(--cat-info); }
+  .main-content .tip     { border-left-color: var(--cat-ok); }
+  .main-content .warning { border-left-color: var(--cat-bad); }
+
+  .main-content .note > .note-title,
+  .main-content .tip > .tip-title,
+  .main-content .warning > .warning-title {
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: var(--cat-fs-caption);
     font-weight: 700;
   }
-  .main-content table tr:hover td {
-    background: rgba(233,69,96,0.04);
+
+  .main-content .note > .note-title       { color: var(--cat-info); }
+  .main-content .tip > .tip-title         { color: var(--cat-ok); }
+  .main-content .warning > .warning-title { color: var(--cat-bad); }
+
+  .main-content .label,
+  .main-content .label-blue   { background-color: var(--cat-info); }
+  .main-content .label-green  { background-color: var(--cat-ok); }
+  .main-content .label-yellow { background-color: var(--cat-warn); color: var(--cat-ink-900); }
+  .main-content .label-red    { background-color: var(--cat-bad); color: var(--cat-ink-900); }
+
+  /* ==========================================================================
+     10. Cards and tool-page widgets
+
+     .hero-tool / .tool-card carry their own layout in index.md and tools/index.md.
+     What is set here is only what the system owns: the ground they sit on, the one
+     hairline that lifts them, and tabular digits wherever a number sits in a column.
+     ========================================================================== */
+
+  .hero-tools,
+  .tool-grid {
+    gap: var(--cat-gap);
   }
 
-  /* ---------- Code blocks ---------- */
-  .main-content pre.highlight,
-  .main-content figure.highlight {
-    border-radius: 10px;
-    border: 1px solid var(--catalyst-border);
-    box-shadow: 0 6px 14px rgba(0,0,0,0.28);
-  }
-  .main-content :not(pre) > code { color: var(--catalyst-accent-2); }
-
-  /* ---------- Hover-lift cards (used by .tool-card and .hero-tool) ---------- */
-  .hero-tools, .tool-grid { perspective: 1000px; }
-  .hero-tool, .tool-card {
-    transform-style: preserve-3d;
-    transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease !important;
+  .hero-tool,
+  .tool-card {
+    background-color: var(--cat-ink-800) !important;
+    background-image: none !important;
+    border: 1px solid var(--cat-hair) !important;
+    border-radius: var(--cat-radius) !important;
+    box-shadow: none !important;
+    transition: background-color 0.16s ease, border-color 0.16s ease !important;
   }
 
-  /* ---------- Side nav ---------- */
-  .nav-list .nav-list-item .nav-list-link.active {
-    background-image: linear-gradient(90deg, rgba(233,69,96,0.14), transparent 70%);
-    border-left: 3px solid var(--catalyst-accent);
-  }
-  .nav-list .nav-list-item .nav-list-link:hover {
-    background-color: rgba(255,255,255,0.04);
+  .hero-tool:hover,
+  .tool-card:hover {
+    background-color: var(--cat-ink-700) !important;
+    border-color: var(--cat-hair-str) !important;
+    transform: none !important;
+    box-shadow: none !important;
   }
 
-  /* ---------- Callouts ---------- */
-  .main-content .note    { box-shadow: 0 0 0 1px rgba(96,165,250,0.22); }
-  .main-content .tip     { box-shadow: 0 0 0 1px rgba(74,222,128,0.22); }
-  .main-content .warning { box-shadow: 0 0 0 1px rgba(233,69,96,0.30); }
+  .hero-tool .name,
+  .tool-card .name {
+    color: var(--cat-white);
+    font-size: var(--cat-fs-body);
+    letter-spacing: -0.02em;
+  }
 
-  /* ---------- Scrollbar polish (chromium) ---------- */
-  ::-webkit-scrollbar { width: 10px; height: 10px; }
-  ::-webkit-scrollbar-track { background: transparent; }
+  .hero-tool .desc,
+  .tool-card .desc {
+    color: var(--cat-muted);
+    font-size: var(--cat-fs-caption);
+    line-height: 1.5;
+  }
+
+  .hero-tool .tag,
+  .tool-card .tag {
+    color: var(--cat-muted);
+    font-size: var(--cat-fs-caption);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  /* Any column of digits on a tool page. */
+  .main-content .num,
+  .main-content .val,
+  .main-content .value,
+  .main-content .stat-row,
+  .main-content .result-row,
+  .main-content .calc-row,
+  .main-content .stat {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ==========================================================================
+     11. State: focus, motion, scrollbars
+     ========================================================================== */
+
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  summary:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid var(--cat-coral);
+    outline-offset: 2px;
+    border-radius: var(--cat-radius-sm);
+  }
+
+  /* just-the-docs paints its own focus underline on nav and search; it is quieter
+     than the ring above and would otherwise be what a keyboard user sees. */
+  .nav-list .nav-list-item .nav-list-link:focus-visible,
+  .aux-nav-list .aux-nav-list-item .site-button:focus-visible,
+  .search-input:focus-visible {
+    background-image: none;
+    outline: 2px solid var(--cat-coral);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+
+    .hero-tool,
+    .tool-card,
+    .main-content .btn {
+      transform: none !important;
+    }
+  }
+
+  /* Firefox. Chromium falls through to the ::-webkit rules below. */
+  html {
+    scrollbar-color: var(--cat-hair-str) transparent;
+    scrollbar-width: thin;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
   ::-webkit-scrollbar-thumb {
-    background: rgba(255,255,255,0.08);
+    background: var(--cat-hair);
     border-radius: 999px;
   }
-  ::-webkit-scrollbar-thumb:hover { background: var(--catalyst-accent); }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--cat-hair-str);
+  }
 </style>

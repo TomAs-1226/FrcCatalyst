@@ -22,7 +22,7 @@ Add FrcCatalyst to your WPILib robot project.
 ## Prerequisites
 
 - **WPILib 2027 alpha** installed ([download](https://github.com/wpilibsuite/allwpilib/releases)).
-  Catalyst 2.x targets `2027.0.0-alpha-6`; the 2027 toolchain ships **Java 25**, and Gradle 9.7 or
+  Catalyst 2.x targets `2027.0.0-alpha-7`; the 2027 toolchain ships **Java 25**, and Gradle 9.7 or
   later is required to read it. Gradle 8.x fails with `Unsupported class file major version 69`.
 - A **Limelight Systemcore** running the matching OS beta. The library and the OS are versioned
   together — see [Systemcore & WPILib 2027](../advanced/systemcore) before flashing anything.

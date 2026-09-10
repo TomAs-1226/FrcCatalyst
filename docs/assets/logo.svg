@@ -1,45 +1,39 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Catalyst mark. This is the same construction as the panel-and-bolt on banner.svg,
+     enlarged, so the sidebar icon and the social card read as one identity.
+
+     No lettering. just-the-docs renders `logo:` as a background-image inside a 60px-tall
+     .site-title, so a wordmark drawn on a 512 canvas arrives about 7px tall and is a smudge.
+     A mark survives that, and survives a 16px favicon.
+
+     Tokens: #111726 panel, rgba(255,255,255,0.13/0.07) hairlines, #e94560 the one accent. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512"
+     role="img" aria-label="FrcCatalyst">
+  <title>FrcCatalyst</title>
+
   <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#1a1a2e;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#16213e;stop-opacity:1" />
-    </linearGradient>
-    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#e94560;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#ff6b6b;stop-opacity:1" />
-    </linearGradient>
-    <linearGradient id="glow" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#0f3460;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#533483;stop-opacity:1" />
-    </linearGradient>
+    <clipPath id="markClip">
+      <rect x="0" y="0" width="512" height="512" rx="128"/>
+    </clipPath>
+    <radialGradient id="markWash" cx="82%" cy="10%" r="78%">
+      <stop offset="0%" stop-color="#e94560" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#e94560" stop-opacity="0"/>
+    </radialGradient>
   </defs>
-  <!-- Background circle -->
-  <circle cx="256" cy="256" r="240" fill="url(#bg)" stroke="url(#accent)" stroke-width="4"/>
-  <!-- Inner ring -->
-  <circle cx="256" cy="256" r="200" fill="none" stroke="url(#glow)" stroke-width="2" opacity="0.5"/>
-  <!-- Gear teeth (outer) -->
-  <g transform="translate(256,256)">
-    <path d="M0,-180 L15,-195 L15,-175 L-15,-175 L-15,-195 Z" fill="url(#accent)" transform="rotate(0)"/>
-    <path d="M0,-180 L15,-195 L15,-175 L-15,-175 L-15,-195 Z" fill="url(#accent)" transform="rotate(30)"/>
-    <path d="M0,-180 L15,-195 L15,-175 L-15,-175 L-15,-195 Z" fill="url(#accent)" transform="rotate(60)"/>
-    <path d="M0,-180 L15,-195 L15,-175 L-15,-175 L-15,-195 Z" fill="url(#accent)" transform="rotate(90)"/>
-    <path d="M0,-180 L15,-195 L15,-175 L-15,-175 L-15,-195 Z" fill="url(#accent)" transform="rotate(120)"/>
-    <path d="M0,-180 L15,-195 L15,-175 L-15,-175 L-15,-195 Z" fill="url(#accent)" transform="rotate(150)"/>
-    <path d="M0,-180 L15,-195 L15,-175 L-15,-175 L-15,-195 Z" fill="url(#accent)" transform="rotate(180)"/>
-    <path d="M0,-180 L15,-195 L15,-175 L-15,-175 L-15,-195 Z" fill="url(#accent)" transform="rotate(210)"/>
-    <path d="M0,-180 L15,-195 L15,-175 L-15,-175 L-15,-195 Z" fill="url(#accent)" transform="rotate(240)"/>
-    <path d="M0,-180 L15,-195 L15,-175 L-15,-175 L-15,-195 Z" fill="url(#accent)" transform="rotate(270)"/>
-    <path d="M0,-180 L15,-195 L15,-175 L-15,-175 L-15,-195 Z" fill="url(#accent)" transform="rotate(300)"/>
-    <path d="M0,-180 L15,-195 L15,-175 L-15,-175 L-15,-195 Z" fill="url(#accent)" transform="rotate(330)"/>
-    <!-- Gear body -->
-    <circle cx="0" cy="0" r="170" fill="none" stroke="url(#accent)" stroke-width="8"/>
-    <circle cx="0" cy="0" r="60" fill="url(#bg)" stroke="url(#accent)" stroke-width="4"/>
+
+  <g clip-path="url(#markClip)">
+    <rect x="0" y="0" width="512" height="512" fill="#111726"/>
+    <rect x="0" y="0" width="512" height="512" fill="url(#markWash)"/>
   </g>
-  <!-- Center hexagon bolt -->
-  <polygon points="256,226 282,241 282,271 256,286 230,271 230,241" fill="url(#accent)" opacity="0.8"/>
-  <!-- Lightning bolt (catalyst symbol) -->
-  <path d="M240,150 L220,260 L250,250 L230,360 L300,230 L265,240 L285,150 Z" fill="#fff" opacity="0.9"/>
-  <!-- Text arc - "FRC" -->
-  <text x="256" y="430" text-anchor="middle" font-family="Arial Black, sans-serif" font-weight="900" font-size="40" fill="#e94560" letter-spacing="8">CATALYST</text>
-  <text x="256" y="105" text-anchor="middle" font-family="Arial Black, sans-serif" font-weight="900" font-size="28" fill="#fff" opacity="0.7" letter-spacing="12">FRC</text>
+
+  <!-- Depth by ground and hairline, never by shadow. The inner ring is craft at 512 and
+       vanishes cleanly at favicon size instead of turning into mud. -->
+  <rect x="32" y="32" width="448" height="448" rx="96"
+        fill="none" stroke="#ffffff" stroke-opacity="0.07"/>
+  <rect x="0.5" y="0.5" width="511" height="511" rx="127.5"
+        fill="none" stroke="#ffffff" stroke-opacity="0.13"/>
+
+  <g transform="translate(101.9 95.2) scale(13.4)">
+    <path d="M13 2L3 14h7v8l10-12h-7V2z" fill="#e94560"/>
+  </g>
 </svg>

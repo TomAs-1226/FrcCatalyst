@@ -1,51 +1,88 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" width="1200" height="300" role="img" aria-label="FrcCatalyst — mechanisms, hardware wrappers, Physics Core and utilities for CTRE Phoenix 6 and WPILib 2027 on Limelight Systemcore. Version 2.0.0-alpha.1.">
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Catalyst social/OG card and repo header. Standalone: no external references, no raster.
+
+     Font families are written onto each text element rather than into an internal <style>,
+     because GitHub strips <style> when it sanitises inline SVG and the card would fall back
+     to a serif face in the one place it is seen most.
+
+     Colours are the Catalyst tokens: #0b0f1a ground, #111726 panel, #182034 raised,
+     rgba(255,255,255,0.07/0.13) hairlines, #e94560 the single accent, #f4f7fc / #d5dbe8 /
+     #7f8aa3 text. Amber is the only other hue and it is carrying state (pre-season), not
+     decoration. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" width="1200" height="300"
+     role="img"
+     aria-label="FrcCatalyst 2.0.0-beta.1 &#8212; pre-built mechanisms and utilities for FRC robots on CTRE Phoenix 6, WPILib 2027 and Limelight Systemcore. Pre-season beta.">
+  <title>FrcCatalyst 2.0.0-beta.1</title>
+
   <defs>
-    <linearGradient id="bannerBg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#1a1a2e;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#16213e;stop-opacity:1" />
-    </linearGradient>
-    <linearGradient id="bannerAccent" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#e94560;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#ff6b6b;stop-opacity:1" />
-    </linearGradient>
+    <clipPath id="cardClip">
+      <rect x="0" y="0" width="1200" height="300" rx="16"/>
+    </clipPath>
+    <!-- Ground, not signal. At 9% it cannot be mistaken for something marked. -->
+    <radialGradient id="wash" cx="92%" cy="-8%" r="66%">
+      <stop offset="0%" stop-color="#e94560" stop-opacity="0.09"/>
+      <stop offset="100%" stop-color="#e94560" stop-opacity="0"/>
+    </radialGradient>
   </defs>
-  <!-- Background -->
-  <rect width="1200" height="300" rx="16" fill="url(#bannerBg)"/>
-  <!-- Accent line -->
-  <rect x="0" y="296" width="1200" height="4" fill="url(#bannerAccent)"/>
-  <!-- Grid pattern -->
-  <g opacity="0.03" stroke="#fff" stroke-width="1">
-    <line x1="0" y1="0" x2="0" y2="300"/><line x1="60" y1="0" x2="60" y2="300"/>
-    <line x1="120" y1="0" x2="120" y2="300"/><line x1="180" y1="0" x2="180" y2="300"/>
-    <line x1="240" y1="0" x2="240" y2="300"/><line x1="300" y1="0" x2="300" y2="300"/>
-    <line x1="0" y1="60" x2="1200" y2="60"/><line x1="0" y1="120" x2="1200" y2="120"/>
-    <line x1="0" y1="180" x2="1200" y2="180"/><line x1="0" y1="240" x2="1200" y2="240"/>
+
+  <g clip-path="url(#cardClip)">
+    <rect x="0" y="0" width="1200" height="300" fill="#0b0f1a"/>
+    <rect x="0" y="0" width="1200" height="300" fill="url(#wash)"/>
+
+    <g stroke="#ffffff" stroke-opacity="0.035" stroke-width="1">
+      <path d="M60.5 0V300M120.5 0V300M180.5 0V300M240.5 0V300M300.5 0V300M360.5 0V300M420.5 0V300M480.5 0V300M540.5 0V300M600.5 0V300M660.5 0V300M720.5 0V300M780.5 0V300M840.5 0V300M900.5 0V300M960.5 0V300M1020.5 0V300M1080.5 0V300M1140.5 0V300"/>
+      <path d="M0 60.5H1200M0 120.5H1200M0 180.5H1200M0 240.5H1200"/>
+    </g>
+
+    <!-- Five marks, one per Systemcore CAN bus, grouped the way the silicon groups them:
+         can_s0+can_s1 share an SPI controller, can_s3+can_s4 share another, can_s2 stands
+         alone (docs/advanced/systemcore.md:211). Drawn in hairline white rather than coral,
+         because it is texture and the accent has one job on this card. -->
+    <g stroke="#ffffff" stroke-opacity="0.13" stroke-width="3" stroke-linecap="round">
+      <path d="M1032 100V200M1048 100V200"/>
+      <path d="M1096 100V200"/>
+      <path d="M1144 100V200M1160 100V200"/>
+    </g>
+
+    <rect x="0" y="296" width="1200" height="4" fill="#e94560"/>
   </g>
-  <!-- Five faint verticals at the right, one per Systemcore CAN bus. The two pairs that share an SPI
-       controller are drawn together and can_s2 stands alone, which is the one fact about this
-       hardware that changes how a robot gets wired. -->
-  <g opacity="0.10" stroke="#e94560" stroke-width="2" stroke-linecap="round">
-    <line x1="1020" y1="96" x2="1020" y2="204"/><line x1="1032" y1="96" x2="1032" y2="204"/>
-    <line x1="1072" y1="96" x2="1072" y2="204"/>
-    <line x1="1112" y1="96" x2="1112" y2="204"/><line x1="1124" y1="96" x2="1124" y2="204"/>
+
+  <rect x="0.5" y="0.5" width="1199" height="299" rx="15.5"
+        fill="none" stroke="#ffffff" stroke-opacity="0.07"/>
+
+  <!-- The mark: a raised panel holding the accent glyph. Same construction as logo.svg,
+       so the sidebar icon and this card are recognisably one thing. -->
+  <rect x="72" y="99" width="104" height="104" rx="26"
+        fill="#111726" stroke="#ffffff" stroke-opacity="0.13"/>
+  <g transform="translate(87.2 112.6) scale(3.2)">
+    <path d="M13 2L3 14h7v8l10-12h-7V2z" fill="#e94560"/>
   </g>
-  <!-- Lightning bolt icon -->
-  <g transform="translate(100,50) scale(0.5)">
-    <circle cx="200" cy="200" r="180" fill="none" stroke="#e94560" stroke-width="6" opacity="0.3"/>
-    <path d="M180,80 L150,210 L190,195 L165,320 L260,170 L215,185 L240,80 Z" fill="#e94560" opacity="0.9"/>
-  </g>
-  <!-- Title -->
-  <text x="340" y="130" font-family="Arial Black, sans-serif" font-weight="900" font-size="72" fill="#ffffff" letter-spacing="4">FrcCatalyst</text>
-  <!-- Subtitle -->
-  <text x="342" y="175" font-family="Arial, sans-serif" font-weight="400" font-size="24" fill="#e94560">Accelerate your FRC robot development</text>
-  <!-- Description -->
-  <text x="342" y="220" font-family="Arial, sans-serif" font-weight="300" font-size="18" fill="#8892b0">Mechanisms, hardware wrappers, Physics Core, and utilities</text>
-  <text x="342" y="248" font-family="Arial, sans-serif" font-weight="300" font-size="18" fill="#8892b0">for CTRE Phoenix 6 + WPILib 2027 on Limelight Systemcore</text>
-  <!-- Version badge. Wider than 1.x's because a pre-release version is a longer string, and the
-       badge saying the wrong thing is worse than the badge being wide. -->
-  <rect x="342" y="260" width="138" height="22" rx="4" fill="#e94560"/>
-  <text x="411" y="276" text-anchor="middle" font-family="monospace" font-size="12" fill="#fff">v2.0.0-alpha.1</text>
-  <!-- Said out loud, because an alpha that looks like a release gets deployed like one. -->
-  <rect x="490" y="260" width="86" height="22" rx="4" fill="none" stroke="#e94560" stroke-width="1.5" opacity="0.7"/>
-  <text x="533" y="276" text-anchor="middle" font-family="monospace" font-size="11" fill="#e94560">PRE-SEASON</text>
+
+  <text x="216" y="118"
+        font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif"
+        font-size="76" font-weight="800" letter-spacing="-1.5" fill="#f4f7fc">FrcCatalyst</text>
+
+  <text x="216" y="158"
+        font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif"
+        font-size="24" font-weight="400" fill="#d5dbe8">Pre-built mechanisms and utilities for FRC robots.</text>
+
+  <text x="216" y="188"
+        font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif"
+        font-size="20" font-weight="400" fill="#7f8aa3">CTRE Phoenix 6 &#183; WPILib 2027 &#183; Limelight Systemcore &#183; Java 25</text>
+
+  <!-- Version reads as data, so it gets a neutral chip. Making it coral would put the
+       accent on a string nobody clicks. -->
+  <rect x="216" y="210" width="158" height="30" rx="8"
+        fill="#182034" stroke="#ffffff" stroke-opacity="0.13"/>
+  <text x="295" y="231" text-anchor="middle"
+        font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace"
+        font-size="16" letter-spacing="0.3" fill="#f4f7fc">v2.0.0-beta.1</text>
+
+  <!-- Said out loud, because a beta that looks like a release gets deployed like one.
+       Amber is the warn token doing exactly what a state colour is for. -->
+  <rect x="386" y="210" width="124" height="30" rx="8"
+        fill="none" stroke="#fbbf24" stroke-opacity="0.5"/>
+  <text x="448" y="230" text-anchor="middle"
+        font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif"
+        font-size="13" font-weight="700" letter-spacing="0.78" fill="#fbbf24">PRE-SEASON</text>
 </svg>

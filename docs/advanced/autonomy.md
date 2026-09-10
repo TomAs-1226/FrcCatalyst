@@ -14,7 +14,7 @@ commands anything** — no core schedules a command, writes a pose, sets a motor
 transition. What you do with a decision is your code's business.
 
 {: .warning }
-> New in 2.0.0-alpha.2 and not yet run on a robot. Every core is unit-tested and every one is a pure
+> New in 2.0.0-beta.1 and not yet run on a robot. Every core is unit-tested and every one is a pure
 > function or a small object with explicit memory, so they are cheap to test yourself — but nothing
 > here has been driven.
 

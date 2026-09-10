@@ -383,7 +383,7 @@ VisionConfig.builder()
     .singleTagRotDistanceThreshold(4.0)   // past 4 m, a single tag's heading is ignored outright
     .rejectDuringHighSpeed(3.0)           // reject when > 3 m/s
     .maxHeadingDivergence(15.0)           // reject if heading disagrees > 15 deg
-    .fieldDimensions(16.54, 8.21)         // custom field bounds
+    .fieldDimensions(16.54, 8.07)         // REBUILT 2026 bounds
     .build();
 ```
 

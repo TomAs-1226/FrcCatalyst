@@ -178,7 +178,7 @@ Two things are worth pinning down here, because they are the crux of the design:
 This is the most important section on the page. If you understand one 20 ms scheduler tick,
 you understand the machine.
 
-`Scheduler.run()` runs, in this fixed order, every loop (read off the alpha-6 jar, not assumed):
+`Scheduler.run()` runs, in this fixed order, every loop (read off the jar, not assumed):
 
 1. stale bindings are cancelled and stale triggers unbound,
 2. every registered periodic callback - which is what `CatalystSubsystem.registerPeriodic()` installs,

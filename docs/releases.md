@@ -23,17 +23,59 @@ shims, because carrying both would have meant every class in the library branchi
 | | **Catalyst 1.x** | **Catalyst 2.x** |
 |---|---|---|
 | Controller | roboRIO | Limelight Systemcore |
-| WPILib | 2026 | 2027 alpha-6 |
+| WPILib | 2026 | 2027 alpha-7 |
 | Java | 17 | **25** |
 | Gradle | 8.x | **9.7+** |
 | Commands | v2 | **v3** |
 | CAN buses | 1 | **5** |
-| Latest | `v1.12.0` | `v2.0.0-alpha.1` |
+| Latest | `v1.12.0` | `v2.0.0-beta.1` |
 | Docs | [stable](https://tomas-1226.github.io/FrcCatalyst/) | you are reading them |
 
 {: .warning }
 > **If your robot is competing, use 1.x.** 2.x targets an alpha WPILib on a beta operating system
 > and has never run on hardware. It is for an offseason robot you can afford to have not work.
+
+---
+
+## v2.0.0-beta.1
+
+*9 September 2026* · [release](https://github.com/TomAs-1226/FrcCatalyst/releases/tag/v2.0.0-beta.1)
+
+The 2027 port, on the WPILib and Systemcore OS pair that actually run together.
+
+**Beta rather than 2.0.0, deliberately.** It is pinned to WPILib `2027.0.0-alpha-7`, and an alpha is
+not a foundation you can call stable — that one has already changed `Mechanism` from an interface to
+a class and back across three builds. Nothing here has been driven on a competition robot either.
+The API is what 2.0.0 will be; the version says what it is standing on.
+
+**Requires Systemcore OS beta 14.** That release is titled "(REQUIRES WPILIB ALPHA 7)" and the
+pairing is not advice — a build made against alpha-7 aborts on beta 13 before any robot code runs.
+
+```gradle
+implementation 'com.github.TomAs-1226:FrcCatalyst:v2.0.0-beta.1'
+```
+
+Installable through the vendordep again. Alpha-6's release was on no public maven, so JitPack could
+not build the library at all and every tag after `v2.0.0-alpha.1` had to be built from source on a
+machine with the WPILib installer. Alpha-7 is on `frcmaven/release`, so that cost is paid.
+
+**Fixed: the default field was a season out of date.** `CatalystMath.FIELD_WIDTH`,
+`AllianceFlipUtil` and `VisionConfig` all defaulted to 8.21 m — the REEFSCAPE width — while the rest
+of the library used 8.07 m. A team that never called `configure(...)` had every red-alliance Y
+flipped about an axis 7 cm off centre: 14 cm of error on every mirrored waypoint, on one alliance
+only, with nothing reporting a fault.
+
+**Fixed: an unsolved MegaTag2 no longer discards the MegaTag1 fix beside it.** Measured over 1,540
+frames in four IMU configurations, MegaTag1 solved every frame and MegaTag2 none. An unsolved
+MegaTag2 publishes six zeros, which in blue-origin form is the exact centre of the field — full
+length, finite, and indistinguishable from a real pose by every check except the centre-origin key.
+
+**Breaking:** `AutoSelector.getChooser()` returns `Selectable<String>`, not `SendableChooser<String>`
+— alpha-7 deleted that class. Callers rename `setDefaultOption` → `addDefault` and `addOption` →
+`add`. It is the only signature in the library that 2027 forced to change.
+
+Five classes are back in the build (`WpiTelemetrySink`, `TelemetryUtil`, `MechanismVisualizer`,
+`DriverBoard`); only `PhotonSource` is still excluded. 867 tests, 0 failures.
 
 ---
 

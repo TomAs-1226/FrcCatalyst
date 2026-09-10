@@ -31,36 +31,39 @@ that deploys and then does nothing.
 
 | Component | Version |
 |---|---|
-| Catalyst | 2.0.0-alpha.1 |
-| WPILib | 2027.0.0-alpha-6 |
-| Systemcore OS | beta 13 |
+| Catalyst | 2.0.0-beta.1 |
+| WPILib | 2027.0.0-alpha-7 |
+| Systemcore OS | **beta 14** (`limelightosr-2027.0.0-beta14-210`) |
 | Phoenix 6 | 26.50.0-alpha-1 |
 | PathPlannerLib | 2027.0.0-alpha-3 |
-| LimelightLib | 2.0.0-beta2 |
+| LimelightLib | 2.0.0-beta8-alpha7 |
 | Java | 25 |
 
-Systemcore OS **beta 14 requires WPILib alpha-7**, which is not released. Until it is, pair Catalyst
-2.x with OS beta 13.
+**Flash the OS to beta 14.** That release is titled "(REQUIRES WPILIB ALPHA 7)" and the pairing is
+not advice — a build made against alpha-7 will not start on beta 13. It does not degrade: the
+program aborts before any robot code runs with `MRC API version mismatch`, and systemd restarts it
+about twenty times a minute. If Catalyst appears to deploy and then do nothing, check the OS image
+before you read a single line of your own code.
 
-> **The installer is all you need, and the two alpha-6s are not the same thing.**
+> **Get the WPILib version right, and be careful which alpha-6 anyone means.**
 >
-> There are two builds called 2027 alpha-6: the **release**, which ships inside the WPILib installer
-> and is what Systemcore OS beta 13 runs, and a **development snapshot** with the same alpha number
-> published to the development maven. They are materially different APIs. Read off every jar in the
-> installer rather than inferred:
+> Catalyst 2.0.0-beta.1 targets **WPILib 2027.0.0-alpha-7**, which is on `frcmaven/release` — a
+> public maven. That is what makes a tag installable through the vendordep rather than needing a
+> source build, and it is the single biggest practical difference from the alpha-6 era.
 >
-> - `org.wpilib.telemetry`, `org.wpilib.tunables` and `org.wpilib.fields` **do not exist** in the
->   release. They do in the snapshot.
-> - Commands v3's `Mechanism` is a **class** in the release and an **interface** in the snapshot.
-> - The release publishes `org.wpilib:commands3-java`; the snapshot publishes
->   `org.wpilib:commandsv3-java`.
+> That era is worth knowing about only because its wreckage is still in older docs and forum posts.
+> There were **two** builds called 2027 alpha-6: the release inside the WPILib installer, and a
+> development snapshot carrying the same alpha number. They were materially different APIs — the
+> snapshot had `org.wpilib.telemetry`, `.tunables` and `.fields` where the release had none, made
+> `Mechanism` an interface where the release made it a class, and published
+> `org.wpilib:commandsv3-java` where the release published `org.wpilib:commands3-java`.
 >
-> **Catalyst 2.0.0-alpha.1-a6 targets the release**, so the installer is sufficient and no
-> development maven is needed. Five classes that can only exist on the snapshot are excluded from
-> this build — see [What is not in this build](#what-is-not-in-this-build).
+> Alpha-7 ends the split: it has the telemetry and tunables packages, `Mechanism` is an interface,
+> and the artifact is `commandsv3-java`. If you are reading advice that turns on "which alpha-6",
+> it is out of date.
 >
-> Getting this wrong does not look like a version problem. A program built against the snapshot and
-> deployed to a beta 13 board **aborts at startup**: the board's daemon checks the client's reported
+> Getting the version wrong does not look like a version problem. A program built against the wrong
+> WPILib **aborts at startup**: the board's daemon checks the client's reported
 > library version and rejects a mismatch, so the symptom is a robot that deploys, refuses to enable,
 > and says nothing a compile error would have told you.
 
@@ -68,27 +71,21 @@ Systemcore OS **beta 14 requires WPILib alpha-7**, which is not released. Until 
 
 ## What is not in this build
 
-Five classes that exist in the source tree do not ship in `2.0.0-alpha.1-a6`. None of them are
-deleted — every one is excluded from the source set, so it comes back unchanged the moment the thing
-it needs exists in a release. They are listed here so that "why can I not import this" has an answer
-that is not a compile error.
+One class, for one reason.
 
 | Class | Needs | Use instead |
 |---|---|---|
-| `WpiTelemetrySink` | `org.wpilib.telemetry` | `NetworkTablesSink` — already the default |
-| `TelemetryUtil` | `org.wpilib.telemetry` | `CatalystLog` |
-| `MechanismVisualizer` | `org.wpilib.telemetry` | `SimDashboard` |
-| `DriverBoard` | `DriverStationDisplay` | the Driver Station's own panels |
 | `PhotonSource` | a PhotonVision 2027 vendordep | `LimelightSource` |
 
-**The logging ones cost you nothing.** `CatalystLog` falls back to `NetworkTablesSink`, which is the
-sink this library used for every season before 2027 and is still fully tested. Published key paths
-are identical, so Console, the health dashboard and any AdvantageScope layout you already have
-resolve exactly the same names. The only thing lost is that Catalyst telemetry does not automatically
-appear in tools that read WPILib's new standard backend without being pointed at `/Catalyst/...`.
+It is excluded from the source set rather than deleted, so it returns unchanged if PhotonVision
+ships one. **PhotonVision is a direction, not a gap.** Catalyst is Limelight-first: the pipeline is
+built into the hardware and it is the supported path, so `PhotonSource` is unlikely to return.
 
-**PhotonVision is a direction, not a gap.** Catalyst is Limelight-first: the pipeline is built into
-the hardware and it is the supported path. `PhotonSource` is unlikely to return.
+This list was four classes longer until 2.0.0-beta.1. `WpiTelemetrySink`, `TelemetryUtil`,
+`MechanismVisualizer` and `DriverBoard` were excluded because `org.wpilib.telemetry` and
+`DriverStationDisplay` existed only in a WPILib development snapshot and not in any release. Alpha-7
+ships both, so all four compile and are in the build. If you read an older version of this page and
+went looking for a workaround, you no longer need one.
 
 **Choreo still works**, despite ChoreoLib having no build past alpha-2. `followChoreoPath()` reads
 Choreo `.traj` files through PathPlanner's `fromChoreoTrajectory`, so it never needed the ChoreoLib
@@ -98,21 +95,39 @@ vendordep and is unaffected.
 
 ## What you have to change
 
-### `AutoSelector` works, and briefly did not
+### `AutoSelector.getChooser()` is the one forced API break
 
-It is in the build and unchanged from 1.x, `SendableChooser` return type included.
+It is the only signature in the whole library that 2027 forced to change.
 
-It was excluded for a while on a wrong premise, which is worth recording because the premise appears
-elsewhere in these docs. `SendableChooser` was believed removed in 2027 and the class was ported to
-`org.wpilib.tunable.Selectable`; that package really is absent from the released alpha-6, so the
-port would not compile and the file was dropped from the source set. But the original claim was
-false. Checked against the shipped jars: **`SendableChooser`, `SmartDashboard`, `Sendable` and
-`SendableBuilder` are all present** in `wpilibj-java`. Only `org.wpilib.telemetry` and
-`org.wpilib.tunables` are genuinely missing — those belong to the development snapshot, a different
-build that happens to share the alpha-6 name.
+```java
+// before
+public SendableChooser<String> getChooser()
+// now
+public Selectable<String> getChooser()      // org.wpilib.tunable.Selectable
+```
 
-So nothing about `AutoSelector` changes for a migrating team, and the "one forced API break" the
-2027 notes recorded was not a break at all.
+Alpha-7 deleted `SendableChooser`, `SmartDashboard`, `Sendable` and `SendableBuilder` outright, so
+there is no type left to return. Wrapping it in a Catalyst-owned type would be a larger break than
+the rename and would defeat the accessor's whole purpose, which is to expose what this class does
+not wrap.
+
+If you call it, rename two methods. `getSelected()` is unchanged, and so is every other member of
+`AutoSelector` — both constructors, `addPathPlannerAuto`, `addCustom`, `getSelectedName`,
+`publishAsOpModes`, `isUsingDriverStationSelection`, `selectedStartingPose`, `startCheck`.
+
+| before | now |
+|---|---|
+| `getChooser().setDefaultOption(name, v)` | `getChooser().addDefault(name, v)` |
+| `getChooser().addOption(name, v)` | `getChooser().add(name, v)` |
+| `getChooser().getSelected()` | unchanged |
+
+**The widget moved on NetworkTables.** Tunable paths are absolute, so the chooser publishes at
+`/<key>` rather than `/SmartDashboard/<key>`. A dashboard layout that hardcodes the old path needs
+repointing; one that lets you pick the topic does not.
+
+An earlier version of this page said the opposite — that `AutoSelector` was unchanged and the
+forced break had been avoided. That was true against the released alpha-6, where `SendableChooser`
+still existed and the port to `Selectable` was reverted. Alpha-7 removed it for real.
 
 ### Five command decorators were renamed
 
@@ -735,12 +750,24 @@ CAN topics that the readings above are built on.
 - **Whether Systemcore terminates its own CAN buses.** The roboRIO had a 120 Ohm terminator built
   in. Nothing in Limelight's or WPILib's documentation says whether Systemcore does, on any of its
   five buses. The wiring tool asks you to check rather than assuming either way.
-- **The `frcYear` a 2027 vendordep should carry.** Catalyst's says `2027`. WPILib's own
-  `WPILibNewCommands.json` in the alpha test projects says `2027_alpha1` - the same string as the
-  project's `projectYear` - so an exact-match check somewhere in the toolchain would reject ours.
-  It could not be tested, because GradleRIO 2027 alpha-6 ships only inside the WPILib installer.
-  If VS Code complains about the season on install, this is why, and the fix is to match your
-  project's `projectYear` exactly.
+- **The `frcYear` a 2027 vendordep must carry — answered, 2026-09-09.** It is an exact-match check
+  and it is enforced. GradleRIO reads the project's `projectYear`, derives `frcHome` from it, and
+  refuses to apply the plugin at all if any vendordep disagrees:
+
+  ```
+  Vendor Dependency Commands v3 has invalid year 2027_alpha5. Expected to be 2027_alpha7.
+  ```
+
+  So a vendordep must say exactly what the project says — `2027_alpha7` for this release, not the
+  bare `2027` Catalyst's used to carry. Catalyst's published vendordep was fixed in 2.0.0-beta.1;
+  a project of your own needs its `.wpilib/wpilib_preferences.json` and every file in `vendordeps/`
+  to agree. The message is worth reading closely: it says editing a dependency to get past the check
+  breaks at runtime, and the check exists precisely so a vendordep built for one alpha cannot
+  silently load against another.
+
+  Note this also means the matching WPILib **installer** must be present, because `frcHome` points
+  into it. GradleRIO alpha-7 is on the Gradle plugin portal, but the plugin alone is not enough.
+
 - **Whether the eMMC health topics carry raw JEDEC codes.** The OS reads Linux's
   `/sys/class/mmc_host/*/life_time` and `/pre_eol_info`, which expose the raw registers, and Catalyst
   reads `emmc/lifetime_a`, `emmc/lifetime_b` and `emmc/pre_eol` as those codes: lifetime in ten 10%

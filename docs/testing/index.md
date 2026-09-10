@@ -50,15 +50,6 @@ This launches the WPILib Sim GUI with:
 
 ### Dashboard Visualization
 
-{: .warning }
-> **Not built on the 2027 branch.** `MechanismVisualizer` publishes through
-> `org.wpilib.telemetry.Telemetry`, which the released WPILib 2027 alpha-6 does not ship - the
-> package exists only in the development snapshot that shares the alpha-6 name. The class is
-> excluded from the source set in `build.gradle` rather than deleted, and comes back the moment a
-> release carries that package. It is not on the classpath today, so code written against this
-> section will not compile against Catalyst 2.x. (`Mechanism2d` itself is fine; it is the
-> telemetry backend underneath that is missing.)
-
 Use `MechanismVisualizer` to see your mechanisms in real-time on the dashboard:
 
 ```java
