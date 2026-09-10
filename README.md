@@ -3,48 +3,76 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/TomAs-1226/FrcCatalyst/actions"><img src="https://img.shields.io/github/actions/workflow/status/TomAs-1226/FrcCatalyst/build.yml?style=for-the-badge&logo=github&label=Build" alt="Build Status"/></a>
-  <a href="https://github.com/TomAs-1226/FrcCatalyst/releases"><img src="https://img.shields.io/github/v/release/TomAs-1226/FrcCatalyst?style=for-the-badge&logo=semanticrelease&color=e94560" alt="Release"/></a>
-  <a href="https://github.com/TomAs-1226/FrcCatalyst/blob/main/LICENSE"><img src="https://img.shields.io/github/license/TomAs-1226/FrcCatalyst?style=for-the-badge&color=0f3460" alt="License"/></a>
-  <a href="https://tomas-1226.github.io/FrcCatalyst/beta/"><img src="https://img.shields.io/badge/Docs-beta-blue?style=for-the-badge&logo=github" alt="Docs"/></a>
+  <a href="https://github.com/TomAs-1226/FrcCatalyst/actions"><img src="https://img.shields.io/github/actions/workflow/status/TomAs-1226/FrcCatalyst/build.yml?style=for-the-badge&logo=github&label=Build" alt="Build status"/></a>
+  <a href="https://github.com/TomAs-1226/FrcCatalyst/releases"><img src="https://img.shields.io/github/v/release/TomAs-1226/FrcCatalyst?include_prereleases&style=for-the-badge&logo=semanticrelease&label=Release&color=182034&labelColor=0b0f1a" alt="Latest release"/></a>
+  <a href="https://tomas-1226.github.io/FrcCatalyst/beta/"><img src="https://img.shields.io/badge/Docs-beta-182034?style=for-the-badge&logo=readthedocs&labelColor=0b0f1a" alt="Beta documentation"/></a>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/WPILib-2027%20alpha--6-green?style=flat-square" alt="WPILib"/>
-  <img src="https://img.shields.io/badge/Systemcore-OS%20beta%2013-e94560?style=flat-square" alt="Systemcore"/>
-  <img src="https://img.shields.io/badge/Phoenix%206-26.50.0--alpha--1-orange?style=flat-square" alt="Phoenix 6"/>
-  <img src="https://img.shields.io/badge/Java-25-blue?style=flat-square&logo=openjdk" alt="Java 25"/>
-  <img src="https://img.shields.io/badge/PathPlanner-2027.0.0--alpha--3-purple?style=flat-square" alt="PathPlanner"/>
+  <img src="https://img.shields.io/badge/WPILib-2027.0.0--alpha--7-182034?style=flat-square&labelColor=0b0f1a" alt="WPILib 2027.0.0-alpha-7"/>
+  <img src="https://img.shields.io/badge/Systemcore%20OS-beta%2014-e94560?style=flat-square&labelColor=0b0f1a" alt="Systemcore OS beta 14"/>
+  <img src="https://img.shields.io/badge/Java-25-182034?style=flat-square&logo=openjdk&labelColor=0b0f1a" alt="Java 25"/>
+  <img src="https://img.shields.io/badge/Phoenix%206-26.50.0--alpha--1-182034?style=flat-square&labelColor=0b0f1a" alt="Phoenix 6 26.50.0-alpha-1"/>
+  <img src="https://img.shields.io/badge/PathPlanner-2027.0.0--alpha--3-182034?style=flat-square&labelColor=0b0f1a" alt="PathPlanner 2027.0.0-alpha-3"/>
+  <img src="https://img.shields.io/badge/LimelightLib-2.0.0--beta8--alpha7-182034?style=flat-square&labelColor=0b0f1a" alt="LimelightLib 2.0.0-beta8-alpha7"/>
 </p>
 
----
+**A Java library for FRC robots on CTRE Phoenix 6** — mechanisms, swerve, a whole-robot state
+machine, autonomy and telemetry, configured through builders instead of rewritten every season.
+This branch is Catalyst 2.x: WPILib 2027 on Limelight Systemcore, a hard cut with no 2026 shims.
 
-> **This branch is Catalyst 2.x — WPILib 2027 on Limelight Systemcore.** A hard cut with no 2026
-> shims. It has now run on a real Systemcore — deploy, OpMode enable, a Pigeon on `can_s0`, the
-> onboard IMU, and the board's own `/sys` and `/diagnostics` readings — but only on a bench, never
-> on a robot. Swerve, mechanisms, autos and vision have not been driven by hardware.
-> For a robot that is competing on a roboRIO, use
-> [1.12.0](https://github.com/TomAs-1226/FrcCatalyst/releases/tag/v1.12.0) and the
-> [stable documentation](https://tomas-1226.github.io/FrcCatalyst/).
+```gradle
+implementation 'com.github.TomAs-1226:FrcCatalyst:v2.0.0-beta.1'
+```
 
-## What is FrcCatalyst?
+## What state this is in
 
-**FrcCatalyst** is a plug-and-play Java library for FRC teams using **CTRE Phoenix 6 hardware**. It provides production-ready mechanism building blocks, hardware wrappers, and utilities so your team can focus on strategy and game-specific logic instead of writing boilerplate.
+**`2.0.0-beta.1` has never been driven on a robot.** It has run on a bench — deploy, OpMode enable,
+a Pigeon on `can_s0`, the onboard IMU, the board's own status topics. Swerve, mechanisms, autos and
+vision have not been driven by hardware. 867 tests pass with 0 failures, and that is a fact about
+the code, not a fact about a robot.
 
-> **One import. One builder call. A fully functional mechanism with telemetry, simulation, safety limits, and command factories.**
+It is a beta because of what it stands on. It is pinned to WPILib `2027.0.0-alpha-7`, which has
+already changed `Mechanism` from an interface to a class and back across three builds, and it
+requires **Systemcore OS beta 14** — a build against alpha-7 aborts on beta 13 before your robot
+code runs, so a mismatch looks like a robot that deploys and then does nothing.
 
-### Why FrcCatalyst?
+This is the pre-season release. Put it on an offseason robot over the offseason, so the port to
+2027 is behind you rather than ahead of you in January. **If you are competing, use
+[v1.12.0](https://github.com/TomAs-1226/FrcCatalyst/releases/tag/v1.12.0)** — WPILib 2026, roboRIO,
+[stable documentation](https://tomas-1226.github.io/FrcCatalyst/).
 
-| Feature | Raw WPILib/Phoenix | FrcCatalyst |
-|---------|-------------------|-------------|
-| Elevator with gravity FF | ~150 lines | **8 lines** |
-| Swerve + PathPlanner + Vision | ~400 lines | **15 lines** |
-| Mechanism with sim + telemetry | Build it yourself | **Built-in** |
-| Browser sim cockpit for any mechanism | Hand-write per robot | **Generic `SimDashboard`** |
-| Safe temperature cutoffs | Manual | **Automatic** |
-| Limit switch auto-zeroing | Manual wiring | **One builder call** |
-| Whole-robot state machine | Hand-rolled per season | **Declarative graph + full logging** |
-| A spec sheet the dashboard can read | Hand-typed and out of date by week two | **`RobotIdentity.declare("Ratchet")`** |
+## Four things you would otherwise build yourself
+
+**[Physics Core](https://tomas-1226.github.io/FrcCatalyst/beta/advanced/physics.html)** is the part that
+notices what the robot *did*. It fuses wheel odometry and the IMU into one velocity with a
+confidence attached, scores which wheel is lying when a tyre breaks loose, tracks a centre of mass
+that moves as your elevator does, and predicts where the robot will be at the instant a shot leaves
+it. Strictly advisory: it writes no pose, schedules no command and changes no setpoint. Marked
+against a ground-truth simulator, where fused velocity carried 48% less error than the wheels alone
+through a slip.
+
+**[A state machine for the whole robot](https://tomas-1226.github.io/FrcCatalyst/beta/advanced/statemachine.html)**,
+not a preset applier. You declare which transitions are legal, and an edge you did not declare is a
+request the robot refuses — with a reason, in the log. Arrival is *measured* from sensors rather
+than assumed, so a transition that times out leaves the machine where the robot actually is instead
+of where it was asked to go. All ten mechanism types plus subsystems you wrote yourself, and
+`superstructure.explain()` prints in plain language what you built and why it is stuck.
+
+**[Autonomy 2.0](https://tomas-1226.github.io/FrcCatalyst/beta/advanced/autonomy.html)** is a package of
+small decision cores that answer *what should the robot do next* and nothing else. Each one takes an
+immutable `Situation` snapshot and returns a record with a reason string in it; none of them
+schedules a command or writes a setpoint, so a core you disagree with cannot break a robot that
+ignores it. Every facet of that snapshot carries its own validity flag — a robot with no current
+measurement reports `power().valid() == false` rather than a plausible zero.
+
+**[The Systemcore work](https://tomas-1226.github.io/FrcCatalyst/beta/advanced/systemcore.html)** is the
+part of the 2027 platform you would otherwise absorb yourself. Five CAN buses, with a planner that
+knows `can_s0`+`can_s1` share one SPI controller, so a "split" across that pair buys far less than
+it looks. A machine that reports on itself: per-bus CAN utilisation measured rather than estimated,
+eMMC wear, storage, and the device's own brownout thresholds instead of the roboRIO's 6.8 V. Autos
+as OpModes the Driver Station lists natively, status on the Driver Station itself, and the Pigeon
+and the onboard IMU read as one.
 
 ---
 
@@ -61,7 +89,7 @@ with:
 Nothing fails at build time or at startup. The robot boots, the dashboard connects, and the first
 command scheduled throws from inside WPILib. Both flags are needed, and the second only shows itself
 once the first is fixed. Full detail in
-[Systemcore & WPILib 2027](https://tomas-1226.github.io/FrcCatalyst/beta/advanced/systemcore).
+[Systemcore & WPILib 2027](https://tomas-1226.github.io/FrcCatalyst/beta/advanced/systemcore.html).
 
 Also required: Java 25 and Gradle 9.7 or later.
 
@@ -75,7 +103,9 @@ Also required: Java 25 and Gradle 9.7 or later.
 https://tomas-1226.github.io/FrcCatalyst/beta/vendordep/FrcCatalyst.json
 ```
 
-Make sure the **Phoenix 6**, **PathPlanner**, and **PhotonVision** vendordeps are installed too (Catalyst builds on them).
+Make sure the **Phoenix 6** and **PathPlanner** vendordeps are installed too (Catalyst builds on
+them). PhotonVision has no 2027 build, so `PhotonSource` is excluded from this branch — use
+`LimelightSource`.
 
 <details><summary>Or add it by hand in <code>build.gradle</code></summary>
 
@@ -85,15 +115,16 @@ repositories {
 }
 
 dependencies {
-    implementation "com.github.TomAs-1226:FrcCatalyst:v1.12.0"
+    implementation "com.github.TomAs-1226:FrcCatalyst:v2.0.0-beta.1"
 }
 ```
 </details>
 
-### 2. Build a mechanism in seconds
+### 2. Build a mechanism
 
 ```java
-// A full-featured elevator in ~10 lines
+// A two-stage elevator with every option set. Most of these have defaults; this is
+// what the builder can carry, not what it needs.
 LinearMechanism elevator = new LinearMechanism(
     LinearMechanism.Config.builder()
         .name("Elevator")
@@ -126,11 +157,11 @@ operatorController.b().onTrue(elevator.goTo("STOW"));
 
 ---
 
-## v2.0.0-alpha.1: WPILib 2027 and Limelight Systemcore
+## v2.0.0-beta.1: WPILib 2027 and Limelight Systemcore
 
 The 2027 port. Commands v3, Java 25, five CAN buses, and a control system that reports on itself.
 
-**Required:** two JVM flags (see above), Java 25, Gradle 9.7+.
+**Required:** two JVM flags (see above), Java 25, Gradle 9.7+, and Systemcore OS beta 14.
 
 New because the platform is new:
 
@@ -163,13 +194,21 @@ incompatible return types:
 | `raceWith` | `racing` |
 | `withTimeout` | `timeoutAfter` |
 
-`AutoSelector.getChooser()` returns `Selectable` (`SendableChooser` is gone) and
-`ServoMechanism.getServo()` is `getPwm()` — servos cannot be driven from Systemcore at all, at 3.3 V
-and nowhere near the current. Everything else kept its name. PhotonVision and ChoreoLib have no 2027
-build.
+`AutoSelector.getChooser()` returns `Selectable<String>` — alpha-7 deleted `SendableChooser`,
+`SmartDashboard` and `Sendable` outright, so there is no type left to return. Two methods on it
+rename with it: `setDefaultOption` → `addDefault`, `addOption` → `add`. The widget also moves from
+`/SmartDashboard/<key>` to `/<key>`, so a hardcoded dashboard layout needs repointing.
+`ServoMechanism.getServo()` is `getPwm()`, and servos cannot be driven from Systemcore at all — it
+is 3.3 V and nowhere near the current. Everything else kept its name. PhotonVision and ChoreoLib
+have no 2027 build.
 
-540 tests pass on Windows and Linux. It has **not** run on a robot, and the documentation carries a
-list of the facts that could not be verified rather than guessing at them.
+867 tests pass on Windows and Linux. It has **not** been driven on a robot, and the documentation
+carries a list of the facts that could not be verified rather than guessing at them.
+
+---
+
+Everything below is the 1.x line: WPILib 2026 on a roboRIO, current release `v1.12.0`. It is the
+branch to use on a robot you are competing with, and none of it describes 2.x.
 
 ## v1.12.0: the devices, not the count
 
@@ -257,7 +296,7 @@ Catalyst also names its own build now. `CatalystVersion.describe()` returns `1.1
 — the version and git stamp are compiled in by the build, so they survive being shaded into a robot's
 fat jar, which is where `Package.getImplementationVersion()` used to come back null.
 
-Full key list in [docs/advanced/robot-identity.md](docs/advanced/robot-identity.md). 427 tests.
+Full key list in [docs/advanced/robot-identity.md](docs/advanced/robot-identity.md). 867 tests.
 
 ---
 
@@ -504,7 +543,7 @@ changes wait for 2.0.0. Go build something awesome. 🚀
 - **Swerve module telemetry**: measured and target `SwerveModuleState[]` publish to `/Catalyst/Swerve/ModuleStates` and `/ModuleTargets` for the AdvantageScope swerve view.
 - **SimDashboard v2**: per-mechanism sparkline history, a pause/resume toggle, and CSV export of the live snapshot.
 - **`SimCameraSource`**: a vision source that emits noisy, latency-delayed pose estimates from a simulated pose, so the multi-camera fusion pipeline runs in the simulator with no hardware.
-- **WPILib 2027**: done, and it is this branch. See v2.0.0-alpha.1 below.
+- **WPILib 2027**: done, and it is this branch. See v2.0.0-beta.1 above.
 
 ## What's New in v1.0.0-rc3: Configurable simulation
 
@@ -719,7 +758,7 @@ frc.lib.catalyst
 +-- subsystems/          Complex subsystems
 |   +-- SwerveSubsystem      Swerve drive with skew correction, snap-to, advanced drive
 |   +-- VisionSubsystem      Multi-camera with innovation tracking + speed rejection
-|   +-- LEDSubsystem         14 addressable LED patterns
+|   +-- LEDSubsystem         17 addressable LED pattern commands
 |
 +-- util/                Utilities
     +-- FeedforwardGains         kS/kV/kA/kG storage + calculators
@@ -749,7 +788,7 @@ frc.lib.catalyst
 Every mechanism provides:
 - **Builder-pattern config** with sensible defaults
 - **Motion Magic** position control (on TalonFX)
-- **WPILib ProfiledPID** alternative (on roboRIO)
+- **WPILib ProfiledPID** as an alternative to Motion Magic
 - **Named position presets** (`goTo("STOW")`)
 - **Gravity compensation** (elevator static, arm cosine)
 - **Built-in simulation** (proper DCMotor models)
@@ -892,8 +931,8 @@ safety, and cycle counting. Covers climbers, hatch ejectors, shifters, kickers.
 PneumaticMechanism climbHook = new PneumaticMechanism(
     PneumaticMechanism.Config.builder()
         .name("ClimbHook")
-        .doubleSolenoid(PneumaticsModuleType.REVPH, 0, 1)
-        .compressor(PneumaticsModuleType.REVPH)
+        .doubleSolenoid(PneumaticsModuleType.REV_PH, 0, 1)
+        .compressor(PneumaticsModuleType.REV_PH)
         .requirePressureAbove(40.0) // refuse to fire below 40 psi
         .build()
 );
@@ -1039,15 +1078,16 @@ driver.leftBumper().whileTrue(drive.slowModeWhileHeld(0.3));
 
 ## Vision
 
-Multi-camera pose estimation with advanced Kalman filter tuning, innovation tracking, and multi-layer filtering.
+Multi-camera pose estimation with Kalman filter tuning, innovation tracking, and multi-layer
+filtering.
 
 ```java
 VisionSubsystem vision = new VisionSubsystem(VisionConfig.builder()
     .addLimelight("limelight-front",
         new Transform3d(0.3, 0, 0.5, new Rotation3d(0, Math.toRadians(-15), 0)))
-    .addPhotonCamera("cam-back",
+    .addLimelight("limelight-back",
         new Transform3d(-0.3, 0, 0.5, new Rotation3d(0, Math.toRadians(-20), Math.PI)),
-        fieldLayout)
+        true)                          // MegaTag2
     .driveSubsystem(drive)
     .baseXYStdDev(0.3)
     .baseRotStdDev(0.7)
@@ -1055,10 +1095,14 @@ VisionSubsystem vision = new VisionSubsystem(VisionConfig.builder()
     .rejectDuringSpin(2.0)
     .rejectDuringHighSpeed(3.0)        // reject when > 3 m/s
     .maxHeadingDivergence(15.0)        // reject if heading disagrees > 15 deg
-    .fieldDimensions(16.54, 8.21)      // custom field bounds
     .maxLatency(0.5)
     .build());
 ```
+
+`addPhotonCamera(...)` was removed in 2.0.0 — PhotonVision has no 2027 build, and the
+`AprilTagFieldLayout` it took is gone from WPILib 2027 as well. Use `addLimelight(...)`, or
+`addCamera(...)` with your own `CameraSource`. The field bounds default to the REBUILT field,
+16.54 m x 8.07 m; `fieldDimensions(...)` overrides them for an off-season field.
 
 ---
 
@@ -1144,27 +1188,31 @@ double maxSpeed = config.estimateMaxSpeed();      // ~1.9 m/s
 
 ## Testing
 
-FrcCatalyst ships **427 JUnit tests** across 37 test classes in `src/test`, run with `./gradlew test`:
+Catalyst 2.x ships **867 JUnit tests** across 93 test classes in `src/test`, run with
+`./gradlew test`. They pass with 0 failures — a fact about the code, not about a robot. Nothing in
+the suite touches hardware.
 
-- **314 physics tests** — the state estimator, contact and collision, slip and stability,
+- **352 physics tests** — the state estimator, contact and collision, slip and stability,
   parameter identification, prediction, and the ground-truth validation suite.
-- **49 tests covering the state machine engine** — graph validation and refused transitions
-  (`StateMachineGraphTest`), transition sequencing, staging and deadlines
-  (`StateMachineTransitionTest`), the proven-arrival invariant (`StateMachineTruthTest`), the
-  logging schema (`StateMachineTelemetryTest`), and robustness against throwing guards and
-  post-timeout recovery (`StateMachineRobustnessTest`).
-- **28 identity tests** — what the spec sheet records, what it refuses to record, and the
-  geometry it derives (`SpecSheetTest`, `RobotIdentitySheetTest`, `RobotIdentityGeometryTest`).
-- **19 tests of aiming and field math** — the Shoot-On-The-Fly solver closed-loop proof
-  (`AimingSolverTest`), the vector-adding SOTF solver (`AimingSolverVectorTest`),
-  turret continuous-wrap (`TurretMathTest`), and alliance flipping (`AllianceFlipUtilTest`).
-- **17 more** — loop-time monitoring (`LoopMonitorTest`), mechanism config validation
-  (`FlywheelTorqueCurrentConfigTest`, `ServoConfigTest`) and the swerve sim yield guard
-  (`SwerveSimYieldTest`).
-
-```bash
-./gradlew test
-```
+- **80 subsystem tests** — swerve and vision.
+- **72 utility tests** — the Shoot-On-The-Fly solver closed-loop proof (`AimingSolverTest`), the
+  vector-adding solver (`AimingSolverVectorTest`), alliance flipping (`AllianceFlipUtilTest`), the
+  auto selector, loop monitoring and pre-flight checks.
+- **66 autonomy tests** — the Autonomy 2.0 decision cores, each a pure function of a `Situation`.
+- **62 hardware tests** — the CAN bus planner and registry, and the dual-IMU path
+  (`DualIMUTest`, `SystemCoreIMUFrameTest`).
+- **52 state machine tests** — graph validation and refused transitions (`StateMachineGraphTest`),
+  transition sequencing, staging and deadlines (`StateMachineTransitionTest`), the proven-arrival
+  invariant (`StateMachineTruthTest`), the logging schema (`StateMachineTelemetryTest`), and
+  robustness against throwing guards and post-timeout recovery (`StateMachineRobustnessTest`).
+- **42 Systemcore tests** — CAN utilisation decoding, board status publishing, and what the library
+  does when the board is not there.
+- **41 identity tests** — what the spec sheet records, what it refuses to record, and the geometry
+  it derives (`SpecSheetTest`, `RobotIdentitySheetTest`, `RobotIdentityGeometryTest`).
+- **32 Commands v3 tests** — the command facade, composite requirements, and the `withTimeout`
+  overloads.
+- **68 more** across OpModes, the Driver Station, mechanism config, behaviour, goals, logging, and
+  one boot integration test.
 
 A separate end-to-end project at [FrcCatalystTest](https://github.com/TomAs-1226/FrcCatalystTest)
 exercises the library in simulation across every mechanism type.
@@ -1172,6 +1220,24 @@ exercises the library in simulation across every mechanism type.
 ---
 
 ## Requirements
+
+Catalyst 2.x — this branch, `v2.0.0-beta.1`:
+
+| Dependency | Version |
+|-----------|---------|
+| WPILib | 2027.0.0-alpha-7 |
+| Systemcore OS | beta 14 (`limelightosr-2027.0.0-beta14-210`) |
+| Java | 25 |
+| Gradle | 9.7+ |
+| CTRE Phoenix 6 | 26.50.0-alpha-1 |
+| PathPlanner | 2027.0.0-alpha-3 |
+| LimelightLib | 2.0.0-beta8-alpha7 |
+
+The WPILib and OS versions are a pair, not a floor: a build against alpha-7 aborts on Systemcore OS
+beta 13 before robot code runs. PhotonVision and ChoreoLib have no 2027 build, so `PhotonSource` is
+excluded from this branch.
+
+Catalyst 1.x — `v1.12.0`, the line to use on a robot you are competing with:
 
 | Dependency | Version |
 |-----------|---------|

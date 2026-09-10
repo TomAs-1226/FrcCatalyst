@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- FrcCatalyst social / OG card. 1280x640, the size GitHub asks for and the size Open Graph
+     and every link unfurler crop to. Standalone: no external references, no raster, no webfont.
+
+     SHIP THE PNG, NOT THIS FILE. This SVG is the source; social-card.png beside it is what
+     actually gets used. GitHub's Settings -> Social preview uploader takes PNG/JPG/GIF only, and
+     no major unfurler - X, Slack, Discord, Facebook, LinkedIn - renders an SVG og:image. An SVG
+     pointed at any of them shows nothing at all, which is worse than an ugly card. The SVG is
+     still the right thing to <img> into a README, where GitHub does render it.
+
+     Regenerate the PNG after any edit here. Run msedge (or any Chromium) with these flags, each
+     written with the usual leading double hyphen - a pair of them cannot appear literally inside
+     an XML comment, which is why they are listed rather than pasted:
+
+       headless=new, disable-gpu, hide-scrollbars, force-device-scale-factor=1,
+       window-size=1280,640, screenshot=social-card.png
+
+     and point it at file:///<abs path>/wrapper.html, where wrapper.html is a page carrying
+     body{margin:0;background:#0b0f1a} and one <img src="social-card.svg"
+     style="width:1280px;height:640px">. The opaque body matters: a transparent PNG is
+     composited on white by the unfurlers and the rounded corners flash.
+
+     Same family as banner.svg - navy ground, hairline grid, coral bolt in a rounded panel,
+     wordmark, sub-line, version chip - laid out for a 2:1 crop instead of a wide strip, which
+     buys a second register below the fold of the header for the things a link preview has to
+     say out loud.
+
+     Font families are written onto each text element rather than into an internal <style>,
+     because GitHub strips <style> when it sanitises inline SVG and this card would fall back
+     to a serif face in the one place it is seen most. Figures are set in the mono stack, which
+     is tabular by construction and needs no font-feature attribute to survive sanitising.
+
+     Tokens: #0b0f1a ground, #111726 panel, #182034 raised, rgba(255,255,255,0.07/0.13)
+     hairlines, #e94560 the single accent, #f4f7fc / #d5dbe8 / #7f8aa3 text. Amber appears once
+     and it is carrying state - this is a beta - not decoration. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640"
+     role="img"
+     aria-label="FrcCatalyst 2.0.0-beta.1 &#8212; pre-built mechanisms and utilities for FRC robots. The pre-season release, built against WPILib 2027.0.0-alpha-7 and Systemcore OS beta 14, with 867 tests and 0 failures. It has never been driven on a robot: swerve, mechanisms, autos and vision have run on a bench only. Teams competing this season stay on 1.x &#8212; v1.12.0, WPILib 2026, roboRIO.">
+  <title>FrcCatalyst 2.0.0-beta.1</title>
+
+  <defs>
+    <clipPath id="catCardClip">
+      <rect x="0" y="0" width="1280" height="640" rx="20"/>
+    </clipPath>
+    <!-- Ground, not signal. At 9% it cannot be mistaken for something marked. -->
+    <radialGradient id="catCardWash" cx="90%" cy="-4%" r="62%">
+      <stop offset="0%" stop-color="#e94560" stop-opacity="0.09"/>
+      <stop offset="100%" stop-color="#e94560" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <g clip-path="url(#catCardClip)">
+    <rect x="0" y="0" width="1280" height="640" fill="#0b0f1a"/>
+    <rect x="0" y="0" width="1280" height="640" fill="url(#catCardWash)"/>
+
+    <g stroke="#ffffff" stroke-opacity="0.035" stroke-width="1">
+      <path d="M64.5 0V640M128.5 0V640M192.5 0V640M256.5 0V640M320.5 0V640M384.5 0V640M448.5 0V640M512.5 0V640M576.5 0V640M640.5 0V640M704.5 0V640M768.5 0V640M832.5 0V640M896.5 0V640M960.5 0V640M1024.5 0V640M1088.5 0V640M1152.5 0V640M1216.5 0V640"/>
+      <path d="M0 64.5H1280M0 128.5H1280M0 192.5H1280M0 256.5H1280M0 320.5H1280M0 384.5H1280M0 448.5H1280M0 512.5H1280M0 576.5H1280"/>
+    </g>
+
+    <!-- Five marks, one per Systemcore CAN bus, grouped the way the silicon groups them:
+         can_s0+can_s1 share an SPI controller, can_s3+can_s4 share another, can_s2 stands
+         alone (docs/advanced/systemcore.md:226). Hairline white rather than coral, because it
+         is texture and the accent has one job on this card. -->
+    <g stroke="#ffffff" stroke-opacity="0.13" stroke-width="4" stroke-linecap="round">
+      <path d="M1056 80V200M1072 80V200"/>
+      <path d="M1120 80V200"/>
+      <path d="M1168 80V200M1184 80V200"/>
+    </g>
+
+    <rect x="0" y="634" width="1280" height="6" fill="#e94560"/>
+  </g>
+
+  <rect x="0.5" y="0.5" width="1279" height="639" rx="19.5"
+        fill="none" stroke="#ffffff" stroke-opacity="0.07"/>
+
+  <!-- The mark: a raised panel holding the accent glyph. Same construction as logo.svg and
+       banner.svg, so the favicon, the repo header and this card are one thing. -->
+  <rect x="80" y="76" width="128" height="128" rx="32"
+        fill="#111726" stroke="#ffffff" stroke-opacity="0.13"/>
+  <g transform="translate(99.15 93.2) scale(3.9)">
+    <path d="M13 2L3 14h7v8l10-12h-7V2z" fill="#e94560"/>
+  </g>
+
+  <text x="248" y="166"
+        font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif"
+        font-size="72" font-weight="800" letter-spacing="-1.4" fill="#f4f7fc">FrcCatalyst</text>
+
+  <text x="80" y="262"
+        font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif"
+        font-size="27" font-weight="400" fill="#d5dbe8">Pre-built mechanisms and utilities for FRC robots.</text>
+
+  <text x="80" y="298"
+        font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif"
+        font-size="19" font-weight="400" fill="#7f8aa3">CTRE Phoenix 6 &#183; WPILib 2027 &#183; Limelight Systemcore &#183; Java 25</text>
+
+  <!-- Version reads as data, so it gets a neutral chip. Making it coral would put the accent
+       on a string nobody clicks. -->
+  <rect x="80" y="330" width="196" height="36" rx="9"
+        fill="#182034" stroke="#ffffff" stroke-opacity="0.13"/>
+  <text x="178" y="354" text-anchor="middle"
+        font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace"
+        font-size="17" letter-spacing="0.3" fill="#f4f7fc">v2.0.0-beta.1</text>
+
+  <!-- Said out loud, because a beta that looks like a release gets deployed like one. Amber is
+       the warn token doing exactly what a state colour is for. -->
+  <rect x="292" y="330" width="148" height="36" rx="9"
+        fill="none" stroke="#fbbf24" stroke-opacity="0.5"/>
+  <text x="366" y="354" text-anchor="middle"
+        font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif"
+        font-size="13.5" font-weight="700" letter-spacing="0.85" fill="#fbbf24">PRE-SEASON</text>
+
+  <rect x="80" y="406" width="1120" height="1" fill="#ffffff" fill-opacity="0.07"/>
+
+  <!-- The good story is the honest one, so it leads at reading size. The third line is the fact a
+       team must not miss, so it is short, on its own, and in the brightest text token on the card
+       - the same weight as the wordmark. It was previously set in the muted 19px register with
+       the footnotes, which is precisely where a skimmer does not read. -->
+  <g font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif"
+     font-size="22" font-weight="400">
+    <text x="80" y="458" fill="#d5dbe8">The pre-season release, built against the platform the 2027</text>
+    <text x="80" y="490" fill="#d5dbe8">season will run on &#8212; port over the offseason, not in January.</text>
+    <text x="80" y="522" fill="#f4f7fc" font-weight="600">It has never been driven on a robot.</text>
+  </g>
+
+  <g font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif"
+     font-size="19" font-weight="400" fill="#7f8aa3">
+    <text x="80" y="562">Swerve, mechanisms, autos and vision have run on a bench only.</text>
+    <text x="80" y="590">Competing this season? Stay on 1.x &#8212; v1.12.0, WPILib 2026, roboRIO.</text>
+  </g>
+
+  <!-- Figures panel. Depth by ground, never by shadow; values in the mono stack so the digits
+       are tabular and the column edge stays straight. -->
+  <rect x="836" y="428" width="364" height="176" rx="14"
+        fill="#111726" stroke="#ffffff" stroke-opacity="0.07"/>
+  <g font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif"
+     font-size="12.5" font-weight="700" letter-spacing="1.1" fill="#7f8aa3">
+    <text x="864" y="467">TESTS</text>
+    <text x="864" y="501">WPILIB</text>
+    <text x="864" y="535">SYSTEMCORE OS</text>
+    <text x="864" y="569">JAVA</text>
+  </g>
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace"
+     font-size="17.5" fill="#f4f7fc" text-anchor="end" font-variant-numeric="tabular-nums">
+    <text x="1172" y="467">867, 0 failures</text>
+    <text x="1172" y="501">2027.0.0-alpha-7</text>
+    <text x="1172" y="535">beta 14</text>
+    <text x="1172" y="569">25</text>
+  </g>
+</svg>
