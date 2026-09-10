@@ -1,14 +1,15 @@
 {
   "fileName": "FrcCatalyst.json",
   "name": "FrcCatalyst",
-  "version": "2.0.0-alpha.1",
-  "wpilibYear": "2027_alpha5",
+  "version": "2.0.0-beta.1",
+  "wpilibYear": "2027_alpha7",
   "uuid": "a3f5c1e8-9d24-4b7a-bf12-6e0c3d8a91f4",
   "mavenUrls": [
     "https://jitpack.io",
     "https://3015rangerrobotics.github.io/pathplannerlib/repo",
     "https://maven.ctr-electronics.com/release/",
     "https://limelightvision.github.io/limelightlib-public/maven/",
+    "https://frcmaven.wpi.edu/artifactory/release/",
     "https://frcmaven.wpi.edu/artifactory/development/"
   ],
   "jsonUrl": "https://tomas-1226.github.io/FrcCatalyst/beta/vendordep/FrcCatalyst.json",
@@ -16,7 +17,7 @@
     {
       "groupId": "com.github.TomAs-1226",
       "artifactId": "FrcCatalyst",
-      "version": "v2.0.0-alpha.1"
+      "version": "v2.0.0-beta.1"
     },
     {
       "groupId": "org.wpilib.commandsv2",

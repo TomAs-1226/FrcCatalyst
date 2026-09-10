@@ -5,7 +5,72 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased] — Autonomy 2.0
+## [2.0.0-beta.1] — 2026-09-09
+
+The 2027 port, on the WPILib and Systemcore OS pair that actually run together.
+
+**Beta rather than 2.0.0, deliberately.** This is pinned to WPILib `2027.0.0-alpha-7`, and an alpha
+is not a foundation you can call stable — that one has already changed `Mechanism` from interface to
+class and back across three builds. Nothing here has been driven on a competition robot either. The
+API is what 2.0.0 will be; the version says what it is standing on. 2.0.0 follows when WPILib 2027
+does.
+
+### Requires
+
+| | |
+|---|---|
+| WPILib | `2027.0.0-alpha-7` |
+| Systemcore OS | **beta 14** (`limelightosr-2027.0.0-beta14-210`) |
+| Java | 25 |
+| Phoenix 6 | `26.50.0-alpha-1` |
+| LimelightLib | `2.0.0-beta8-alpha7` |
+
+The OS pairing is not advice. The beta 14 release is titled "(REQUIRES WPILIB ALPHA 7)", and a
+mismatch does not degrade — on alpha-6 against beta 13 the program aborted before any robot code ran
+with `MRC API version mismatch`, and systemd restarted it 22 times in two minutes.
+
+### Fixed
+
+- **The default field was a season out of date.** `CatalystMath.FIELD_WIDTH`, `AllianceFlipUtil` and
+  `VisionConfig` all defaulted to 8.21 m — the REEFSCAPE width — while the rest of the library used
+  8.07 m. A team that never called `configure(...)` had every red-alliance Y flipped about an axis
+  7 cm off centre: 14 cm of error on every mirrored waypoint, on one alliance only, with nothing
+  reporting a fault. Now 8.07 m everywhere, pinned by a test against WPILib's own 2026-REBUILT
+  layout so the two cannot drift together and still agree.
+- **An unsolved MegaTag2 no longer discards the MegaTag1 fix beside it.** Measured on a Limelight 4
+  over 1,540 frames in four IMU configurations: MegaTag1 solved every frame, MegaTag2 none. An
+  unsolved MegaTag2 does not leave its topic empty — it publishes six zeros, and the blue-origin
+  copy of that is the exact centre of the field, full length and finite. The reader preferred it
+  forever and fell back only when the array was *missing*, so a good pose in the same frame was
+  never read. Frame de-duplication is now per source; one shared marker meant rejecting the MegaTag2
+  frame also consumed the MegaTag1 one.
+- **`org.wpilib.tunables` needs avaje-jsonb at runtime**, and 2027's poms are flat. Constructing an
+  `AutoSelector` threw `NoClassDefFoundError` on a robot at startup. Declared `runtimeOnly`.
+- **The published vendordep declared `wpilibYear: 2027_alpha5`.** GradleRIO alpha-7 refuses to apply
+  on a year mismatch, so installing it failed before a team wrote a line.
+
+### Changed
+
+- Five classes are back in the build — `WpiTelemetrySink`, `TelemetryUtil`, `MechanismVisualizer`,
+  `DriverBoard` — excluded on alpha-6 only because `org.wpilib.telemetry` and `DriverStationDisplay`
+  existed nowhere but a development snapshot. Only `PhotonSource` remains excluded.
+- **Tags are installable again.** Alpha-6's release was on no public maven, so JitPack could not
+  build this library and every tag after `v2.0.0-alpha.1` needed a source build on a machine with
+  the WPILib installer. Alpha-7 is on `frcmaven/release`; that cost is paid.
+- `Rotation2d.kZero` and friends are `ZERO`; the commands artifact is `commandsv3-java`;
+  `HAL.initialize()` takes no arguments; `RobotBase.startRobot` takes a supplier.
+
+### Breaking
+
+- **`AutoSelector.getChooser()` returns `Selectable<String>`**, not `SendableChooser<String>`.
+  Alpha-7 deleted `SendableChooser`, `SmartDashboard`, `Sendable` and `SendableBuilder` outright, so
+  there is no type left to return. Callers rename two methods — `setDefaultOption` → `addDefault`,
+  `addOption` → `add`. `getSelected()` is unchanged, as is every other member of `AutoSelector`.
+  This is the only signature in the library that 2027 forced to change.
+- The auto-chooser widget moves from `/SmartDashboard/<key>` to `/<key>`. A dashboard layout
+  hardcoding the old path needs repointing.
+
+### Autonomy 2.0 - the decision cores
 
 A new `frc.lib.catalyst.autonomy` package. Every decision in it is a pure function of its inputs
 returning a record, so a season of scoring rules can be exercised at a desk with no HAL, no
@@ -67,7 +132,7 @@ Catalyst they had.
   second class doing that under a different noun would be a fifth near-synonym on the driver's
   dashboard beside phase, goal, state and fire mode.
 
-## [Unreleased] — Autonomy 2.0, Phase 0: the truth pass
+### Autonomy 2.0, Phase 0: the truth pass
 
 The first increment of the Autonomy 2.0 track. No new concepts and no new package: this is the
 defects the autonomy and power code already had, and making three things that were silently inert
