@@ -29,7 +29,9 @@ nav_external_links:
 
 # What this site documents. _includes/header_custom.html puts it at the top of every page and the
 # footer repeats it, so no page is read without knowing which Catalyst it describes.
-documents:
+# (The key is not `documents:` - Jekyll already uses site.documents for every document in every
+# collection, and a config key of that name is silently shadowed.)
+catalyst_docs:
   version: "2.0.0-beta.1"
   platform: "Systemcore image 14 &middot; WPILib 2027 alpha-7"
   versions_url: "https://tomas-1226.github.io/FrcCatalyst/versions.html"
