@@ -10,7 +10,7 @@ nav_order: 1.5
 Which Catalyst goes on which robot, what each version runs on, and where each one lives.
 {: .fs-6 .fw-300 }
 
-**Checked 10 September 2026** against the repository's tags and branches, JitPack, the vendordeps
+**Checked 11 September 2026** against the repository's tags and branches, JitPack, the vendordeps
 this site serves and the upstream
 [Systemcore compatibility matrix](https://github.com/wpilibsuite/SystemcoreTesting#software-compatibility),
 whose README last changed on 5 September 2026. A clone of the library re-checks all of it with one
@@ -55,7 +55,7 @@ command, `python tools/catalyst-versions.py --online` ([below](#check-it-yoursel
 | Git tag | [`v1.12.0`](https://github.com/TomAs-1226/FrcCatalyst/releases/tag/v1.12.0) at `cc5cadf` | none yet: commit [`5adc688`](https://github.com/TomAs-1226/FrcCatalyst/commit/5adc688) | [`v2.0.0-beta.1`](https://github.com/TomAs-1226/FrcCatalyst/tree/v2.0.0-beta.1) at `36315c9` |
 | Branch | `main` | `systemcore-alpha6` | `upgrade/alpha-7` |
 | JitPack | builds | cannot build ([why](#source-only)) | builds |
-| Vendordep URL | [`/vendordep/FrcCatalyst.json`](https://tomas-1226.github.io/FrcCatalyst/vendordep/FrcCatalyst.json), which still installs **1.11.0** | none | none |
+| Vendordep URL | [`/vendordep/FrcCatalyst.json`](https://tomas-1226.github.io/FrcCatalyst/vendordep/FrcCatalyst.json), which installs **1.12.0** | none | none |
 | Documentation | this site | the [beta site](https://tomas-1226.github.io/FrcCatalyst/beta/) documents 2.0.0-alpha.2, the tag before it | not published yet: `docs/` on `upgrade/alpha-7` |
 | Measured | <span class="proven">JitPack build</span> | <span class="proven">alpha-6 builds on a Systemcore bench</span><br><span class="attempted">driven on a robot</span> | <span class="proven">JitPack build</span><br><span class="attempted">run on image 14</span><br><span class="attempted">driven on a robot</span> |
 

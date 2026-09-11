@@ -43,9 +43,8 @@ Make sure the Phoenix 6, PathPlanner, and PhotonVision vendordeps are also
 installed (Catalyst depends on them).
 
 {: .note }
-> On 10 September 2026 this URL still installed **1.11.0**: it was not moved when 1.12.0 was
-> released. Option 2 gets 1.12.0. [Versions and compatibility](../versions) says which version
-> each route gives you.
+> This URL installs **1.12.0**, the same version as Option 2.
+> [Versions and compatibility](../versions) says which Catalyst runs on which robot.
 
 ## Option 2: JitPack (build.gradle)
 

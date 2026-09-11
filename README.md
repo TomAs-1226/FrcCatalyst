@@ -76,7 +76,7 @@ https://tomas-1226.github.io/FrcCatalyst/vendordep/FrcCatalyst.json
 
 Make sure the **Phoenix 6**, **PathPlanner**, and **PhotonVision** vendordeps are installed too (Catalyst builds on them).
 
-On 10 September 2026 that URL still installed 1.11.0; the `build.gradle` route below gets 1.12.0.
+That URL installs 1.12.0, the same version as the `build.gradle` route below.
 
 <details><summary>Or add it by hand in <code>build.gradle</code></summary>
 
