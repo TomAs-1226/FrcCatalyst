@@ -350,7 +350,7 @@ superstructure.rejected().onTrue(
 );
 
 // arrivedAt fires only on *proven* arrival — never when a transition merely timed out.
-superstructure.arrivedAt(SuperState.SCORE_HIGH).onTrue(leds.solid(Color.kGreen));
+superstructure.arrivedAt(SuperState.SCORE_HIGH).onTrue(leds.solid(Color.GREEN));
 
 // One drag onto Elastic or Shuffleboard gives a working pit display: state, phase,
 // blocker, summary, progress.

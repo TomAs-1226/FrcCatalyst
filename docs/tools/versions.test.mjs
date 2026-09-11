@@ -80,7 +80,9 @@ test("the README banner names the current version", () => {
   // repository page, and two releases out of date. Nothing reads it, so nothing caught it.
   const version = libraryVersion();
   const svg = fs.readFileSync(path.join(docsDir, "assets", "banner.svg"), "utf8");
-  const m = svg.match(/>v([0-9][^<]*)</);
+  // Match a version-shaped string with or without the leading v: the banners write it both ways,
+  // and requiring one spelling would fail a banner that is perfectly correct.
+  const m = svg.match(/>v?(\d+\.\d+\.\d+[^<]*)</);
 
   assert.ok(m, "the banner should carry a version badge");
   assert.equal(m[1], version);
@@ -115,16 +117,40 @@ test("the AdvantageScope bundles name the version whose topics they match", () =
   assert.deepEqual(wrong, [], `expected ${version}`);
 });
 
-test("the published vendordep matches the library version", () => {
-  // The file teams actually install. A stale version here installs a jar that does not exist.
+/** WPILib releases that are on no public maven, so JitPack cannot build this library against them. */
+const SOURCE_ONLY_WPILIB = ["2027.0.0-alpha-6"];
+
+function wpilibVersion() {
+  const gradle = fs.readFileSync(path.join(repoRoot, "build.gradle"), "utf8");
+  return gradle.match(/wpilibVersion\s*=\s*['"]([^'"]+)['"]/)?.[1] ?? "";
+}
+
+test("the published vendordep installs a version that exists", () => {
+  // The file teams actually install, so it must name something installable.
+  //
+  // On most lines that means the library version. On a source-build-only line it means the opposite:
+  // JitPack cannot build the library at all there, so the vendordep deliberately stays at the newest
+  // tag it could build, and matching the library version would install a jar that does not exist -
+  // the very failure this test exists to prevent, inverted. When it lags, the install page has to say
+  // which version it really installs.
   const version = libraryVersion();
   const vendordep = JSON.parse(
     fs.readFileSync(path.join(docsDir, "vendordep", "FrcCatalyst.json"), "utf8"));
 
-  assert.equal(vendordep.version, version);
+  if (SOURCE_ONLY_WPILIB.includes(wpilibVersion()) && vendordep.version !== version) {
+    const install = fs.readFileSync(
+      path.join(docsDir, "getting-started", "installation.md"), "utf8");
+    assert.ok(install.includes(vendordep.version),
+      `the vendordep installs ${vendordep.version} while the library is ${version}; ` +
+      `installation.md must name ${vendordep.version} and explain why`);
+  } else {
+    assert.equal(vendordep.version, version);
+  }
+
+  // Whatever it names, the file must agree with itself.
   for (const dep of [...(vendordep.javaDependencies ?? []), ...(vendordep.jniDependencies ?? [])]) {
     if (dep.groupId && dep.groupId.includes("catalyst")) {
-      assert.equal(dep.version.replace(/^v/, ""), version, `${dep.artifactId}`);
+      assert.equal(dep.version.replace(/^v/, ""), vendordep.version, `${dep.artifactId}`);
     }
   }
 });

@@ -356,4 +356,76 @@ class LegacyLimelightApiTest {
                 what + " must be specific: a good pose on the same camera should still be read");
         assertEquals(5.0, est.orElseThrow().pose().getX(), 1e-9);
     }
+
+    /**
+     * A camera whose MegaTag2 has no fix must still deliver its MegaTag1 one.
+     *
+     * <p>Measured on a Limelight 4 with a mapped tag in view, 1,540 frames across four
+     * configurations - no heading fed, heading fed at 50 Hz, internal IMU, internal IMU seeded.
+     * MegaTag1 solved in every frame of all four; MegaTag2 solved in none. The camera looked
+     * perfectly healthy throughout: {@code tv} 1, a tag counted, every per-tag 3D pose correct.
+     *
+     * <p>The trap is that an unsolved MegaTag2 does not leave its topic empty. It publishes six
+     * zeros, and the blue-origin copy is those zeros plus half a field - the exact centre of the
+     * field, full length, finite, and indistinguishable from a real pose by any check except the
+     * centre-origin array. So "prefer MegaTag2 when the array is present" preferred it forever, and
+     * the fallback that existed for a missing topic never once fired.
+     */
+    @Test
+    void anUnsolvedMegaTag2FallsBackToMegaTag1() {
+        String cam = fresh("mt2unsolved");
+        NetworkTable t = NetworkTableInstance.getDefault().getTable(cam);
+
+        // MegaTag2: no fix. Centre-origin all zeros, blue-origin therefore the field's centre.
+        t.getEntry("botpose_orb").setDoubleArray(new double[] {0, 0, 0, 0, 0, 0});
+        t.getEntry("botpose_orb_wpiblue")
+                .setDoubleArray(botpose(8.2705, 4.0345, 0.0, 1, 0.36));
+        // MegaTag1: a real fix on the same frame.
+        t.getEntry("botpose").setDoubleArray(new double[] {4.06, 3.26, 0.9, 0, 0, 170.9});
+        t.getEntry("botpose_wpiblue").setDoubleArray(botpose(12.33, 7.36, 170.9, 1, 0.36));
+        t.getEntry("tv").setDouble(1);
+
+        LimelightSource src = new LimelightSource(cam, MOUNT, true);
+        src.setRobotOrientation(0.0, 0.0, 0.0, 0.0);
+
+        var est = src.getEstimatedPose().orElseThrow(() -> new AssertionError(
+                "MegaTag2 had no fix but MegaTag1 did; the reader must fall back rather than "
+                        + "report nothing"));
+
+        assertEquals(12.33, est.pose().getX(), 1e-6, "should be the MegaTag1 pose");
+        assertEquals(7.36, est.pose().getY(), 1e-6, "should be the MegaTag1 pose");
+        assertEquals(170.9, est.pose().getRotation().getDegrees(), 1e-6);
+    }
+
+    /**
+     * ...and the centre-of-field pose is still rejected when it is all the camera has.
+     *
+     * <p>The pair matters. A fallback that fires whenever MegaTag2 is unplaceable is only correct if
+     * the thing it falls back to is checked just as hard - otherwise this fix would have traded a
+     * camera that reports nothing for one that reports the middle of the field.
+     */
+    @Test
+    void withNoMegaTag1EitherTheCentreOfTheFieldIsStillRejected() {
+        String cam = fresh("mt2unsolved2");
+        NetworkTable t = NetworkTableInstance.getDefault().getTable(cam);
+
+        t.getEntry("botpose_orb").setDoubleArray(new double[] {0, 0, 0, 0, 0, 0});
+        t.getEntry("botpose_orb_wpiblue").setDoubleArray(botpose(8.2705, 4.0345, 0.0, 1, 0.36));
+        t.getEntry("botpose").setDoubleArray(new double[] {0, 0, 0, 0, 0, 0});
+        t.getEntry("botpose_wpiblue").setDoubleArray(botpose(8.2705, 4.0345, 0.0, 1, 0.36));
+        t.getEntry("tv").setDouble(1);
+
+        LimelightSource src = new LimelightSource(cam, MOUNT, true);
+        src.setRobotOrientation(0.0, 0.0, 0.0, 0.0);
+
+        assertTrue(src.getEstimatedPose().isEmpty(),
+                "neither solve had a fix; the centre of the field is not a measurement");
+
+        // And the reader is not wedged: a real pose on the next frame is accepted.
+        t.getEntry("botpose").setDoubleArray(new double[] {4.06, 3.26, 0.9, 0, 0, 170.9});
+        t.getEntry("botpose_wpiblue").setDoubleArray(botpose(12.33, 7.36, 170.9, 1, 0.36));
+        var est = src.getEstimatedPose().orElseThrow(
+                () -> new AssertionError("a good MegaTag1 pose after a rejection must be accepted"));
+        assertEquals(12.33, est.pose().getX(), 1e-6);
+    }
 }

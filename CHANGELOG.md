@@ -5,6 +5,116 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.0.0-alpha.3] — 2026-09-11 — Autonomy 2.0: nine decision cores, and the truth pass that came first
+
+A new `frc.lib.catalyst.autonomy` package. Every decision in it is a pure function of its inputs
+returning a record, so a season of scoring rules can be exercised at a desk with no HAL, no
+scheduler and no robot. Nothing in it is required: a team that ignores the package keeps exactly the
+Catalyst they had.
+
+### Added — the decision cores
+
+- **`Situation`** and **`SituationSource`** — one physics snapshot per loop, with a validity flag on
+  every facet. Nothing invents a number: a robot with no power measurement reports
+  `power().valid() == false`, not `headroomAmps() == 0`. `cachedPerLoop()` makes every consumer in a
+  loop see the same snapshot, so they cannot disagree with each other inside one 20 ms window.
+  Measured at well under a microsecond per sample.
+- **`CycleCore`** — which phase of a repeating cycle to run, with dwell (a chattering sensor no
+  longer thrashes the cycle), stall detection, and a voluntary handback so an impossible phase is a
+  pause rather than a lockout. Generalises `Autopilot` to N phases.
+- **`StepCore`** — the reactive sequence's run / substitute / skip / abort decision, lifted out of a
+  deferred lambda inside a builder where nothing could reach it.
+- **`TaskArbiter`** — picks as many non-conflicting tasks as will fit, best first. The primitive the
+  library did not have: everything else chooses exactly one thing, so two behaviours sharing no
+  mechanisms still ran one at a time for no reason. Greedy by score, deterministic, and it says what
+  it held back and why.
+- **`ChaseCore`** — which target to pursue, ranked by value per second rather than by value or by
+  distance, refusing anything the match will not let you finish.
+- **`AuthorityCore`** — combines every limiter into one number and names the binding one. A limiter
+  can only ever slow the robot, which is what makes adding one safe without auditing the others.
+- **`ShedCore`** — who gives up current when there is not enough. Shed only, never boost, and every
+  claim carries a floor: an elevator holding its height is never shed below the current that holds
+  it, because the obvious implementation drops the load at the moment the robot is already in
+  trouble.
+- **`IntentCore`** — guesses what the driver is about to do and keeps score of how often it was
+  right. It has no way to command anything, and a test asserts that. The hit rate is the deliverable:
+  it is the evidence that decides whether inference is ever worth wiring to something.
+- **`AutonomyBoard`** — publishes all of the above under `/Catalyst/Autonomy/` on a fixed schema,
+  only when values change. Kept separate so the cores stay pure.
+
+### Changed
+
+- **`Autopilot`** runs on `CycleCore`: dwell and handback are opt-in (`dwellSeconds`,
+  `handBackAfterStalled`), an N-phase form is available via `phases(...)`, and the two-phase
+  `acquire`/`score` sugar and its build-time check are untouched.
+- **`Strategist.yieldWhen(...)`** — stand down while the driver wants the robot. Without it, a driver
+  who interrupted the selector's command got that command rescheduled on the very next loop and had
+  to fight for their own robot; the only thing keeping that out of teleop was a javadoc. A yield
+  condition that throws is read as "yes, yield", because a selector that is off can be turned back on
+  and one that fights the driver cannot be.
+- **`BehaviorEngine`** delegates to `StepCore` and guards the preconditions it evaluates. One that
+  threw used to take the whole autonomous sequence down at the step that needed it most.
+
+### Not built, deliberately
+
+- **Motor powerboost** — raising a limit above its configured value. The measurement half is solved
+  by a power distribution hub, but the other half is not: it is the exact shape of two bugs this
+  library shipped this week, with more energy behind it. `ShedCore` can only ever reduce.
+- **Battery allocation as remaining energy.** A hub integrates joules *out*; nothing knows the
+  battery's true state of charge going in. Energy spent per match is honest and is available;
+  "energy remaining" is not.
+- **A mode-switching core.** `CycleCore` already selects among N named states with hysteresis. A
+  second class doing that under a different noun would be a fifth near-synonym on the driver's
+  dashboard beside phase, goal, state and fire mode.
+
+### Autonomy 2.0, Phase 0: the truth pass
+
+The first increment of the Autonomy 2.0 track. No new concepts and no new package: this is the
+defects the autonomy and power code already had, and making three things that were silently inert
+say so. Everything here is independently useful whatever the rest of the track turns into.
+
+#### Fixed
+
+- **`Autopilot` ignored `Action.canStart()`**, alone among everything that consumes a precondition.
+  An acquire that could not succeed - no piece in view, a camera down - was scheduled anyway and the
+  repeating cycle ran it forever, so the driver was locked out of the drivetrain until they noticed
+  and released the button, with nothing on the dashboard saying why. It now checks, publishes
+  `Stalled: <action> cannot start`, and holds its requirements in a wait rather than letting the
+  repeating sequence re-defer at loop rate. It resumes the moment the precondition clears or the
+  piece state flips.
+- **A team's readiness lambda could take down the command that called it.** `GoalDirector` invoked
+  `Goal.readyNow()` and `SuperstructureCoordinator.isAtState(...)` unguarded from inside the pursue
+  command's monitor. Both are now guarded: a goal that cannot say whether it is ready is not ready,
+  and `WhyNotReady` names the cause.
+- **Two `GoalDirector`s on one robot overwrote each other.** Both wrote `Goal/Active` every loop and
+  the dashboard showed whichever ran last. `GoalDirector.Builder.name(...)` namespaces one as
+  `Goal/<name>/...`; leave it unset and every key is exactly what it was.
+- **`BrownoutMonitor` was inert by default and did not say so.** Its current supplier defaulted to
+  `() -> 0`, and the prediction is `v - I*R`, so the "predicted" voltage was just the present voltage
+  and the look-ahead the class exists for never happened. There is no default any more: unset means
+  unarmed, `isArmed()` and `Power/Brownout/Armed` report it, and the reflex is honest about being a
+  voltmeter until it is given a current source.
+
+#### Added
+
+- **`PowerPredictor.breakerBudgetAmps(...)`.** `headroomAmps()` answered a battery question and was
+  being reached for as a power budget: at 12.4 V it reports 245 A of room, which is true of the
+  battery and false of a 120 A main breaker. With a budget set it returns the smaller of the two,
+  `sagHeadroomAmps()` keeps the battery answer, and `bindingLimit()` says which one is holding.
+  Unset, the number is unchanged. The class had no tests; it has seven.
+- **`RecordingSink`** (test scope) - a `LogSink` that keeps what was written, so telemetry is an
+  assertion target with no NT server, no HAL and no robot.
+
+#### Changed
+
+- `behavior/` and `goal/` publish through `CatalystLog` instead of writing straight at
+  NetworkTables. The key paths are byte-identical, so no dashboard moves, but their reasoning now
+  reaches every installed sink - it lands in the WPILOG beside the match - and can be tested. It is
+  also marginally cheaper: the sink caches entries where the raw calls re-resolved a path each time.
+  Values that are stable for seconds at a time (`Phase`, `Active`, `Ready`, `WhyNotReady`,
+  `LastSwitchReason`) publish only when they change.
+- The `goal` package had no tests. It has five.
+
 ## [2.0.0-alpha.2] — 2026-09-06 — Vetting pass: the governor, the heading loop, the history file
 
 > **Install note.** This tag cannot be installed through the published vendordep. The library is

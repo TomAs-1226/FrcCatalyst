@@ -139,7 +139,7 @@ Supplier<AimingSolver.Solution> sol =
 turret.setDefaultCommand(turret.track(
     sol,
     () -> drive.getHeading().getDegrees(),
-    () -> Math.toDegrees(drive.getChassisSpeeds().omegaRadiansPerSecond)));
+    () -> Math.toDegrees(drive.getChassisSpeeds().omega)));
 
 // Flywheel RPM and hood angle follow the live distance every loop (v1.0):
 shooter.setDefaultCommand(shooter.track(() -> sol.get().shooterRpm() / 60.0));  // RPM -> RPS
@@ -151,8 +151,8 @@ boolean ready = turret.isOnTarget(sol.get(), drive.getHeading().getDegrees(), 2.
 ```
 
 > Field-relative speeds matter. If your drive only gives robot-relative
-> `ChassisSpeeds`, rotate them first:
-> `ChassisSpeeds.fromRobotRelativeSpeeds(speeds, drive.getHeading())`.
+> `ChassisVelocities`, rotate them first: `speeds.toFieldRelative(drive.getHeading())`.
+> (`SwerveSubsystem.getFieldRelativeSpeeds()` already does this.)
 
 ### Reading the solution
 
@@ -181,7 +181,7 @@ Resolve the target before handing it to the solver, and update it on
 alliance change:
 
 ```java
-RobotState.alliance() == DriverStation.Alliance.Red
+RobotState.isRed()
     ? solver.setTarget(FieldConstants.RED_GOAL)
     : solver.setTarget(FieldConstants.BLUE_GOAL);
 ```

@@ -16,10 +16,10 @@ has_children: false
 
 ---
 
-FrcCatalyst provides ten generic mechanism types that cover virtually every FRC subsystem. Each mechanism extends `CatalystMechanism` (which extends WPILib's `SubsystemBase`) and provides:
+FrcCatalyst provides ten generic mechanism types that cover virtually every FRC subsystem. Each mechanism extends `CatalystMechanism` (which extends `CatalystSubsystem`, Catalyst's Commands v3 replacement for `SubsystemBase`) and provides:
 
 - **Builder-pattern configuration** with validation and sensible defaults
-- **Two control modes**: CTRE Motion Magic (on TalonFX) or WPILib ProfiledPID (on roboRIO)
+- **Two control modes**: CTRE Motion Magic (on the TalonFX itself) or WPILib ProfiledPID (on the robot controller)
 - **Named position presets** for quick `goTo("STOW")` commands
 - **Gravity compensation** (constant for elevator, cosine for arm)
 - **Built-in simulation** using accurate WPILib DCMotor models
@@ -242,8 +242,8 @@ command factories, and Health Kit integration as the motor mechanisms.
 PneumaticMechanism climbHook = new PneumaticMechanism(
     PneumaticMechanism.Config.builder()
         .name("ClimbHook")
-        .doubleSolenoid(PneumaticsModuleType.REVPH, 0, 1)
-        .compressor(PneumaticsModuleType.REVPH)
+        .doubleSolenoid(PneumaticsModuleType.REV_PH, 0, 1)
+        .compressor(PneumaticsModuleType.REV_PH)
         .requirePressureAbove(40.0)  // refuse to actuate below 40 psi
         .build());
 
@@ -414,14 +414,14 @@ SuperstructureCoordinator superstructure = new SuperstructureCoordinator()
 superstructure.defineState("STOW")
     .setLinear("elevator", 0.0)
     .setRotational("arm", 0.0)
-    .onEntry(() -> leds.setSolidColor(Color.kBlue))
+    .onEntry(() -> leds.setSolidColor(Color.BLUE))
     .done();
 
 superstructure.defineState("SCORE_HIGH")
     .setLinear("elevator", 1.1)
     .setRotational("arm", 95.0)
-    .onEntry(() -> leds.setSolidColor(Color.kGreen))
-    .onExit(() -> leds.setSolidColor(Color.kBlue))
+    .onEntry(() -> leds.setSolidColor(Color.GREEN))
+    .onExit(() -> leds.setSolidColor(Color.BLUE))
     .done();
 
 // Collision zone: prevent arm extension when elevator is low
@@ -465,7 +465,7 @@ intake.feedVoltage(6.0); // apply 6V
 All mechanisms inherit from this base class which provides:
 
 ```java
-public abstract class CatalystMechanism extends SubsystemBase {
+public abstract class CatalystMechanism extends CatalystSubsystem {
     // Automatic NetworkTables telemetry
     protected void log(String key, double value);
     protected void log(String key, boolean value);
@@ -527,7 +527,7 @@ FrcCatalyst supports two control strategies:
 Runs on the TalonFX's internal processor. Lower latency, higher bandwidth, and the profile runs at 1kHz. Use the `goTo()` and `holdPosition()` commands.
 
 ### WPILib ProfiledPID (Alternative)
-Runs on the roboRIO. Enable it in the config builder and use `goToProfiled()` and `holdPositionProfiled()` commands.
+Runs on the robot controller rather than on the motor. Enable it in the config builder and use `goToProfiled()` and `holdPositionProfiled()` commands.
 
 ```java
 LinearMechanism.Config.builder()

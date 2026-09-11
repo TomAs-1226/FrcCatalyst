@@ -1,8 +1,7 @@
 package frc.lib.catalyst.behavior;
 
 import frc.lib.catalyst.command.CatalystCommand;
-import org.wpilib.networktables.NetworkTable;
-import org.wpilib.networktables.NetworkTableInstance;
+import frc.lib.catalyst.logging.CatalystLog;
 import org.wpilib.system.Timer;
 import org.wpilib.command3.Command;
 import org.wpilib.command3.Coroutine;
@@ -10,6 +9,7 @@ import org.wpilib.command3.Mechanism;
 import org.wpilib.command3.Scheduler;
 
 import java.util.ArrayList;
+import java.util.function.BooleanSupplier;
 import java.util.List;
 import java.util.function.ToDoubleFunction;
 import frc.lib.catalyst.identity.CatalystFeatures;
@@ -63,6 +63,7 @@ public final class Strategist {
         private double minScore = 0.0;
         private double switchMargin = 0.0;
         private double minDwellSeconds = 0.0;
+        private BooleanSupplier yieldWhen;
 
         private Builder(String name) {
             this.name = name;
@@ -121,10 +122,26 @@ public final class Strategist {
             return this;
         }
 
+        /**
+         * Stand down while this is true, cancelling whatever is running and scheduling nothing.
+         *
+         * <p>This is what makes a selector safe to leave running in teleop. Bind it to whatever
+         * means "the driver wants the robot" - a stick past its deadband, any of the buttons that
+         * claim the drivetrain, a mode flag. Without it, a driver who interrupts the selector's
+         * command gets it rescheduled on the very next loop and has to fight for their own robot.
+         *
+         * <p>A condition that throws is read as "yes, yield": a selector that is off can be turned
+         * back on, and one that fights the driver cannot be.
+         */
+        public Builder yieldWhen(BooleanSupplier yieldWhen) {
+            this.yieldWhen = yieldWhen;
+            return this;
+        }
+
         public CatalystCommand build() {
             CatalystFeatures.record(CatalystFeatures.STRATEGIST, name);
             return CatalystCommand.of(new SelectorCommand(
-                    name, List.copyOf(behaviors), minScore, switchMargin, minDwellSeconds));
+                    name, List.copyOf(behaviors), minScore, switchMargin, minDwellSeconds, yieldWhen));
         }
     }
 
@@ -137,7 +154,13 @@ public final class Strategist {
         private final List<Behavior> behaviors;
         private final double minScore;
         private final BehaviorArbiter arbiter;
-        private final NetworkTable nt;
+        private final BooleanSupplier yieldWhen;
+        private final String key;
+        /** Active and the switch reason are stable for seconds; this evaluates every loop. */
+        private String lastActive;
+        private String lastReason;
+        /** True while standing down, so the yield is published once rather than every loop. */
+        private boolean yielded;
         private final String commandName;
         private BehaviorContext ctx;
 
@@ -145,12 +168,12 @@ public final class Strategist {
         private Command activeCommand;
 
         SelectorCommand(String name, List<Behavior> behaviors, double minScore,
-                        double switchMargin, double minDwellSeconds) {
+                        double switchMargin, double minDwellSeconds, BooleanSupplier yieldWhen) {
             this.behaviors = behaviors;
+            this.yieldWhen = yieldWhen;
             this.minScore = minScore;
             this.arbiter = new BehaviorArbiter(minScore, switchMargin, minDwellSeconds);
-            this.nt = NetworkTableInstance.getDefault()
-                    .getTable("Catalyst").getSubTable("Behavior").getSubTable(name);
+            this.key = "Behavior/" + name + "/";
             this.commandName = "Strategist:" + name;
         }
 
@@ -185,7 +208,59 @@ public final class Strategist {
             }
         }
 
+        /** Published only when it changes - see the fields. */
+        private void publishActive(String value) {
+            if (!value.equals(lastActive)) {
+                lastActive = value;
+                CatalystLog.log(key + "Active", value);
+            }
+        }
+
+        /** A yield condition is team code; one that throws must not freeze the selector. */
+        private boolean safeYield() {
+            if (yieldWhen == null) {
+                return false;
+            }
+            try {
+                return yieldWhen.getAsBoolean();
+            } catch (Throwable t) {
+                // Fail toward the driver: if we cannot tell whether they want the robot, assume
+                // they might. A selector that is off is recoverable; one that fights is not.
+                return true;
+            }
+        }
+
+        private void publishReason(String value) {
+            if (value != null && !value.equals(lastReason)) {
+                lastReason = value;
+                CatalystLog.log(key + "LastSwitchReason", value);
+            }
+        }
+
         private void evaluate() {
+            // Stand down while the driver is doing something.
+            //
+            // This selector runs as a default command and reschedules whatever it picks. When a
+            // driver pressed a button that needed the same mechanisms, the scheduler interrupted
+            // the selector's command - and one loop later this method saw it was no longer running,
+            // cleared it, re-decided, and scheduled it straight back. The robot fought the driver
+            // for its own drivetrain, once every 20 ms, and the only thing keeping that out of
+            // teleop was a javadoc telling people not to. With a yield condition it is teleop-safe:
+            // it releases and stays released until the driver is done.
+            if (safeYield()) {
+                if (activeCommand != null) {
+                    Scheduler.getDefault().cancel(activeCommand);
+                    activeCommand = null;
+                }
+                if (!activeName.isEmpty() || !yielded) {
+                    activeName = "";
+                    yielded = true;
+                    publishActive("(yielded)");
+                }
+                return;
+            }
+            yielded = false;
+
             // Clear a finished behaviour so it can be re-evaluated next loop.
             if (activeCommand != null && !Scheduler.getDefault().isScheduledOrRunning(activeCommand)) {
                 activeCommand = null;
@@ -196,7 +271,7 @@ public final class Strategist {
             java.util.Map<String, Behavior> byName = new java.util.HashMap<>();
             for (Behavior b : behaviors) {
                 double score = safeScore(b);
-                nt.getSubTable("Scores").getEntry(b.name()).setDouble(score);
+                CatalystLog.log(key + "Scores/" + b.name(), score);
                 candidates.add(new BehaviorArbiter.Candidate(b.name(), score, safeCanStart(b)));
                 byName.put(b.name(), b);
             }
@@ -217,13 +292,13 @@ public final class Strategist {
             }
             if (decision.winner() == null) {
                 activeName = "";
-                nt.getEntry("Active").setString("(none)");
+                publishActive("(none)");
                 return;
             }
             activeCommand = byName.get(decision.winner()).action().toCommand();
             activeName = decision.winner();
             Scheduler.getDefault().schedule(activeCommand);
-            nt.getEntry("Active").setString(activeName);
+            publishActive(activeName);
         }
 
         @Override
@@ -231,7 +306,7 @@ public final class Strategist {
             if (activeCommand != null) Scheduler.getDefault().cancel(activeCommand);
             activeCommand = null;
             activeName = "";
-            nt.getEntry("Active").setString("(stopped)");
+            publishActive("(stopped)");
         }
 
         /**
@@ -242,10 +317,11 @@ public final class Strategist {
          * on the same keys, as a HeldSeconds that keeps climbing with a stale reason.
          */
         private void publishArbitration(double now) {
-            nt.getEntry("Switches").setDouble(arbiter.switches());
-            nt.getEntry("SwitchesPerSecond").setDouble(arbiter.switchesPerSecond(now));
-            nt.getEntry("HeldSeconds").setDouble(arbiter.heldSeconds(now));
-            nt.getEntry("LastSwitchReason").setString(arbiter.lastSwitchReason());
+            // These three move every loop by construction, so gating them would only add a compare.
+            CatalystLog.log(key + "Switches", arbiter.switches());
+            CatalystLog.log(key + "SwitchesPerSecond", arbiter.switchesPerSecond(now));
+            CatalystLog.log(key + "HeldSeconds", arbiter.heldSeconds(now));
+            publishReason(arbiter.lastSwitchReason());
         }
 
         /** A scorer that throws must not be able to decide the match; nor must canStart(). */

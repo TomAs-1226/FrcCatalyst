@@ -1,8 +1,8 @@
 package frc.lib.catalyst.behavior;
 
+import frc.lib.catalyst.autonomy.StepCore;
 import frc.lib.catalyst.command.CatalystCommand;
-import org.wpilib.networktables.NetworkTable;
-import org.wpilib.networktables.NetworkTableInstance;
+import frc.lib.catalyst.logging.CatalystLog;
 import org.wpilib.system.Timer;
 import org.wpilib.command3.Command;
 import frc.lib.catalyst.command.Commands;
@@ -148,8 +148,11 @@ public final class BehaviorEngine {
         public CatalystCommand build() {
             CatalystFeatures.record(CatalystFeatures.SEQUENCE, name);
 
-            NetworkTable nt = NetworkTableInstance.getDefault()
-                    .getTable("Catalyst").getSubTable("Behavior").getSubTable(name);
+            // Through CatalystLog rather than straight at NetworkTables. Same key paths to the
+            // byte - CatalystLog's default sink roots at "Catalyst" - but it now reaches every
+            // installed sink, so a sequence's decisions land in the WPILOG beside the match and can
+            // be asserted in a test with RecordingSink instead of needing a live NT server.
+            final String key = "Behavior/" + name + "/";
 
             AtomicBoolean abort = new AtomicBoolean(false);
             AtomicBoolean completed = new AtomicBoolean(false);
@@ -171,33 +174,32 @@ public final class BehaviorEngine {
                 final Step step = steps.get(i);
                 final int idx = i;
                 stepCommands.add(Commands.defer(() -> {
-                    nt.getEntry("Step").setInteger(idx);
+                    CatalystLog.log(key + "Step", (long) (idx));
                     stepIndex.set(idx);
-                    if (step.action.canStart()) {
-                        nt.getEntry("Action").setString(step.action.name());
-                        nt.getEntry("FellBack").setBoolean(false);
-                        return step.action.toCommand();
-                    }
-                    switch (step.fallback) {
-                        case SUBSTITUTE:
-                            if (step.substitute != null && step.substitute.canStart()) {
-                                nt.getEntry("Action").setString(step.substitute.name() + " (sub)");
-                                nt.getEntry("FellBack").setBoolean(true);
-                                return step.substitute.toCommand();
-                            }
-                            nt.getEntry("Action").setString("(skipped " + step.action.name() + ")");
-                            nt.getEntry("FellBack").setBoolean(true);
-                            return Commands.none();
-                        case ABORT:
-                            nt.getEntry("Action").setString("(abort at " + step.action.name() + ")");
-                            nt.getEntry("FellBack").setBoolean(true);
-                            return Commands.runOnce(() -> abort.set(true));
-                        case SKIP:
-                        default:
-                            nt.getEntry("Action").setString("(skipped " + step.action.name() + ")");
-                            nt.getEntry("FellBack").setBoolean(true);
-                            return Commands.none();
-                    }
+
+                    // Preconditions are team code and were called bare here, so one that threw took
+                    // the whole autonomous sequence down at the step that needed it most. Evaluated
+                    // and guarded on this side; StepCore stays a pure function of the answers.
+                    StepCore.Decision decision = StepCore.decide(
+                            step.action.name(),
+                            safeCanStart(step.action),
+                            switch (step.fallback) {
+                                case SUBSTITUTE -> StepCore.Fallback.SUBSTITUTE;
+                                case ABORT -> StepCore.Fallback.ABORT;
+                                case SKIP -> StepCore.Fallback.SKIP;
+                            },
+                            step.substitute == null ? null : step.substitute.name(),
+                            step.substitute != null && safeCanStart(step.substitute));
+
+                    CatalystLog.log(key + "Action", decision.actionLabel());
+                    CatalystLog.log(key + "FellBack", decision.fellBack());
+
+                    return switch (decision.outcome()) {
+                        case RUN -> step.action.toCommand();
+                        case SUBSTITUTE -> step.substitute.toCommand();
+                        case ABORT -> Commands.runOnce(() -> abort.set(true));
+                        case SKIP -> Commands.none();
+                    };
                 }, reqs));
             }
 
@@ -217,7 +219,7 @@ public final class BehaviorEngine {
             Command bailCmd = bailAction != null ? bailAction.toCommand() : Commands.none();
             Command full = CatalystCommand.of(guarded).then(Commands.either(
                     Commands.none(),
-                    CatalystCommand.of(bailCmd).beforeStarting(() -> nt.getEntry("Bailed").setBoolean(true)),
+                    CatalystCommand.of(bailCmd).beforeStarting(() -> CatalystLog.log(key + "Bailed", true)),
                     completed::get));
 
             return CatalystCommand.of(full).beforeStarting(() -> {
@@ -225,13 +227,22 @@ public final class BehaviorEngine {
                 completed.set(false);
                 stepIndex.set(0);
                 startTime[0] = Timer.getTimestamp();
-                nt.getEntry("Bailed").setBoolean(false);
-                nt.getEntry("Step").setInteger(-1);
-                nt.getEntry("Action").setString("(start)");
+                CatalystLog.log(key + "Bailed", false);
+                CatalystLog.log(key + "Step", (long) (-1));
+                CatalystLog.log(key + "Action", "(start)");
             }).withName("Behavior:" + name);
         }
 
-        private static boolean safeBool(BooleanSupplier s) {
+        /** A precondition that throws is a precondition that is not met, not a dead autonomous. */
+    private static boolean safeCanStart(Action action) {
+        try {
+            return action.canStart();
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    private static boolean safeBool(BooleanSupplier s) {
             try {
                 return s.getAsBoolean();
             } catch (Throwable t) {

@@ -31,7 +31,7 @@ that deploys and then does nothing.
 
 | Component | Version |
 |---|---|
-| Catalyst | 2.0.0-alpha.2, or 2.0.0-alpha.3 (branch `systemcore-alpha6`) |
+| Catalyst | 2.0.0-alpha.3 |
 | WPILib | 2027.0.0-alpha-6 |
 | Systemcore OS | beta 13 |
 | Phoenix 6 | 26.50.0-alpha-1 |
@@ -39,10 +39,8 @@ that deploys and then does nothing.
 | LimelightLib | 2.0.0-beta2 |
 | Java | 25 |
 
-Systemcore OS **beta 14 requires WPILib alpha-7**. Alpha-7 has been out since 1 September 2026 and
-Catalyst's alpha-7 build is 2.0.0-beta.1, but CTRE Phoenix 6 and PathPlannerLib have no alpha-7
-release yet, so a robot with CTRE devices stays on OS beta 13 and this line. See
-[Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html).
+Systemcore OS **beta 14 requires WPILib alpha-7**, which is not released. Until it is, pair Catalyst
+2.x with OS beta 13.
 
 > **The installer is all you need, and the two alpha-6s are not the same thing.**
 >
@@ -57,7 +55,7 @@ release yet, so a robot with CTRE devices stays on OS beta 13 and this line. See
 > - The release publishes `org.wpilib:commands3-java`; the snapshot publishes
 >   `org.wpilib:commandsv3-java`.
 >
-> **Catalyst 2.0.0-alpha.2 and 2.0.0-alpha.3 target the release**, so the installer is sufficient and no
+> **Catalyst 2.0.0-alpha.3 targets the release**, so the installer is sufficient and no
 > development maven is needed. Five classes that can only exist on the snapshot are excluded from
 > this build — see [What is not in this build](#what-is-not-in-this-build).
 >
@@ -70,7 +68,7 @@ release yet, so a robot with CTRE devices stays on OS beta 13 and this line. See
 
 ## What is not in this build
 
-Five classes that exist in the source tree do not ship in `2.0.0-alpha.1-a6`. None of them are
+Five classes that exist in the source tree do not ship in `2.0.0-alpha.3`. None of them are
 deleted — every one is excluded from the source set, so it comes back unchanged the moment the thing
 it needs exists in a release. They are listed here so that "why can I not import this" has an answer
 that is not a compile error.

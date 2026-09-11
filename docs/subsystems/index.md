@@ -81,7 +81,7 @@ pass a `PathPlannerConfig` (as above). It wires:
 
 - `getPose` / `resetPose` — pose source + reset
 - `getChassisSpeeds` — **robot-relative** speeds (what PathPlanner expects)
-- a robot-relative `ChassisSpeeds` consumer for path output
+- a robot-relative `ChassisVelocities` consumer for path output
 - a `PPHolonomicDriveController` from your translation/rotation PID
 - `RobotConfig.fromGUISettings()` — mass, MOI, module config from the
   PathPlanner GUI
@@ -187,7 +187,7 @@ solve. Cheap.
 
 ## VisionSubsystem
 
-Multi-camera pose estimation with Kalman filter integration. Supports both Limelight (MegaTag2) and PhotonVision cameras simultaneously.
+Multi-camera pose estimation with Kalman filter integration. Limelight-first: MegaTag1 and MegaTag2, several cameras at once. PhotonVision is not built on this branch - there is no 2027 vendordep for it.
 
 **Features:**
 - **Distance-scaled standard deviations** — trusts close targets more
@@ -232,7 +232,7 @@ the table name, bind, done.
 ```java
 LimelightTriggers front = new LimelightTriggers("limelight-front");
 
-front.hasTarget().onTrue(leds.solid(Color.kGreen));
+front.hasTarget().onTrue(leds.solid(Color.GREEN));
 front.tagInView(7).whileTrue(swerve.pathfindToPose(() -> SCORE_7));
 front.detectorClass("note").onTrue(intake.intakeCommand());
 front.horizontalErrorBelow(2.0).onTrue(rumble.fire(Pattern.DOUBLE_TAP, Channel.DRIVER));
@@ -267,22 +267,22 @@ LEDSubsystem leds = new LEDSubsystem(
 );
 
 // Alliance color by default
-leds.setDefaultCommand(leds.solid(Color.kBlue));
+leds.setDefaultCommand(leds.solid(Color.BLUE));
 
 // Rainbow when scoring
 scoring.whileTrue(leds.rainbow());
 
 // Blink green when game piece acquired
-intake.hasPieceTrigger().whileTrue(leds.blink(Color.kGreen, 0.1));
+intake.hasPieceTrigger().whileTrue(leds.blink(Color.GREEN, 0.1));
 
 // Fire effect for celebration
 scoring.whileTrue(leds.fire());
 
 // Alignment indicator for driver (Color + 0..1 progress supplier)
-aligning.whileTrue(leds.alignmentIndicator(Color.kGreen, () -> alignProgress));
+aligning.whileTrue(leds.alignmentIndicator(Color.GREEN, () -> alignProgress));
 
 // Progress bar for elevator height
-leds.dynamicProgress(Color.kGreen, () -> elevator.getPosition() / 1.2);
+leds.dynamicProgress(Color.GREEN, () -> elevator.getPosition() / 1.2);
 ```
 
 {: .tip }

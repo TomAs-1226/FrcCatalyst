@@ -39,7 +39,7 @@ import java.util.function.ToDoubleFunction;
  * RobotIdentity.declare("Ratchet");
  * }</pre>
  *
- * <p>That one line publishes the team number, the season, which roboRIO this is and its serial, the
+ * <p>That one line publishes the team number, the season, which robot controller this is and its serial, the
  * Catalyst and WPILib versions, the rio image, the brownout threshold, the CAN inventory, and — as
  * soon as a {@link SwerveSubsystem} exists — the drivetrain type, module count and positions, track
  * width, wheelbase, odometry rate, top speed, and the mass and moment of inertia the robot follows

@@ -78,8 +78,10 @@ PhysicsCore physics = PhysicsCore.builder()
 One line in `robotPeriodic()`, after the drivetrain has updated:
 
 ```java
-public void robotPeriodic() {
-    CommandScheduler.getInstance().run();
+// Once per loop, after the scheduler has ticked. On a CatalystOpMode that is
+// onPeriodic(); on a TimedRobot it is robotPeriodic(), after your own
+// Scheduler.getDefault().run().
+@Override protected void onPeriodic() {
     physics.update();
 }
 ```
@@ -451,6 +453,10 @@ measures:
 battery.addSample(RobotController.getBatteryVoltage(), pdh.getTotalCurrent());
 battery.recommendation().ifPresent(r -> System.out.println(r.describe()));
 ```
+
+`addSample` wants amps, not a `PowerDistribution`. With no power module on CAN, sum the Talon FX
+supply currents instead - `motors.stream().mapToDouble(CatalystMotor::getSupplyCurrent).sum()`. The
+fit only needs current to *vary* against voltage, and the drivetrain is what makes it vary.
 
 Both are recursive least squares — constant time, constant memory, mathematically identical to a batch
 fit over the whole log.

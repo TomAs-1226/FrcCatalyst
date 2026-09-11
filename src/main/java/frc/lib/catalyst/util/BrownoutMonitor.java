@@ -59,6 +59,8 @@ import java.util.function.DoubleSupplier;
 public final class BrownoutMonitor {
 
     private final DoubleSupplier totalCurrent;
+    /** False when no current source was supplied - see {@link #isArmed()}. */
+    private final boolean armed;
     private final double rInternal;
     private final double warnVoltage;
     private final double tripVoltage;
@@ -73,7 +75,8 @@ public final class BrownoutMonitor {
     private boolean tripped = false;
 
     private BrownoutMonitor(Builder b) {
-        this.totalCurrent = b.totalCurrent;
+        this.armed = b.totalCurrent != null;
+        this.totalCurrent = this.armed ? b.totalCurrent : () -> 0;
         this.rInternal = b.rInternal;
         this.warnVoltage = b.warnVoltage;
         this.tripVoltage = b.tripVoltage;
@@ -112,6 +115,7 @@ public final class BrownoutMonitor {
             tripped = false;
         }
 
+        nt.getEntry("Armed").setBoolean(armed);
         nt.getEntry("MeasuredVoltage").setDouble(v);
         nt.getEntry("TotalCurrent").setDouble(i);
         nt.getEntry("PredictedVoltage").setDouble(predictedVoltage);
@@ -139,7 +143,19 @@ public final class BrownoutMonitor {
         return predictedVoltage <= warnVoltage;
     }
 
+    /**
+     * Whether a current source was supplied. Without one this monitor can only repeat the present
+     * voltage, so {@code predictedVoltage()} is not a prediction and nothing here will warn before
+     * a sag rather than during it. Published as {@code Power/Brownout/Armed}.
+     */
+    public boolean isArmed() {
+        return armed;
+    }
+
     private double safeCurrent() {
+        if (!armed) {
+            return 0;
+        }
         try {
             double i = totalCurrent.getAsDouble();
             return Double.isFinite(i) && i > 0 ? i : 0;
@@ -162,7 +178,14 @@ public final class BrownoutMonitor {
     }
 
     public static class Builder {
-        private DoubleSupplier totalCurrent = () -> 0;
+        /**
+         * No default that pretends. Zero was the default, and it makes the whole class inert
+         * without saying so: the prediction is {@code v - I*R}, so with I pinned at zero the
+         * "predicted" voltage is just the present voltage and the look-ahead this class exists for
+         * never happens. Left unset, {@link #build()} now records that and the monitor reports
+         * itself as unarmed rather than quietly agreeing with the voltmeter.
+         */
+        private DoubleSupplier totalCurrent;
         private double rInternal = 0.020;   // ohms, healthy battery
         private double warnVoltage = 7.5;
         private double tripVoltage = 7.0;

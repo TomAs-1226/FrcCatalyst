@@ -76,7 +76,7 @@ The point of the "zero WPILib imports" rule is not purity for its own sake. It i
 the entire decision logic — routing, guards, arrival, timeouts, fault policy — run in a JUnit
 test on a laptop with no HAL, no scheduler, and a fake clock. The engine is *told* the time
 by a `DoubleSupplier` and *told* to advance by `step()`; it never reaches for
-`Timer.getFPGATimestamp()` itself. That same property is what will make the eventual port to
+`Timer.getTimestamp()` itself. That same property is what will make the eventual port to
 the 2027 command framework a change to the thin robot layer instead of to the FSM.
 
 ### Goals (10 files) — one value type per mechanism
@@ -117,7 +117,7 @@ repeated ten times.
 
 | File | What it is |
 |---|---|
-| `Superstructure.java` | A `SubsystemBase` that owns the engine, steps it every loop, and exposes `goTo(...)` commands and `arrivedAt(...)` triggers. |
+| `Superstructure.java` | A `CatalystSubsystem` that owns the engine, steps it every loop, and exposes `goTo(...)` commands and `arrivedAt(...)` triggers. |
 | `GoalRunner.java` | The default command installed on each mechanism; it reads the engine's active goal and hosts the pursue/hold commands. |
 | `Actuator.java` | `Binding` plus the WPILib `Command` plumbing (`pursueCommand`, `holdCommand`, `requirements`). |
 | `CatalystStateMachineLog.java` | Routes the whole log schema into `CatalystLog`, plus alerts and Driver Station messages. |
@@ -138,7 +138,7 @@ the robot layer on either side does.
 ```mermaid
 flowchart TB
     code["Your code<br/>button.onTrue(sm.goTo(AIM))"]
-    ss["Superstructure  (SubsystemBase)<br/>periodic() → engine.step()"]
+    ss["Superstructure  (CatalystSubsystem)<br/>periodic() → engine.step()"]
     core["StateMachineCore  (the engine)<br/>request() · step() · activeGoalOf()<br/><i>zero WPILib imports</i>"]
     graph["StateGraph / StateSpec / EdgeSpec<br/>guards · interlocks · staging"]
     runner["GoalRunner  (default command, one per mechanism)<br/>reads activeGoalOf(handle)"]
@@ -178,19 +178,20 @@ Two things are worth pinning down here, because they are the crux of the design:
 This is the most important section on the page. If you understand one 20 ms scheduler tick,
 you understand the machine.
 
-`CommandScheduler.run()` runs, in this fixed order, every loop:
+`Scheduler.run()` runs, in this fixed order, every loop (read off the alpha-6 jar, not assumed):
 
-1. every `Subsystem.periodic()`,
-2. then it polls `Trigger`s and schedules/cancels commands,
-3. then it runs every scheduled command's `execute()`.
+1. stale bindings are cancelled and stale triggers unbound,
+2. every registered periodic callback - which is what `CatalystSubsystem.registerPeriodic()` installs,
+3. then it polls the event loop, so `Trigger`s schedule and cancel commands,
+4. then default commands are scheduled, queued commands promoted, and running commands stepped.
 
-`Superstructure` *is* a `SubsystemBase`, so its `periodic()` runs in phase 1 — **before** any
+`Superstructure` *is* a `CatalystSubsystem`, so its `periodic()` runs in phase 2 — **before** any
 trigger is polled and **before** any `GoalRunner.execute()` runs. That ordering is not an
 accident; it is the whole reason the machine is coherent within a loop:
 
 ```java
 // Superstructure.periodic()
-engine.setEnabled(DriverStation.isEnabled());
+engine.setEnabled(org.wpilib.driverstation.RobotState.isEnabled());
 engine.step();
 ```
 
@@ -198,7 +199,7 @@ Here is the tick, end to end:
 
 ```mermaid
 sequenceDiagram
-    participant Sched as CommandScheduler.run()
+    participant Sched as Scheduler.run()
     participant SS as Superstructure.periodic()
     participant Core as StateMachineCore.step()
     participant Run as GoalRunner.execute()
@@ -340,7 +341,7 @@ mechanism's `pursueCommand(goal)` and **hosts** it. Hosting means it calls the i
 the scheduler. That is legal — those methods are public and the scheduler does nothing else to
 a leaf command — but it is only correct with careful bookkeeping: never calling `execute()`
 after `isFinished()` returned true, never calling `end()` twice, and swallowing every
-exception so nothing escapes into `CommandScheduler.run()` and kills the robot loop. On
+exception so nothing escapes into `Scheduler.run()` and kills the robot loop. On
 arrival it optionally swaps to a `holdCommand(goal)` (used by open-loop mechanisms like a winch
 that would otherwise keep driving into a hard stop; closed-loop ones like the elevator return
 `null` and keep pursuing, since Motion Magic holding a setpoint *is* the correct hold).

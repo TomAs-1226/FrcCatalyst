@@ -29,7 +29,7 @@ public RobotContainer() {
 ```
 
 That publishes everything Catalyst can work out for itself under `/Catalyst/Robot/`: team number,
-season, which roboRIO this is with its serial and image, the Catalyst and WPILib versions, the
+season, which robot controller this is with its serial and image, the Catalyst and WPILib versions, the
 brownout threshold, the CAN inventory, the gyro, and — as soon as a `SwerveSubsystem` exists —
 drivetrain type, module count and positions, track width, wheelbase, odometry rate and top speed.
 
@@ -151,7 +151,7 @@ receives the whole sheet on connect without the robot republishing anything. Thi
 write, not a periodic one.
 
 Nothing is marked persistent, and that is a decision rather than an oversight. A persistent topic is
-saved to the roboRIO and republished by the server on the *next* boot — so a build that threw before
+saved to the robot controller and republished by the server on the *next* boot — so a build that threw before
 reaching its `declare(...)` would serve last week's mass with a fresh timestamp and no way for the
 dashboard to tell. Absent is correct; stale-but-confident is the defect.
 
@@ -193,9 +193,9 @@ Catalyst.
 | `Identity/Name` | declared — the one fact only the team knows |
 | `Identity/TeamNumber` | `RobotController.getTeamNumber()`, omitted when it reports 0 |
 | `Identity/Season` | the year in the runtime WPILib version |
-| `Identity/Controller` | `roboRIO`, `roboRIO 2` or `Simulation`, from the HAL runtime type |
-| `Identity/RioSerial` | `RobotController.getSerialNumber()` |
-| `Identity/RioComment` | the Imaging Tool's comments field, when a team filled it in |
+| `Identity/Controller` | `Systemcore` or `Simulation`, from the HAL runtime type. 2027 dropped both roboRIO runtime types, so an unknown runtime is absent rather than guessed |
+| `Identity/ControllerSerial` | `RobotController.getSerialNumber()`. Also published as `Identity/RioSerial` so 1.x dashboards keep resolving |
+| `Identity/ControllerComment` | the imaging tool's comments field, when a team filled it in. Also `Identity/RioComment` |
 
 ### Software
 

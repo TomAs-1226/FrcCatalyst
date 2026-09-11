@@ -72,7 +72,7 @@ or 3D object instead of loose numbers:
 
 ```java
 CatalystLog.log("Drive/Pose", Pose2d.struct, drive.getPose());
-CatalystLog.log("Drive/ModuleStates", SwerveModuleState.struct, drive.getModuleStates());
+CatalystLog.log("Drive/ModuleStates", SwerveModuleVelocity.struct, drive.getModuleVelocities());
 ```
 
 Both a scalar (`log(key, struct, value)`) and an array
@@ -205,8 +205,10 @@ average sits over budget (so a single startup spike does not cry wolf):
 ```java
 private final LoopMonitor loop = new LoopMonitor();   // "Robot", 20 ms budget
 
-public void robotPeriodic() {
-    CommandScheduler.getInstance().run();
+// Once per loop, after the scheduler has ticked. On a CatalystOpMode that is
+// onPeriodic(); on a TimedRobot it is robotPeriodic(), after your own
+// Scheduler.getDefault().run().
+@Override protected void onPeriodic() {
     loop.record();
 }
 ```

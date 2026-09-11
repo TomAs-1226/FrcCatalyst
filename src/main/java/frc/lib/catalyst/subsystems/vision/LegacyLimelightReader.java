@@ -128,6 +128,18 @@ final class LegacyLimelightReader {
 
     /** Publish time of the newest frame already handed over, in NetworkTables microseconds. */
     private long lastConsumedNt = NEVER;
+    /**
+     * Per-source frame markers. A single shared one meant that examining - and rejecting - a
+     * MegaTag2 frame also marked the MegaTag1 frame published alongside it as already consumed, so
+     * the fallback below could never fire even once.
+     */
+    private long lastMegaTag2Nt = NEVER;
+    private long lastMegaTag1Nt = NEVER;
+    /**
+     * The camera saw a tag and could not place it on the field: not in its map, or no MegaTag fix.
+     * Distinct from seeing nothing, and the two look identical from outside without this.
+     */
+    private boolean unplaceable;
 
     LegacyLimelightReader(String name, Transform3d robotToCamera) {
         this.name = name;
@@ -157,6 +169,19 @@ final class LegacyLimelightReader {
     }
 
     /** Whether the camera currently reports a valid target. */
+    /**
+     * The camera is seeing a tag it cannot place on the field.
+     *
+     * <p>Worth reporting separately from "sees nothing", because the two are indistinguishable from
+     * the outside and have completely different fixes. Seeing nothing means point the camera at a
+     * tag. This means the tag is not in the camera's field map, or the tag is one no map contains -
+     * id 0, say - or MegaTag has no fix for it. The camera looks perfectly healthy either way:
+     * every per-tag 3D solve is correct, {@code tv} is 1, and a tag is counted.
+     */
+    boolean isUnplaceable() {
+        return unplaceable;
+    }
+
     boolean hasTarget() {
         return table.getEntry("tv").getDouble(0) >= 1.0;
     }
@@ -179,30 +204,64 @@ final class LegacyLimelightReader {
     /**
      * The newest pose the camera is reporting, or empty.
      *
-     * @param useMegaTag2 read the MegaTag2 array, falling back to MegaTag1 if it is absent
+     * <p>MegaTag2 first when asked for, MegaTag1 when MegaTag2 has no answer - and "no answer" means
+     * more than "the topic is missing". A Limelight that cannot solve MegaTag2 still publishes a
+     * full-length {@code botpose_orb_wpiblue}: six zeros with half a field added, which is the exact
+     * centre of the field and passes every length and finite check there is. Preferring it because
+     * it arrived, then rejecting it as unplaceable, threw away a MegaTag1 fix that was sitting in the
+     * same frame.
+     *
+     * <p>Measured on a Limelight 4, firmware reporting {@code pipe_fiducial}, with a mapped tag in
+     * view across 1,540 frames in four configurations - no heading fed, heading fed at 50 Hz,
+     * internal IMU, internal IMU seeded. MegaTag1 solved in every frame of all four; MegaTag2 solved
+     * in none of them. A robot that only ever reads MegaTag2 on that camera is blind with a working
+     * camera, and the only symptom is vision quietly never contributing.
+     *
+     * @param useMegaTag2 try the MegaTag2 array first, falling back to MegaTag1 when it has no fix
      */
     Optional<CameraSource.PoseEstimate> read(boolean useMegaTag2) {
-        // Value and publish time together, in one call. MegaTag2 preferred, MegaTag1 as the
-        // fallback, exactly as before - what is new is that the timestamp travels with the array.
-        TimestampedDoubleArray frame = useMegaTag2 ? megaTag2.getAtomic() : null;
-        boolean fromMegaTag2 = frame != null && frame.value.length >= MIN_LENGTH;
-        if (!fromMegaTag2) {
-            frame = megaTag1.getAtomic();
+        if (useMegaTag2) {
+            Optional<CameraSource.PoseEstimate> fix =
+                    consider(megaTag2.getAtomic(), megaTag2Centre.get(), true);
+            if (fix.isPresent()) {
+                return fix;
+            }
         }
-        if (frame.value.length < MIN_LENGTH || frame.timestamp == NEVER) {
+        return consider(megaTag1.getAtomic(), megaTag1Centre.get(), false);
+    }
+
+    /**
+     * Judge one of the two pose arrays.
+     *
+     * @param frame        the array and the time it was published
+     * @param centre       the same solve with the field centre as the origin, for the unplaceable test
+     * @param fromMegaTag2 which array this is, for the per-source de-duplication
+     */
+    private Optional<CameraSource.PoseEstimate> consider(
+            TimestampedDoubleArray frame, double[] centre, boolean fromMegaTag2) {
+        if (frame == null || frame.value.length < MIN_LENGTH || frame.timestamp == NEVER) {
             return Optional.empty();
         }
 
         // Nothing new since the last hand-over. Not an error and not a fault - the camera simply has
         // not produced a frame since this was last asked, which at 50 Hz against a slower pipeline
         // is most loops. Serving the old one again would be inventing evidence.
-        if (frame.timestamp <= lastConsumedNt) {
+        //
+        // Tracked per source. One shared marker meant that rejecting a MegaTag2 frame also marked
+        // the MegaTag1 frame beside it as consumed, so the fallback could never be read.
+        long last = fromMegaTag2 ? lastMegaTag2Nt : lastMegaTag1Nt;
+        if (frame.timestamp <= last) {
             return Optional.empty();
         }
 
         // Consumed regardless of what happens below. A frame rejected for tv=0 or a bad pose is not
         // new evidence next loop either, and re-examining it forever would be its own bug.
-        lastConsumedNt = frame.timestamp;
+        if (fromMegaTag2) {
+            lastMegaTag2Nt = frame.timestamp;
+        } else {
+            lastMegaTag1Nt = frame.timestamp;
+        }
+        lastConsumedNt = Math.max(lastConsumedNt, frame.timestamp);
 
         double[] botpose = frame.value;
         if (!hasTarget()) {
@@ -221,15 +280,16 @@ final class LegacyLimelightReader {
             return Optional.empty();
         }
 
-        // The other way a camera says "I could not place this": the centre-origin solve is zero
-        // and the blue-origin copy of it is therefore the exact centre of the field. tv is 1 and a
-        // tag is counted, because the tag was seen - it just is not in the camera's map, or
-        // MegaTag2 was asked without a heading. Not every camera publishes the centre-origin key;
-        // when it is absent this cannot tell and the estimate stands on the other checks.
-        double[] centre = fromMegaTag2 ? megaTag2Centre.get() : megaTag1Centre.get();
+        // The other way a camera says "I could not place this": the centre-origin solve is zero and
+        // the blue-origin copy of it is therefore the exact centre of the field. tv is 1 and a tag is
+        // counted, because the tag was seen - it just is not in the camera's map, or MegaTag2 has no
+        // fix for it. Not every camera publishes the centre-origin key; when it is absent this cannot
+        // tell and the estimate stands on the other checks.
         if (centre.length > I_YAW && centre[I_X] == 0.0 && centre[I_Y] == 0.0 && centre[I_YAW] == 0.0) {
+            unplaceable = true;
             return Optional.empty();
         }
+        unplaceable = false;
 
         // Every guard here is a comparison, and NaN passes all of them. A non-finite pose reaching a
         // pose estimator poisons the fused pose permanently, which is worse than no vision at all.
@@ -243,6 +303,7 @@ final class LegacyLimelightReader {
         if (tagCount <= 0) {
             // The camera saw something it could not place on the field. MegaTag has no answer, and
             // the array it published is whatever it computed from nothing.
+            unplaceable = true;
             return Optional.empty();
         }
 

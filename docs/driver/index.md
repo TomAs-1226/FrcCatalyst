@@ -70,9 +70,10 @@ events.onTrigger(turret.atSetpointTrigger(),  Pattern.DOUBLE_TAP, Channel.DRIVER
 events.onTrigger(claw.hasPieceTrigger(),      Pattern.SHORT,      Channel.BOTH);
 events.onTrigger(RobotSafety.trippedTrigger(),Pattern.LONG,       Channel.BOTH);
 
-// In Robot.robotPeriodic():
-@Override public void robotPeriodic() {
-    CommandScheduler.getInstance().run();
+// Once per loop, after the scheduler has ticked. On a CatalystOpMode that is
+// onPeriodic(); on a TimedRobot it is robotPeriodic(), after your own
+// Scheduler.getDefault().run().
+@Override protected void onPeriodic() {
     events.update();
 }
 ```
@@ -141,9 +142,10 @@ operator.back() .onTrue(ghost.stopRecording());
 operator.x()    .onTrue(ghost.startReplay("lead-driver-a-side"));
 operator.b()    .onTrue(ghost.stopReplay());
 
-// In Robot.robotPeriodic():
-@Override public void robotPeriodic() {
-    CommandScheduler.getInstance().run();
+// Once per loop, after the scheduler has ticked. On a CatalystOpMode that is
+// onPeriodic(); on a TimedRobot it is robotPeriodic(), after your own
+// Scheduler.getDefault().run().
+@Override protected void onPeriodic() {
     ghost.update();   // captures during record, advances during replay
 }
 ```
