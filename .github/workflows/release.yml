@@ -41,6 +41,17 @@ jobs:
           ref: ${{ github.event.inputs.tag || github.ref }}
           fetch-depth: 0
 
+      # A tag cut before this tooling existed - and any rehearsal against one - has no
+      # tools/release.py in its tree. Take that one file from the default branch; the CHANGELOG and
+      # build.gradle still come from the tag, which is what the release describes.
+      - name: Make sure the release tooling is present
+        run: |
+          if [ ! -f tools/release.py ]; then
+            echo "::notice title=Older tag::$TAG predates tools/release.py; using the copy from ${{ github.event.repository.default_branch }}"
+            git fetch --depth=1 origin "${{ github.event.repository.default_branch }}"
+            git checkout FETCH_HEAD -- tools/release.py
+          fi
+
       - name: Release notes from the CHANGELOG
         run: |
           python3 tools/release.py notes "$TAG" > notes.md
