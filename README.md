@@ -31,6 +31,30 @@
   <img src="docs/assets/release-2.0.svg" alt="FrcCatalyst 2.0 — what moved underneath, and the five command decorators you have to rename" width="100%"/>
 </p>
 
+## Versions and compatibility
+
+Which Catalyst goes on which robot is kept on one page,
+**[Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html)**. As of
+10 September 2026:
+
+| If you are | Use |
+|---|---|
+| Competing this season on a roboRIO | **1.12.0**: tag `v1.12.0`, WPILib 2026.2.1, on JitPack |
+| Testing on a Systemcore with CTRE motors, today | **2.0.0-alpha.3**: commit `5adc688` on branch `systemcore-alpha6`, WPILib 2027.0.0-alpha-6, Systemcore OS image 13. Source build only. |
+| Trying WPILib alpha-7 on Systemcore image 14 | **2.0.0-beta.1**: tag `v2.0.0-beta.1` on branch `upgrade/alpha-7`, on JitPack. Phoenix 6 and PathPlannerLib have no alpha-7 release, so a robot with CTRE motors cannot run it yet. |
+
+This branch, `systemcore`, is `v2.0.0-alpha.2` plus docs, and builds the beta docs site.
+
+`python tools/catalyst-versions.py` prints the live map from git and Maven local: every tag and
+branch head with the WPILib and vendor versions it pins, and every local build traced to the commit
+its sources came from. `--online` adds the upstream Systemcore matrix, JitPack's build status and
+the vendordeps the docs site serves; `--apps` adds CatalystApp and CatalystConsole when they are
+checked out beside this repository. It only reads, and needs nothing beyond Python 3.8. A version
+number in Maven local is whatever `build.gradle` said when that build was published, which is not
+always the tag with the same number; the script says which commit each one really is.
+
+---
+
 ## What is FrcCatalyst?
 
 **FrcCatalyst** is a plug-and-play Java library for FRC teams using **CTRE Phoenix 6 hardware**. It provides production-ready mechanism building blocks, hardware wrappers, and utilities so your team can focus on strategy and game-specific logic instead of writing boilerplate.
@@ -79,17 +103,23 @@ Also required: Java 25 and Gradle 9.7 or later.
 https://tomas-1226.github.io/FrcCatalyst/beta/vendordep/FrcCatalyst.json
 ```
 
-Make sure the **Phoenix 6**, **PathPlanner**, and **PhotonVision** vendordeps are installed too (Catalyst builds on them).
+Make sure the **Phoenix 6** and **PathPlanner** vendordeps are installed too (Catalyst builds on them). PhotonVision is not used on this line.
 
-<details><summary>Or add it by hand in <code>build.gradle</code></summary>
+> **That URL installs `v2.0.0-alpha.1`, which does not start on Systemcore OS image 13**: it was
+> built on a WPILib development snapshot. For image 13, build this branch's tag, `v2.0.0-alpha.2`,
+> or 2.0.0-alpha.3 (commit `5adc688`, branch `systemcore-alpha6`) from source with
+> `./gradlew publishToMavenLocal`. See
+> [Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html).
+
+<details><summary>A source build, in <code>build.gradle</code></summary>
 
 ```gradle
 repositories {
-    maven { url "https://jitpack.io" }
+    mavenLocal()
 }
 
 dependencies {
-    implementation "com.github.TomAs-1226:FrcCatalyst:v1.12.0"
+    implementation "com.frccatalyst:FrcCatalyst:2.0.0-alpha.2"
 }
 ```
 </details>

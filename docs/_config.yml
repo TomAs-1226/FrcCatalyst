@@ -22,8 +22,20 @@ aux_links:
 # GitHub + Releases open externally; the Tools link stays in-tab.
 aux_links_new_tab: false
 
+# The one Versions page lives on the stable site; this sidebar links to it.
+nav_external_links:
+  - title: Versions and compatibility
+    url: https://tomas-1226.github.io/FrcCatalyst/versions.html
+
+# What this site documents. _includes/header_custom.html puts it at the top of every page and the
+# footer repeats it, so no page is read without knowing which Catalyst it describes.
+documents:
+  version: "2.0.0-alpha.2"
+  platform: "Systemcore image 13 &middot; WPILib 2027 alpha-6"
+  versions_url: "https://tomas-1226.github.io/FrcCatalyst/versions.html"
+
 # Footer
-footer_content: "Built for the FRC community. Go build something awesome."
+footer_content: 'Documents Catalyst 2.0.0-alpha.2 (Systemcore OS image 13, WPILib 2027.0.0-alpha-6). Other versions: <a href="https://tomas-1226.github.io/FrcCatalyst/versions.html">Versions and compatibility</a>. Built for the FRC community. Go build something awesome.'
 
 # Search
 search_enabled: true

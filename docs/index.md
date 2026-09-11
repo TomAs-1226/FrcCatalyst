@@ -23,20 +23,30 @@ A Java library of pre-built mechanism building blocks for FRC robots on Phoenix 
 
 [Get Started](getting-started/installation){: .btn .btn-primary .fs-5 .mb-4 .mb-md-0 .mr-2 }
 [What changed for Systemcore](advanced/systemcore){: .btn .fs-5 .mb-4 .mb-md-0 .mr-2 }
+[Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html){: .btn .fs-5 .mb-4 .mb-md-0 .mr-2 }
 [Tools](tools/){: .btn .fs-5 .mb-4 .mb-md-0 .mr-2 }
 [GitHub](https://github.com/TomAs-1226/FrcCatalyst){: .btn .fs-5 .mb-4 .mb-md-0 }
 
 {% include hero3d.html %}
 
 <p style="margin-top: -8px">
-  <img src="https://img.shields.io/badge/WPILib-2026.2.1-1f6feb?style=flat-square" alt="WPILib"/>
-  <img src="https://img.shields.io/badge/Phoenix%206-26.1.1-e94560?style=flat-square" alt="Phoenix 6"/>
-  <img src="https://img.shields.io/badge/Java-17-orange?style=flat-square&logo=openjdk" alt="Java 17"/>
-  <img src="https://img.shields.io/badge/PathPlanner-2026.1.2-7c3aed?style=flat-square" alt="PathPlanner"/>
-  <img src="https://img.shields.io/badge/PhotonVision-v2026.3.1-22c55e?style=flat-square" alt="PhotonVision"/>
+  <img src="https://img.shields.io/badge/WPILib-2027.0.0--alpha--6-1f6feb?style=flat-square" alt="WPILib 2027.0.0-alpha-6"/>
+  <img src="https://img.shields.io/badge/Systemcore%20OS-image%2013-2c2e34?style=flat-square" alt="Systemcore OS image 13"/>
+  <img src="https://img.shields.io/badge/Phoenix%206-26.50.0--alpha--1-e94560?style=flat-square" alt="Phoenix 6 26.50.0-alpha-1"/>
+  <img src="https://img.shields.io/badge/Java-25-orange?style=flat-square&logo=openjdk" alt="Java 25"/>
+  <img src="https://img.shields.io/badge/PathPlanner-2027.0.0--alpha--3-7c3aed?style=flat-square" alt="PathPlanner 2027.0.0-alpha-3"/>
 </p>
 
-## Latest release
+## What this site documents
+
+**Catalyst 2.0.0-alpha.2**: tag `v2.0.0-alpha.2`, WPILib 2027.0.0-alpha-6, Systemcore OS image 13.
+The newer code for the same platform is **2.0.0-alpha.3** (branch `systemcore-alpha6`: Autonomy
+2.0 and a MegaTag1 vision fix), a source build like this one. **2.0.0-beta.1** moves to WPILib
+alpha-7 and image 14, where Phoenix 6 and PathPlannerLib have no release yet, so it is not for a
+robot with CTRE motors. Which to use, and where each one lives, is on
+[Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html).
+
+### Carried over from 1.x
 
 **v1.12.0** publishes the CAN devices themselves rather than a tally of them.
 `Hardware/Devices` carries one `bus|id|type` row per device, sorted by bus and then numerically by

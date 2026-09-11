@@ -165,4 +165,70 @@
     border-radius: 999px;
   }
   ::-webkit-scrollbar-thumb:hover { background: var(--catalyst-accent); }
+  /* ---------- Rev 2: the fill rule, and the line that says what this site documents ----------
+     Carried over from Rev 2 (docs/_includes/head_custom.html on the 2.x branches) so the Versions
+     page reads the same wherever it is linked from. Only these rules and the tokens they use come
+     across; the rest of Rev 2 is not applied to this site.
+       <span class="proven">measured</span>   <span class="attempted">not yet measured</span> */
+  :root {
+    --cat-white:      #E4E7E1;
+    --cat-muted:      #98A09A;
+    --cat-coral:      #E9583D;
+    --cat-fs-caption: 12px;
+    --cat-fs-small:   13px;
+    --cat-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+                "Liberation Mono", monospace;
+  }
+
+  .proven,
+  .attempted {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--cat-mono);
+    font-size: var(--cat-fs-small);
+    letter-spacing: 0.02em;
+  }
+
+  .proven { color: var(--cat-white); }
+  .attempted { color: var(--cat-muted); }
+
+  .proven::before,
+  .attempted::before {
+    content: "";
+    width: 10px;
+    height: 10px;
+    flex: none;
+  }
+
+  .proven::before { background: var(--cat-white); }
+
+  .attempted::before {
+    background: transparent;
+    border: 1.5px dashed var(--cat-coral);
+  }
+
+  /* What this site documents (_includes/header_custom.html, from `documents:` in _config.yml).
+     Wide screens only: the footer says the same on every page for narrow ones. */
+  .main-header .documents {
+    display: none;
+    flex: 0 1 auto;
+    min-width: 0;
+    align-self: center;
+    margin: 0;
+    padding: 0 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: var(--cat-mono);
+    font-size: var(--cat-fs-caption);
+    color: var(--cat-muted);
+    white-space: nowrap;
+  }
+
+  .main-header .documents strong { color: var(--cat-white); font-weight: 600; }
+  .main-header .documents a { color: var(--cat-white); }
+
+  @media (min-width: 66.5rem) {
+    .main-header .documents { display: block; }
+  }
 </style>
