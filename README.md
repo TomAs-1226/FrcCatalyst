@@ -19,6 +19,30 @@
 
 ---
 
+## Versions and compatibility
+
+Which Catalyst goes on which robot is kept on one page,
+**[Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html)**. As of
+10 September 2026:
+
+| If you are | Use |
+|---|---|
+| Competing this season on a roboRIO | **1.12.0**: tag `v1.12.0`, WPILib 2026.2.1, on JitPack |
+| Testing on a Systemcore with CTRE motors, today | **2.0.0-alpha.3**: commit `5adc688` on branch `systemcore-alpha6`, WPILib 2027.0.0-alpha-6, Systemcore OS image 13. Source build only. |
+| Trying WPILib alpha-7 on Systemcore image 14 | **2.0.0-beta.1**: tag `v2.0.0-beta.1` on branch `upgrade/alpha-7`, on JitPack. Phoenix 6 and PathPlannerLib have no alpha-7 release, so a robot with CTRE motors cannot run it yet. |
+
+This branch, `main`, is 1.12.0 and builds the stable docs site.
+
+`python tools/catalyst-versions.py` prints the live map from git and Maven local: every tag and
+branch head with the WPILib and vendor versions it pins, and every local build traced to the commit
+its sources came from. `--online` adds the upstream Systemcore matrix, JitPack's build status and
+the vendordeps the docs site serves; `--apps` adds CatalystApp and CatalystConsole when they are
+checked out beside this repository. It only reads, and needs nothing beyond Python 3.8. A version
+number in Maven local is whatever `build.gradle` said when that build was published, which is not
+always the tag with the same number; the script says which commit each one really is.
+
+---
+
 ## What is FrcCatalyst?
 
 **FrcCatalyst** is a plug-and-play Java library for FRC teams using **CTRE Phoenix 6 hardware**. It provides production-ready mechanism building blocks, hardware wrappers, and utilities so your team can focus on strategy and game-specific logic instead of writing boilerplate.
@@ -52,6 +76,8 @@ https://tomas-1226.github.io/FrcCatalyst/vendordep/FrcCatalyst.json
 
 Make sure the **Phoenix 6**, **PathPlanner**, and **PhotonVision** vendordeps are installed too (Catalyst builds on them).
 
+On 10 September 2026 that URL still installed 1.11.0; the `build.gradle` route below gets 1.12.0.
+
 <details><summary>Or add it by hand in <code>build.gradle</code></summary>
 
 ```gradle
@@ -60,7 +86,7 @@ repositories {
 }
 
 dependencies {
-    implementation "com.github.TomAs-1226:FrcCatalyst:v1.11.0"
+    implementation "com.github.TomAs-1226:FrcCatalyst:v1.12.0"
 }
 ```
 </details>
@@ -98,6 +124,28 @@ elevator.setDefaultCommand(elevator.holdPosition());
 operatorController.a().onTrue(elevator.goTo("HIGH"));
 operatorController.b().onTrue(elevator.goTo("STOW"));
 ```
+
+---
+
+## v1.12.0: the devices, not the count
+
+The spec sheet has always known every CAN device the robot is driving. It was publishing the tally —
+`Hardware/CanDevices: 15`, `Hardware/Inventory: ["CANcoder|4", "Pigeon2|1", "TalonFX|10"]` — and
+throwing away the part a pit crew needs. The map now goes out whole as well:
+
+```text
+Hardware/Devices  ["canivore|1|TalonFX", "canivore|2|TalonFX", "canivore|3|CANcoder", ...,
+                   "rio|0|Pigeon2", "rio|20|TalonFX", "rio|21|TalonFX"]
+```
+
+`bus|id|type`, sorted by bus and then numerically by id, so the list reads down a bus the way a
+wiring loom does. The type is each device's own class name rather than a guess, so a module built on
+a TalonFXS reports a TalonFXS. At two in the morning in a pit the question is which id is on which
+wire, and whether the device that stopped answering is on the rio bus or the CANivore — a tally
+cannot say. `CanDevices` and `Inventory` are unchanged and still published: a count is the right
+shape for a glance, and this is the right shape for a diagnosis.
+
+Key list in [docs/advanced/robot-identity.md](docs/advanced/robot-identity.md).
 
 ---
 

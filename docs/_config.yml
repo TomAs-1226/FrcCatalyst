@@ -20,8 +20,16 @@ aux_links:
 # GitHub + Releases open externally; the Tools link stays in-tab.
 aux_links_new_tab: false
 
+# What this site documents. _includes/header_custom.html puts it at the top of every page and the
+# footer repeats it, so no page is read without knowing which Catalyst it describes. The 2.x sites
+# carry their own values on their own branches.
+documents:
+  version: "1.12.0"
+  platform: "roboRIO &middot; WPILib 2026.2.1"
+  versions_url: "https://tomas-1226.github.io/FrcCatalyst/versions.html"
+
 # Footer
-footer_content: "Built for the FRC community. Go build something awesome."
+footer_content: 'Documents Catalyst 1.12.0 (roboRIO, WPILib 2026.2.1). Other versions: <a href="https://tomas-1226.github.io/FrcCatalyst/versions.html">Versions and compatibility</a>. Built for the FRC community. Go build something awesome.'
 
 # Search
 search_enabled: true

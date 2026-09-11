@@ -12,6 +12,7 @@ A Java library of pre-built mechanism building blocks for FRC robots on Phoenix 
 {: .fs-6 .fw-300 }
 
 [Get Started](getting-started/installation){: .btn .btn-primary .fs-5 .mb-4 .mb-md-0 .mr-2 }
+[Versions and compatibility](versions){: .btn .fs-5 .mb-4 .mb-md-0 .mr-2 }
 [Tools](tools/){: .btn .fs-5 .mb-4 .mb-md-0 .mr-2 }
 [GitHub](https://github.com/TomAs-1226/FrcCatalyst){: .btn .fs-5 .mb-4 .mb-md-0 }
 
@@ -26,6 +27,17 @@ A Java library of pre-built mechanism building blocks for FRC robots on Phoenix 
 </p>
 
 ## Latest release
+
+This site documents **Catalyst 1.12.0**, the roboRIO line for WPILib 2026. Catalyst 2.x for
+Limelight Systemcore is a separate line with its own
+[beta site](https://tomas-1226.github.io/FrcCatalyst/beta/); which version goes on which robot is
+on [Versions and compatibility](versions).
+
+**v1.12.0** publishes the CAN devices themselves rather than a tally of them.
+`Hardware/Devices` carries one `bus|id|type` row per device, sorted by bus and then numerically by
+id, alongside the `Hardware/CanDevices` count and `Hardware/Inventory` breakdown that were already
+there. A count is the right shape for a glance; which id sits on which bus is the shape a pit crew
+needs when a device stops answering.
 
 **v1.11.0** adds the other half of the [spec sheet](advanced/robot-identity.html): which parts of
 Catalyst the robot actually runs. Autopilot, Strategist, Sequence, Goal Director and Physics Core
