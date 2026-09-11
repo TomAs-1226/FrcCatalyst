@@ -1,8 +1,8 @@
 {%- comment -%}
-  Which Catalyst this site documents, at the top of every page. The words come from `documents:` in
+  Which Catalyst this site documents, at the top of every page. The words come from `catalyst_docs:` in
   _config.yml, so each branch that builds a site states its own, and the link is the one Versions
   page, on the stable site. Styled by `.documents` in head_custom.html.
 {%- endcomment -%}
-{%- if site.documents -%}
-<p class="documents">Documents Catalyst <strong>{{ site.documents.version }}</strong> &middot; {{ site.documents.platform }} &middot; <a href="{{ site.documents.versions_url }}">Versions</a></p>
+{%- if site.catalyst_docs.version -%}
+<p class="documents">Documents Catalyst <strong>{{ site.catalyst_docs.version }}</strong> &middot; {{ site.catalyst_docs.platform }} &middot; <a href="{{ site.catalyst_docs.versions_url }}">Versions</a></p>
 {%- endif -%}
