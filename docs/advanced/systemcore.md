@@ -34,12 +34,15 @@ that deploys and then does nothing.
 | Catalyst | 2.0.0-beta.1 |
 | WPILib | 2027.0.0-alpha-7 |
 | Systemcore OS | **beta 14** (`limelightosr-2027.0.0-beta14-210`) |
-| Phoenix 6 | 26.50.0-alpha-1 |
-| PathPlannerLib | 2027.0.0-alpha-3 |
+| Phoenix 6 | 26.50.0-alpha-1, an alpha-5/6 build: **no alpha-7 release yet** |
+| PathPlannerLib | 2027.0.0-alpha-3, an alpha-5/6 build: **no alpha-7 release yet** |
 | LimelightLib | 2.0.0-beta8-alpha7 |
 | Java | 25 |
 
-**Flash the OS to beta 14.** That release is titled "(REQUIRES WPILIB ALPHA 7)" and the pairing is
+**Flash the OS to beta 14, unless the robot has CTRE devices.** Phoenix 6 has no alpha-7 release, so
+that robot stays on beta 13 with 2.0.0-alpha.3
+([Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html)). Beta 14 is
+titled "(REQUIRES WPILIB ALPHA 7)" and the pairing is
 not advice — a build made against alpha-7 will not start on beta 13. It does not degrade: the
 program aborts before any robot code runs with `MRC API version mismatch`, and systemd restarts it
 about twenty times a minute. If Catalyst appears to deploy and then do nothing, check the OS image

@@ -27,14 +27,21 @@ Add FrcCatalyst to your WPILib robot project.
 - A **Limelight Systemcore** running the matching OS beta. The library and the OS are versioned
   together — see [Systemcore & WPILib 2027](../advanced/systemcore) before flashing anything.
 - A **GradleRIO robot project** (created via the WPILib project generator).
-- Vendordeps: **CTRE Phoenix 6** and **PathPlanner**.
+- Vendordeps: **CTRE Phoenix 6** and **PathPlanner**, neither of which has a WPILib alpha-7 release
+  yet.
 
   {: .warning }
-  > Neither publishes a 2027 vendordep JSON at a discoverable URL yet, so the usual
-  > *Install new libraries (online)* flow fetches a 2026 one. PathPlanner's canonical
-  > `PathplannerLib.json` still reports `frcYear 2026`, and installing it into a 2027 project
-  > produces something that looks correctly configured and fails at build with an error naming
-  > none of this. Add them by hand from the vendor's own 2027 instructions.
+  > **A robot with CTRE devices cannot run this release today.** The newest Phoenix 6
+  > (26.50.0-alpha-1) and PathPlannerLib (2027.0.0-alpha-3) are built for WPILib alpha-5/6. CTRE
+  > says its alpha-7 release follows RobotPy's, and that forcing an older vendordep into an alpha-7
+  > project is unsupported on Systemcore. For that robot, use 2.0.0-alpha.3 on OS beta 13: see
+  > [Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html).
+  >
+  > When the alpha-7 releases arrive, add them by hand from the vendors' own 2027 instructions.
+  > Neither publishes a 2027 vendordep JSON at a discoverable URL, so the usual *Install new
+  > libraries (online)* flow fetches a 2026 one; PathPlanner's canonical `PathplannerLib.json`
+  > still reports `frcYear 2026`, and installing it into a 2027 project produces something that
+  > looks configured and fails at build with an error naming none of this.
 
   **PhotonVision is not used.** There is no 2027 build, and Catalyst is Limelight-first on
   Systemcore — the pipeline is built into the hardware. If you had it installed for Catalyst 1.x,
@@ -51,8 +58,8 @@ https://tomas-1226.github.io/FrcCatalyst/beta/vendordep/FrcCatalyst.json
 ```
 
 That adds FrcCatalyst to your project and lets WPILib check for updates.
-Make sure the Phoenix 6, PathPlanner and LimelightLib vendordeps are also
-installed - Catalyst depends on them. PhotonVision is **not** one of them; see above.
+Catalyst depends on the Phoenix 6, PathPlanner and LimelightLib vendordeps. On alpha-7 only
+LimelightLib has a release yet; see above. PhotonVision is **not** one of them.
 
 ## Option 2: JitPack (build.gradle)
 
@@ -67,7 +74,7 @@ repositories {
 
 dependencies {
     // ... your existing dependencies ...
-    implementation "com.github.TomAs-1226:FrcCatalyst:v1.12.0"
+    implementation "com.github.TomAs-1226:FrcCatalyst:v2.0.0-beta.1"
 }
 ```
 
@@ -92,7 +99,7 @@ repositories {
 }
 
 dependencies {
-    implementation "com.frccatalyst:FrcCatalyst:1.12.0"
+    implementation "com.frccatalyst:FrcCatalyst:2.0.0-beta.1"
 }
 ```
 

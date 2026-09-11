@@ -35,6 +35,11 @@ shims, because carrying both would have meant every class in the library branchi
 > **If your robot is competing, use 1.x.** 2.x targets an alpha WPILib on a beta operating system
 > and has never run on hardware. It is for an offseason robot you can afford to have not work.
 
+{: .note }
+> **On a Systemcore with CTRE motors today, 2.x means 2.0.0-alpha.3** on WPILib alpha-6 and OS
+> beta 13, not beta.1: Phoenix 6 and PathPlannerLib have no alpha-7 release yet. See
+> [Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html).
+
 ---
 
 ## v2.0.0-beta.1
@@ -50,6 +55,8 @@ The API is what 2.0.0 will be; the version says what it is standing on.
 
 **Requires Systemcore OS beta 14.** That release is titled "(REQUIRES WPILIB ALPHA 7)" and the
 pairing is not advice — a build made against alpha-7 aborts on beta 13 before any robot code runs.
+**It cannot drive CTRE devices yet.** Neither Phoenix 6 nor PathPlannerLib has an alpha-7 release;
+the 26.50.0-alpha-1 and 2027.0.0-alpha-3 this depends on are alpha-5/6 builds.
 
 ```gradle
 implementation 'com.github.TomAs-1226:FrcCatalyst:v2.0.0-beta.1'
@@ -191,9 +198,10 @@ Roughly in the order that will save you time.
 4. **Change your bus names.** `""` and `"rio"` no longer mean anything. `can_s0` is the default;
    run `CANBusPlanner.suggest()` before you rewire anything.
 5. **Remove PhotonVision** from your vendordeps.
-6. **Add Phoenix 6 and PathPlanner by hand.** Neither publishes a 2027 vendordep JSON at a
-   discoverable URL yet, so the usual online install fetches a 2026 one — which installs cleanly and
-   fails at build with an error naming none of this.
+6. **Phoenix 6 and PathPlanner.** Neither has a WPILib alpha-7 release yet, so on beta.1 there is
+   nothing to add and a CTRE robot cannot run. On alpha-6 (2.0.0-alpha.3), add them by hand:
+   neither publishes a 2027 vendordep JSON at a discoverable URL, so the usual online install
+   fetches a 2026 one, which installs cleanly and fails at build with an error naming none of this.
 7. **Check `getChooser()` and `getServo()`** if you used them.
 
 Then read [Systemcore & WPILib 2027](advanced/systemcore) once through. It is the page that explains

@@ -40,10 +40,10 @@ unticked box was not.
 | | | |
 |:--|:--|:--|
 | **&#9632;** | **Tested** | 867 tests, 0 failures, across 93 test classes |
-| **&#9632;** | **Run on a bench** | deploy, OpMode enable, a Pigeon on `can_s0`, the onboard IMU, the board's own status topics |
+| **&#9744;** | **Run on a Systemcore** | not this build: the bench runs (deploy, OpMode enable, a Pigeon on `can_s0`, the onboard IMU, the board's own status topics) were the alpha-6 builds before it, on OS beta 13 |
 | **&#9744;** | **Driven on a robot** | not yet — swerve, mechanisms, autos and vision have not been driven by hardware |
 
-867 passing tests is a fact about the code, not a fact about a robot. Two boxes ticked and one not
+867 passing tests is a fact about the code, not a fact about a robot. One box ticked and two not
 is the entire claim being made here; nothing below widens it.
 
 It is a beta because of what it stands on. It is pinned to WPILib `2027.0.0-alpha-7`, which has
@@ -51,10 +51,37 @@ already changed `Mechanism` from an interface to a class and back across three b
 requires **Systemcore OS beta 14** — a build against alpha-7 aborts on beta 13 before your robot
 code runs, so a mismatch looks like a robot that deploys and then does nothing.
 
+**It cannot drive CTRE devices yet.** Phoenix 6 and PathPlannerLib have no WPILib alpha-7 release;
+the builds this compiles against are alpha-5/6 builds. On OS beta 14 a robot with CTRE motors has
+nothing to run them, so for that robot the 2.x to use today is 2.0.0-alpha.3 on alpha-6 and beta
+13, a source build of commit `5adc688` on branch `systemcore-alpha6`.
+
 This is the pre-season release. Put it on an offseason robot over the offseason, so the port to
 2027 is behind you rather than ahead of you in January. **If you are competing, use
 [v1.12.0](https://github.com/TomAs-1226/FrcCatalyst/releases/tag/v1.12.0)** — WPILib 2026, roboRIO,
 [stable documentation](https://tomas-1226.github.io/FrcCatalyst/).
+
+## Versions and compatibility
+
+Which Catalyst goes on which robot is kept on one page,
+**[Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html)**. As of
+10 September 2026:
+
+| If you are | Use |
+|---|---|
+| Competing this season on a roboRIO | **1.12.0**: tag `v1.12.0`, WPILib 2026.2.1, on JitPack |
+| Testing on a Systemcore with CTRE motors, today | **2.0.0-alpha.3**: commit `5adc688` on branch `systemcore-alpha6`, WPILib 2027.0.0-alpha-6, Systemcore OS image 13. Source build only. |
+| Trying WPILib alpha-7 on Systemcore image 14 | **2.0.0-beta.1**: tag `v2.0.0-beta.1` on branch `upgrade/alpha-7`, on JitPack. Phoenix 6 and PathPlannerLib have no alpha-7 release, so a robot with CTRE motors cannot run it yet. |
+
+This branch, `upgrade/alpha-7`, is `v2.0.0-beta.1` plus docs. Its documentation is not published yet: the beta site is built from `systemcore`.
+
+`python tools/catalyst-versions.py` prints the live map from git and Maven local: every tag and
+branch head with the WPILib and vendor versions it pins, and every local build traced to the commit
+its sources came from. `--online` adds the upstream Systemcore matrix, JitPack's build status and
+the vendordeps the docs site serves; `--apps` adds CatalystApp and CatalystConsole when they are
+checked out beside this repository. It only reads, and needs nothing beyond Python 3.8. A version
+number in Maven local is whatever `build.gradle` said when that build was published, which is not
+always the tag with the same number; the script says which commit each one really is.
 
 ## Four things you would otherwise build yourself
 
@@ -117,8 +144,8 @@ Also required: Java 25 and Gradle 9.7 or later.
 https://tomas-1226.github.io/FrcCatalyst/beta/vendordep/FrcCatalyst.json
 ```
 
-Make sure the **Phoenix 6** and **PathPlanner** vendordeps are installed too (Catalyst builds on
-them). PhotonVision has no 2027 build, so `PhotonSource` is excluded from this branch — use
+Catalyst builds on the **Phoenix 6** and **PathPlanner** vendordeps, and neither has an alpha-7
+release yet (see above). PhotonVision has no 2027 build, so `PhotonSource` is excluded from this branch — use
 `LimelightSource`.
 
 <details><summary>Or add it by hand in <code>build.gradle</code></summary>
@@ -175,7 +202,8 @@ operatorController.b().onTrue(elevator.goTo("STOW"));
 
 The 2027 port. Commands v3, Java 25, five CAN buses, and a control system that reports on itself.
 
-**Required:** two JVM flags (see above), Java 25, Gradle 9.7+, and Systemcore OS beta 14.
+**Required:** two JVM flags (see above), Java 25, Gradle 9.7+, and Systemcore OS beta 14. CTRE
+devices also need a Phoenix 6 release for alpha-7, which does not exist yet.
 
 New because the platform is new:
 
@@ -1243,8 +1271,8 @@ Catalyst 2.x — this branch, `v2.0.0-beta.1`:
 | Systemcore OS | beta 14 (`limelightosr-2027.0.0-beta14-210`) |
 | Java | 25 |
 | Gradle | 9.7+ |
-| CTRE Phoenix 6 | 26.50.0-alpha-1 |
-| PathPlanner | 2027.0.0-alpha-3 |
+| CTRE Phoenix 6 | 26.50.0-alpha-1, an alpha-5/6 build: **no alpha-7 release yet** |
+| PathPlanner | 2027.0.0-alpha-3, an alpha-5/6 build: **no alpha-7 release yet** |
 | LimelightLib | 2.0.0-beta8-alpha7 |
 
 The WPILib and OS versions are a pair, not a floor: a build against alpha-7 aborts on Systemcore OS

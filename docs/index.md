@@ -63,11 +63,16 @@ dependencies {
 }
 ```
 
-The vendordep route, and the Phoenix 6 / PathPlanner / LimelightLib vendordeps you need alongside
-it, are on [Installation](getting-started/installation).
+The vendordep route is on [Installation](getting-started/installation). Of the vendor libraries
+Catalyst builds on, only LimelightLib has an alpha-7 release. **Phoenix 6 and PathPlannerLib do
+not, so a robot with CTRE devices cannot run this release yet**; for that robot the 2.x to use is
+2.0.0-alpha.3 on OS beta 13. See
+[Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html).
 
 {: .warning }
-> **Flash the Systemcore to OS beta 14 first.** The pairing with WPILib `2027.0.0-alpha-7` is hard,
+> **Flash the Systemcore to OS beta 14 first, unless the robot has CTRE devices:** Phoenix 6 has no
+> alpha-7 release, so keep that robot on beta 13 with 2.0.0-alpha.3. The pairing with WPILib
+> `2027.0.0-alpha-7` is hard,
 > not advisory — that OS release is titled "(REQUIRES WPILIB ALPHA 7)", and a mismatch does not
 > degrade, it aborts before any robot code runs. On the mismatch we actually measured, alpha-6
 > against beta 13, the program died with `MRC API version mismatch` and systemd restarted it 22
@@ -83,7 +88,7 @@ it, are on [Installation](getting-started/installation).
 
 | | |
 |---|---|
-| **On a Systemcore, on a bench** | A Pigeon 2 on `can_s0`, the onboard IMU, and the board's own status topics. That is the whole hardware story. |
+| **On a Systemcore, on a bench** | Not this build. The bench runs, a Pigeon 2 on `can_s0`, the onboard IMU and the board's own status topics, were the alpha-6 builds before it, on OS beta 13. No run of beta.1 on beta 14 is recorded. |
 | **On a desktop** | 867 tests, 0 failures — most with no HAL at all, the rest booting the robot in WPILib simulation. And the eleven browser tools below. |
 | **Not yet driven** | Swerve, mechanisms, autos and vision. None of it has moved a robot. |
 
@@ -502,8 +507,8 @@ robot spec sheet and the eleven browser tools were built. Those releases are doc
 | Component | Version |
 |-----------|---------|
 | WPILib | 2027.0.0-alpha-7 |
-| CTRE Phoenix 6 | 26.50.0-alpha-1 |
+| CTRE Phoenix 6 | 26.50.0-alpha-1, an alpha-5/6 build: **no alpha-7 release yet** |
 | LimelightLib | 2.0.0-beta8-alpha7 |
-| PathPlanner | 2027.0.0-alpha-3 |
+| PathPlanner | 2027.0.0-alpha-3, an alpha-5/6 build: **no alpha-7 release yet** |
 | Java | 25 |
 | Systemcore OS | beta 14 (`limelightosr-2027.0.0-beta14-210`) |

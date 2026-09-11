@@ -939,4 +939,28 @@
   @media (prefers-reduced-motion: reduce) {
     * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
   }
+  /* ---- What this site documents ------------------------------------------------------
+     _includes/header_custom.html prints it at the top of every page from `documents:` in
+     _config.yml. Wide screens only: the footer says the same on every page for narrow ones. */
+  .main-header .documents {
+    display: none;
+    flex: 0 1 auto;
+    min-width: 0;
+    align-self: center;
+    margin: 0;
+    padding: 0 var(--cat-gap);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: var(--cat-mono);
+    font-size: var(--cat-fs-caption);
+    color: var(--cat-muted);
+    white-space: nowrap;
+  }
+
+  .main-header .documents strong { color: var(--cat-white); font-weight: 600; }
+  .main-header .documents a { color: var(--cat-white); }
+
+  @media (min-width: 66.5rem) {
+    .main-header .documents { display: block; }
+  }
 </style>
