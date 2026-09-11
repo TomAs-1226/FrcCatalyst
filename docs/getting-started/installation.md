@@ -92,7 +92,7 @@ repositories {
 }
 
 dependencies {
-    implementation "com.frccatalyst:FrcCatalyst:1.12.0"
+    implementation "com.frccatalyst:FrcCatalyst:2.0.0-alpha.3"
 }
 ```
 

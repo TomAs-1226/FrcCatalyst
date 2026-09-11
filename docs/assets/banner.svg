@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" width="1200" height="300" role="img" aria-label="FrcCatalyst — mechanisms, hardware wrappers, Physics Core and utilities for CTRE Phoenix 6 and WPILib 2027 on Limelight Systemcore. Version 2.0.0-alpha.1.">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" width="1200" height="300" role="img" aria-label="FrcCatalyst — mechanisms, hardware wrappers, Physics Core and utilities for CTRE Phoenix 6 and WPILib 2027 on Limelight Systemcore. Version 2.0.0-alpha.3.">
   <defs>
     <linearGradient id="bannerBg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#1a1a2e;stop-opacity:1" />
@@ -44,7 +44,7 @@
   <!-- Version badge. Wider than 1.x's because a pre-release version is a longer string, and the
        badge saying the wrong thing is worse than the badge being wide. -->
   <rect x="342" y="260" width="138" height="22" rx="4" fill="#e94560"/>
-  <text x="411" y="276" text-anchor="middle" font-family="monospace" font-size="12" fill="#fff">v2.0.0-alpha.1</text>
+  <text x="411" y="276" text-anchor="middle" font-family="monospace" font-size="12" fill="#fff">v2.0.0-alpha.3</text>
   <!-- Said out loud, because an alpha that looks like a release gets deployed like one. -->
   <rect x="490" y="260" width="86" height="22" rx="4" fill="none" stroke="#e94560" stroke-width="1.5" opacity="0.7"/>
   <text x="533" y="276" text-anchor="middle" font-family="monospace" font-size="11" fill="#e94560">PRE-SEASON</text>

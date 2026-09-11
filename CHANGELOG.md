@@ -5,7 +5,7 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased] — Autonomy 2.0
+## [2.0.0-alpha.3] — 2026-09-11 — Autonomy 2.0: nine decision cores, and the truth pass that came first
 
 A new `frc.lib.catalyst.autonomy` package. Every decision in it is a pure function of its inputs
 returning a record, so a season of scoring rules can be exercised at a desk with no HAL, no
@@ -67,13 +67,13 @@ Catalyst they had.
   second class doing that under a different noun would be a fifth near-synonym on the driver's
   dashboard beside phase, goal, state and fire mode.
 
-## [Unreleased] — Autonomy 2.0, Phase 0: the truth pass
+### Autonomy 2.0, Phase 0: the truth pass
 
 The first increment of the Autonomy 2.0 track. No new concepts and no new package: this is the
 defects the autonomy and power code already had, and making three things that were silently inert
 say so. Everything here is independently useful whatever the rest of the track turns into.
 
-### Fixed
+#### Fixed
 
 - **`Autopilot` ignored `Action.canStart()`**, alone among everything that consumes a precondition.
   An acquire that could not succeed - no piece in view, a camera down - was scheduled anyway and the
@@ -95,7 +95,7 @@ say so. Everything here is independently useful whatever the rest of the track t
   unarmed, `isArmed()` and `Power/Brownout/Armed` report it, and the reflex is honest about being a
   voltmeter until it is given a current source.
 
-### Added
+#### Added
 
 - **`PowerPredictor.breakerBudgetAmps(...)`.** `headroomAmps()` answered a battery question and was
   being reached for as a power budget: at 12.4 V it reports 245 A of room, which is true of the
@@ -105,7 +105,7 @@ say so. Everything here is independently useful whatever the rest of the track t
 - **`RecordingSink`** (test scope) - a `LogSink` that keeps what was written, so telemetry is an
   assertion target with no NT server, no HAL and no robot.
 
-### Changed
+#### Changed
 
 - `behavior/` and `goal/` publish through `CatalystLog` instead of writing straight at
   NetworkTables. The key paths are byte-identical, so no dashboard moves, but their reasoning now
