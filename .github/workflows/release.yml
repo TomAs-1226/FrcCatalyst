@@ -1,0 +1,72 @@
+# A tag is not a release.
+#
+# Two failures this repository has actually had: a tag with no Release object, so the releases page
+# lagged behind (issues #28 and #25); and a tag JitPack never built, so the vendordep pointed at a
+# jar nobody could fetch. This turns a pushed tag into a Release carrying the CHANGELOG entry, and
+# only publishes it once JitPack has served the pom — the moment it becomes installable.
+#
+# Rehearse it against an existing tag with Run workflow → dry run, which creates nothing.
+name: Release
+
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The tag to release
+        required: true
+      dry_run:
+        description: Extract the notes and check JitPack, but create nothing
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - name: Release notes from the CHANGELOG
+        run: |
+          python3 tools/release.py notes "$TAG" > notes.md
+          title=$(python3 tools/release.py notes "$TAG" --title)
+          if [ "$title" = "${TAG#v}" ]; then
+            echo "REL_TITLE=$TAG" >> "$GITHUB_ENV"
+          else
+            echo "REL_TITLE=$TAG — $title" >> "$GITHUB_ENV"
+          fi
+          if echo "$TAG" | grep -qiE 'alpha|beta|rc'; then
+            echo "PRE=--prerelease" >> "$GITHUB_ENV"
+          else
+            echo "PRE=" >> "$GITHUB_ENV"
+          fi
+          echo "--- notes ---"
+          cat notes.md
+
+      - name: Create the release, as a draft for now
+        if: env.DRY_RUN != 'true'
+        run: gh release create "$TAG" --draft --verify-tag --title "$REL_TITLE" --notes-file notes.md $PRE
+
+      # Skipped with a notice on a line whose WPILib is on no public maven: there is nothing to wait
+      # for, because JitPack cannot build that line at all.
+      - name: Wait for JitPack to build it
+        run: python3 tools/release.py jitpack-wait "$TAG"
+
+      - name: Publish it
+        if: env.DRY_RUN != 'true'
+        run: gh release edit "$TAG" --draft=false
