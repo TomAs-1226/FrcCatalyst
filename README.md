@@ -54,7 +54,7 @@ code runs, so a mismatch looks like a robot that deploys and then does nothing.
 **It cannot drive CTRE devices yet.** Phoenix 6 and PathPlannerLib have no WPILib alpha-7 release;
 the builds this compiles against are alpha-5/6 builds. On OS beta 14 a robot with CTRE motors has
 nothing to run them, so for that robot the 2.x to use today is 2.0.0-alpha.3 on alpha-6 and beta
-13, a source build of commit `5adc688` on branch `systemcore-alpha6`.
+13: tag `v2.0.0-alpha.3` (commit `14e2080`) on branch `systemcore-alpha6`, built from source.
 
 This is the pre-season release. Put it on an offseason robot over the offseason, so the port to
 2027 is behind you rather than ahead of you in January. **If you are competing, use
@@ -65,12 +65,12 @@ This is the pre-season release. Put it on an offseason robot over the offseason,
 
 Which Catalyst goes on which robot is kept on one page,
 **[Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html)**. As of
-10 September 2026:
+12 September 2026:
 
 | If you are | Use |
 |---|---|
 | Competing this season on a roboRIO | **1.12.0**: tag `v1.12.0`, WPILib 2026.2.1, on JitPack |
-| Testing on a Systemcore with CTRE motors, today | **2.0.0-alpha.3**: commit `5adc688` on branch `systemcore-alpha6`, WPILib 2027.0.0-alpha-6, Systemcore OS image 13. Source build only. |
+| Testing on a Systemcore with CTRE motors, today | **2.0.0-alpha.3**: tag `v2.0.0-alpha.3` (commit `14e2080`) on branch `systemcore-alpha6`, WPILib 2027.0.0-alpha-6, Systemcore OS image 13. Source build only. |
 | Trying WPILib alpha-7 on Systemcore image 14 | **2.0.0-beta.1**: tag `v2.0.0-beta.1` on branch `upgrade/alpha-7`, on JitPack. Phoenix 6 and PathPlannerLib have no alpha-7 release, so a robot with CTRE motors cannot run it yet. |
 
 This branch, `upgrade/alpha-7`, is `v2.0.0-beta.1` plus docs. Its documentation is not published yet: the beta site is built from `systemcore`.

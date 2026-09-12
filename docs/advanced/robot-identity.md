@@ -312,9 +312,9 @@ the constructors happened to run.
 ## Naming the library's own build
 
 ```java
-CatalystVersion.version();     // "1.12.0"
-CatalystVersion.gitSha();      // Optional["cc5cadf"]
-CatalystVersion.describe();    // "1.12.0 (cc5cadf, dirty)"
+CatalystVersion.version();     // "2.0.0-beta.1"
+CatalystVersion.gitSha();      // Optional["36315c9"]
+CatalystVersion.describe();    // "2.0.0-beta.1 (36315c9, dirty)"
 ```
 
 The build generates these into a compiled constant rather than stamping the jar manifest, because a
