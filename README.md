@@ -35,15 +35,15 @@
 
 Which Catalyst goes on which robot is kept on one page,
 **[Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html)**. As of
-10 September 2026:
+12 September 2026:
 
 | If you are | Use |
 |---|---|
 | Competing this season on a roboRIO | **1.12.0**: tag `v1.12.0`, WPILib 2026.2.1, on JitPack |
-| Testing on a Systemcore with CTRE motors, today | **2.0.0-alpha.3**: commit `5adc688` on branch `systemcore-alpha6`, WPILib 2027.0.0-alpha-6, Systemcore OS image 13. Source build only. |
+| Testing on a Systemcore with CTRE motors, today | **2.0.0-alpha.3**: tag `v2.0.0-alpha.3` (commit `14e2080`) on branch `systemcore-alpha6`, WPILib 2027.0.0-alpha-6, Systemcore OS image 13. Source build only. |
 | Trying WPILib alpha-7 on Systemcore image 14 | **2.0.0-beta.1**: tag `v2.0.0-beta.1` on branch `upgrade/alpha-7`, on JitPack. Phoenix 6 and PathPlannerLib have no alpha-7 release, so a robot with CTRE motors cannot run it yet. |
 
-This branch, `systemcore`, is `v2.0.0-alpha.2` plus docs, and builds the beta docs site.
+This branch, `systemcore`, is `v2.0.0-alpha.3` plus docs, and builds the beta docs site.
 
 `python tools/catalyst-versions.py` prints the live map from git and Maven local: every tag and
 branch head with the WPILib and vendor versions it pins, and every local build traced to the commit
@@ -106,9 +106,9 @@ https://tomas-1226.github.io/FrcCatalyst/beta/vendordep/FrcCatalyst.json
 Make sure the **Phoenix 6** and **PathPlanner** vendordeps are installed too (Catalyst builds on them). PhotonVision is not used on this line.
 
 > **That URL installs `v2.0.0-alpha.1`, which does not start on Systemcore OS image 13**: it was
-> built on a WPILib development snapshot. For image 13, build this branch's tag, `v2.0.0-alpha.2`,
-> or 2.0.0-alpha.3 (commit `5adc688`, branch `systemcore-alpha6`) from source with
-> `./gradlew publishToMavenLocal`. See
+> built on a WPILib development snapshot. For image 13, build this branch's tag,
+> `v2.0.0-alpha.3` (commit `14e2080`, 11 Sep 2026, branch `systemcore-alpha6`), from source: run
+> `git checkout v2.0.0-alpha.3` then `./gradlew publishToMavenLocal`. See
 > [Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html).
 
 <details><summary>A source build, in <code>build.gradle</code></summary>
@@ -119,7 +119,7 @@ repositories {
 }
 
 dependencies {
-    implementation "com.frccatalyst:FrcCatalyst:2.0.0-alpha.2"
+    implementation "com.frccatalyst:FrcCatalyst:2.0.0-alpha.3"
 }
 ```
 </details>
