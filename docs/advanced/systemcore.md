@@ -339,7 +339,7 @@ All of that is in `/proc` and `/sys` on the machine already. `agent/` in this re
 optional package that serves it:
 
 ```bash
-cd agent && ./build.sh        # catalyst-agent_2.0.0.ipk
+cd agent && ./build.sh        # catalyst-agent_2.0.3.ipk
 ```
 
 Install it through the Systemcore web UI's package manager. It auto-starts on port 9010 and Console
