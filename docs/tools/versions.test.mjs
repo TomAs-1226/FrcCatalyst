@@ -80,7 +80,9 @@ test("the README banner names the current version", () => {
   // repository page, and two releases out of date. Nothing reads it, so nothing caught it.
   const version = libraryVersion();
   const svg = fs.readFileSync(path.join(docsDir, "assets", "banner.svg"), "utf8");
-  const m = svg.match(/>v([0-9][^<]*)</);
+  // Match a version-shaped string with or without the leading v: the banners write it both ways,
+  // and requiring one spelling would fail a banner that is perfectly correct.
+  const m = svg.match(/>v?(\d+\.\d+\.\d+[^<]*)</);
 
   assert.ok(m, "the banner should carry a version badge");
   assert.equal(m[1], version);
@@ -115,17 +117,44 @@ test("the AdvantageScope bundles name the version whose topics they match", () =
   assert.deepEqual(wrong, [], `expected ${version}`);
 });
 
-test("the published vendordep matches the library version", () => {
-  // The file teams actually install. A stale version here installs a jar that does not exist.
+/** WPILib releases that are on no public maven, so JitPack cannot build this library against them. */
+const SOURCE_ONLY_WPILIB = ["2027.0.0-alpha-6"];
+
+function wpilibVersion() {
+  const gradle = fs.readFileSync(path.join(repoRoot, "build.gradle"), "utf8");
+  return gradle.match(/wpilibVersion\s*=\s*['"]([^'"]+)['"]/)?.[1] ?? "";
+}
+
+test("the published vendordep installs a version that exists", () => {
+  // The file teams actually install, so it must name something installable.
+  //
+  // On most lines that means the library version. On a source-build-only line it means the opposite:
+  // JitPack cannot build the library at all there, so the vendordep deliberately stays at the newest
+  // tag it could build, and matching the library version would install a jar that does not exist -
+  // the very failure this test exists to prevent, inverted. When it lags, the install page has to say
+  // which version it really installs.
   const version = libraryVersion();
   const vendordep = JSON.parse(
     fs.readFileSync(path.join(docsDir, "vendordep", "FrcCatalyst.json"), "utf8"));
 
-  assert.equal(vendordep.version, version);
-  for (const dep of [...(vendordep.javaDependencies ?? []), ...(vendordep.jniDependencies ?? [])]) {
-    if (dep.groupId && dep.groupId.includes("catalyst")) {
-      assert.equal(dep.version.replace(/^v/, ""), version, `${dep.artifactId}`);
-    }
+  if (SOURCE_ONLY_WPILIB.includes(wpilibVersion()) && vendordep.version !== version) {
+    const install = fs.readFileSync(
+      path.join(docsDir, "getting-started", "installation.md"), "utf8");
+    assert.ok(install.includes(vendordep.version),
+      `the vendordep installs ${vendordep.version} while the library is ${version}; ` +
+      `installation.md must name ${vendordep.version} and explain why`);
+  } else {
+    assert.equal(vendordep.version, version);
+  }
+
+  // Whatever it names, the file must agree with itself, because the coordinate is what GradleRIO
+  // resolves. This used to select dependencies whose groupId contains "catalyst", which
+  // com.github.TomAs-1226 does not, so the loop ran over nothing and asserted nothing.
+  const catalyst = [...(vendordep.javaDependencies ?? []), ...(vendordep.jniDependencies ?? [])]
+    .filter(dep => /catalyst/i.test(dep.artifactId ?? ""));
+  assert.ok(catalyst.length, "the vendordep should list the FrcCatalyst artifact");
+  for (const dep of catalyst) {
+    assert.equal(dep.version.replace(/^v/, ""), vendordep.version, `${dep.artifactId}`);
   }
 });
 
@@ -141,6 +170,19 @@ test("the beta vendordep points at its own URL, not the stable one", () => {
     `jsonUrl ${vendordep.jsonUrl} should sit under this site's baseurl ${baseurl}`);
 });
 
+/**
+ * The wpilibYear each GradleRIO release demands, keyed by the WPILib version build.gradle pins.
+ *
+ * Not computable from the version: it is a constant compiled into GradleRIO's WPIExtension, and
+ * alpha-6's is 2027_alpha5. A WPILib bump therefore fails the test below until someone reads the new
+ * release's value and records it here - rather than the test guessing, and a correct vendordep being
+ * "fixed" to agree with the guess.
+ */
+const GRADLERIO_WPILIB_YEAR = {
+  "2027.0.0-alpha-6": "2027_alpha5",
+  "2027.0.0-alpha-7": "2027_alpha7",
+};
+
 test("the vendordep names the year field GradleRIO 2027 actually reads", () => {
   // 2027 renamed this field. A vendordep carrying the 2026 spelling is not merely ignored - the
   // GradleRIO plugin refuses to apply at all, so the project fails before compiling anything:
@@ -150,11 +192,21 @@ test("the vendordep names the year field GradleRIO 2027 actually reads", () => {
   // Nothing in that message says "your vendordep uses the wrong key", and the version and URL
   // checks above both pass on a file that fails this way. Found by installing this vendordep into
   // a real 2027 project.
+  //
+  // The expected year was a literal here once. beta.1 moved the vendordep to 2027_alpha7, which is
+  // what GradleRIO alpha-7 demands, and this test went on insisting on alpha-6's 2027_alpha5.
   const vendordep = JSON.parse(
     fs.readFileSync(path.join(docsDir, "vendordep", "FrcCatalyst.json"), "utf8"));
+  const wpilib = wpilibVersion();
+  const year = GRADLERIO_WPILIB_YEAR[wpilib];
 
+  assert.ok(wpilib, "could not read wpilibVersion out of build.gradle");
+  assert.ok(year,
+    `build.gradle pins WPILib ${wpilib}, and GRADLERIO_WPILIB_YEAR does not say which wpilibYear its ` +
+    `GradleRIO demands. Read it from that GradleRIO - the "Expected to be" in its vendordep error, or ` +
+    `wpilibYear in its WPIExtension - and add it.`);
   assert.equal(vendordep.frcYear, undefined,
     "frcYear is the 2026 spelling; 2027 reads wpilibYear and rejects the file outright");
-  assert.equal(vendordep.wpilibYear, "2027_alpha5",
-    "GradleRIO compares this string exactly against the WPILib release it was built for");
+  assert.equal(vendordep.wpilibYear, year,
+    `GradleRIO ${wpilib} compares this string exactly and refuses to apply on a mismatch`);
 });
