@@ -168,7 +168,8 @@ public class DifferentialWristMechanism extends CatalystMechanism {
                 config.motionMagicCruiseVelocity,
                 config.motionMagicAcceleration,
                 config.motionMagicJerk);
-        String diffPath = "Catalyst/Tuning/" + config.name + "/Diff";
+        // Relative to TunableNumber's own Catalyst/Tuning table, like TunableGains' prefix above.
+        String diffPath = config.name + "/Diff";
         this.diffKP = new TunableNumber(diffPath + "/kP", config.diffKP);
         this.diffKI = new TunableNumber(diffPath + "/kI", config.diffKI);
         this.diffKD = new TunableNumber(diffPath + "/kD", config.diffKD);
