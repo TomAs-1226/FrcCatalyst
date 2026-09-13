@@ -5,6 +5,20 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- **`DifferentialWristMechanism`'s roll gains publish where the docs say.** Since 0.3.5-beta
+  the six Slot 1 tunables (`kP`, `kI`, `kD`, `kS`, `kV`, `kA`) were created with `Catalyst/Tuning/`
+  already in their key, and `TunableNumber` files every key under that table itself, so they went
+  out at `/Catalyst/Tuning/Catalyst/Tuning/<Name>/Diff/kP` and so on. The mechanisms page and the
+  0.3.5-beta notes both say `/Catalyst/Tuning/<Name>/Diff/...`. The gains still hot-reloaded, but
+  only from the doubled key: editing the documented one did nothing, and nothing said why. They now
+  publish beside the Slot 0 (pitch) gains, and a test that builds a real mechanism against the
+  simulated HAL holds them there. This moves a published NT key: a dashboard layout saved against
+  the doubled path needs repointing. The AdvantageScope bundle's Tuning tab now lists all six.
+
 ## [2.0.0-alpha.3] — 2026-09-11 — Autonomy 2.0: nine decision cores, and the truth pass that came first
 
 A new `frc.lib.catalyst.autonomy` package. Every decision in it is a pure function of its inputs
