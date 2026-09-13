@@ -2,9 +2,9 @@ name: Build
 
 on:
   push:
-    branches: [ main, master, systemcore ]
+    branches: [ main, master, systemcore, 'systemcore-*', 'upgrade/**' ]
   pull_request:
-    branches: [ main, master, systemcore ]
+    branches: [ main, master, systemcore, 'systemcore-*', 'upgrade/**' ]
 
 jobs:
   build:
@@ -13,27 +13,58 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Some lines pin a WPILib release that is on no public maven - alpha-6 is the current one - so a
+      # hosted runner cannot resolve this library's dependencies at all. That failed every push since
+      # 7 September, and a check that is always red is a check nobody reads, including the one time it
+      # means something. Decide here, then skip the build with a notice rather than failing it.
+      - name: Can this line be built away from a WPILib install?
+        id: line
+        run: |
+          wpilib=$(sed -n "s/.*wpilibVersion *= *['\"]\([^'\"]*\)['\"].*/\1/p" build.gradle | head -1)
+          echo "wpilib=$wpilib" >> "$GITHUB_OUTPUT"
+          case "$wpilib" in
+            2027.0.0-alpha-6)
+              echo "buildable=false" >> "$GITHUB_OUTPUT"
+              echo "::notice title=Source-only line::WPILib $wpilib is on no public maven, so CI cannot resolve it. Build skipped by design - build locally against the WPILib 2027 alpha-6 installer." ;;
+            *)
+              echo "buildable=true" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      # The browser tools generate code against this library, so they are worth checking on every
+      # line, including the ones the runner cannot compile.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Test the browser tools
+        run: node --test "docs/tools/**/*.test.mjs"
+
       # 25, not 17. WPILib 2027 ships Java 25 bytecode and Gradle cannot read it on anything older.
       # The failure is "Unsupported class file major version 69", which names neither the JDK that is
       # too old nor the dependency that needs a newer one.
       - name: Set up JDK 25
+        if: steps.line.outputs.buildable == 'true'
         uses: actions/setup-java@v4
         with:
           java-version: '25'
           distribution: 'temurin'
 
       - name: Setup Gradle
+        if: steps.line.outputs.buildable == 'true'
         uses: gradle/actions/setup-gradle@v4
 
       - name: Grant execute permission for gradlew
+        if: steps.line.outputs.buildable == 'true'
         run: chmod +x gradlew
 
       - name: Build with Gradle
+        if: steps.line.outputs.buildable == 'true'
         run: ./gradlew build
 
       - name: Upload build artifacts
+        if: success() && steps.line.outputs.buildable == 'true'
         uses: actions/upload-artifact@v4
-        if: success()
         with:
           name: FrcCatalyst
           path: build/libs/*.jar
