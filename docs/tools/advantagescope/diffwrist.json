@@ -56,6 +56,12 @@
         "/Catalyst/Tuning/{MECH}/kV",
         "/Catalyst/Tuning/{MECH}/kA",
         "/Catalyst/Tuning/{MECH}/kG",
+        "/Catalyst/Tuning/{MECH}/Diff/kP",
+        "/Catalyst/Tuning/{MECH}/Diff/kI",
+        "/Catalyst/Tuning/{MECH}/Diff/kD",
+        "/Catalyst/Tuning/{MECH}/Diff/kS",
+        "/Catalyst/Tuning/{MECH}/Diff/kV",
+        "/Catalyst/Tuning/{MECH}/Diff/kA",
         "/Catalyst/Tuning/{MECH}/MM/CruiseVelocity",
         "/Catalyst/Tuning/{MECH}/MM/Acceleration",
         "/Catalyst/Tuning/{MECH}/MM/Jerk"
