@@ -381,6 +381,108 @@
 .cat-field::placeholder { color: var(--cat-faint); }
 .cat-field:hover { border-color: var(--cat-line-strong); }
 
+/* ---- the controls the browser draws for you, drawn here instead --------------
+   A checkbox, a radio and a select left alone are the three things that give a
+   dark interface away: a blue tick from the system palette, a grey lozenge and
+   a native arrow, none of which know about any of this. They are small, they
+   are everywhere, and they are what "unfinished" looks like. */
+
+input[type="checkbox"],
+input[type="radio"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  flex: none;
+  display: inline-grid;
+  place-content: center;
+  border: 1px solid var(--cat-line-strong);
+  border-radius: var(--cat-r-inner);
+  background: var(--cat-surface-2);
+  box-shadow: var(--cat-lift);
+  cursor: pointer;
+  transition:
+    background-color var(--cat-dur-effect) var(--cat-ease-effect),
+    border-color var(--cat-dur-effect) var(--cat-ease-effect);
+}
+
+input[type="radio"] { border-radius: var(--cat-r-pill); }
+
+input[type="checkbox"]:hover,
+input[type="radio"]:hover { border-color: var(--cat-signal-line); }
+
+/* The mark is drawn with a scale transform rather than by appearing, so it has
+   somewhere to come from: `release`, because it is a thing arriving. */
+input[type="checkbox"]::before,
+input[type="radio"]::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  transform: scale(0);
+  transform-origin: center;
+  transition: transform var(--cat-dur-release) var(--cat-ease-release);
+  background: var(--cat-signal);
+}
+
+input[type="checkbox"]::before {
+  /* A tick, as a clip path: no glyph, no font, nothing to fail to load. */
+  clip-path: polygon(14% 47%, 0 61%, 39% 100%, 100% 22%, 85% 9%, 37% 70%);
+}
+
+input[type="radio"]::before { border-radius: var(--cat-r-pill); width: 8px; height: 8px; }
+
+input[type="checkbox"]:checked,
+input[type="radio"]:checked {
+  background: var(--cat-signal-tint);
+  border-color: var(--cat-signal);
+}
+
+input[type="checkbox"]:checked::before,
+input[type="radio"]:checked::before { transform: scale(1); }
+
+input[type="checkbox"]:disabled,
+input[type="radio"]:disabled { cursor: default; border-color: var(--cat-line); background: var(--cat-surface-1); }
+input[type="checkbox"]:disabled::before,
+input[type="radio"]:disabled::before { background: var(--cat-faint); }
+
+/* A select keeps its own menu — that belongs to the platform — but not its
+   arrow, which is the last piece of system chrome on the page. */
+select.cat-field,
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: var(--cat-space-6);
+  background-image: linear-gradient(45deg, transparent 50%, var(--cat-dim) 50%),
+                    linear-gradient(135deg, var(--cat-dim) 50%, transparent 50%);
+  background-position: right calc(var(--cat-space-4) + 4px) center, right var(--cat-space-4) center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+
+/* The menu itself is the platform's, and on a dark page it has to be told. */
+select option { background: var(--cat-surface-1); color: var(--cat-ink); }
+
+/* A text field that is not wearing `.cat-field` — there is always one — still
+   belongs to the same family. */
+input[type="text"], input[type="number"], input[type="search"],
+input[type="url"], input[type="email"], input:not([type]), textarea {
+  border: 1px solid var(--cat-line-strong);
+  border-radius: var(--cat-r-field);
+  background: var(--cat-surface-2);
+  color: var(--cat-ink);
+  font: inherit;
+  font-size: var(--cat-fs-13);
+  padding: 6px var(--cat-space-3);
+  transition: border-color var(--cat-dur-effect) var(--cat-ease-effect);
+}
+
+textarea { font-family: var(--cat-mono); line-height: 1.55; resize: vertical; }
+input::placeholder, textarea::placeholder { color: var(--cat-faint); }
+input:hover, textarea:hover, select:hover { border-color: var(--cat-line-strong); }
+input:focus, textarea:focus, select:focus { outline: none; border-color: var(--cat-signal-line); }
+
 /* One focus ring everywhere, in the signal colour, and never removed. */
 :where(.cat-btn, .cat-chip, .cat-field, .cat-tab, [tabindex]):focus-visible {
   outline: 2px solid var(--cat-signal);
