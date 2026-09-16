@@ -1,0 +1,889 @@
+/* ==========================================================================
+   The tool chrome
+   --------------------------------------------------------------------------
+   Every Catalyst tool is one self-contained HTML file, because they are hosted
+   on the docs site and bundled offline in the desktop app and have to work from
+   a file:// path with no network. That is worth keeping. What was not worth
+   keeping is thirteen private copies of the same header, sidebar, card, slider
+   and button — which is how they drifted into thirteen slightly different
+   programs wearing one name.
+
+   This is that shared half, linked with one relative path that holds in both
+   places:
+
+       <link rel="stylesheet" href="../tool.css">
+       <script src="../tool.js" defer></script>
+
+   A tool keeps only what is its own: its canvas, its diagram, its chart
+   colours. If a rule below is not doing the job for a tool, fix it here.
+
+   The tokens are the identity's, copied in rather than linked — `docs/assets/`
+   and the app's `src/styles/` sit at different depths, and a stylesheet that
+   works on the site and 404s in the app is worse than a copy with a check on
+   it. `node docs/tools/build-chrome.mjs` regenerates the block below and
+   `chrome.test.mjs` fails when it has drifted.
+   ========================================================================== */
+
+/* >>> identity tokens — generated, do not edit by hand */
+:root {
+  /* --- Ground ---------------------------------------------------------- */
+  /* The banner's diagonal, flattened for UI: the gradient is for the window,
+     the flat tone for anything that has to match a canvas or a video frame. */
+  --cat-ground: #0d0e12;
+  --cat-ground-top: #191a20;
+  --cat-ground-mid: #101116;
+  --cat-ground-bottom: #08090b;
+  --cat-ground-grad: linear-gradient(145deg, var(--cat-ground-top) 0%, var(--cat-ground-mid) 55%, var(--cat-ground-bottom) 100%);
+  /* The crimson key light from the launch canvas, upper right. Decoration
+     only: never put text where it lands without checking the pair. */
+  --cat-key-light: radial-gradient(60% 55% at 76% 40%, rgba(233, 69, 96, .10), rgba(233, 69, 96, .02) 45%, transparent 100%);
+  --cat-rim-light: radial-gradient(52% 52% at 16% 16%, rgba(255, 255, 255, .05), transparent 100%);
+
+  /* --- Surfaces -------------------------------------------------------- */
+  --cat-surface-1: #131418;   /* cards, panels, the editor's ground */
+  --cat-surface-2: #1a1c21;   /* chips, inputs, rows that lift */
+  --cat-surface-3: #22242a;   /* hover and pressed */
+  --cat-line: #23252b;        /* the ordinary border */
+  --cat-line-strong: #2f323a; /* a border that has to be seen: chips, focus */
+  --cat-hair: rgba(255, 255, 255, .06);
+
+  /* --- Ink ------------------------------------------------------------- */
+  /* Checked against #0d0e12 and #131418: ink 11.8:1, dim 6.6:1, quiet 5.8:1.
+     faint is 3.3:1 — decoration and disabled text only, never a word that has
+     to be read. The print material uses #70727a for body copy; UI lifts it. */
+  --cat-ink-strong: #ffffff;  /* headings, and the one value a screen is about */
+  --cat-ink: #e8e9ec;         /* body text, values, anything read closely */
+  --cat-body: #c9cad0;        /* running prose, a shade back from ink */
+  --cat-dim: #9a9ba1;         /* labels, captions, eyebrows: short text beside something */
+  --cat-quiet: #8a8c94;       /* explanatory paragraphs that must not compete with the thing */
+  --cat-faint: #5c5e65;       /* disabled, decoration, a rule's own colour. Never a word to read */
+
+  /* --- Signal ---------------------------------------------------------- */
+  --cat-signal: #e94560;
+  --cat-signal-lt: #ff5d76;
+  --cat-signal-dk: #8e2739;
+  --cat-signal-ink: #ff92a3;                      /* text on a signal tint */
+  --cat-signal-tint: rgba(233, 69, 96, .14);
+  --cat-signal-tint-2: rgba(233, 69, 96, .22);
+  --cat-signal-line: rgba(233, 69, 96, .55);
+  /* White on solid crimson is 3.8:1 — large text and icons only, which is why
+     a filled crimson button carries one short label and nothing else. */
+  --cat-on-signal: #ffffff;
+
+  /* --- Status ---------------------------------------------------------- */
+  /* Fault is the signal itself, at its brightest: an instrument has one red.
+     ok/warn/info are the only other hues on any screen. */
+  --cat-ok: #58c98b;
+  --cat-warn: #ffbf63;
+  --cat-bad: var(--cat-signal-lt);
+  --cat-info: #7fa8c9;
+  --cat-ok-tint: rgba(88, 201, 139, .14);
+  --cat-warn-tint: rgba(255, 191, 99, .14);
+  --cat-bad-tint: rgba(255, 93, 118, .14);
+  --cat-info-tint: rgba(127, 168, 201, .14);
+
+  /* --- Type ------------------------------------------------------------ */
+  --cat-sans: "Segoe UI Variable Display", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --cat-sans-text: "Segoe UI Variable Text", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --cat-mono: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;
+
+  --cat-fs-11: 11px;   /* eyebrow labels */
+  --cat-fs-12: 12px;
+  --cat-fs-13: 13px;   /* body small, mono values */
+  --cat-fs-15: 15px;   /* body */
+  --cat-fs-18: 18px;
+  --cat-fs-22: 22px;   /* section titles */
+  --cat-fs-28: 28px;
+  --cat-fs-40: 40px;   /* one number per screen, at most */
+
+  --cat-w-thin: 200;   /* the wordmark's "Frc" and "2.0", nothing else */
+  --cat-w-normal: 400;
+  --cat-w-medium: 500;
+  --cat-w-semi: 600;
+  --cat-w-bold: 700;
+
+  --cat-track-eyebrow: .16em;  /* 1.6 at 11px, as drawn */
+  --cat-track-tight: -.02em;   /* display sizes only */
+
+  /* --- Shape ----------------------------------------------------------- */
+  /* Concentric: an inner radius is its parent's radius less the padding.
+     Bezel's tile is radius 32 with 24 of padding on a 720-wide panel, and the
+     first cut of this file was far tighter than that — 12 and 16 — which is
+     what made the first screens read as boxes ruled on a page rather than as
+     surfaces. These are Bezel's proportions brought to a desktop window. */
+  --cat-r-window: 20px;
+  --cat-r-card: 16px;
+  --cat-r-chip: 10px;
+  --cat-r-field: 10px;
+  --cat-r-inner: 8px;
+  --cat-r-pill: 999px;
+
+  /* One light, above and to the left: a surface catches it on its top edge.
+     This is the whole of the app's elevation — no drop shadows, because depth
+     here comes from tone, and a shadow on a near-black ground is a smudge. */
+  --cat-lift: inset 0 1px 0 rgba(255, 255, 255, .045);
+  --cat-lift-strong: inset 0 1px 0 rgba(255, 255, 255, .07);
+
+  --cat-space-1: 4px;
+  --cat-space-2: 8px;
+  --cat-space-3: 12px;
+  --cat-space-4: 16px;
+  --cat-space-5: 24px;
+  --cat-space-6: 32px;
+  --cat-space-7: 48px;
+
+  /* --- Motion ---------------------------------------------------------- */
+  /* Detent springs, sampled to CSS. Each is a role, not a taste:
+       hold    a press being held, a value under the pointer
+       release something arriving: a panel, a menu, a toast
+       smooth  something leaving, which never bounces
+       settle  a value travelling to where it was set
+       effect  colour, opacity, glass
+       layer   the state layer under a pointer
+     Durations are the full settle time; the visible part is about half. */
+  --cat-dur-hold: .218s;
+  --cat-ease-hold: linear(0, 0.0057 1.2%, 0.0229 2.5%, 0.0519 3.9%, 0.0949 5.5%, 0.1867 8.3%, 0.41 14.4%, 0.5139 17.4%, 0.6106 20.5%, 0.6946 23.6%, 0.7655 26.7%, 0.8239 29.8%, 0.8735 33.1%, 0.914 36.6%, 0.9462 40.4%, 0.9707 44.6%, 0.9876 49.2%, 0.9985 54.6%, 1.005 66.5%, 1);
+
+  --cat-dur-release: .729s;
+  --cat-ease-release: linear(0, 0.0057 1.2%, 0.023 2.5%, 0.0521 3.9%, 0.0953 5.5%, 0.1362 6.8%, 0.1878 8.3%, 0.4129 14.4%, 0.5178 17.4%, 0.6153 20.5%, 0.7 23.6%, 0.7713 26.7%, 0.8298 29.8%, 0.8794 33.1%, 0.9186 36.5%, 0.9499 40.2%, 0.9738 44.3%, 0.9905 48.9%, 1.0008 54.2%, 1.0063 65.4%, 1);
+
+  --cat-dur-smooth: .761s;
+  --cat-ease-smooth: linear(0, 0.0052 1.1%, 0.0193 2.2%, 0.045 3.5%, 0.0809 4.9%, 0.1585 7.4%, 0.3667 13.4%, 0.4649 16.4%, 0.559 19.6%, 0.6407 22.8%, 0.712 26.1%, 0.7726 29.5%, 0.823 33%, 0.8662 36.8%, 0.904 41.2%, 0.9337 46%, 0.9567 51.4%, 0.9739 57.7%, 0.9851 64.6%, 0.9926 73%, 1);
+
+  --cat-dur-settle: .609s;
+  --cat-ease-settle: var(--cat-ease-smooth);   /* same critically damped shape */
+
+  --cat-dur-effect: .239s;
+  --cat-ease-effect: var(--cat-ease-smooth);
+
+  --cat-dur-layer: .155s;
+  --cat-ease-layer: var(--cat-ease-smooth);
+
+  /* --- Glass ----------------------------------------------------------- */
+  /* Floating layers only: dialogs, the command palette, a toast. A thin edge
+     line, no bevel, no spotlight. Values from Bezel's glass table. */
+  --cat-glass-blur: 10px;
+  --cat-glass-fill: color-mix(in srgb, var(--cat-ground) 78%, transparent);
+  --cat-glass-edge: rgba(255, 255, 255, .14);
+  --cat-glass-shadow: 0 24px 60px rgba(0, 0, 0, .55);
+}
+/* <<< identity tokens */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+/* `hidden` has to win. Half the rules below set `display`, and a rule that sets
+   it beats the attribute's own user-agent style — which turns every
+   `el.hidden = true` in a tool into a no-op that is invisible until a panel
+   that should be empty is not. Same rule, same reason, as the identity's. */
+[hidden] { display: none !important; }
+
+/* `hidden` has to win, exactly as it does in the identity. Half the rules below set `display`, and
+   a rule that sets it beats the attribute's user-agent style — which turns every `el.hidden = true`
+   in a tool into a no-op that is invisible until a panel that should be empty is not. */
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--cat-ground);
+  background-image: var(--cat-key-light), var(--cat-rim-light), var(--cat-ground-grad);
+  background-attachment: fixed;
+  color: var(--cat-body);
+  font-family: var(--cat-sans-text);
+  font-size: var(--cat-fs-15);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, .14);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  border-radius: var(--cat-r-pill);
+  min-height: 40px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, .26); background-clip: padding-box; }
+
+/* ------------------------------------------------------------------ header */
+
+/* Chrome, not a floating layer, so it is a surface with a hairline rather than
+   glass. It stays put while the tool scrolls because the tool's name and the
+   way back are the two things you look for when you are lost in one. */
+header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: var(--cat-space-3);
+  padding: var(--cat-space-3) var(--cat-space-5);
+  border-bottom: 1px solid var(--cat-line);
+  background: color-mix(in srgb, var(--cat-ground) 88%, transparent);
+  backdrop-filter: blur(var(--cat-glass-blur));
+}
+
+header .mark { width: 18px; height: 18px; flex: none; color: var(--cat-signal); }
+header .mark svg { width: 100%; height: 100%; display: block; }
+
+header h1 {
+  margin: 0;
+  font-family: var(--cat-sans);
+  font-size: var(--cat-fs-18);
+  font-weight: var(--cat-w-semi);
+  letter-spacing: var(--cat-track-tight);
+  color: var(--cat-ink-strong);
+  white-space: nowrap;
+}
+
+/* The version, as the identity draws it: a capsule with a lit dot. It used to
+   be a solid crimson block, which made the loudest thing on every tool the one
+   fact nobody needs twice. */
+header .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cat-space-2);
+  height: 24px;
+  padding: 0 var(--cat-space-3);
+  border: 1px solid var(--cat-signal-line);
+  border-radius: var(--cat-r-pill);
+  background: var(--cat-signal-tint);
+  color: var(--cat-signal-ink);
+  font-family: var(--cat-mono);
+  font-size: var(--cat-fs-11);
+  font-weight: var(--cat-w-semi);
+  white-space: nowrap;
+}
+
+header .badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: var(--cat-r-pill);
+  background: var(--cat-signal-lt);
+}
+
+header .hint {
+  color: var(--cat-quiet);
+  font-size: var(--cat-fs-13);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+header .back {
+  margin-left: auto;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cat-space-2);
+  height: 30px;
+  padding: 0 var(--cat-space-3);
+  border: 1px solid var(--cat-line-strong);
+  border-radius: var(--cat-r-chip);
+  background: var(--cat-surface-2);
+  color: var(--cat-dim);
+  font: inherit;
+  font-size: var(--cat-fs-13);
+  font-weight: var(--cat-w-semi);
+  text-decoration: none;
+  cursor: pointer;
+  transition: color var(--cat-dur-effect) var(--cat-ease-effect),
+              background-color var(--cat-dur-effect) var(--cat-ease-effect);
+}
+
+header .back:hover { background: var(--cat-surface-3); color: var(--cat-ink); }
+
+/* ------------------------------------------------------------------ layout */
+
+main {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  gap: var(--cat-space-5);
+  align-items: start;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: var(--cat-space-5);
+}
+
+main.one-column { grid-template-columns: minmax(0, 1fr); }
+
+@media (max-width: 900px) {
+  main { grid-template-columns: minmax(0, 1fr); }
+}
+
+aside {
+  position: sticky;
+  top: 72px;
+  display: grid;
+  gap: var(--cat-space-4);
+  padding: var(--cat-space-4);
+  border: 1px solid var(--cat-line);
+  border-radius: var(--cat-r-card);
+  background: var(--cat-surface-1);
+}
+
+@media (max-width: 900px) {
+  aside { position: static; }
+}
+
+.card {
+  display: grid;
+  gap: var(--cat-space-3);
+  padding: var(--cat-space-4);
+  border: 1px solid var(--cat-line);
+  border-radius: var(--cat-r-card);
+  background: var(--cat-surface-1);
+  min-width: 0;
+}
+
+.cards { display: grid; gap: var(--cat-space-4); min-width: 0; }
+
+/* A panel's title line with its controls on the end of it — a filter row, a
+   Copy button, a mode switch. The title keeps the left edge and everything else
+   is pushed to the right, so a card's first line always starts the same way. */
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--cat-space-3);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+/* `:is()` because the eyebrow rule below sets `margin: 0` on `.card h2`, which
+   at equal specificity comes later and wins — the title then sat against its
+   own legend instead of pushing it to the right edge. */
+.card-head > :is(h2, .panel-title, .section-label) { margin-right: auto; }
+.card-head > .grow { flex: 1 1 160px; min-width: 0; }
+
+/* A section title inside a panel: quiet, mono, spaced — the identity's eyebrow.
+   These used to be 15px semibold headings, which competed with the tool's own
+   output for the eye. */
+aside h2, .card h2, .panel-title, .section-label {
+  margin: 0;
+  font-family: var(--cat-mono);
+  font-size: var(--cat-fs-11);
+  font-weight: var(--cat-w-bold);
+  letter-spacing: var(--cat-track-eyebrow);
+  text-transform: uppercase;
+  color: var(--cat-dim);
+}
+
+aside h2:not(:first-child) { margin-top: var(--cat-space-2); }
+
+h3 { margin: 0; font-size: var(--cat-fs-13); font-weight: var(--cat-w-semi); color: var(--cat-ink); }
+p { margin: 0; line-height: 1.55; }
+.hint, .muted, .credit { color: var(--cat-quiet); font-size: var(--cat-fs-13); line-height: 1.5; }
+a { color: var(--cat-signal-ink); }
+
+/* The note at the foot of a tool: what it simulates, what it does not promise.
+   It sits on the ground rather than in a card, and lines up with `main` so the
+   page has one left edge and one right edge all the way down — three tools had
+   it on a different gutter from the panels above it. */
+.credit {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: var(--cat-space-5);
+  border-top: 1px solid var(--cat-line);
+}
+
+/* ---------------------------------------------------------------- controls */
+
+.row { display: grid; gap: 6px; }
+.row.inline { display: flex; align-items: center; gap: var(--cat-space-3); }
+
+/* Two or three fields that are one thought — a limit and its floor, a score and
+   whether it may start. They share a line and their labels line up. */
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: var(--cat-space-2); align-items: end; min-width: 0; }
+.pair.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+/* A label is text with a value at the end of it, and the text often has pieces — `v<sub>x</sub>`,
+   a unit, a hint. `space-between` pushed those pieces apart; the value is the only thing that
+   belongs on the right, so it is the only thing that gets pushed. */
+label {
+  display: flex;
+  align-items: baseline;
+  gap: var(--cat-space-2);
+  color: var(--cat-dim);
+  font-size: var(--cat-fs-13);
+}
+
+label > .v,
+label > .val,
+label > .value,
+label > .num { margin-left: auto; }
+
+/* Every live value in every tool: mono, tabular, in the reading colour. A
+   number that changes must not change width as it does. */
+.v, .val, .value, .num, .k {
+  font-family: var(--cat-mono);
+  font-size: var(--cat-fs-13);
+  font-variant-numeric: tabular-nums;
+  color: var(--cat-ink);
+}
+
+input[type="range"] {
+  width: 100%;
+  height: 20px;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: var(--cat-r-pill);
+  background: var(--cat-surface-3);
+}
+
+/* The handle is ink, not the signal: a row of eight crimson dots down a sidebar
+   spends the one colour that is supposed to mean "this is the thing". */
+input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border-radius: var(--cat-r-pill);
+  background: var(--cat-ink);
+  border: 0;
+  transition: transform var(--cat-dur-hold) var(--cat-ease-hold),
+              box-shadow var(--cat-dur-layer) var(--cat-ease-layer);
+}
+
+input[type="range"]:hover::-webkit-slider-thumb { transform: scale(1.12); }
+input[type="range"]:active::-webkit-slider-thumb {
+  transform: scale(1.22);
+  box-shadow: 0 0 0 6px var(--cat-signal-tint);
+}
+
+input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--cat-signal); }
+input[type="range"]:focus { outline: none; }
+
+input[type="text"], input[type="number"], input[type="search"], select, textarea {
+  min-height: 32px;
+  padding: 4px var(--cat-space-3);
+  border: 1px solid var(--cat-line-strong);
+  border-radius: var(--cat-r-field);
+  background: var(--cat-surface-2);
+  color: var(--cat-ink);
+  font: inherit;
+  font-size: var(--cat-fs-13);
+  transition: border-color var(--cat-dur-effect) var(--cat-ease-effect);
+}
+
+input[type="number"], .num input { font-family: var(--cat-mono); }
+textarea { font-family: var(--cat-mono); line-height: 1.5; resize: vertical; }
+input::placeholder, textarea::placeholder { color: var(--cat-faint); }
+input:focus-visible, select:focus-visible, textarea:focus-visible,
+button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid var(--cat-signal);
+  outline-offset: 2px;
+}
+
+input[type="checkbox"], input[type="radio"] { accent-color: var(--cat-signal); width: 15px; height: 15px; }
+
+/* ----------------------------------------------------------------- buttons */
+
+button, .btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--cat-space-2);
+  min-height: 32px;
+  padding: 0 var(--cat-space-3);
+  border: 1px solid var(--cat-line-strong);
+  border-radius: var(--cat-r-chip);
+  background: var(--cat-surface-2);
+  color: var(--cat-ink);
+  font: inherit;
+  font-size: var(--cat-fs-13);
+  font-weight: var(--cat-w-semi);
+  white-space: nowrap;
+  cursor: pointer;
+  overflow: hidden;
+  transition: background-color var(--cat-dur-effect) var(--cat-ease-effect),
+              border-color var(--cat-dur-effect) var(--cat-ease-effect),
+              transform var(--cat-dur-hold) var(--cat-ease-hold);
+}
+
+button:hover, .btn:hover { background: var(--cat-surface-3); }
+button:active, .btn:active { transform: scale(.98); }
+button:disabled, .btn:disabled { color: var(--cat-faint); cursor: default; transform: none; }
+
+.btn.primary, button.primary, .copy {
+  background: var(--cat-signal-tint);
+  border-color: var(--cat-signal-line);
+  color: var(--cat-signal-ink);
+}
+
+.btn.primary:hover, button.primary:hover, .copy:hover { background: var(--cat-signal-tint-2); }
+
+.btn.ghost, button.ghost, .btn.secondary, button.secondary {
+  background: transparent;
+  border-color: transparent;
+  color: var(--cat-dim);
+}
+
+.btn.ghost:hover, button.ghost:hover, .btn.secondary:hover, button.secondary:hover {
+  background: var(--cat-surface-2);
+  color: var(--cat-ink);
+}
+
+.btn.danger, button.danger { border-color: var(--cat-bad); color: var(--cat-bad); background: var(--cat-bad-tint); }
+
+.actions { display: flex; flex-wrap: wrap; gap: var(--cat-space-2); }
+
+/* A label inside a button — `.motionMagic(…)`, `.pid(…)` — is the button's own
+   text in another face, not a code block on a page. */
+button code, .btn code { color: inherit; }
+
+/* A sidebar's worth of buttons is a column, not a wrapped row: four half-width
+   pills breaking across two ragged lines read as four unrelated things. */
+.actions.stack { flex-direction: column; align-items: stretch; }
+
+/* -------------------------------------------------------- segmented control */
+
+/* One control with several exclusive answers — an output format, a units
+   choice. Not a row of buttons: exactly one of them is true at a time, and
+   the true one is the only thing wearing the signal.
+   The inner radius is the outer one less the padding, as the shape scale says. */
+.seg {
+  display: inline-flex;
+  padding: var(--cat-space-1);
+  border: 1px solid var(--cat-line);
+  border-radius: var(--cat-r-chip);
+  background: var(--cat-surface-2);
+}
+
+.seg > button {
+  min-height: 26px;
+  border: 0;
+  border-radius: calc(var(--cat-r-chip) - var(--cat-space-1));
+  background: transparent;
+  color: var(--cat-dim);
+  font-size: var(--cat-fs-12);
+}
+
+.seg > button:hover { background: var(--cat-surface-3); color: var(--cat-ink); }
+.seg > button:active { transform: none; }   /* a tab does not press in; it just becomes true */
+
+.seg > button[aria-pressed="true"] {
+  background: var(--cat-signal-tint);
+  box-shadow: inset 0 0 0 1px var(--cat-signal-line);
+  color: var(--cat-signal-ink);
+}
+
+/* The same control as the whole width of a panel, which is how it reads when it
+   is the first thing in a sidebar: the modes divide the bar between them rather
+   than huddling at one end of it. */
+.seg.block { display: flex; }
+.seg.block > button { flex: 1 1 0; min-width: 0; }
+
+/* The press answer: a state layer growing from where the pointer went down.
+   tool.js adds it; this is where it lives. */
+.state-layer {
+  position: absolute;
+  border-radius: var(--cat-r-pill);
+  background: currentColor;
+  opacity: .12;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------- readouts ---- */
+
+.stat, .stat-row, .result-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--cat-space-3);
+  padding: var(--cat-space-2) var(--cat-space-3);
+  border: 1px solid var(--cat-line);
+  border-radius: var(--cat-r-inner);
+  background: var(--cat-surface-2);
+  font-size: var(--cat-fs-13);
+}
+
+.stat .k, .stat-row .k, .result-row .k { color: var(--cat-dim); font-family: inherit; }
+.stats { display: grid; gap: var(--cat-space-2); }
+
+.tag, .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 var(--cat-space-2);
+  border: 1px solid var(--cat-line-strong);
+  border-radius: var(--cat-r-chip);
+  background: var(--cat-surface-2);
+  color: var(--cat-body);
+  font-family: var(--cat-mono);
+  font-size: var(--cat-fs-11);
+  font-weight: var(--cat-w-semi);
+}
+
+/* A chip that carries a verdict rather than a name. The four hues are the only
+   ones on any screen, and each keeps its own tint and edge so the chip still
+   reads as a chip. `sm` is the one that rides inside a table cell. */
+.chip.ok    { border-color: color-mix(in srgb, var(--cat-ok) 45%, transparent);   background: var(--cat-ok-tint);   color: var(--cat-ok); }
+.chip.warn  { border-color: color-mix(in srgb, var(--cat-warn) 45%, transparent); background: var(--cat-warn-tint); color: var(--cat-warn); }
+.chip.bad   { border-color: color-mix(in srgb, var(--cat-bad) 45%, transparent);  background: var(--cat-bad-tint);  color: var(--cat-bad); }
+.chip.info  { border-color: color-mix(in srgb, var(--cat-info) 45%, transparent); background: var(--cat-info-tint); color: var(--cat-info); }
+.chip.signal { border-color: var(--cat-signal-line); background: var(--cat-signal-tint); color: var(--cat-signal-ink); }
+.chip.sm { height: var(--cat-space-4); padding: 0 6px; gap: var(--cat-space-1); }
+
+/* What a colour on a chart, a graph or a diagram means. Three tools drew their
+   own and every one of them made the key a glowing disc, which is a light
+   source competing with the data it is labelling. A key is the quietest thing
+   on a panel: mono, small, and a mark the same shape as what it names — a rule
+   for a line, a dash for a dashed one, a tile for a box. Each mark takes its
+   colour from `--c` on the element, so the swatch and the series are set in one
+   place. */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cat-space-3);
+  color: var(--cat-quiet);
+  font-family: var(--cat-mono);
+  font-size: var(--cat-fs-11);
+}
+
+.legend .lg { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+
+.swatch { flex: none; width: 16px; height: 3px; border-radius: 2px; background: var(--c, var(--cat-faint)); }
+.swatch.dashed { height: 0; background: none; border-top: 2px dashed var(--c, var(--cat-faint)); }
+.swatch.round { width: 8px; height: 8px; border-radius: var(--cat-r-pill); }
+.swatch.box {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid var(--c, var(--cat-faint));
+  background: color-mix(in srgb, var(--c, var(--cat-faint)) 14%, transparent);
+}
+.swatch.box.dashed { border-style: dashed; border-top-width: 1px; height: 12px; }
+
+.dot { width: 8px; height: 8px; border-radius: var(--cat-r-pill); background: var(--cat-faint); flex: none; }
+.dot.ok, .ok .dot { background: var(--cat-ok); }
+.dot.warn, .warn .dot { background: var(--cat-warn); border-radius: 1px; transform: rotate(45deg); }
+.dot.bad, .bad .dot, .dot.err { background: var(--cat-bad); border-radius: 1px; }
+
+/* A quantity as a length. Quiet by default — a column of crimson bars down a
+   table spends the one colour that is supposed to mean "look here" — and it
+   travels with the settle curve, because the width is a value arriving at where
+   the reader put it. A tool that rebuilds its rows gets no transition, which is
+   correct: nothing moved, the row is new. */
+.bar {
+  display: block;
+  height: 6px;
+  border-radius: var(--cat-r-pill);
+  background: var(--cat-surface-3);
+  overflow: hidden;
+}
+
+.bar > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--cat-dim);
+  transition: width var(--cat-dur-settle) var(--cat-ease-settle),
+              background-color var(--cat-dur-effect) var(--cat-ease-effect);
+}
+
+.bar.ok > i { background: var(--cat-ok); }
+.bar.warn > i { background: var(--cat-warn); }
+.bar.bad > i { background: var(--cat-bad); }
+
+/* Something the tool wants to say about what it just worked out. Neutral by
+   default; the three states tint the ground and the edge and leave the words in
+   the reading colour, because a whole paragraph in amber is a paragraph nobody
+   finishes. */
+.notice {
+  padding: var(--cat-space-3);
+  border: 1px solid var(--cat-line);
+  border-radius: var(--cat-r-inner);
+  background: var(--cat-surface-2);
+  color: var(--cat-body);
+  font-size: var(--cat-fs-13);
+  line-height: 1.55;
+}
+
+.notice.ok   { border-color: color-mix(in srgb, var(--cat-ok) 35%, transparent);   background: var(--cat-ok-tint); }
+.notice.warn { border-color: color-mix(in srgb, var(--cat-warn) 35%, transparent); background: var(--cat-warn-tint); }
+.notice.bad, .notice.err { border-color: color-mix(in srgb, var(--cat-bad) 35%, transparent); background: var(--cat-bad-tint); }
+
+.notice b, .notice strong { color: var(--cat-ink); font-weight: var(--cat-w-semi); }
+.notice.ok > b:first-child   { color: var(--cat-ok); }
+.notice.warn > b:first-child { color: var(--cat-warn); }
+.notice.bad > b:first-child, .notice.err > b:first-child { color: var(--cat-bad); }
+
+.empty {
+  padding: var(--cat-space-5);
+  border: 1px dashed var(--cat-line-strong);
+  border-radius: var(--cat-r-card);
+  color: var(--cat-quiet);
+  font-size: var(--cat-fs-13);
+  text-align: center;
+}
+
+pre, pre.code, .code-block {
+  margin: 0;
+  padding: var(--cat-space-3);
+  border: 1px solid var(--cat-line);
+  border-radius: var(--cat-r-inner);
+  background: var(--cat-ground);
+  color: var(--cat-body);
+  font-family: var(--cat-mono);
+  font-size: var(--cat-fs-12);
+  line-height: 1.55;
+  overflow: auto;
+}
+
+code { font-family: var(--cat-mono); font-size: .92em; color: var(--cat-ink); }
+
+canvas { display: block; width: 100%; border-radius: var(--cat-r-inner); background: var(--cat-ground); }
+
+table { width: 100%; border-collapse: collapse; font-size: var(--cat-fs-13); }
+th {
+  text-align: left;
+  padding: var(--cat-space-2) var(--cat-space-3);
+  border-bottom: 1px solid var(--cat-line);
+  color: var(--cat-dim);
+  font-family: var(--cat-mono);
+  font-size: var(--cat-fs-11);
+  font-weight: var(--cat-w-bold);
+  letter-spacing: var(--cat-track-eyebrow);
+  text-transform: uppercase;
+}
+td { padding: var(--cat-space-2) var(--cat-space-3); border-bottom: 1px solid var(--cat-line); }
+tr:last-child td { border-bottom: 0; }
+
+/* A number belongs under its own last digit. */
+th.num, td.num { text-align: right; }
+
+/* A column you can sort by. The arrow comes off `aria-sort`, so the one attribute
+   a screen reader needs is the same one that draws it — which is how two tools
+   stopped hand-building their own arrows out of ↑ and ▾. */
+th[data-sort] {
+  cursor: pointer;
+  user-select: none;
+  transition: color var(--cat-dur-effect) var(--cat-ease-effect);
+}
+
+th[data-sort]:hover { color: var(--cat-ink); }
+th[data-sort][aria-sort] { color: var(--cat-signal-ink); }
+th[data-sort][aria-sort]::after { margin-left: var(--cat-space-1); font-size: 9px; }
+th[data-sort][aria-sort="ascending"]::after { content: "▲"; }
+th[data-sort][aria-sort="descending"]::after { content: "▼"; }
+
+/* ----------------------------------------------------------------- footer -- */
+
+/* Where a tool says where its numbers came from. It sits under the grid, on the
+   ground rather than on a surface, aligned with the same gutter `main` uses. */
+footer {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 var(--cat-space-5) var(--cat-space-6);
+  color: var(--cat-quiet);
+  font-size: var(--cat-fs-13);
+  line-height: 1.55;
+}
+
+/* --------------------------------------------------------------- floating -- */
+
+/* A dialog and a toast are the only things in a tool that leave the page, so
+   they are the only things that are glass. Nothing else floats, and glass never
+   sits on glass. */
+dialog {
+  width: min(90vw, 640px);
+  max-width: none;
+  padding: var(--cat-space-5);
+  border: 1px solid var(--cat-glass-edge);
+  border-radius: var(--cat-r-window);
+  background: var(--cat-glass-fill);
+  backdrop-filter: blur(var(--cat-glass-blur));
+  box-shadow: var(--cat-glass-shadow);
+  color: var(--cat-body);
+  font-family: var(--cat-sans-text);
+  font-size: var(--cat-fs-15);
+}
+
+dialog::backdrop { background: rgba(0, 0, 0, .55); }
+dialog[open] { animation: tool-in var(--cat-dur-release) var(--cat-ease-release) both; }
+
+dialog h2, dialog h3 {
+  margin: 0 0 var(--cat-space-2);
+  font-family: var(--cat-sans);
+  font-size: var(--cat-fs-18);
+  font-weight: var(--cat-w-semi);
+  letter-spacing: var(--cat-track-tight);
+  color: var(--cat-ink-strong);
+}
+
+dialog .actions { justify-content: flex-end; margin-top: var(--cat-space-4); }
+
+/* Arrives with release, leaves with smooth — which is the whole difference
+   between a toast that pops and one that slinks away. */
+.toast {
+  position: fixed;
+  right: var(--cat-space-5);
+  bottom: var(--cat-space-5);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--cat-space-2);
+  max-width: 420px;
+  padding: var(--cat-space-3) var(--cat-space-4);
+  border: 1px solid var(--cat-glass-edge);
+  border-left: 3px solid var(--cat-signal);
+  border-radius: var(--cat-r-chip);
+  background: var(--cat-glass-fill);
+  backdrop-filter: blur(var(--cat-glass-blur));
+  box-shadow: var(--cat-glass-shadow);
+  color: var(--cat-ink);
+  font-size: var(--cat-fs-13);
+  line-height: 1.45;
+  opacity: 0;
+  transform: translateY(var(--cat-space-2));
+  pointer-events: none;
+  transition: opacity var(--cat-dur-smooth) var(--cat-ease-smooth),
+              transform var(--cat-dur-smooth) var(--cat-ease-smooth);
+}
+
+.toast.show {
+  opacity: 1;
+  transform: none;
+  transition: opacity var(--cat-dur-release) var(--cat-ease-release),
+              transform var(--cat-dur-release) var(--cat-ease-release);
+}
+
+.toast.ok { border-left-color: var(--cat-ok); }
+.toast.bad, .toast.err { border-left-color: var(--cat-bad); }
+
+/* --------------------------------------------------------------- arriving -- */
+
+/* Panels arrive with the release curve when the page loads, once, and never
+   again: a tool that re-animates its own output every time a slider moves is a
+   tool you cannot read while you drag. */
+@keyframes tool-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+aside, .card {
+  animation: tool-in var(--cat-dur-release) var(--cat-ease-release) both;
+}
+
+.card:nth-of-type(2) { animation-delay: 40ms; }
+.card:nth-of-type(3) { animation-delay: 80ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  aside, .card { animation: none; }
+  *, *::before, *::after {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+  }
+}

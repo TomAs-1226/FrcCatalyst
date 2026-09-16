@@ -4,254 +4,114 @@
   <meta charset="utf-8" />
   <title>Catalyst MotorType Browser</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="../tool.css" />
+  <script src="../tool.js" defer></script>
   <style>
-    :root {
-      --bg: #1a1a2e;
-      --panel: #16213e;
-      --panel2: #0f1a30;
-      --accent: #e94560;
-      --accent2: #f0648a;
-      --text: #f4f4f8;
-      --muted: #8a8aa8;
-      --border: #2a3050;
-      --good: #4ade80;
-      --warn: #fbbf24;
-    }
-    * { box-sizing: border-box; }
-    html, body {
-      margin: 0; padding: 0;
-      background: var(--bg);
-      color: var(--text);
-      font-family: ui-sans-serif, system-ui, -apple-system, "SF Pro Text", Segoe UI, sans-serif;
-      min-height: 100vh;
-    }
-    header {
-      padding: 18px 28px;
-      background: linear-gradient(180deg, var(--panel) 0%, var(--bg) 100%);
-      border-bottom: 1px solid var(--border);
-      display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
-    }
-    header h1 { margin: 0; font-size: 18px; font-weight: 700; }
-    header .badge {
-      display: inline-block; padding: 2px 10px; border-radius: 999px;
-      background: var(--accent); color: #fff; font-size: 11px; font-weight: 600;
-    }
-    header .hint { color: var(--muted); font-size: 13px; }
-    header .back { color: var(--accent2); text-decoration: none; font-size: 13px; margin-left: auto; }
-    main {
-      padding: 24px 28px;
-      display: grid;
-      grid-template-columns: 1fr 380px;
-      gap: 24px;
-      align-items: start;
-    }
+    /* This tool's own: the one motor the calculator is about, the row you picked it from, and the
+       three token colours in the snippet. Everything else — header, sidebar, cards, fields,
+       buttons, chips, the table, the code block, the footer — is ../tool.css. */
 
-    .table-wrap {
-      background: var(--panel); border: 1px solid var(--border);
-      border-radius: 10px; overflow: hidden;
-    }
-    .table-head {
-      display: flex; gap: 10px;
-      padding: 12px 16px;
-      background: var(--panel2);
-      border-bottom: 1px solid var(--border);
+    /* The one thing this screen is about, so it is the one thing at display size. */
+    .picked {
+      display: flex;
       align-items: center;
+      gap: var(--cat-space-2);
+      flex-wrap: wrap;
+      font-family: var(--cat-sans);
+      font-size: var(--cat-fs-18);
+      font-weight: var(--cat-w-semi);
+      letter-spacing: var(--cat-track-tight);
+      color: var(--cat-ink-strong);
     }
-    .table-head input {
-      flex: 1;
-      background: var(--bg); color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 7px 10px;
-      font-size: 13px;
-    }
-    .table-head input:focus { border-color: var(--accent); outline: none; }
-    .table-head select {
-      background: var(--bg); color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 7px 10px;
-      font-size: 13px;
-    }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th, td {
-      padding: 10px 12px; text-align: left;
-      border-bottom: 1px solid var(--border);
-    }
-    th {
-      background: var(--panel2);
-      font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
-      color: var(--muted); font-weight: 700;
-      position: sticky; top: 0; z-index: 1;
-      cursor: pointer; user-select: none;
-    }
-    th:hover { color: var(--accent2); }
-    th.sort-asc::after { content: " ▴"; color: var(--accent2); }
-    th.sort-desc::after { content: " ▾"; color: var(--accent2); }
-    tr { cursor: pointer; transition: background 0.08s; }
-    tr:hover { background: rgba(233,69,96,0.06); }
-    tr.selected { background: rgba(233,69,96,0.12); }
-    td.num { text-align: right; font-family: ui-monospace, monospace; color: var(--accent2); }
-    td .badge {
-      display: inline-block; padding: 1px 7px; border-radius: 999px;
-      font-size: 10px; font-weight: 700; letter-spacing: 0.5px;
-      margin-left: 6px;
-    }
-    .badge.ctre { background: rgba(96, 165, 250, 0.2); color: #60a5fa; }
-    .badge.rev  { background: rgba(74, 222, 128, 0.2); color: #4ade80; }
-    .badge.wcp  { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
-    .badge.foc  { background: rgba(233, 69, 96, 0.2); color: var(--accent2); }
+    .picked.none { font-size: var(--cat-fs-15); font-weight: var(--cat-w-normal); color: var(--cat-faint); }
 
-    .calc {
-      background: var(--panel); border: 1px solid var(--border);
-      border-radius: 10px; padding: 16px 18px;
-      position: sticky; top: 16px;
-    }
-    .calc h2 {
-      margin: 0 0 8px;
-      font-size: 13px; text-transform: uppercase;
-      letter-spacing: 1px; color: var(--muted); font-weight: 700;
-    }
-    .calc .picked {
-      font-size: 16px; font-weight: 700; color: var(--accent2);
-      margin-bottom: 14px;
-    }
-    .calc-row { display: grid; grid-template-columns: 1fr 110px; gap: 8px; align-items: center; margin-bottom: 10px; }
-    .calc-row label { font-size: 12px; color: var(--muted); }
-    .calc-row input {
-      background: var(--bg); color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 6px 10px;
-      font-size: 13px; font-family: ui-monospace, monospace;
-      text-align: right;
-    }
-    .calc-row input:focus { border-color: var(--accent); outline: none; }
+    /* A row is a control here, so it answers the pointer; the one you picked keeps the signal,
+       and nothing else on the page spends it. */
+    tbody tr { cursor: pointer; transition: background-color var(--cat-dur-effect) var(--cat-ease-effect); }
+    tbody tr:hover { background: var(--cat-surface-2); }
+    tbody tr.selected { background: var(--cat-signal-tint); }
+    tbody tr.selected td:first-child { box-shadow: inset 2px 0 0 var(--cat-signal); }
+    td:first-child { color: var(--cat-ink); }
 
-    .calc-results {
-      border-top: 1px dashed var(--border);
-      margin-top: 12px;
-      padding-top: 12px;
-    }
-    .result-row {
-      display: flex; justify-content: space-between;
-      font-size: 13px; padding: 4px 0;
-    }
-    .result-row .v {
-      font-family: ui-monospace, monospace;
-      color: var(--accent2);
-    }
-
-    .snippet {
-      background: var(--bg); border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 10px 12px;
-      font-family: ui-monospace, monospace;
-      font-size: 12px;
-      margin-top: 12px;
-      color: #d9e0f0;
-      white-space: pre;
-      overflow-x: auto;
-    }
-    .snippet .kw { color: #ef798a; }
-    .snippet .str { color: #9ee493; }
-    .snippet .lit { color: #f4d35e; }
-
-    .actions { display: flex; gap: 8px; margin-top: 12px; }
-    .btn {
-      background: var(--accent); color: #fff;
-      border: 0; border-radius: 6px;
-      padding: 8px 12px; font-size: 12px; font-weight: 600;
-      cursor: pointer;
-    }
-    .btn:hover { background: var(--accent2); }
-    .btn.ghost {
-      background: transparent; color: var(--text);
-      border: 1px solid var(--border);
-    }
-    .btn.ghost:hover { border-color: var(--accent); color: var(--accent2); }
-    .credit {
-      padding: 12px 28px; color: var(--muted); font-size: 12px;
-      border-top: 1px solid var(--border); background: var(--panel2);
-    }
-    .credit a { color: var(--accent2); text-decoration: none; }
-    .credit a:hover { text-decoration: underline; }
-
-    @media (max-width: 900px) {
-      main { grid-template-columns: 1fr; }
-      .calc { position: static; }
-    }
+    pre.code .kw { color: var(--cat-signal-ink); }
+    pre.code .str { color: var(--cat-ok); }
+    pre.code .lit { color: var(--cat-warn); }
   </style>
 </head>
 <body>
 
 <header>
   <h1>MotorType Browser</h1>
-  <span class="badge">v2.0.0-alpha.3 beta</span>
-  <span class="hint">Every Catalyst <code>MotorType</code> preset + a quick gear-ratio calculator.</span>
-  <a href="../" class="back">← Catalyst tools</a>
+  <span class="badge">2.0.0-alpha.3</span>
+  <span class="hint">Every Catalyst <code>MotorType</code> preset, and a gear-ratio calculator for the one you pick.</span>
+  <a href="../" class="back"></a>
 </header>
 
 <main>
-  <div class="table-wrap">
-    <div class="table-head">
-      <input type="text" id="search" placeholder="filter by name…" />
-      <select id="vendorFilter">
-        <option value="">All vendors</option>
-        <option>CTRE</option>
-        <option>REV</option>
-        <option>WCP</option>
-      </select>
-      <select id="focFilter">
-        <option value="">All variants</option>
-        <option value="foc">FOC only</option>
-        <option value="nonfoc">non-FOC only</option>
-      </select>
-    </div>
-    <table>
-      <thead>
-        <tr>
-          <th data-sort="name">Motor</th>
-          <th data-sort="torque">Stall torque (Nm)</th>
-          <th data-sort="speed">Free speed (RPM)</th>
-          <th data-sort="current">Stall current (A)</th>
-          <th data-sort="freeCurrent">Free current (A)</th>
-        </tr>
-      </thead>
-      <tbody id="rows"></tbody>
-    </table>
-  </div>
-
-  <aside class="calc">
+  <aside>
     <h2>Calculator</h2>
-    <div class="picked" id="picked">— pick a motor —</div>
+    <div class="picked none" id="picked">Pick a motor</div>
 
-    <div class="calc-row"><label>Gear ratio (motor→mech)</label><input type="number" id="gear" value="10" step="0.1" min="0.1"></div>
-    <div class="calc-row"><label>Motor count</label><input type="number" id="count" value="1" step="1" min="1"></div>
-    <div class="calc-row"><label>Load torque @ output (Nm)</label><input type="number" id="load" value="0" step="0.1"></div>
+    <div class="row"><label for="gear">Gear ratio · motor → mechanism</label><input type="number" id="gear" value="10" step="0.1" min="0.1"></div>
+    <div class="row"><label for="count">Motor count</label><input type="number" id="count" value="1" step="1" min="1"></div>
+    <div class="row"><label for="load">Load torque at the output (Nm)</label><input type="number" id="load" value="0" step="0.1"></div>
 
-    <div class="calc-results" id="results">
-      <div class="result-row"><span>Max mechanism RPM</span><span class="v" id="maxRpm">—</span></div>
-      <div class="result-row"><span>Max mechanism rps</span><span class="v" id="maxRps">—</span></div>
-      <div class="result-row"><span>Stall torque @ output</span><span class="v" id="stallOut">—</span></div>
-      <div class="result-row"><span>Stall current draw</span><span class="v" id="stallCurr">—</span></div>
-      <div class="result-row"><span>Approx. holding voltage</span><span class="v" id="holdV">—</span></div>
+    <div class="stats" id="results">
+      <div class="result-row"><span class="k">Max mechanism RPM</span><span class="v" id="maxRpm">—</span></div>
+      <div class="result-row"><span class="k">Max mechanism rps</span><span class="v" id="maxRps">—</span></div>
+      <div class="result-row"><span class="k">Stall torque at the output</span><span class="v" id="stallOut">—</span></div>
+      <div class="result-row"><span class="k">Stall current draw</span><span class="v" id="stallCurr">—</span></div>
+      <div class="result-row"><span class="k">Approx. holding voltage</span><span class="v" id="holdV">—</span></div>
     </div>
 
-    <h2 style="margin-top:16px">Catalyst snippet</h2>
-    <div class="snippet" id="snippet">// pick a motor</div>
+    <h2>Catalyst snippet</h2>
+    <pre class="code" id="snippet">// pick a motor</pre>
     <div class="actions">
-      <button class="btn ghost" id="copyConst" title="Copy MotorType.X reference">Copy const</button>
-      <button class="btn" id="copyBuilder">Copy builder line</button>
+      <button class="ghost" id="copyConst" title="Copy the MotorType.X reference">Copy const</button>
+      <button class="primary" id="copyBuilder">Copy builder line</button>
     </div>
   </aside>
+
+  <div class="cards">
+    <div class="card">
+      <div class="card-head">
+        <h2>MotorType presets</h2>
+        <input type="search" id="search" class="grow" placeholder="filter by name…" aria-label="Filter by name" />
+        <select id="vendorFilter" aria-label="Vendor">
+          <option value="">All vendors</option>
+          <option>CTRE</option>
+          <option>REV</option>
+          <option>WCP</option>
+        </select>
+        <select id="focFilter" aria-label="Variant">
+          <option value="">All variants</option>
+          <option value="foc">FOC only</option>
+          <option value="nonfoc">non-FOC only</option>
+        </select>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th data-sort="name">Motor</th>
+            <th class="num" data-sort="torque">Stall torque (Nm)</th>
+            <th class="num" data-sort="speed">Free speed (RPM)</th>
+            <th class="num" data-sort="current">Stall current (A)</th>
+            <th class="num" data-sort="freeCurrent">Free current (A)</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </div>
 </main>
 
-<div class="credit">
+<footer>
   Specs sourced from CTRE / REV / WCP product pages and matched against WPILib 2026's
-  <code>DCMotor.getKraken*</code> / <code>getFalcon500*</code> factories. Same numbers used
+  <code>DCMotor.getKraken*</code> / <code>getFalcon500*</code> factories. The same numbers are used
   inside Catalyst's <a href="../../utilities/#motortype">MotorType</a> class.
-</div>
+</footer>
+
+<div class="toast" id="toast" role="status"></div>
 
 <script>
   // Mirrors the static constants in src/main/java/frc/lib/catalyst/hardware/MotorType.java
@@ -269,11 +129,29 @@
     { id: "MINION",         name: "Minion",         vendor: "WCP",  foc: false, torque: 3.10, speed: 7200,  current: 200, freeCurrent: 1.5 },
   ];
 
+  // Whose motor it is, as one of the identity's three non-signal hues. The signal is not among
+  // them: crimson on this page means "this is the row you picked", and nothing else.
+  const VENDOR_TONE = { CTRE: "info", REV: "ok", WCP: "warn" };
+
   const $ = id => document.getElementById(id);
   let sortKey = "name", sortDir = 1, picked = null;
 
+  let toastTimer = 0;
+  function toast(text, kind) {
+    const t = $("toast");
+    t.textContent = text;
+    t.className = "toast show" + (kind ? " " + kind : "");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
+  }
+
   function fmt(v, digits = 1) {
     return v.toLocaleString(undefined, { maximumFractionDigits: digits, minimumFractionDigits: digits });
+  }
+
+  function chips(m) {
+    return `<span class="chip sm ${VENDOR_TONE[m.vendor] || ""}">${m.vendor}</span>`
+      + (m.foc ? ' <span class="chip sm">FOC</span>' : "");
   }
 
   function render() {
@@ -295,14 +173,14 @@
 
     const tbody = $("rows");
     tbody.innerHTML = "";
+    if (!list.length) {
+      tbody.innerHTML = `<tr><td colspan="5"><p class="empty">Nothing matches that filter.</p></td></tr>`;
+    }
     list.forEach(m => {
       const tr = document.createElement("tr");
       tr.className = (picked && picked.id === m.id) ? "selected" : "";
       tr.innerHTML = `
-        <td>${m.name}
-          <span class="badge ${m.vendor.toLowerCase()}">${m.vendor}</span>
-          ${m.foc ? '<span class="badge foc">FOC</span>' : ''}
-        </td>
+        <td>${m.name} ${chips(m)}</td>
         <td class="num">${fmt(m.torque, 2)}</td>
         <td class="num">${fmt(m.speed, 0)}</td>
         <td class="num">${fmt(m.current, 0)}</td>
@@ -312,24 +190,24 @@
       tbody.appendChild(tr);
     });
 
-    // Sort header indicators
-    document.querySelectorAll("th").forEach(th => {
-      th.classList.remove("sort-asc", "sort-desc");
-      if (th.dataset.sort === sortKey) {
-        th.classList.add(sortDir === 1 ? "sort-asc" : "sort-desc");
-      }
+    // The arrow and the announcement are the same attribute.
+    document.querySelectorAll("th[data-sort]").forEach(th => {
+      if (th.dataset.sort === sortKey) th.setAttribute("aria-sort", sortDir === 1 ? "ascending" : "descending");
+      else th.removeAttribute("aria-sort");
     });
   }
 
   function recompute() {
     if (!picked) {
-      $("picked").textContent = "— pick a motor —";
+      $("picked").textContent = "Pick a motor";
+      $("picked").className = "picked none";
       ["maxRpm","maxRps","stallOut","stallCurr","holdV"].forEach(id => $(id).textContent = "—");
       $("snippet").innerHTML = "// pick a motor";
       return;
     }
 
-    $("picked").innerHTML = `${picked.name} <span class="badge ${picked.vendor.toLowerCase()}">${picked.vendor}</span>${picked.foc ? ' <span class="badge foc">FOC</span>' : ''}`;
+    $("picked").className = "picked";
+    $("picked").innerHTML = `${picked.name} ${chips(picked)}`;
 
     const gear = Math.max(0.0001, parseFloat($("gear").value) || 1);
     const count = Math.max(1, parseInt($("count").value, 10) || 1);
@@ -349,10 +227,13 @@
     $("stallCurr").textContent = fmt(stallCurr, 0) + " A";
     $("holdV").textContent = load === 0 ? "—" : fmt(holdV, 2) + " V";
 
-    const builderLine = count === 1
-        ? `.motorType(MotorType.${picked.id})`
-        : `.motorType(MotorType.${picked.id})\n// + ${count - 1} follower(s) via .follower(canId, oppose)`;
-    $("snippet").innerHTML = highlight(builderLine);
+    $("snippet").innerHTML = highlight(builderLine(count));
+  }
+
+  function builderLine(count) {
+    return count === 1
+      ? `.motorType(MotorType.${picked.id})`
+      : `.motorType(MotorType.${picked.id})\n// + ${count - 1} follower(s) via .follower(canId, oppose)`;
   }
 
   function highlight(code) {
@@ -363,11 +244,16 @@
       .replace(/\b(\d+\.?\d*)\b/g, '<span class="lit">$1</span>');
   }
 
+  async function copy(text) {
+    try { await navigator.clipboard.writeText(text); toast("Copied.", "ok"); }
+    catch { toast("Clipboard blocked — " + text, "bad"); }
+  }
+
   // ---- UI wiring ----
   ["search","vendorFilter","focFilter"].forEach(id => $(id).addEventListener("input", render));
   ["gear","count","load"].forEach(id => $(id).addEventListener("input", recompute));
 
-  document.querySelectorAll("th").forEach(th => {
+  document.querySelectorAll("th[data-sort]").forEach(th => {
     th.onclick = () => {
       const key = th.dataset.sort;
       if (sortKey === key) sortDir = -sortDir;
@@ -376,29 +262,16 @@
     };
   });
 
-  $("copyConst").onclick = async () => {
-    if (!picked) return;
-    try {
-      await navigator.clipboard.writeText(`MotorType.${picked.id}`);
-      $("copyConst").textContent = "Copied ✓";
-      setTimeout(() => $("copyConst").textContent = "Copy const", 900);
-    } catch { alert(`MotorType.${picked.id}`); }
-  };
-  $("copyBuilder").onclick = async () => {
+  $("copyConst").onclick = () => { if (picked) copy(`MotorType.${picked.id}`); };
+  $("copyBuilder").onclick = () => {
     if (!picked) return;
     const count = Math.max(1, parseInt($("count").value, 10) || 1);
-    const text = count === 1
-        ? `.motorType(MotorType.${picked.id})`
-        : `.motorType(MotorType.${picked.id})  // + ${count - 1} follower(s) via .follower(canId, oppose)`;
-    try {
-      await navigator.clipboard.writeText(text);
-      $("copyBuilder").textContent = "Copied ✓";
-      setTimeout(() => $("copyBuilder").textContent = "Copy builder line", 900);
-    } catch { alert(text); }
+    copy(count === 1
+      ? `.motorType(MotorType.${picked.id})`
+      : `.motorType(MotorType.${picked.id})  // + ${count - 1} follower(s) via .follower(canId, oppose)`);
   };
 
-  render();
-  // Auto-pick Kraken X60 as a sensible default so the calculator isn't empty.
+  // Kraken X60 to start with, so the calculator is never an empty form.
   picked = MOTORS[0];
   render();
   recompute();

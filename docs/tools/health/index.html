@@ -6,24 +6,24 @@
 <title>Catalyst Health</title>
 <style>
   :root {
-    --bg-0: #1a1a2e;
-    --bg-1: #16213e;
-    --bg-card: #1f2a44;
-    --bg-input: #0e1626;
+    --bg-0: #0d0e12;
+    --bg-1: #131418;
+    --bg-card: #1a1c21;
+    --bg-input: #0d0e12;
     --accent: #e94560;
-    --fg: #ffffff;
-    --fg-muted: #8892b0;
-    --fg-dim: #5a6478;
-    --ok: #4ade80;
-    --warn: #fbbf24;
-    --err: #f87171;
-    --info: #60a5fa;
-    --border: #2a3a5c;
+    --fg: #e8e9ec;
+    --fg-muted: #9a9ba1;
+    --fg-dim: #8a8c94;
+    --ok: #58c98b;
+    --warn: #ffbf63;
+    --err: #ff5d76;
+    --info: #7fa8c9;
+    --border: #2f323a;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    font-family: "Segoe UI Variable Text", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
     background: linear-gradient(135deg, var(--bg-0), var(--bg-1));
     color: var(--fg);
     min-height: 100vh;
@@ -35,7 +35,7 @@
     align-items: center;
     gap: 16px;
     border-bottom: 1px solid var(--border);
-    background: rgba(15, 26, 46, 0.7);
+    background: color-mix(in srgb, var(--bg-1) 70%, transparent);
     backdrop-filter: blur(8px);
     position: sticky;
     top: 0;
@@ -54,7 +54,7 @@
     padding: 8px 12px;
     border-radius: 6px;
     width: 200px;
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums;
     font-size: 13px;
   }
   .conn input[type="text"]:focus { outline: none; border-color: var(--accent); }
@@ -143,9 +143,9 @@
   }
   .subsystem-name { font-weight: 700; font-size: 14px; }
   .subsystem-status { font-size: 11px; padding: 3px 8px; border-radius: 999px; font-weight: 700; letter-spacing: 0.5px; }
-  .subsystem-status.ok { background: rgba(74, 222, 128, 0.15); color: var(--ok); }
-  .subsystem-status.warn { background: rgba(251, 191, 36, 0.15); color: var(--warn); }
-  .subsystem-status.err { background: rgba(248, 113, 113, 0.15); color: var(--err); }
+  .subsystem-status.ok { background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); }
+  .subsystem-status.warn { background: color-mix(in srgb, var(--warn) 15%, transparent); color: var(--warn); }
+  .subsystem-status.err { background: color-mix(in srgb, var(--err) 15%, transparent); color: var(--err); }
 
   .checks { padding: 4px 0; }
   .check {
@@ -165,14 +165,14 @@
   .check-dot.info { background: var(--info); }
   @keyframes pulseFire { 50% { opacity: 0.5; } }
 
-  .check-id { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; font-weight: 600; }
+  .check-id { font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums; font-size: 13px; font-weight: 600; }
   .check-desc { font-size: 12px; color: var(--fg-muted); margin-top: 2px; }
   .check.firing .check-id { color: var(--warn); }
   .check.firing.err .check-id { color: var(--err); }
 
   .check-detail {
     text-align: right;
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums;
     font-size: 12px;
     color: var(--fg);
   }
@@ -233,7 +233,7 @@
   }
   .timeline-lane:last-child { border-bottom: 0; }
   .timeline-lane .lane-name {
-    font-size: 11px; font-family: ui-monospace, monospace;
+    font-size: 11px; font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums;
     color: var(--fg-muted);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
@@ -274,13 +274,13 @@
   .timeline-tooltip .tt-id { color: var(--accent); font-weight: 600; }
   .timeline-tooltip .tt-kind.fired   { color: var(--warn); }
   .timeline-tooltip .tt-kind.cleared { color: var(--ok); }
-  .timeline-tooltip .tt-detail { color: var(--fg-muted); margin-top: 4px; font-family: ui-monospace, monospace; font-size: 11px; }
+  .timeline-tooltip .tt-detail { color: var(--fg-muted); margin-top: 4px; font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums; font-size: 11px; }
 
   footer {
     position: fixed;
     bottom: 0; left: 0; right: 0;
     padding: 10px 32px;
-    background: rgba(15, 26, 46, 0.95);
+    background: color-mix(in srgb, var(--bg-1) 95%, transparent);
     backdrop-filter: blur(8px);
     border-top: 1px solid var(--border);
     display: flex;
@@ -297,7 +297,7 @@
 <header>
   <div class="brand">
     <svg viewBox="0 0 100 100">
-      <path d="M55,10 L35,52 L52,48 L42,90 L70,40 L52,44 L62,10 Z" fill="#e94560"/>
+      <path d="M55,10 L35,52 L52,48 L42,90 L70,40 L52,44 L62,10 Z" fill="var(--accent)"/>
     </svg>
     <div>
       <span class="brand-title">CATALYST</span>
@@ -346,21 +346,21 @@
       gap: 10px; margin: 0 0 18px;
     }
     .vital {
-      background: var(--panel, #16161f); border: 1px solid var(--line, #2a2a38);
+      background: var(--bg-card); border: 1px solid var(--border);
       border-radius: 10px; padding: 10px 12px;
     }
     .vital .k {
       font-size: 10px; letter-spacing: 0.6px; text-transform: uppercase;
-      color: var(--muted, #8b8b9e); font-weight: 700;
+      color: var(--fg-muted); font-weight: 700;
     }
     .vital .v {
-      font-family: ui-monospace, monospace; font-size: 18px; font-weight: 700;
+      font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums; font-size: 18px; font-weight: 700;
       margin-top: 3px; font-variant-numeric: tabular-nums;
     }
-    .vital.warn { border-color: var(--warn, #fbbf24); }
-    .vital.bad  { border-color: var(--err, #f87171); }
-    .vital.warn .v { color: var(--warn, #fbbf24); }
-    .vital.bad  .v { color: var(--err, #f87171); }
+    .vital.warn { border-color: var(--warn); }
+    .vital.bad  { border-color: var(--err); }
+    .vital.warn .v { color: var(--warn); }
+    .vital.bad  .v { color: var(--err); }
   </style>
 
   <div id="empty" class="empty">

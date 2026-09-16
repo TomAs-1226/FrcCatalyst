@@ -4,175 +4,39 @@
   <meta charset="utf-8" />
   <title>Catalyst Motion Profile Visualizer</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="../tool.css" />
+  <script src="../tool.js" defer></script>
   <style>
-    :root {
-      --bg: #0f1424;
-      --bg-2: #161c33;
-      --panel: #1b2240;
-      --panel2: #131831;
-      --accent: #e94560;
-      --accent2: #f0648a;
-      --text: #f4f4f8;
-      --muted: #8a8aa8;
-      --pos: #4ade80;
-      --vel: #60a5fa;
-      --acc: #fbbf24;
-      --border: rgba(255,255,255,0.07);
-    }
-    * { box-sizing: border-box; }
-    html, body {
-      margin: 0; padding: 0;
-      background:
-        radial-gradient(ellipse at 80% 0%, rgba(233,69,96,0.10), transparent 60%),
-        radial-gradient(ellipse at 0% 100%, rgba(96,165,250,0.08), transparent 60%),
-        var(--bg);
-      color: var(--text);
-      font-family: ui-sans-serif, system-ui, -apple-system, "SF Pro Text", Segoe UI, sans-serif;
-      min-height: 100vh;
-    }
-    header {
-      padding: 16px 28px;
-      background: linear-gradient(180deg, rgba(27,34,64,0.85) 0%, transparent 100%);
-      border-bottom: 1px solid var(--border);
-      display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-      backdrop-filter: blur(6px);
-      position: sticky; top: 0; z-index: 5;
-    }
-    header h1 { margin: 0; font-size: 18px; font-weight: 700; }
-    header .badge {
-      display: inline-block; padding: 2px 10px; border-radius: 999px;
-      background: var(--accent); color: #fff; font-size: 11px; font-weight: 600;
-    }
-    header .hint { color: var(--muted); font-size: 13px; }
-    header .back {
-      color: var(--accent2); text-decoration: none; font-size: 13px;
-      margin-left: auto;
-    }
-    main {
-      display: grid;
-      grid-template-columns: 360px 1fr;
-      gap: 20px;
-      padding: 22px 24px;
-      min-height: calc(100vh - 60px);
-    }
-    aside {
-      background: linear-gradient(180deg, var(--panel) 0%, var(--panel2) 100%);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 22px 20px;
-      overflow-y: auto;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
-    }
-    aside h2 {
-      margin: 0 0 12px;
-      font-size: 11px; text-transform: uppercase; letter-spacing: 1.4px;
-      color: var(--muted); font-weight: 700;
-    }
-    aside h2:not(:first-child) { margin-top: 22px; }
-    .row { display: grid; grid-template-columns: 1fr; gap: 6px; margin-bottom: 14px; }
-    .row label {
-      color: var(--muted); font-size: 12px;
-      display: flex; justify-content: space-between; align-items: baseline;
-    }
-    .row label span.value {
-      color: var(--accent2); font-family: ui-monospace, "SF Mono", Menlo, monospace;
-      font-weight: 600;
-    }
-    .row input[type=range] {
-      width: 100%; accent-color: var(--accent);
-      height: 4px; appearance: none; background: rgba(255,255,255,0.07);
-      border-radius: 999px;
-    }
-    .row input[type=range]::-webkit-slider-thumb {
-      appearance: none; width: 16px; height: 16px;
-      background: var(--accent); border-radius: 50%;
-      box-shadow: 0 2px 6px rgba(233,69,96,0.5);
-      cursor: pointer;
-    }
-    .stats {
-      background: rgba(255,255,255,0.03);
-      border: 1px solid var(--border);
-      border-radius: 10px; padding: 14px;
-    }
-    .stat-row {
-      display: flex; justify-content: space-between;
-      padding: 4px 0; font-size: 13px;
-    }
-    .stat-row .v {
-      font-family: ui-monospace, monospace; color: var(--accent2);
-      font-weight: 600;
-    }
-    .stat-row.warn .v { color: var(--acc); }
-    .preset-row { display: flex; gap: 6px; flex-wrap: wrap; }
-    .preset-btn {
-      background: transparent; color: var(--text);
-      border: 1px solid var(--border); border-radius: 999px;
-      padding: 5px 12px; font-size: 11px; cursor: pointer;
-      transition: border-color 0.12s ease, color 0.12s ease, transform 0.12s ease;
-    }
-    .preset-btn:hover {
-      border-color: var(--accent);
-      color: var(--accent2);
-      transform: translateY(-1px);
-    }
-    .export {
-      background: linear-gradient(135deg, var(--accent), #ff6b8a);
-      color: #fff; border: 0; border-radius: 8px;
-      padding: 10px 14px; font-size: 13px; font-weight: 600;
-      cursor: pointer; width: 100%;
-      box-shadow: 0 4px 12px rgba(233,69,96,0.35);
-      transition: transform 0.12s ease, box-shadow 0.12s ease;
-    }
-    .export:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(233,69,96,0.5); }
-    .export code { background: rgba(255,255,255,0.18); padding: 1px 6px; border-radius: 4px; font-size: 11px; }
-    .chart-area {
-      display: flex; flex-direction: column; gap: 14px;
-    }
-    .chart {
-      background: linear-gradient(180deg, var(--panel) 0%, var(--panel2) 100%);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 16px 18px 8px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
-    }
-    .chart-head {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 10px;
-    }
-    .chart-head h3 {
-      margin: 0;
-      font-size: 12px; text-transform: uppercase;
-      letter-spacing: 1.2px; color: var(--muted); font-weight: 700;
-    }
-    .chart-head .peak {
-      font-size: 11px; color: var(--muted); font-family: ui-monospace, monospace;
-    }
-    .chart-head .peak strong { color: var(--accent2); }
-    .legend-dot {
-      display: inline-block; width: 10px; height: 10px;
-      border-radius: 50%; margin-right: 6px;
-      box-shadow: 0 0 8px currentColor;
-    }
-    canvas { width: 100%; display: block; }
-    .credit {
-      padding: 14px 28px; color: var(--muted); font-size: 12px;
-      border-top: 1px solid var(--border); margin-top: 0;
-    }
-    .credit a { color: var(--accent2); text-decoration: none; }
-    .credit a:hover { text-decoration: underline; }
+    /* This tool's own: the height of the three chart wells, and the one colour
+       rule that means something here. Header, sidebar, cards, sliders, preset
+       buttons, readout rows, legends and the copy button are ../tool.css.
 
-    @media (max-width: 900px) {
-      main { grid-template-columns: 1fr; padding: 14px; }
-    }
+       The three series are the identity's status hues, which are the only
+       colours besides the signal on any Catalyst screen, and each one is on a
+       chart of its own: position is ok (#58c98b), velocity is info (#7fa8c9),
+       acceleration is warn (#ffbf63) — the amber reads as "this is the one
+       with a sign in it", which is the chart that flips through zero. Crimson
+       is not among them: it means the one action on the screen.
+
+       A canvas with a width attribute and no CSS height keeps that attribute's
+       aspect ratio, so each of these was rendering about 460px tall and only
+       one fitted on a screen. They are told their height, and all three now
+       read at once - which is the whole point of stacking them. */
+    canvas { height: 176px; }
+
+    /* The one estimate that is a judgement rather than a number: a profile that
+       never reaches cruise is not wrong, but it means the cruise slider is not
+       doing anything. */
+    .stat-row.warn .v { color: var(--cat-warn); }
   </style>
 </head>
 <body>
 
 <header>
   <h1>Motion Profile Visualizer</h1>
-  <span class="badge">v2.0.0-alpha.3 beta</span>
+  <span class="badge">2.0.0-alpha.3</span>
   <span class="hint">Sketch a Motion Magic profile before committing constants.</span>
-  <a href="../" class="back">← Catalyst tools</a>
+  <a href="../" class="back"></a>
 </header>
 
 <main>
@@ -196,7 +60,7 @@
     </div>
 
     <h2>Presets</h2>
-    <div class="preset-row">
+    <div class="actions">
       <button class="preset-btn" data-preset="elevator">Elevator</button>
       <button class="preset-btn" data-preset="arm">Arm</button>
       <button class="preset-btn" data-preset="flywheel">Flywheel</button>
@@ -205,36 +69,45 @@
 
     <h2>Estimated</h2>
     <div class="stats">
-      <div class="stat-row"><span>Total time</span><span class="v" id="totalTime">—</span></div>
-      <div class="stat-row"><span>Time at cruise</span><span class="v" id="cruiseTime">—</span></div>
-      <div class="stat-row" id="reachedRow"><span>Reaches cruise?</span><span class="v" id="reachedCruise">—</span></div>
-      <div class="stat-row"><span>Peak velocity</span><span class="v" id="peakVel">—</span></div>
-      <div class="stat-row"><span>Peak accel</span><span class="v" id="peakAccel">—</span></div>
+      <div class="stat-row"><span class="k">Total time</span><span class="v" id="totalTime">—</span></div>
+      <div class="stat-row"><span class="k">Time at cruise</span><span class="v" id="cruiseTime">—</span></div>
+      <div class="stat-row" id="reachedRow"><span class="k">Reaches cruise?</span><span class="v" id="reachedCruise">—</span></div>
+      <div class="stat-row"><span class="k">Peak velocity</span><span class="v" id="peakVel">—</span></div>
+      <div class="stat-row"><span class="k">Peak accel</span><span class="v" id="peakAccel">—</span></div>
     </div>
 
     <h2>Catalyst snippet</h2>
-    <button class="export" id="copyBtn">Copy <code>.motionMagic(…)</code></button>
+    <button class="copy" id="copyBtn">Copy <code>.motionMagic(…)</code></button>
   </aside>
 
-  <div class="chart-area">
-    <div class="chart">
-      <div class="chart-head">
-        <h3><span class="legend-dot" style="background:var(--pos);color:var(--pos)"></span>Position (rotations)</h3>
-        <span class="peak">peak <strong id="peakPos">—</strong></span>
+  <div class="cards">
+    <div class="card">
+      <div class="card-head">
+        <h2>Position (rotations)</h2>
+        <span class="legend">
+          <span class="lg"><i class="swatch" style="--c: var(--cat-ok)"></i>p(t)</span>
+          <span class="lg">peak <span class="v" id="peakPos">—</span></span>
+        </span>
       </div>
       <canvas id="chartPos" height="140"></canvas>
     </div>
-    <div class="chart">
-      <div class="chart-head">
-        <h3><span class="legend-dot" style="background:var(--vel);color:var(--vel)"></span>Velocity (rps)</h3>
-        <span class="peak">peak <strong id="peakVelLabel">—</strong></span>
+    <div class="card">
+      <div class="card-head">
+        <h2>Velocity (rps)</h2>
+        <span class="legend">
+          <span class="lg"><i class="swatch" style="--c: var(--cat-info)"></i>v(t)</span>
+          <span class="lg">peak <span class="v" id="peakVelLabel">—</span></span>
+        </span>
       </div>
       <canvas id="chartVel" height="140"></canvas>
     </div>
-    <div class="chart">
-      <div class="chart-head">
-        <h3><span class="legend-dot" style="background:var(--acc);color:var(--acc)"></span>Acceleration (rps²)</h3>
-        <span class="peak">peak <strong id="peakAccLabel">—</strong></span>
+    <div class="card">
+      <div class="card-head">
+        <h2>Acceleration (rps²)</h2>
+        <span class="legend">
+          <span class="lg"><i class="swatch" style="--c: var(--cat-warn)"></i>a(t)</span>
+          <span class="lg">peak <span class="v" id="peakAccLabel">—</span></span>
+        </span>
       </div>
       <canvas id="chartAcc" height="140"></canvas>
     </div>
@@ -250,6 +123,12 @@
 </div>
 
 <script>
+  // Palette and type — read once from the identity tokens the chrome puts on :root, so this file
+  // names no colour and no font of its own.
+  const CSSVARS = getComputedStyle(document.documentElement);
+  const COL = n => CSSVARS.getPropertyValue(n).trim();
+  const AXIS_FONT = `${COL("--cat-fs-11")} ${COL("--cat-mono")}`;
+
   // ============================================================
   // Profile solvers
   // ============================================================
@@ -431,6 +310,10 @@
 
   // ============================================================
   // Charting
+  //
+  // Nothing here animates. These redraw on every `input` event while a slider is
+  // under the pointer, and a curve easing into place is a curve you cannot read
+  // while you are dragging it.
   // ============================================================
   function drawChart(canvasId, samples, accessor, color, opts = {}) {
     const c = document.getElementById(canvasId);
@@ -466,7 +349,7 @@
     const yS = v => padT + (1 - (v - yLo) / (yHi - yLo)) * plotH;
 
     // Grid
-    ctx.strokeStyle = "rgba(255,255,255,0.05)";
+    ctx.strokeStyle = COL("--cat-hair");
     ctx.lineWidth = 1;
     for (let i = 0; i <= 4; i++) {
       const yy = padT + (i / 4) * plotH;
@@ -475,15 +358,15 @@
     // Zero line (if visible)
     if (yLo < 0 && yHi > 0) {
       const zy = yS(0);
-      ctx.strokeStyle = "rgba(255,255,255,0.18)";
+      ctx.strokeStyle = COL("--cat-line-strong");
       ctx.setLineDash([4, 4]);
       ctx.beginPath(); ctx.moveTo(padL, zy); ctx.lineTo(padL + plotW, zy); ctx.stroke();
       ctx.setLineDash([]);
     }
 
     // Axis labels
-    ctx.fillStyle = "#8a8aa8";
-    ctx.font = "11px ui-monospace, monospace";
+    ctx.fillStyle = COL("--cat-dim");
+    ctx.font = AXIS_FONT;
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
     for (let i = 0; i <= 4; i++) {
@@ -516,11 +399,10 @@
       ctx.fill();
     }
 
-    // Line
+    // Line. No glow: a stroke that lights the ground around it is a light source
+    // arguing with the reading, and depth on this ground comes from tone.
     ctx.strokeStyle = color;
     ctx.lineWidth = 2;
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 6;
     ctx.beginPath();
     for (let i = 0; i < samples.length; i++) {
       const s = samples[i];
@@ -528,7 +410,6 @@
       if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
     }
     ctx.stroke();
-    ctx.shadowBlur = 0;
   }
 
   // ============================================================
@@ -582,9 +463,9 @@
     $("peakVelLabel").textContent = peakV.toFixed(2) + " rps";
     $("peakAccLabel").textContent = peakA.toFixed(1) + " rps²";
 
-    drawChart("chartPos", samples, s => s.p, "#4ade80");
-    drawChart("chartVel", samples, s => s.v, "#60a5fa");
-    drawChart("chartAcc", samples, s => s.a, "#fbbf24", { includeZero: true });
+    drawChart("chartPos", samples, s => s.p, COL("--cat-ok"));
+    drawChart("chartVel", samples, s => s.v, COL("--cat-info"));
+    drawChart("chartAcc", samples, s => s.a, COL("--cat-warn"), { includeZero: true });
   }
 
   // ============================================================
@@ -610,13 +491,14 @@
   // ============================================================
   // Snippet copy
   // ============================================================
+  const COPY_LABEL = 'Copy <code>.motionMagic(…)</code>';
   $("copyBtn").onclick = async () => {
     const s = readState();
     const snippet = `.motionMagic(${s.cruise.toFixed(2)}, ${s.accel.toFixed(1)}, ${s.jerk.toFixed(0)})`;
     try {
       await navigator.clipboard.writeText(snippet);
       $("copyBtn").innerHTML = "Copied ✓";
-      setTimeout(() => $("copyBtn").innerHTML = 'Copy <code>.motionMagic(…)</code>', 1000);
+      setTimeout(() => $("copyBtn").innerHTML = COPY_LABEL, 1000);
     } catch {
       alert("Clipboard blocked. Snippet: " + snippet);
     }

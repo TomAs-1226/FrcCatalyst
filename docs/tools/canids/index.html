@@ -4,251 +4,195 @@
   <meta charset="utf-8" />
   <title>Catalyst CAN ID Planner</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="../tool.css" />
+  <script src="../tool.js" defer></script>
   <style>
-    :root {
-      --bg: #0f1424;
-      --panel: #1b2240;
-      --panel2: #131831;
-      --accent: #e94560;
-      --accent2: #f0648a;
-      --text: #f4f4f8;
-      --muted: #8a8aa8;
-      --border: rgba(255,255,255,0.07);
-      --good: #4ade80;
-      --warn: #fbbf24;
-      --err:  #f87171;
-    }
-    * { box-sizing: border-box; }
-    html, body {
-      margin: 0; padding: 0;
-      background:
-        radial-gradient(ellipse at 0% 0%, rgba(74,222,128,0.06), transparent 60%),
-        radial-gradient(ellipse at 100% 100%, rgba(233,69,96,0.08), transparent 60%),
-        var(--bg);
-      color: var(--text);
-      font-family: ui-sans-serif, system-ui, -apple-system, "SF Pro Text", Segoe UI, sans-serif;
-      min-height: 100vh;
-    }
-    header {
-      padding: 16px 28px;
-      border-bottom: 1px solid var(--border);
-      display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-      backdrop-filter: blur(6px);
-      position: sticky; top: 0; z-index: 5;
-      background: linear-gradient(180deg, rgba(27,34,64,0.85) 0%, transparent 100%);
-    }
-    header h1 { margin: 0; font-size: 18px; font-weight: 700; }
-    header .badge { padding: 2px 10px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 600; }
-    header .hint { color: var(--muted); font-size: 13px; }
-    header .back { color: var(--accent2); text-decoration: none; font-size: 13px; margin-left: auto; }
+    /* This tool's own: the four summary tiles, the SPI controller strip, the
+       device rows and the generated code's colours. Everything else - header,
+       sidebar, cards, fields, buttons, the segmented control, the code block,
+       the toast - is ../tool.css. */
 
-    main {
-      display: grid; grid-template-columns: 360px 1fr;
-      gap: 20px; padding: 22px 24px;
-    }
-    .left, .right {
-      background: linear-gradient(180deg, var(--panel) 0%, var(--panel2) 100%);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 20px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
-    }
-    h2 { margin: 0 0 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 1.4px; color: var(--muted); font-weight: 700; }
-    h2:not(:first-child) { margin-top: 22px; }
+    /* ---------------------------------------------- what the plan adds up to */
+    .summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--cat-space-3); }
 
-    .row { display: grid; grid-template-columns: 1fr; gap: 6px; margin-bottom: 10px; }
-    .row label { color: var(--muted); font-size: 12px; }
-    .row input, .row select {
-      background: var(--bg); color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 7px 10px; font-size: 13px;
-      font-family: inherit;
+    .tile {
+      display: grid;
+      gap: var(--cat-space-1);
+      padding: var(--cat-space-3);
+      border: 1px solid var(--cat-line);
+      border-radius: var(--cat-r-inner);
+      background: var(--cat-surface-2);
+      transition: border-color var(--cat-dur-effect) var(--cat-ease-effect),
+                  background-color var(--cat-dur-effect) var(--cat-ease-effect);
     }
-    .row input:focus, .row select:focus { border-color: var(--accent); outline: none; }
-    .row.compact { grid-template-columns: 70px 1fr; align-items: center; }
 
-    .btn {
-      background: linear-gradient(135deg, var(--accent), #ff6b8a);
-      color: #fff; border: 0; border-radius: 8px;
-      padding: 9px 14px; font-size: 13px; font-weight: 600;
-      cursor: pointer; box-shadow: 0 4px 12px rgba(233,69,96,0.35);
-      transition: transform 0.12s ease;
+    .tile .val {
+      font-family: var(--cat-mono);
+      font-size: var(--cat-fs-22);
+      font-weight: var(--cat-w-semi);
+      color: var(--cat-ink-strong);
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
-    .btn:hover { transform: translateY(-1px); }
-    .btn.ghost {
-      background: transparent; color: var(--text);
-      border: 1px solid var(--border); box-shadow: none;
-    }
-    .btn.ghost:hover { border-color: var(--accent); color: var(--accent2); }
-    .btn.danger {
-      background: transparent; color: var(--err);
-      border: 1px solid rgba(248,113,113,0.3);
-      padding: 4px 8px; font-size: 11px;
-      box-shadow: none;
-    }
-    .btn.danger:hover { background: rgba(248,113,113,0.12); }
 
-    .device-list { display: flex; flex-direction: column; gap: 8px; }
+    /* The one crimson on this page that is not a control. Every tile used to
+       carry it, which made the four numbers look equally alarming; a conflict
+       is the only one of them that is actually wrong. */
+    .tile.bad { border-color: var(--cat-signal-line); background: var(--cat-signal-tint); }
+    .tile.bad .val { color: var(--cat-signal-ink); }
+
+    /* ------------------------------------------------- the SPI pairing, drawn */
+    .controllers { display: grid; gap: var(--cat-space-2); }
+
+    .ctrl {
+      display: grid;
+      grid-template-columns: 96px minmax(0, 1fr) 140px 48px;
+      gap: var(--cat-space-3);
+      align-items: center;
+      padding: var(--cat-space-2) var(--cat-space-3);
+      border: 1px solid var(--cat-line);
+      border-radius: var(--cat-r-inner);
+      background: var(--cat-surface-2);
+      transition: border-color var(--cat-dur-effect) var(--cat-ease-effect),
+                  background-color var(--cat-dur-effect) var(--cat-ease-effect);
+    }
+
+    .ctrl .who {
+      font-family: var(--cat-mono);
+      font-size: var(--cat-fs-11);
+      font-weight: var(--cat-w-bold);
+      letter-spacing: var(--cat-track-eyebrow);
+      text-transform: uppercase;
+      color: var(--cat-dim);
+    }
+
+    .ctrl .buses { display: flex; align-items: center; gap: var(--cat-space-2); flex-wrap: wrap; }
+    .ctrl .join { color: var(--cat-faint); font-family: var(--cat-mono); font-size: var(--cat-fs-11); }
+    .ctrl .alone { color: var(--cat-faint); font-size: var(--cat-fs-11); }
+    .ctrl .tag .n { color: var(--cat-dim); }
+
+    /* Full bar means "at the target for this controller", not "100% of a wire":
+       a shared pair and a lone bus have different ceilings, and the number the
+       planner balances is how close each one is to its own. */
+    .ctrl .meter {
+      height: 6px;
+      border-radius: var(--cat-r-pill);
+      background: var(--cat-surface-3);
+      overflow: hidden;
+    }
+
+    .ctrl .meter > i {
+      display: block;
+      width: 0;
+      height: 100%;
+      border-radius: inherit;
+      background: var(--cat-ink);
+      transition: width var(--cat-dur-settle) var(--cat-ease-settle),
+                  background-color var(--cat-dur-effect) var(--cat-ease-effect);
+    }
+
+    .ctrl .load {
+      font-family: var(--cat-mono);
+      font-size: var(--cat-fs-13);
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+      color: var(--cat-ink);
+      transition: color var(--cat-dur-effect) var(--cat-ease-effect);
+    }
+
+    .ctrl.hot { border-color: var(--cat-warn); background: var(--cat-warn-tint); }
+    .ctrl.hot .meter > i { background: var(--cat-warn); }
+    .ctrl.hot .load { color: var(--cat-warn); }
+
+    /* ------------------------------------------------------------- the plan */
+    .device-list { display: grid; gap: var(--cat-space-5); }
+    .bus-group { display: grid; gap: var(--cat-space-2); }
+
+    /* The heading carries what a coloured stripe down the side of a row never
+       could: which controller this bus hangs off. That is why the rows have no
+       stripe and the palette that drew one is gone. */
+    .bus-group .section-label { display: flex; align-items: baseline; gap: var(--cat-space-2); }
+    .bus-group .note {
+      font-family: var(--cat-sans-text);
+      font-weight: var(--cat-w-normal);
+      letter-spacing: 0;
+      text-transform: none;
+      color: var(--cat-faint);
+    }
+
     .device {
       display: grid;
-      grid-template-columns: 56px 1fr auto;
-      gap: 12px; align-items: center;
-      padding: 10px 12px;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      transition: border-color 0.12s ease, transform 0.12s ease;
+      grid-template-columns: 48px minmax(0, 1fr) auto;
+      gap: var(--cat-space-3);
+      align-items: center;
+      padding: var(--cat-space-2) var(--cat-space-3);
+      border: 1px solid var(--cat-line);
+      border-radius: var(--cat-r-inner);
+      background: var(--cat-surface-2);
+      transition: border-color var(--cat-dur-effect) var(--cat-ease-effect),
+                  background-color var(--cat-dur-effect) var(--cat-ease-effect);
     }
-    .device.conflict { border-color: var(--err); background: rgba(248,113,113,0.06); }
-    /* Colour follows the SPI controller, not the bus, so a plan that piles load onto one
-       controller looks wrong before you read a single warning. */
-    .device.bus-canivore { border-left: 3px solid #fbbf24; }
-    .device.bus-can_s0   { border-left: 3px solid #60a5fa; }
-    .device.bus-can_s1   { border-left: 3px solid #60a5fa; }
-    .device.bus-can_s2   { border-left: 3px solid #4ade80; }
-    .device.bus-can_s3   { border-left: 3px solid #c084fc; }
-    .device.bus-can_s4   { border-left: 3px solid #c084fc; }
+
+    .device.conflict { border-color: var(--cat-signal-line); background: var(--cat-signal-tint); }
 
     .id-chip {
-      font-family: ui-monospace, monospace;
-      font-weight: 700; font-size: 16px;
-      text-align: center;
-      padding: 6px 8px;
-      background: var(--bg);
-      border-radius: 6px;
-      color: var(--accent2);
-    }
-    .device.conflict .id-chip { color: var(--err); }
-    .name { font-size: 13px; font-weight: 600; }
-    .meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
-    /* Shape on .tag, spacing on .meta .tag — the controller strip below reuses the same chips and
-       lays them out itself. */
-    .tag {
-      display: inline-block; padding: 1px 6px;
-      border-radius: 999px;
-      font-size: 10px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    .meta .tag { margin-left: 4px; }
-    .tag.kraken    { background: rgba(96,165,250,0.18); color: #60a5fa; }
-    .tag.falcon    { background: rgba(96,165,250,0.18); color: #60a5fa; }
-    .tag.cancoder  { background: rgba(233,69,96,0.16);  color: var(--accent2); }
-    .tag.pigeon    { background: rgba(251,191,36,0.18); color: var(--warn); }
-    .tag.candle    { background: rgba(252,165,165,0.16);color: #fcd34d; }
-    .tag.candi     { background: rgba(165,180,252,0.18);color: #a5b4fc; }
-    .tag.pdh       { background: rgba(165,243,252,0.18);color: #67e8f9; }
-    .tag.rev       { background: rgba(74,222,128,0.18); color: var(--good); }
-    .tag.wcp       { background: rgba(251,191,36,0.18); color: var(--warn); }
-    .tag.canivore  { background: rgba(251,191,36,0.18); color: var(--warn); }
-    .tag.can_s0    { background: rgba(96,165,250,0.18); color: #60a5fa; }
-    .tag.can_s1    { background: rgba(96,165,250,0.18); color: #60a5fa; }
-    .tag.can_s2    { background: rgba(74,222,128,0.18); color: #4ade80; }
-    .tag.can_s3    { background: rgba(192,132,252,0.18);color: #c084fc; }
-    .tag.can_s4    { background: rgba(192,132,252,0.18);color: #c084fc; }
-
-    .summary {
-      display: grid; grid-template-columns: repeat(4, 1fr);
-      gap: 10px; margin-bottom: 18px;
-    }
-    .summary .card {
-      padding: 12px;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid var(--border);
-      border-radius: 10px;
+      padding: var(--cat-space-1) 0;
+      border-radius: var(--cat-r-inner);
+      background: var(--cat-ground);
+      color: var(--cat-ink);
+      font-family: var(--cat-mono);
+      font-size: var(--cat-fs-15);
+      font-weight: var(--cat-w-bold);
+      font-variant-numeric: tabular-nums;
       text-align: center;
     }
-    .summary .label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
-    .summary .val { font-size: 24px; font-weight: 700; color: var(--accent2); margin-top: 4px; }
-    .summary .card.err .val { color: var(--err); }
-    .summary .card.warn .val { color: var(--warn); }
 
-    /* The SPI pairing, made visible.
-       A device row can only ever show its own bus, so nothing in the list above can say that
-       can_s0 and can_s1 are one shared wire's worth of throughput between them. This strip groups
-       the buses the way the hardware does and prints the load per controller, which is the number
-       the planner is actually balancing. */
-    .controllers { display: grid; gap: 8px; margin-bottom: 18px; }
-    .ctrl {
-      display: grid; grid-template-columns: 86px 1fr auto;
-      gap: 12px; align-items: center;
-      padding: 8px 12px;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-    }
-    .ctrl .who { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
-    .ctrl .buses { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-    .ctrl .join { color: var(--muted); font-size: 11px; font-weight: 700; }
-    .ctrl .alone { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
-    .ctrl .load { font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); }
-    .ctrl .load.over { color: var(--err); font-weight: 700; }
-    .ctrl .tag .n { opacity: 0.65; }
-    .ctrl .load { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-    .ctrl .load b { color: var(--text); font-weight: 700; }
-    .ctrl.hot { border-color: rgba(251,191,36,0.35); background: rgba(251,191,36,0.05); }
-    .ctrl.hot .load b { color: var(--warn); }
-    .ctrl .tag.idle { background: rgba(255,255,255,0.05); color: var(--muted); }
+    .device.conflict .id-chip { color: var(--cat-signal-ink); }
+    .device .name { font-size: var(--cat-fs-13); font-weight: var(--cat-w-semi); color: var(--cat-ink); }
+    .device .meta { display: flex; flex-wrap: wrap; gap: var(--cat-space-1); margin-top: var(--cat-space-1); }
+    /* A ghost's hover is surface-2, which is this row's own colour. */
+    .device .ghost:hover { background: var(--cat-surface-3); }
 
-    .empty {
-      text-align: center; padding: 32px;
-      color: var(--muted); font-size: 13px;
-      border: 1px dashed var(--border);
-      border-radius: 10px;
-    }
+    .tag.bad { border-color: var(--cat-signal-line); background: var(--cat-signal-tint); color: var(--cat-signal-ink); }
 
-    .output {
-      background: var(--bg); border: 1px solid var(--border);
-      border-radius: 10px; padding: 14px;
-      font-family: ui-monospace, monospace; font-size: 12px;
-      max-height: 360px; overflow: auto;
-      white-space: pre;
-    }
-    .actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
-    .seg-mode {
-      display: inline-flex; gap: 0;
-      border: 1px solid var(--border); border-radius: 8px;
-      overflow: hidden; margin-bottom: 8px;
-    }
-    .seg-btn {
-      background: transparent; color: var(--muted);
-      border: 0; padding: 6px 14px; font-size: 12px;
-      cursor: pointer; font-family: inherit;
-      transition: background-color 0.12s ease, color 0.12s ease;
-    }
-    .seg-btn + .seg-btn { border-left: 1px solid var(--border); }
-    .seg-btn:hover { color: var(--text); background: rgba(255,255,255,0.04); }
-    .seg-btn.active {
-      background: var(--accent); color: #fff;
-    }
-    .output .kw  { color: #ef798a; }
-    .output .str { color: #9ee493; }
-    .output .num { color: #f4d35e; }
-    .output .cmt { color: #6a7088; font-style: italic; }
+    /* ------------------------------------------------------------- output */
+    /* Four hues and no more, as the identity allows: a keyword, a string, a
+       number, a comment. The same four the aiming tool prints code in. */
+    .output { max-height: 380px; white-space: pre; }
+    .output .kw  { color: var(--cat-info); }
+    .output .str { color: var(--cat-ok); }
+    .output .num { color: var(--cat-warn); }
+    .output .cmt { color: var(--cat-quiet); font-style: italic; }
 
-    .credit { padding: 14px 28px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); }
-    .credit a { color: var(--accent2); text-decoration: none; }
-    .credit a:hover { text-decoration: underline; }
+    #javaPkg { flex: 1 1 180px; min-width: 0; }
 
-    @media (max-width: 900px) { main { grid-template-columns: 1fr; padding: 14px; } }
+    .credit { max-width: 1440px; margin: 0 auto; padding: 0 var(--cat-space-5) var(--cat-space-6); }
+
+    @media (max-width: 900px) {
+      .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .ctrl { grid-template-columns: 96px minmax(0, 1fr) 48px; }
+      .ctrl .meter { display: none; }
+    }
   </style>
 </head>
 <body>
 
 <header>
   <h1>CAN ID Planner</h1>
-  <span class="badge">v2.0.0-alpha.3 beta</span>
-  <span class="hint">Plan + audit your robot's CAN bus before wiring.</span>
-  <a href="../" class="back">← Catalyst tools</a>
+  <span class="badge">2.0.0-alpha.3</span>
+  <span class="hint">Plan and audit the bus before anything is wired: five Systemcore buses on three SPI controllers.</span>
+  <a href="../" class="back"></a>
 </header>
 
 <main>
-  <div class="left">
+  <aside>
     <h2>Add device</h2>
-    <div class="row compact"><label>Name</label><input type="text" id="dName" placeholder="LeftFrontDrive" /></div>
-    <div class="row compact"><label>CAN ID</label><input type="number" id="dId" min="0" max="62" value="1" /></div>
-    <div class="row compact">
-      <label>Type</label>
+    <div class="row"><label for="dName">Name</label><input type="text" id="dName" placeholder="LeftFrontDrive" /></div>
+    <div class="row"><label for="dId">CAN ID <span class="v">0&ndash;62</span></label><input type="number" id="dId" min="0" max="62" value="1" /></div>
+    <div class="row">
+      <label for="dType">Type</label>
       <select id="dType">
         <option>Kraken X60</option>
         <option>Kraken X44</option>
@@ -265,8 +209,8 @@
         <option>Other</option>
       </select>
     </div>
-    <div class="row compact">
-      <label>Bus</label>
+    <div class="row">
+      <label for="dBus">Bus</label>
       <select id="dBus">
         <option>can_s0</option>
         <option>can_s1</option>
@@ -276,68 +220,78 @@
         <option>canivore</option>
       </select>
     </div>
-    <button class="btn" id="addBtn">+ Add</button>
+    <div class="actions"><button class="primary" id="addBtn">Add device</button></div>
 
     <h2>Quick presets</h2>
-    <div class="actions">
-      <button class="btn ghost" data-preset="swerve">Swerve drivetrain</button>
-      <button class="btn ghost" data-preset="elevator-arm">Elevator + Arm</button>
-      <button class="btn ghost" data-preset="shooter">Shooter</button>
+    <div class="actions stack">
+      <button data-preset="swerve">Swerve drivetrain</button>
+      <button data-preset="elevator-arm">Elevator + Arm</button>
+      <button data-preset="shooter">Shooter</button>
     </div>
 
     <h2>Spread the load</h2>
-    <div class="actions">
-      <button class="btn ghost" id="balanceBtn">Balance across buses</button>
+    <div class="actions stack">
+      <button id="balanceBtn">Balance across controllers</button>
     </div>
 
     <h2>Storage</h2>
-    <div class="actions">
-      <button class="btn ghost" id="exportJson">Export JSON</button>
-      <button class="btn ghost" id="importBtn">Import</button>
-      <button class="btn ghost" id="clearAll">Clear all</button>
+    <div class="actions stack">
+      <button id="exportJson">Export JSON</button>
+      <button id="importBtn">Import</button>
+      <button id="clearAll">Clear all</button>
     </div>
-    <input type="file" id="importFile" accept=".json" style="display:none">
-  </div>
+    <input type="file" id="importFile" accept=".json" hidden>
+  </aside>
 
-  <div class="right">
-    <div class="summary">
-      <div class="card"><div class="label">Devices</div><div class="val" id="sumCount">0</div></div>
-      <div class="card"><div class="label">Buses used</div><div class="val" id="sumBuses">0</div></div>
-      <div class="card"><div class="label">Busiest bus</div><div class="val" id="sumBusiest">-</div></div>
-      <div class="card" id="conflictCard"><div class="label">Conflicts</div><div class="val" id="sumConflicts">0</div></div>
-    </div>
-
-    <h2>SPI controllers</h2>
-    <div id="controllers" class="controllers"></div>
-
-    <h2>Devices</h2>
-    <div id="deviceList" class="device-list"></div>
-    <div id="empty" class="empty" style="display:none">
-      Add your first device on the left, or pick a preset.
+  <div class="cards">
+    <div class="card">
+      <h2>The plan</h2>
+      <div class="summary">
+        <div class="tile"><span class="section-label">Devices</span><span class="val" id="sumCount">0</span></div>
+        <div class="tile"><span class="section-label">Buses used</span><span class="val" id="sumBuses">0</span></div>
+        <div class="tile"><span class="section-label">Busiest bus</span><span class="val" id="sumBusiest">&mdash;</span></div>
+        <div class="tile" id="conflictCard"><span class="section-label">Conflicts</span><span class="val" id="sumConflicts">0</span></div>
+      </div>
     </div>
 
-    <h2 style="margin-top:22px">Output</h2>
-    <div class="seg-mode">
-      <button class="seg-btn active" data-mode="text">Wiring summary</button>
-      <button class="seg-btn" data-mode="java">Catalyst Java</button>
+    <div class="card">
+      <h2>SPI controllers</h2>
+      <p class="hint">can_s0 and can_s1 share a controller, can_s3 and can_s4 share another, can_s2 has one to itself. The figure is the controller's load against its own ceiling, because the controller is what runs out.</p>
+      <div id="controllers" class="controllers"></div>
     </div>
-    <pre id="output" class="output">— add devices to see the summary —</pre>
-    <div class="actions" id="textActions">
-      <button class="btn" id="copyOutput">Copy</button>
-      <button class="btn ghost" id="downloadTxt">Download .txt</button>
+
+    <div class="card">
+      <h2>Devices</h2>
+      <div id="deviceList" class="device-list"></div>
+      <div id="empty" class="empty" hidden>Add your first device on the left, or pick a preset.</div>
     </div>
-    <div class="actions" id="javaActions" style="display:none">
-      <input type="text" id="javaPkg" placeholder="frc.robot" value="frc.robot" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:12px;font-family:ui-monospace,monospace;flex:1">
-      <button class="btn" id="copyJava">Copy</button>
-      <button class="btn ghost" id="downloadJava">Download CANIds.java</button>
+
+    <div class="card">
+      <h2>Output</h2>
+      <div class="seg" id="outputMode">
+        <button type="button" data-mode="text" aria-pressed="true">Wiring summary</button>
+        <button type="button" data-mode="java" aria-pressed="false">Catalyst Java</button>
+      </div>
+      <pre id="output" class="output">&mdash; add devices to see the summary &mdash;</pre>
+      <div class="actions" id="textActions">
+        <button class="primary" id="copyOutput">Copy</button>
+        <button id="downloadTxt">Download .txt</button>
+      </div>
+      <div class="actions" id="javaActions" hidden>
+        <input type="text" id="javaPkg" class="v" placeholder="frc.robot" value="frc.robot" aria-label="Java package">
+        <button class="primary" id="copyJava">Copy</button>
+        <button id="downloadJava">Download CANIds.java</button>
+      </div>
     </div>
   </div>
 </main>
 
-<div class="credit">
-  Stores everything in <code>localStorage</code> — your plan survives reload. Export to JSON to share with your wiring team or check into the robot repo.
-  &nbsp;·&nbsp; <a href="../wiring/" style="color:var(--accent2)">⚡ Generate a wiring diagram →</a> imports these devices directly.
-</div>
+<p class="credit">
+  Stores everything in <code>localStorage</code>, so a plan survives a reload. Export to JSON to share it with the wiring team or check it into the robot repo.
+  &nbsp;&middot;&nbsp; <a href="../wiring/">Generate a wiring diagram &rarr;</a> imports these devices directly.
+</p>
+
+<div class="toast" id="toast"></div>
 
 <script>
   const $ = id => document.getElementById(id);
@@ -354,20 +308,6 @@
       // that no longer exists, and silently dropping those devices would be worse than moving them.
       if (raw) devices = (JSON.parse(raw) || []).map(d => ({ ...d, bus: normaliseBus(d.bus) }));
     } catch {}
-  }
-
-  function tagClass(type) {
-    const t = type.toLowerCase();
-    if (t.includes("kraken")) return "kraken";
-    if (t.includes("falcon")) return "falcon";
-    if (t.includes("cancoder")) return "cancoder";
-    if (t.includes("pigeon")) return "pigeon";
-    if (t.includes("candle")) return "candle";
-    if (t.includes("candi")) return "candi";
-    if (t.includes("pdh")) return "pdh";
-    if (t.includes("neo")) return "rev";
-    if (t.includes("minion")) return "wcp";
-    return "";
   }
 
   // Systemcore's five CAN buses, and the SPI controller each one hangs off.
@@ -595,51 +535,63 @@
   function render() {
     const conflicts = detectConflicts();
     const list = $("deviceList");
-    list.innerHTML = "";
     // Sort by bus then id for stable display.
     const sorted = devices.map((d, i) => ({ ...d, _i: i }))
       .sort((a, b) => a.bus.localeCompare(b.bus) || a.id - b.id);
-    sorted.forEach(d => {
-      const conflict = conflicts.has(d._i);
-      const el = document.createElement("div");
-      el.className = "device bus-" + d.bus + (conflict ? " conflict" : "");
-      const cls = tagClass(d.type);
-      el.innerHTML = `
-        <div class="id-chip">${d.id}</div>
-        <div>
-          <div class="name">${escapeHtml(d.name || "(unnamed)")}</div>
-          <div class="meta">
-            <span class="tag ${cls}">${escapeHtml(d.type)}</span>
-            <span class="tag ${d.bus}">${d.bus}</span>
-            ${conflict ? '<span class="tag" style="background:rgba(248,113,113,0.16);color:var(--err)">conflict</span>' : ''}
-          </div>
-        </div>
-        <button class="btn danger" data-i="${d._i}">remove</button>
-      `;
-      list.appendChild(el);
-    });
 
-    $("empty").style.display = devices.length === 0 ? "" : "none";
+    // Grouped under a heading per bus rather than colour-coded per row. The five
+    // buses needed five hues nothing else on the site uses, and a stripe down the
+    // side of a row still could not say the one thing worth saying about a bus,
+    // which is which controller it hangs off. A heading can.
+    list.innerHTML = ALL_BUSES.map(bus => {
+      const onBus = sorted.filter(d => d.bus === bus);
+      if (onBus.length === 0) return "";
+      const pair = busPair(bus);
+      const note = bus === "canivore" ? "its own hardware"
+          : pair ? `shares a controller with ${pair}`
+          : "a controller to itself";
+      return `<div class="bus-group">
+          <div class="section-label">${bus}<span class="note">${onBus.length} device${onBus.length === 1 ? "" : "s"} &middot; ${note}</span></div>
+          ${onBus.map(d => deviceRow(d, conflicts.has(d._i))).join("")}
+        </div>`;
+    }).join("");
+
+    list.hidden = devices.length === 0;
+    $("empty").hidden = devices.length > 0;
     $("sumCount").textContent = devices.length;
     const perBus = ALL_BUSES.map(b => [b, devices.filter(d => d.bus === b).length])
                             .filter(([, n]) => n > 0)
                             .sort((a, b) => b[1] - a[1]);
     $("sumBuses").textContent   = perBus.length;
-    $("sumBusiest").textContent = perBus.length ? `${perBus[0][0]} (${perBus[0][1]})` : "-";
+    $("sumBusiest").textContent = perBus.length ? `${perBus[0][0]} (${perBus[0][1]})` : "—";
     $("sumConflicts").textContent = conflicts.size;
-    $("conflictCard").classList.toggle("err",  conflicts.size > 0);
+    $("conflictCard").classList.toggle("bad",  conflicts.size > 0);
 
     renderControllers();
     renderOutput(sorted, conflicts);
     save();
     // Wire remove buttons
-    list.querySelectorAll(".btn.danger").forEach(b => {
+    list.querySelectorAll("button[data-i]").forEach(b => {
       b.onclick = () => {
         const i = parseInt(b.dataset.i, 10);
         devices.splice(i, 1);
         render();
       };
     });
+  }
+
+  function deviceRow(d, conflict) {
+    return `<div class="device${conflict ? " conflict" : ""}">
+        <div class="id-chip">${d.id}</div>
+        <div>
+          <div class="name">${escapeHtml(d.name || "(unnamed)")}</div>
+          <div class="meta">
+            <span class="tag">${escapeHtml(d.type)}</span>
+            ${conflict ? '<span class="tag bad">conflict</span>' : ""}
+          </div>
+        </div>
+        <button class="ghost" data-i="${d._i}">remove</button>
+      </div>`;
   }
 
   // The SPI pairing, drawn.
@@ -649,28 +601,50 @@
   // the only place that fact is visible, which is why the load figure printed here is the
   // controller's and not the bus's - the controller total is what the planner balances and what
   // actually runs out.
+  // There are always exactly three controllers, so the rows are built once and
+  // updated in place afterwards. Rebuilding them meant every bar appeared at its
+  // new length; now it travels there, which is the one thing on this page that
+  // is a value moving to where you set it.
+  let ctrlRows = null;
+
   function renderControllers() {
     const host = $("controllers");
-    host.innerHTML = CONTROLLERS.map(c => {
-      const on = devices.filter(d => c.buses.includes(d.bus));
-      const util = utilizationOf(on);
+    if (!ctrlRows) {
+      host.innerHTML = CONTROLLERS.map(c => {
+        const chips = c.buses
+            .map(b => `<span class="tag" data-bus="${b}">${b} <span class="n">0</span></span>`)
+            .join('<span class="join">+</span>');
+        return `<div class="ctrl">
+            <div class="who">${c.buses.length === 2 ? "shared" : "on its own"}</div>
+            <div class="buses">${chips}${c.buses.length === 1
+                ? '<span class="alone">no contention</span>' : ''}</div>
+            <div class="meter"><i></i></div>
+            <div class="load">0%</div>
+          </div>`;
+      }).join("");
+      ctrlRows = [...host.querySelectorAll(".ctrl")];
+    }
+
+    CONTROLLERS.forEach((c, g) => {
+      const row = ctrlRows[g];
+      if (!row) return;
+      const util = utilizationOf(devices.filter(d => c.buses.includes(d.bus)));
       // A pair shares an SPI host, so its ceiling is about that host rather than the sum of two
       // independent wires - hence a different target from a lone bus. Straight off CANBusPlanner.
       const ceiling = c.buses.length === 2 ? TARGET_PAIR_UTILIZATION : TARGET_BUS_UTILIZATION;
-      const over = util > ceiling;
 
-      const chips = c.buses.map(b => {
-        const n = devices.filter(d => d.bus === b).length;
-        return `<span class="tag ${b}">${b} <span class="n">${n}</span></span>`;
-      }).join('<span class="join">+</span>');
-
-      return `<div class="ctrl">
-          <div class="who">${c.buses.length === 2 ? "shared" : "on its own"}</div>
-          <div class="buses">${chips}${c.buses.length === 1
-              ? '<span class="alone">no contention</span>' : ''}</div>
-          <div class="load${over ? " over" : ""}">${Math.round(util * 100)}%</div>
-        </div>`;
-    }).join("");
+      row.classList.toggle("hot", util > ceiling);
+      row.querySelector(".load").textContent = Math.round(util * 100) + "%";
+      // Against its own ceiling, not against a whole wire: a full bar means "this
+      // controller is at the limit the planner is levelling", which differs
+      // between a shared pair and a lone bus.
+      row.querySelector(".meter > i").style.width =
+          Math.min(100, Math.round(util / ceiling * 100)) + "%";
+      for (const b of c.buses) {
+        row.querySelector(`.tag[data-bus="${b}"] .n`).textContent =
+            devices.filter(d => d.bus === b).length;
+      }
+    });
   }
 
   function escapeHtml(s) {
@@ -680,7 +654,7 @@
   // ---- UI wiring ----
   $("addBtn").onclick = () => {
     const id = parseInt($("dId").value, 10);
-    if (isNaN(id) || id < 0 || id > 62) { alert("CAN ID must be 0–62."); return; }
+    if (isNaN(id) || id < 0 || id > 62) { toast("A CAN ID has to be 0–62", "bad"); return; }
     devices.push({
       name: $("dName").value.trim(),
       id,
@@ -847,13 +821,13 @@
   // -------------------------------------------------------------
   // Mode switching + actions
   // -------------------------------------------------------------
-  document.querySelectorAll(".seg-btn").forEach(b => {
+  document.querySelectorAll("#outputMode button").forEach(b => {
     b.onclick = () => {
-      document.querySelectorAll(".seg-btn").forEach(x => x.classList.remove("active"));
-      b.classList.add("active");
+      document.querySelectorAll("#outputMode button")
+          .forEach(x => x.setAttribute("aria-pressed", String(x === b)));
       outputMode = b.dataset.mode;
-      $("textActions").style.display = outputMode === "text" ? "" : "none";
-      $("javaActions").style.display = outputMode === "java" ? "" : "none";
+      $("textActions").hidden = outputMode !== "text";
+      $("javaActions").hidden = outputMode !== "java";
       render();
     };
   });
@@ -869,21 +843,30 @@
 
   $("javaPkg").addEventListener("input", () => { if (outputMode === "java") render(); });
 
-  $("copyOutput").onclick = async () => {
+  // The button used to relabel itself "Copied ✓", which changed its width mid-press.
+  // The answer belongs beside the pointer, not inside the control you just hit.
+  async function copyOutput() {
     try {
       await navigator.clipboard.writeText($("output").textContent);
-      $("copyOutput").textContent = "Copied ✓";
-      setTimeout(() => $("copyOutput").textContent = "Copy", 900);
-    } catch { alert("Clipboard blocked."); }
-  };
+      toast("Copied to clipboard", "ok");
+    } catch {
+      toast("Clipboard blocked — select the text and copy it", "bad");
+    }
+  }
 
-  $("copyJava").onclick = async () => {
-    try {
-      await navigator.clipboard.writeText($("output").textContent);
-      $("copyJava").textContent = "Copied ✓";
-      setTimeout(() => $("copyJava").textContent = "Copy", 900);
-    } catch { alert("Clipboard blocked."); }
-  };
+  $("copyOutput").onclick = copyOutput;
+  $("copyJava").onclick = copyOutput;
+
+  let toastTimer = null;
+  function toast(msg, kind) {
+    const el = $("toast");
+    el.textContent = msg;
+    el.className = "toast" + (kind ? " " + kind : "");
+    void el.offsetWidth;              // restart the transition
+    el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove("show"), 2600);
+  }
 
   $("downloadJava").onclick = () => {
     const blob = new Blob([$("output").textContent], { type: "text/x-java-source;charset=utf-8" });
@@ -924,10 +907,10 @@
           devices = obj.devices.map(d => ({ ...d, bus: normaliseBus(d.bus) }));
           render();
         } else {
-          alert("File doesn't look like a Catalyst CAN ID plan.");
+          toast("That file is not a Catalyst CAN ID plan", "bad");
         }
       } catch (err) {
-        alert("Couldn't parse JSON: " + err.message);
+        toast("Could not read that JSON: " + err.message, "bad");
       }
     };
     reader.readAsText(file);
