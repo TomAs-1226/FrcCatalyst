@@ -483,6 +483,16 @@ input::placeholder, textarea::placeholder { color: var(--cat-faint); }
 input:hover, textarea:hover, select:hover { border-color: var(--cat-line-strong); }
 input:focus, textarea:focus, select:focus { outline: none; border-color: var(--cat-signal-line); }
 
+/* The last two pieces of a field the browser still drew itself: grey spinner arrows inside every
+   number box, and a clear cross inside every search box, both in the platform's own light style on
+   a dark surface. The arrow keys and the wheel still step a number; Escape still clears a search. */
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="search"] { -webkit-appearance: none; appearance: none; }
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; }
+
 /* One focus ring everywhere, in the signal colour, and never removed. */
 :where(.cat-btn, .cat-chip, .cat-field, .cat-tab, [tabindex]):focus-visible {
   outline: 2px solid var(--cat-signal);

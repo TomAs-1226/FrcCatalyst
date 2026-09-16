@@ -590,6 +590,15 @@ input::placeholder, textarea::placeholder { color: var(--cat-faint); }
 input:hover, textarea:hover, select:hover { border-color: var(--cat-line-strong); }
 input:focus, textarea:focus, select:focus { outline: none; border-color: var(--cat-signal-line); }
 
+/* The spinner arrows in a number box and the clear cross in a search box, which the browser drew in
+   its own light style on these dark surfaces. Arrow keys and the wheel still step; Escape still clears. */
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="search"] { -webkit-appearance: none; appearance: none; }
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; }
+
 /* ----------------------------------------------------------------- buttons */
 
 button, .btn {
