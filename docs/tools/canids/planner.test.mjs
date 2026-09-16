@@ -20,7 +20,13 @@ import path from "node:path";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const html = fs.readFileSync(path.join(here, "index.html"), "utf8");
-const script = html.match(/<script[^>]*>([\s\S]*?)<\/script>/)[1];
+// The page's own code, which is every inline <script>. The `src=` one is the shared chrome
+// (../tool.js): it is empty here, it knows nothing about this tool, and taking the first <script>
+// blindly picked it up the day the chrome was linked and ran nothing at all.
+const script = [...html.matchAll(/<script(?![^>]*\ssrc=)[^>]*>([\s\S]*?)<\/script>/g)]
+    .map(m => m[1])
+    .join("\n");
+assert.match(script, /function detectConflicts/, "the tool's own script was not found in index.html");
 
 // --- the thinnest DOM that lets the file finish loading ---------------------
 const el = () => ({
