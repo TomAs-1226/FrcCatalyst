@@ -376,6 +376,12 @@ aside h2:not(:first-child) { margin-top: var(--cat-space-2); }
 h3 { margin: 0; font-size: var(--cat-fs-13); font-weight: var(--cat-w-semi); color: var(--cat-ink); }
 p { margin: 0; line-height: 1.55; }
 .hint, .muted, .credit { color: var(--cat-quiet); font-size: var(--cat-fs-13); line-height: 1.5; }
+
+/* The one or two words in a quiet paragraph that are the point of it. `.notice` has had this
+   since the start; explanatory prose did not, so a tool that bolded the words that matter got
+   bold at the same quiet tone — which is not emphasis, it is just a heavier grey. */
+:is(.hint, .muted, .credit) :is(b, strong) { color: var(--cat-ink); font-weight: var(--cat-w-semi); }
+
 a { color: var(--cat-signal-ink); }
 
 /* The note at the foot of a tool: what it simulates, what it does not promise.

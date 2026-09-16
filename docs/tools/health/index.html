@@ -4,387 +4,300 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Catalyst Health</title>
+<link rel="stylesheet" href="../tool.css" />
+<script src="../tool.js" defer></script>
 <style>
-  :root {
-    --bg-0: #0d0e12;
-    --bg-1: #131418;
-    --bg-card: #1a1c21;
-    --bg-input: #0d0e12;
-    --accent: #e94560;
-    --fg: #e8e9ec;
-    --fg-muted: #9a9ba1;
-    --fg-dim: #8a8c94;
-    --ok: #58c98b;
-    --warn: #ffbf63;
-    --err: #ff5d76;
-    --info: #7fa8c9;
-    --border: #2f323a;
-  }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; }
-  body {
-    font-family: "Segoe UI Variable Text", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
-    background: linear-gradient(135deg, var(--bg-0), var(--bg-1));
-    color: var(--fg);
-    min-height: 100vh;
+  /* This tool's own: the verdict, the vitals it reads off the machine, the
+     subsystem panels and their check rows, and the timeline of what fired.
+     Everything else — header, sidebar, cards, fields, buttons, the segmented
+     control, chips, dots, bars, the empty state — is ../tool.css.
+
+     Severity is the whole subject here, so it is worth saying how it is spent:
+     a number takes a colour only when it is not zero, a check takes one only
+     while it is firing, and the crimson is the error count and nothing else. */
+
+  .link { display: inline-flex; align-items: center; gap: var(--cat-space-2); }
+
+  /* ------------------------------------------------------------- verdict */
+
+  .status { display: flex; align-items: center; gap: var(--cat-space-5); flex-wrap: wrap; }
+
+  .verdict { display: flex; align-items: center; gap: var(--cat-space-3); min-width: 0; }
+  .verdict .dot { width: 12px; height: 12px; }
+
+  /* The one big thing on the page: what the robot's answer is, in words. */
+  .verdict .word {
+    font-family: var(--cat-sans);
+    font-size: var(--cat-fs-28);
+    font-weight: var(--cat-w-semi);
+    letter-spacing: var(--cat-track-tight);
+    color: var(--cat-dim);
+    transition: color var(--cat-dur-effect) var(--cat-ease-effect);
   }
 
-  header {
-    padding: 20px 32px;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    border-bottom: 1px solid var(--border);
-    background: color-mix(in srgb, var(--bg-1) 70%, transparent);
-    backdrop-filter: blur(8px);
-    position: sticky;
-    top: 0;
-    z-index: 10;
-  }
-  .brand { display: flex; align-items: center; gap: 12px; }
-  .brand svg { width: 28px; height: 28px; }
-  .brand-title { font-weight: 900; font-size: 20px; letter-spacing: 2px; }
-  .brand-sub { font-size: 12px; color: var(--accent); margin-left: 6px; }
+  .verdict.ok .word { color: var(--cat-ok); }
+  .verdict.warn .word { color: var(--cat-warn); }
+  .verdict.bad .word { color: var(--cat-bad); }
 
-  .conn { display: flex; gap: 8px; align-items: center; margin-left: auto; }
-  .conn input[type="text"] {
-    background: var(--bg-input);
-    border: 1px solid var(--border);
-    color: var(--fg);
-    padding: 8px 12px;
-    border-radius: 6px;
-    width: 200px;
-    font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums;
-    font-size: 13px;
-  }
-  .conn input[type="text"]:focus { outline: none; border-color: var(--accent); }
-  button {
-    background: var(--accent);
-    color: white;
-    border: 0;
-    padding: 8px 16px;
-    border-radius: 6px;
-    font-weight: 600;
-    cursor: pointer;
-    font-size: 13px;
-  }
-  button.secondary { background: var(--bg-card); color: var(--fg-muted); border: 1px solid var(--border); }
-  button.secondary.active { color: var(--fg); border-color: var(--accent); }
-  .status { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--fg-muted); margin-right: 4px; }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--fg-dim); }
-  .dot.connecting { background: var(--warn); animation: pulse 1s ease-in-out infinite; }
-  .dot.connected { background: var(--ok); }
-  .dot.error { background: var(--err); }
-  @keyframes pulse { 50% { opacity: 0.3; } }
+  .counts { display: grid; grid-template-columns: repeat(3, minmax(92px, 1fr)); gap: var(--cat-space-2); margin-left: auto; }
 
-  main { padding: 24px 32px 80px; }
+  /* --------------------------------------------------------------- tiles */
 
-  .summary {
+  /* One tile serves both the counters and the machine vitals: a mono eyebrow,
+     a mono number, and an edge that only lights when the number is bad. */
+  .tile {
     display: grid;
-    grid-template-columns: 2fr 1fr 1fr 1fr;
-    gap: 16px;
-    margin-bottom: 24px;
+    gap: 2px;
+    align-content: start;
+    padding: var(--cat-space-2) var(--cat-space-3);
+    border: 1px solid var(--cat-line);
+    border-radius: var(--cat-r-inner);
+    background: var(--cat-surface-2);
+    transition: border-color var(--cat-dur-effect) var(--cat-ease-effect),
+                background-color var(--cat-dur-effect) var(--cat-ease-effect);
   }
-  .summary-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 20px 24px;
-  }
-  .summary-card.big {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-  }
-  .summary-card .label { font-size: 11px; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 1.5px; }
-  .summary-card .value { font-size: 28px; font-weight: 900; margin-top: 4px; }
-  .summary-card.err { border-color: var(--err); }
-  .summary-card.warn { border-color: var(--warn); }
-  .summary-card.info { border-color: var(--info); }
-  .summary-card .value.err { color: var(--err); }
-  .summary-card .value.warn { color: var(--warn); }
-  .summary-card .value.info { color: var(--info); }
-  .summary-card .value.ok { color: var(--ok); font-size: 22px; }
 
-  .toolbar {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 16px;
-    align-items: center;
+  .tile .k {
+    font-family: var(--cat-mono);
+    font-size: var(--cat-fs-11);
+    font-weight: var(--cat-w-bold);
+    letter-spacing: var(--cat-track-eyebrow);
+    text-transform: uppercase;
+    color: var(--cat-dim);
   }
-  .toolbar input[type=text] {
-    background: var(--bg-input);
-    border: 1px solid var(--border);
-    color: var(--fg);
-    padding: 7px 12px;
-    border-radius: 6px;
-    font-size: 13px;
-    width: 200px;
-  }
-  .toolbar input[type=text]:focus { outline: none; border-color: var(--accent); }
 
-  .subsystems {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
-    gap: 16px;
+  .tile .val {
+    font-family: var(--cat-mono);
+    font-size: var(--cat-fs-22);
+    font-weight: var(--cat-w-semi);
+    line-height: 1.2;
+    color: var(--cat-ink-strong);
   }
+
+  .tile .bar { margin-top: var(--cat-space-1); }
+
+  .tile.warn { border-color: color-mix(in srgb, var(--cat-warn) 45%, transparent); background: var(--cat-warn-tint); }
+  .tile.warn .val { color: var(--cat-warn); }
+  .tile.bad { border-color: color-mix(in srgb, var(--cat-bad) 45%, transparent); background: var(--cat-bad-tint); }
+  .tile.bad .val { color: var(--cat-bad); }
+  .tile.info .val { color: var(--cat-info); }
+
+  .vitals { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--cat-space-2); }
+
+  /* ---------------------------------------------------------- subsystems */
+
+  .subsystems { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: var(--cat-space-3); align-items: start; }
+
   .subsystem {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 10px;
+    border: 1px solid var(--cat-line);
+    border-radius: var(--cat-r-inner);
+    background: var(--cat-surface-2);
     overflow: hidden;
   }
+
   .subsystem-head {
-    padding: 12px 18px;
-    border-bottom: 1px solid var(--border);
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    gap: var(--cat-space-3);
+    padding: var(--cat-space-2) var(--cat-space-3);
+    border-bottom: 1px solid var(--cat-line);
   }
-  .subsystem-name { font-weight: 700; font-size: 14px; }
-  .subsystem-status { font-size: 11px; padding: 3px 8px; border-radius: 999px; font-weight: 700; letter-spacing: 0.5px; }
-  .subsystem-status.ok { background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); }
-  .subsystem-status.warn { background: color-mix(in srgb, var(--warn) 15%, transparent); color: var(--warn); }
-  .subsystem-status.err { background: color-mix(in srgb, var(--err) 15%, transparent); color: var(--err); }
 
-  .checks { padding: 4px 0; }
+  .subsystem-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--cat-mono);
+    font-size: var(--cat-fs-13);
+    font-weight: var(--cat-w-semi);
+    color: var(--cat-ink);
+  }
+
   .check {
-    padding: 10px 18px;
     display: grid;
-    grid-template-columns: 12px 1fr auto;
-    gap: 12px;
+    grid-template-columns: 8px minmax(0, 1fr) auto;
+    gap: var(--cat-space-3);
     align-items: center;
-    border-top: 1px solid rgba(255,255,255,0.04);
+    padding: var(--cat-space-2) var(--cat-space-3);
+    border-top: 1px solid var(--cat-hair);
   }
+
   .check:first-child { border-top: 0; }
-  .check.firing { background: rgba(0,0,0,0.15); }
-  .check-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--fg-dim); align-self: center; }
-  .check-dot.ok { background: var(--ok); opacity: 0.4; }
-  .check-dot.warn { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
-  .check-dot.err { background: var(--err); box-shadow: 0 0 10px var(--err); animation: pulseFire 1.5s ease-in-out infinite; }
-  .check-dot.info { background: var(--info); }
-  @keyframes pulseFire { 50% { opacity: 0.5; } }
 
-  .check-id { font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums; font-size: 13px; font-weight: 600; }
-  .check-desc { font-size: 12px; color: var(--fg-muted); margin-top: 2px; }
-  .check.firing .check-id { color: var(--warn); }
-  .check.firing.err .check-id { color: var(--err); }
+  /* A firing row is recessed rather than tinted: a panel where six checks are
+     firing should not be six amber blocks. The dot and the name carry it. */
+  .check.firing { background: var(--cat-surface-1); }
 
-  .check-detail {
-    text-align: right;
-    font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums;
-    font-size: 12px;
-    color: var(--fg);
-  }
-  .check-fired {
-    font-size: 11px;
-    color: var(--fg-dim);
-    margin-top: 2px;
-  }
+  /* A passing check still shows its light, just turned down — the row is there
+     to be scanned past, not read. */
+  .check .dot.ok { opacity: .6; }
+  .check .dot.info { background: var(--cat-info); }
 
-  .empty {
-    text-align: center;
-    color: var(--fg-muted);
-    padding: 80px 20px;
-    font-size: 15px;
-  }
-  .empty .big-ok {
-    font-size: 64px;
-    color: var(--ok);
-    line-height: 1;
-    margin-bottom: 16px;
+  .check-id { font-family: var(--cat-mono); font-size: var(--cat-fs-13); font-weight: var(--cat-w-semi); color: var(--cat-ink); }
+  .check-desc { color: var(--cat-quiet); font-size: var(--cat-fs-12); line-height: 1.4; }
+  .check.firing .check-id { color: var(--cat-warn); }
+  .check.firing.bad .check-id { color: var(--cat-bad); }
+
+  .check-detail { font-family: var(--cat-mono); font-size: var(--cat-fs-12); color: var(--cat-ink); text-align: right; }
+  .check-fired { font-family: var(--cat-mono); font-size: var(--cat-fs-11); color: var(--cat-quiet); text-align: right; }
+
+  /* ------------------------------------------------------------ timeline */
+
+  .timeline { display: grid; gap: var(--cat-space-1); min-width: 0; }
+
+  .lane { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: var(--cat-space-3); align-items: center; }
+
+  .lane .lane-name {
+    font-family: var(--cat-mono);
+    font-size: var(--cat-fs-11);
+    color: var(--cat-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  /* ============================================
-     Timeline (HealthHistory swim-lanes)
-     ============================================ */
-  .timeline-section {
-    margin: 32px 0 60px;
-    background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 18px 20px 22px;
-    position: relative;
-  }
-  .timeline-head {
-    display: flex; align-items: baseline; gap: 12px;
-    margin-bottom: 12px;
-  }
-  .timeline-head h2 {
-    margin: 0; font-size: 13px;
-    text-transform: uppercase; letter-spacing: 1.4px;
-    color: var(--fg-muted); font-weight: 700;
-  }
-  .timeline-hint { font-size: 11px; color: var(--fg-dim); }
-  .timeline {
-    position: relative;
-    display: flex; flex-direction: column;
-    gap: 4px;
-    min-height: 60px;
-    overflow-x: auto;
-  }
-  .timeline-lane {
-    display: grid;
-    grid-template-columns: 140px 1fr;
-    align-items: center;
-    gap: 12px;
-    border-bottom: 1px dashed var(--border);
-    padding: 6px 0;
-  }
-  .timeline-lane:last-child { border-bottom: 0; }
-  .timeline-lane .lane-name {
-    font-size: 11px; font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums;
-    color: var(--fg-muted);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  .timeline-track {
+  /* Ticks rather than a ruled grid: the lane is a strip of time, and the marks
+     are there to give the dots something to be spaced against. */
+  .track {
     position: relative;
     height: 18px;
+    border-radius: var(--cat-r-inner);
     background:
-      linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px) 0 50%/40px 100% repeat-x;
-    border-radius: 3px;
+      repeating-linear-gradient(90deg, var(--cat-hair) 0 1px, transparent 1px 40px),
+      var(--cat-surface-2);
   }
-  .timeline-event {
-    position: absolute;
-    top: 50%; transform: translate(-50%, -50%);
-    width: 12px; height: 12px;
-    border-radius: 50%;
-    cursor: pointer;
-    transition: transform 0.1s ease;
-  }
-  .timeline-event:hover { transform: translate(-50%, -50%) scale(1.4); }
-  .timeline-event.fired   { box-shadow: 0 0 6px currentColor; }
-  .timeline-event.cleared { background: transparent !important; border: 2px solid currentColor; }
-  .timeline-event.sev-INFO  { background: var(--fg-muted); color: var(--fg-muted); }
-  .timeline-event.sev-WARN  { background: var(--warn);     color: var(--warn); }
-  .timeline-event.sev-ERROR { background: var(--err);      color: var(--err); }
-  .timeline-tooltip {
-    position: fixed;
-    display: none;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 8px 10px;
-    font-size: 12px; color: var(--fg);
-    box-shadow: 0 6px 16px rgba(0,0,0,0.4);
-    pointer-events: none;
-    z-index: 200;
-    max-width: 320px;
-  }
-  .timeline-tooltip .tt-id { color: var(--accent); font-weight: 600; }
-  .timeline-tooltip .tt-kind.fired   { color: var(--warn); }
-  .timeline-tooltip .tt-kind.cleared { color: var(--ok); }
-  .timeline-tooltip .tt-detail { color: var(--fg-muted); margin-top: 4px; font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums; font-size: 11px; }
 
-  footer {
-    position: fixed;
-    bottom: 0; left: 0; right: 0;
-    padding: 10px 32px;
-    background: color-mix(in srgb, var(--bg-1) 95%, transparent);
-    backdrop-filter: blur(8px);
-    border-top: 1px solid var(--border);
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    font-size: 12px;
-    color: var(--fg-muted);
+  /* Offset by margin, not by a translate, so hovering can scale without having
+     to restate where the dot sits. */
+  .event {
+    position: absolute;
+    top: 50%;
+    width: 10px;
+    height: 10px;
+    margin: -5px 0 0 -5px;
+    border-radius: var(--cat-r-pill);
+    background: currentColor;
+    cursor: pointer;
+    transition: transform var(--cat-dur-hold) var(--cat-ease-hold);
   }
-  footer .right { margin-left: auto; }
+
+  .event:hover { transform: scale(1.5); }
+  .event.cleared { background: transparent; border: 2px solid currentColor; }
+  .event.info { color: var(--cat-dim); }
+  .event.warn { color: var(--cat-warn); }
+  .event.bad { color: var(--cat-bad); }
+
+  /* The one thing on this page that floats, so the one thing that is glass. */
+  .tooltip {
+    position: fixed;
+    z-index: 20;
+    max-width: 320px;
+    padding: var(--cat-space-2) var(--cat-space-3);
+    border: 1px solid var(--cat-glass-edge);
+    border-radius: var(--cat-r-chip);
+    background: var(--cat-glass-fill);
+    backdrop-filter: blur(var(--cat-glass-blur));
+    box-shadow: var(--cat-glass-shadow);
+    color: var(--cat-body);
+    font-size: var(--cat-fs-12);
+    line-height: 1.5;
+    pointer-events: none;
+  }
+
+  .tooltip .tt-id { font-family: var(--cat-mono); color: var(--cat-ink-strong); }
+  .tooltip .tt-kind.fired { color: var(--cat-warn); }
+  .tooltip .tt-kind.cleared { color: var(--cat-ok); }
+  .tooltip .tt-detail { font-family: var(--cat-mono); font-size: var(--cat-fs-11); color: var(--cat-quiet); }
 </style>
 </head>
 <body>
 
 <header>
-  <div class="brand">
-    <svg viewBox="0 0 100 100">
-      <path d="M55,10 L35,52 L52,48 L42,90 L70,40 L52,44 L62,10 Z" fill="var(--accent)"/>
-    </svg>
-    <div>
-      <span class="brand-title">CATALYST</span>
-      <span class="brand-sub">Health</span>
-    </div>
-  </div>
-  <div class="conn">
-    <span class="status"><span class="dot" id="dot"></span><span id="statusText">disconnected</span></span>
-    <input type="text" id="host" placeholder="10.TE.AM.2 or robot.local" value="127.0.0.1" />
-    <button id="connectBtn">Connect</button>
-  </div>
+  <h1>Health</h1>
+  <span class="badge">2.0.0-alpha.3</span>
+  <span class="hint">Every check the robot registers, live — and the machine underneath it.</span>
+  <a href="../" class="back"></a>
 </header>
 
 <main>
+  <aside>
+    <h2>Robot</h2>
+    <div class="row">
+      <label for="host">Host <span class="v">NT4 &middot; 5810</span></label>
+      <input type="text" id="host" placeholder="10.TE.AM.2 or robot.local" value="127.0.0.1" />
+    </div>
+    <div class="actions stack"><button class="primary" id="connectBtn">Connect</button></div>
 
-  <div class="summary">
-    <div class="summary-card big" id="overallCard">
-      <div class="label">Overall</div>
-      <div class="value ok" id="overallValue">—</div>
+    <div class="stats">
+      <div class="stat"><span class="k">link</span><span class="val link"><span class="dot" id="dot"></span><span id="statusText">disconnected</span></span></div>
+      <div class="stat"><span class="k">subsystems</span><span class="val" id="subCount">0</span></div>
+      <div class="stat"><span class="k">checks</span><span class="val" id="checkCount">0</span></div>
+      <div class="stat"><span class="k">stream</span><span class="val" id="latency">&mdash;</span></div>
     </div>
-    <div class="summary-card err">
-      <div class="label">Errors</div>
-      <div class="value err" id="errorCount">0</div>
+
+    <h2>Show</h2>
+    <div class="seg block" id="filterSeg">
+      <button type="button" data-filter="all" aria-pressed="true">All</button>
+      <button type="button" data-filter="firing" aria-pressed="false">Firing</button>
+      <button type="button" data-filter="errors" aria-pressed="false">Errors</button>
     </div>
-    <div class="summary-card warn">
-      <div class="label">Warnings</div>
-      <div class="value warn" id="warnCount">0</div>
+    <div class="row"><input type="search" id="search" placeholder="filter by name…" /></div>
+
+    <h2>Session</h2>
+    <div class="actions stack">
+      <button id="downloadReportBtn" title="Download a plain-text snapshot of the current state">Download report</button>
     </div>
-    <div class="summary-card info">
-      <div class="label">Info</div>
-      <div class="value info" id="infoCount">0</div>
+  </aside>
+
+  <div class="cards">
+    <div class="card">
+      <h2>Status</h2>
+      <div class="status">
+        <div class="verdict" id="verdict">
+          <span class="dot" id="verdictDot"></span>
+          <span class="word" id="overallValue">&mdash;</span>
+        </div>
+        <div class="counts">
+          <div class="tile" id="errorTile"><span class="k">Errors</span><span class="val" id="errorCount">0</span></div>
+          <div class="tile" id="warnTile"><span class="k">Warnings</span><span class="val" id="warnCount">0</span></div>
+          <div class="tile" id="infoTile"><span class="k">Info</span><span class="val" id="infoCount">0</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="vitalsCard" hidden>
+      <div class="card-head">
+        <h2>Machine</h2>
+        <span class="hint">Catalyst/Systemcore</span>
+      </div>
+      <div id="coreVitals" class="vitals"></div>
+    </div>
+
+    <div class="card">
+      <h2>Subsystems</h2>
+      <div id="empty" class="empty">Connect to a robot to see live health status.</div>
+      <div id="subsystems" class="subsystems"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>Recent events</h2>
+        <span class="hint" id="timelineHint">waiting for Catalyst/Health/History</span>
+      </div>
+      <div class="timeline" id="timeline"></div>
+      <div id="timelineEmpty" class="empty">No events in the buffer yet.</div>
     </div>
   </div>
-
-  <div class="toolbar">
-    <button class="secondary active" data-filter="all">All</button>
-    <button class="secondary" data-filter="firing">Firing only</button>
-    <button class="secondary" data-filter="errors">Errors only</button>
-    <input type="text" id="search" placeholder="filter by name…" />
-    <button class="secondary" id="downloadReportBtn" title="Download a plain-text snapshot of the current state">Download report</button>
-  </div>
-
-  <style>
-    .core-vitals {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-      gap: 10px; margin: 0 0 18px;
-    }
-    .vital {
-      background: var(--bg-card); border: 1px solid var(--border);
-      border-radius: 10px; padding: 10px 12px;
-    }
-    .vital .k {
-      font-size: 10px; letter-spacing: 0.6px; text-transform: uppercase;
-      color: var(--fg-muted); font-weight: 700;
-    }
-    .vital .v {
-      font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums; font-size: 18px; font-weight: 700;
-      margin-top: 3px; font-variant-numeric: tabular-nums;
-    }
-    .vital.warn { border-color: var(--warn); }
-    .vital.bad  { border-color: var(--err); }
-    .vital.warn .v { color: var(--warn); }
-    .vital.bad  .v { color: var(--err); }
-  </style>
-
-  <div id="empty" class="empty">
-    <div>Connect to a robot to see live health status.</div>
-  </div>
-  <div id="coreVitals" class="core-vitals" hidden></div>
-
-  <div id="subsystems" class="subsystems"></div>
-
-  <!-- Timeline of recent HealthHistory events -->
-  <section class="timeline-section" id="timelineSection">
-    <div class="timeline-head">
-      <h2>Recent events</h2>
-      <span class="timeline-hint" id="timelineHint">— waiting for /Catalyst/Health/History —</span>
-    </div>
-    <div class="timeline" id="timeline"></div>
-    <div id="timelineTooltip" class="timeline-tooltip"></div>
-  </section>
 </main>
 
 <footer>
-  <span>Subscribed to <code>Catalyst/Health/</code></span>
-  <span class="right" id="latency">—</span>
+  Subscribed to <code>Catalyst/Health/</code> and <code>Catalyst/Systemcore/</code>.
+  Thresholds here are for noticing, not for diagnosing. Runs entirely in your browser; nothing is uploaded.
 </footer>
+
+<div id="timelineTooltip" class="tooltip" hidden></div>
 
 <script type="module">
 import { encode, decodeMulti } from 'https://esm.sh/@msgpack/msgpack@3.0.0-beta2';
@@ -554,14 +467,22 @@ function onValue(name, value) {
   render();
 }
 
+/** The four severities, as the identity names them: INFO is quiet, ERROR is bad. */
+function severityClass(sev) {
+  return sev === 'ERROR' ? 'bad' : sev === 'WARN' ? 'warn' : 'info';
+}
+
 function renderTimeline() {
   const container = $('timeline');
   const hint = $('timelineHint');
+  const empty = $('timelineEmpty');
   if (state.history.length === 0) {
     container.innerHTML = '';
-    hint.textContent = '— waiting for /Catalyst/Health/History —';
+    empty.hidden = false;
+    hint.textContent = 'waiting for Catalyst/Health/History';
     return;
   }
+  empty.hidden = true;
 
   // Time window: from the oldest event in the buffer to "now", in robot-clock seconds.
   // Systemcore has no FPGA - 2027 replaced that whole surface with a monotonic clock - and the
@@ -587,7 +508,7 @@ function renderTimeline() {
   const sortedLanes = [...lanes.values()].sort((a, b) => a.label.localeCompare(b.label));
   for (const lane of sortedLanes) {
     const laneEl = document.createElement('div');
-    laneEl.className = 'timeline-lane';
+    laneEl.className = 'lane';
     const nameEl = document.createElement('div');
     nameEl.className = 'lane-name';
     nameEl.textContent = lane.label;
@@ -595,11 +516,11 @@ function renderTimeline() {
     laneEl.appendChild(nameEl);
 
     const track = document.createElement('div');
-    track.className = 'timeline-track';
+    track.className = 'track';
     for (const e of lane.events) {
       const dot = document.createElement('div');
       const sev = ['INFO', 'WARN', 'ERROR'].includes(e.severity) ? e.severity : 'INFO';
-      dot.className = `timeline-event sev-${sev} ${e.kind === 'CLEARED' ? 'cleared' : 'fired'}`;
+      dot.className = `event ${severityClass(sev)} ${e.kind === 'CLEARED' ? 'cleared' : 'fired'}`;
       const pct = ((e.ts - tMin) / span) * 100;
       dot.style.left = `${pct}%`;
       dot.addEventListener('mouseenter', (ev) => {
@@ -609,12 +530,12 @@ function renderTimeline() {
           ${e.detail ? `<div class="tt-detail">${escapeHtml(e.detail)}</div>` : ''}
           <div class="tt-detail">${(tMax - e.ts).toFixed(2)} s ago</div>
         `;
-        tooltip.style.display = 'block';
+        tooltip.hidden = false;
         const rect = ev.target.getBoundingClientRect();
         tooltip.style.left = (rect.left + 14) + 'px';
         tooltip.style.top  = (rect.top - 8) + 'px';
       });
-      dot.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+      dot.addEventListener('mouseleave', () => { tooltip.hidden = true; });
       track.appendChild(dot);
     }
     laneEl.appendChild(track);
@@ -629,10 +550,12 @@ function escapeHtml(s) {
 function setStatus(kind, detail) {
   const dot = $('dot');
   const txt = $('statusText');
-  dot.classList.remove('connecting', 'connected', 'error');
-  if (kind === 'connecting') { dot.classList.add('connecting'); txt.textContent = 'connecting…'; }
-  else if (kind === 'connected') { dot.classList.add('connected'); txt.textContent = 'connected'; $('connectBtn').textContent = 'Disconnect'; }
-  else if (kind === 'error') { dot.classList.add('error'); txt.textContent = detail || 'error'; $('connectBtn').textContent = 'Connect'; }
+  // The chrome's dot is shape-coded as well as coloured, so the three states
+  // stay apart without relying on hue.
+  dot.className = 'dot' + ({ connecting: ' warn', connected: ' ok', error: ' bad' }[kind] || '');
+  if (kind === 'connecting') { txt.textContent = 'connecting…'; }
+  else if (kind === 'connected') { txt.textContent = 'connected'; $('connectBtn').textContent = 'Disconnect'; }
+  else if (kind === 'error') { txt.textContent = detail || 'error'; $('connectBtn').textContent = 'Connect'; }
   else { txt.textContent = 'disconnected'; $('connectBtn').textContent = 'Connect'; }
 }
 
@@ -655,7 +578,9 @@ function renderCoreVitals(byName) {
 
   const pct = v => (v * 100).toFixed(0) + '%';
   const rows = [];
-  const push = (label, value, level) => rows.push({ label, value, level: level || '' });
+  // `frac` is what the bar under the number draws, and only the vitals that
+  // genuinely have a full scale get one - a battery has no defensible 100%.
+  const push = (label, value, level, frac) => rows.push({ label, value, level: level || '', frac });
 
   const battery = read('BatteryVolts');
   if (battery !== null) {
@@ -669,24 +594,26 @@ function renderCoreVitals(byName) {
   if (read('BrownedOut') === true) push('Brownout', 'ACTIVE', 'bad');
 
   const cpu = read('CpuPercent');
-  if (cpu !== null) push('CPU', cpu.toFixed(0) + '%', cpu >= 95 ? 'bad' : cpu >= 85 ? 'warn' : '');
+  if (cpu !== null) push('CPU', cpu.toFixed(0) + '%', cpu >= 95 ? 'bad' : cpu >= 85 ? 'warn' : '', cpu / 100);
 
   const ram = read('RamFraction');
-  if (ram !== null) push('Memory', pct(ram), ram >= 0.95 ? 'bad' : ram >= 0.85 ? 'warn' : '');
+  if (ram !== null) push('Memory', pct(ram), ram >= 0.95 ? 'bad' : ram >= 0.85 ? 'warn' : '', ram);
 
   // The failure that takes a robot out quietly: a full disk stops logging, then stops the robot
   // program, and nothing about the symptom points at storage.
   const disk = read('StorageFraction');
-  if (disk !== null) push('Storage', pct(disk), disk >= 0.95 ? 'bad' : disk >= 0.90 ? 'warn' : '');
+  if (disk !== null) push('Storage', pct(disk), disk >= 0.95 ? 'bad' : disk >= 0.90 ? 'warn' : '', disk);
 
   const team = read('TeamNumber');
   if (team !== null) push('Team', String(team));
 
-  const el = document.getElementById('coreVitals');
-  el.hidden = rows.length === 0;
-  el.innerHTML = rows.map(r =>
-    `<div class="vital ${r.level}"><div class="k">${escapeHtml(r.label)}</div>`
-    + `<div class="v">${escapeHtml(String(r.value))}</div></div>`).join('');
+  $('vitalsCard').hidden = rows.length === 0;
+  $('coreVitals').innerHTML = rows.map(r => {
+    const bar = r.frac == null ? ''
+      : `<span class="bar ${r.level}"><i style="width:${(Math.max(0, Math.min(1, r.frac)) * 100).toFixed(0)}%"></i></span>`;
+    return `<div class="tile ${r.level}"><span class="k">${escapeHtml(r.label)}</span>`
+         + `<span class="val">${escapeHtml(String(r.value))}</span>${bar}</div>`;
+  }).join('');
 }
 
 
@@ -708,7 +635,7 @@ function subsystemStatus(checks) {
     const r = severityRank(c.severity, true);
     if (r > worst) worst = r;
   }
-  return worst === 3 ? 'err' : worst === 2 ? 'warn' : worst === 1 ? 'info' : 'ok';
+  return worst === 3 ? 'bad' : worst === 2 ? 'warn' : worst === 1 ? 'info' : 'ok';
 }
 
 function doRender() {
@@ -717,34 +644,42 @@ function doRender() {
   $('errorCount').textContent = state.errorCount;
   $('warnCount').textContent = state.warnCount;
   $('infoCount').textContent = state.infoCount;
+  // A count only takes a colour when it is not zero. Three tinted tiles on a
+  // healthy robot is three things to ignore.
+  $('errorTile').className = 'tile' + (state.errorCount > 0 ? ' bad' : '');
+  $('warnTile').className = 'tile' + (state.warnCount > 0 ? ' warn' : '');
+  $('infoTile').className = 'tile' + (state.infoCount > 0 ? ' info' : '');
 
-  const oc = $('overallCard');
+  const names = [...state.subsystems.keys()].sort();
+  $('subCount').textContent = names.length;
+  $('checkCount').textContent = names.reduce((n, s) => n + state.subsystems.get(s).size, 0);
+
+  const verdict = $('verdict');
   const ov = $('overallValue');
-  oc.classList.remove('err', 'warn', 'info');
-  ov.classList.remove('err', 'warn', 'info', 'ok');
+  let level = '';
   if (state.errorCount > 0) {
-    oc.classList.add('err'); ov.classList.add('err');
-    ov.textContent = state.errorCount === 1 ? '1 ERROR' : `${state.errorCount} ERRORS`;
+    level = 'bad';
+    ov.textContent = state.errorCount === 1 ? '1 error' : `${state.errorCount} errors`;
   } else if (state.warnCount > 0) {
-    oc.classList.add('warn'); ov.classList.add('warn');
-    ov.textContent = state.warnCount === 1 ? '1 WARNING' : `${state.warnCount} WARNINGS`;
+    level = 'warn';
+    ov.textContent = state.warnCount === 1 ? '1 warning' : `${state.warnCount} warnings`;
   } else if (state.subsystems.size > 0) {
-    ov.classList.add('ok');
-    ov.textContent = 'ALL GREEN';
+    level = 'ok';
+    ov.textContent = 'All green';
   } else {
-    ov.classList.add('ok');
-    ov.textContent = '—';
+    ov.textContent = 'Not connected';
   }
+  verdict.className = 'verdict' + (level ? ' ' + level : '');
+  $('verdictDot').className = 'dot' + (level ? ' ' + level : '');
 
   const container = $('subsystems');
   const empty = $('empty');
-  const names = [...state.subsystems.keys()].sort();
   if (names.length === 0) {
     container.innerHTML = '';
-    empty.style.display = '';
+    empty.hidden = false;
     return;
   }
-  empty.style.display = 'none';
+  empty.hidden = true;
 
   const search = state.search.trim().toLowerCase();
   const filter = state.filter;
@@ -770,20 +705,17 @@ function doRender() {
 
     const status = subsystemStatus(checks);
     const rows = entries.map(([id, c]) => {
-      const cls = c.firing ? 'firing ' + (c.severity === 'ERROR' ? 'err' : c.severity === 'WARN' ? 'warn' : 'info') : '';
-      const dotCls = c.firing
-        ? (c.severity === 'ERROR' ? 'err' : c.severity === 'WARN' ? 'warn' : 'info')
-        : 'ok';
+      const sev = c.firing ? severityClass(c.severity) : 'ok';
       const fired = c.firing && c.firedAt > 0 ? `<div class="check-fired">${formatRel(c.firedAt)}</div>` : '';
       return `
-        <div class="check ${cls}">
-          <div class="check-dot ${dotCls}"></div>
+        <div class="check ${c.firing ? 'firing ' + sev : ''}">
+          <span class="dot ${sev}"></span>
           <div>
-            <div class="check-id">${id}</div>
-            <div class="check-desc">${c.description || ''}</div>
+            <div class="check-id">${escapeHtml(id)}</div>
+            <div class="check-desc">${escapeHtml(c.description || '')}</div>
           </div>
           <div>
-            <div class="check-detail">${c.firing ? (c.detail || '') : ''}</div>
+            <div class="check-detail">${c.firing ? escapeHtml(c.detail || '') : ''}</div>
             ${fired}
           </div>
         </div>
@@ -793,8 +725,8 @@ function doRender() {
     return `
       <div class="subsystem">
         <div class="subsystem-head">
-          <div class="subsystem-name">${subName}</div>
-          <div class="subsystem-status ${status}">${status === 'ok' ? 'HEALTHY' : status.toUpperCase()}</div>
+          <div class="subsystem-name">${escapeHtml(subName)}</div>
+          <span class="chip sm ${status}">${status === 'ok' ? 'healthy' : status === 'bad' ? 'error' : status}</span>
         </div>
         <div class="checks">${rows}</div>
       </div>
@@ -825,10 +757,13 @@ $('connectBtn').addEventListener('click', () => {
   nt.connect(host);
 });
 $('host').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('connectBtn').click(); });
-document.querySelectorAll('.toolbar [data-filter]').forEach((b) => {
+
+// aria-pressed rather than a class: exactly one filter is true at a time, and
+// the attribute a screen reader reads is the one that draws it.
+document.querySelectorAll('#filterSeg button').forEach((b) => {
   b.addEventListener('click', () => {
-    document.querySelectorAll('.toolbar [data-filter]').forEach((x) => x.classList.remove('active'));
-    b.classList.add('active');
+    document.querySelectorAll('#filterSeg button')
+      .forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
     state.filter = b.dataset.filter;
     render();
   });
@@ -871,8 +806,11 @@ setInterval(() => {
   const el = $('latency');
   if (!nt.connected) { el.textContent = '—'; return; }
   const age = state.lastUpdate ? Date.now() - state.lastUpdate : null;
-  el.textContent = age === null ? 'waiting…' : `last update ${age < 1000 ? age + 'ms' : (age / 1000).toFixed(1) + 's'} ago`;
+  el.textContent = age === null ? 'waiting…' : `${age < 1000 ? age + ' ms' : (age / 1000).toFixed(1) + ' s'} ago`;
 }, 500);
+
+render();
+renderTimeline();
 </script>
 </body>
 </html>

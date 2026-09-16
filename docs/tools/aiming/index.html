@@ -58,10 +58,10 @@
       <h2>Field — top down</h2>
       <canvas id="view" width="760" height="378"></canvas>
       <div class="legend">
-        <span><i style="background:var(--ok)"></i>real goal</span>
-        <span><i style="background:var(--fuel)"></i>virtual goal (aim here)</span>
-        <span><i style="background:var(--blue)"></i>velocity</span>
-        <span><i style="background:var(--accent)"></i>turret bore</span>
+        <span><i style="background:var(--cat-ok)"></i>real goal</span>
+        <span><i style="background:var(--cat-warn)"></i>virtual goal (aim here)</span>
+        <span><i style="background:var(--cat-info)"></i>velocity</span>
+        <span><i style="background:var(--cat-signal)"></i>turret bore</span>
       </div>
     </div>
     <div class="card">
@@ -138,22 +138,22 @@ function draw(s){
   x.strokeStyle='rgba(255,255,255,.06)';x.beginPath();x.moveTo(W/2,0);x.lineTo(W/2,H);x.stroke();
   const gx=fx(s.gx),gy=fy(s.gy),rx=fx(s.rx),ry=fy(s.ry),vgx=fx(s.vgx),vgy=fy(s.vgy);
   // real goal
-  x.fillStyle=TINT('--ok',.18);x.beginPath();x.arc(gx,gy,22,0,7);x.fill();
-  x.fillStyle=COL('--ok');x.beginPath();x.arc(gx,gy,8,0,7);x.fill();
-  x.fillStyle=COL('--ok');x.font='11px "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace';x.fillText('goal',gx-12,gy-15);
+  x.fillStyle=TINT('--cat-ok',.18);x.beginPath();x.arc(gx,gy,22,0,7);x.fill();
+  x.fillStyle=COL('--cat-ok');x.beginPath();x.arc(gx,gy,8,0,7);x.fill();
+  x.fillStyle=COL('--cat-ok');x.font='11px "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace';x.fillText('goal',gx-12,gy-15);
   // lead line + virtual goal
-  x.strokeStyle=TINT('--fuel',.7);x.setLineDash([5,5]);x.lineWidth=1.5;
+  x.strokeStyle=TINT('--cat-warn',.7);x.setLineDash([5,5]);x.lineWidth=1.5;
   x.beginPath();x.moveTo(gx,gy);x.lineTo(vgx,vgy);x.stroke();x.setLineDash([]);
-  x.fillStyle=COL('--fuel');x.beginPath();x.arc(vgx,vgy,7,0,7);x.fill();x.fillText('virtual',vgx+9,vgy+3);
+  x.fillStyle=COL('--cat-warn');x.beginPath();x.arc(vgx,vgy,7,0,7);x.fill();x.fillText('virtual',vgx+9,vgy+3);
   // turret bore (robot → virtual goal)
-  x.strokeStyle=COL('--accent');x.lineWidth=3;x.beginPath();x.moveTo(rx,ry);x.lineTo(vgx,vgy);x.stroke();
+  x.strokeStyle=COL('--cat-signal');x.lineWidth=3;x.beginPath();x.moveTo(rx,ry);x.lineTo(vgx,vgy);x.stroke();
   // velocity arrow
   if(Math.hypot(s.vx,s.vy)>0.05){const sc=18,ex=rx+s.vx*sc,ey=ry-s.vy*sc,a=Math.atan2(ey-ry,ex-rx);
-    x.strokeStyle=COL('--blue');x.lineWidth=2.5;x.beginPath();x.moveTo(rx,ry);x.lineTo(ex,ey);x.stroke();
-    x.fillStyle=COL('--blue');x.beginPath();x.moveTo(ex,ey);
+    x.strokeStyle=COL('--cat-info');x.lineWidth=2.5;x.beginPath();x.moveTo(rx,ry);x.lineTo(ex,ey);x.stroke();
+    x.fillStyle=COL('--cat-info');x.beginPath();x.moveTo(ex,ey);
     x.lineTo(ex-10*Math.cos(a-.4),ey-10*Math.sin(a-.4));x.lineTo(ex-10*Math.cos(a+.4),ey-10*Math.sin(a+.4));x.closePath();x.fill();}
   // robot
-  x.fillStyle=TINT('--text',.14);x.strokeStyle='rgba(255,255,255,.3)';x.lineWidth=2;
+  x.fillStyle=TINT('--cat-ink',.14);x.strokeStyle='rgba(255,255,255,.3)';x.lineWidth=2;
   x.beginPath();x.arc(rx,ry,13,0,7);x.fill();x.stroke();
 }
 
