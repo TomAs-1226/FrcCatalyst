@@ -6,26 +6,26 @@
 <title>Catalyst Tuner</title>
 <style>
   :root {
-    --bg-0: #1a1a2e;
-    --bg-1: #16213e;
-    --bg-2: #0f1a2e;
-    --bg-card: #1f2a44;
-    --bg-input: #0e1626;
+    --bg-0: #0d0e12;
+    --bg-1: #131418;
+    --bg-2: #22242a;
+    --bg-card: #1a1c21;
+    --bg-input: #0d0e12;
     --accent: #e94560;
-    --accent-2: #ff6b6b;
-    --fg: #ffffff;
-    --fg-muted: #8892b0;
-    --fg-dim: #5a6478;
-    --ok: #4ade80;
-    --warn: #fbbf24;
-    --err: #f87171;
-    --border: #2a3a5c;
+    --accent-2: #ff5d76;
+    --fg: #e8e9ec;
+    --fg-muted: #9a9ba1;
+    --fg-dim: #8a8c94;
+    --ok: #58c98b;
+    --warn: #ffbf63;
+    --err: #ff5d76;
+    --border: #2f323a;
   }
 
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    font-family: "Segoe UI Variable Text", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
     background: linear-gradient(135deg, var(--bg-0), var(--bg-1));
     color: var(--fg);
     min-height: 100vh;
@@ -37,7 +37,7 @@
     align-items: center;
     gap: 16px;
     border-bottom: 1px solid var(--border);
-    background: rgba(15, 26, 46, 0.7);
+    background: color-mix(in srgb, var(--bg-1) 70%, transparent);
     backdrop-filter: blur(8px);
     position: sticky;
     top: 0;
@@ -58,7 +58,7 @@
     padding: 8px 12px;
     border-radius: 6px;
     width: 200px;
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums;
     font-size: 13px;
   }
   .conn input[type="text"]:focus {
@@ -134,7 +134,7 @@
   }
   .mech-head {
     padding: 14px 18px;
-    background: rgba(233, 69, 96, 0.08);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
     border-bottom: 1px solid var(--border);
     display: flex; align-items: center; justify-content: space-between;
     gap: 10px;
@@ -171,7 +171,7 @@
   }
   .gain:hover { background: rgba(255, 255, 255, 0.02); }
   .gain-label {
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums;
     font-size: 13px;
     color: var(--fg-muted);
   }
@@ -186,7 +186,7 @@
     color: var(--fg);
     padding: 5px 8px;
     border-radius: 4px;
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums;
     font-size: 13px;
     width: 100%;
     text-align: right;
@@ -203,7 +203,7 @@
     position: fixed;
     bottom: 0; left: 0; right: 0;
     padding: 12px 32px;
-    background: rgba(15, 26, 46, 0.95);
+    background: color-mix(in srgb, var(--bg-1) 95%, transparent);
     backdrop-filter: blur(8px);
     border-top: 1px solid var(--border);
     display: flex;
@@ -264,7 +264,7 @@
 <header>
   <div class="brand">
     <svg viewBox="0 0 100 100">
-      <path d="M55,10 L35,52 L52,48 L42,90 L70,40 L52,44 L62,10 Z" fill="#e94560"/>
+      <path d="M55,10 L35,52 L52,48 L42,90 L70,40 L52,44 L62,10 Z" fill="var(--accent)"/>
     </svg>
     <div>
       <span class="brand-title">CATALYST</span>

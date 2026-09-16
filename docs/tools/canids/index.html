@@ -6,27 +6,32 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     :root {
-      --bg: #0f1424;
-      --panel: #1b2240;
-      --panel2: #131831;
+      --bg: #0d0e12;
+      --panel: #131418;
+      --panel2: #0d0e12;
       --accent: #e94560;
-      --accent2: #f0648a;
-      --text: #f4f4f8;
-      --muted: #8a8aa8;
-      --border: rgba(255,255,255,0.07);
-      --good: #4ade80;
-      --warn: #fbbf24;
-      --err:  #f87171;
+      --accent2: #ff5d76;
+      --text: #e8e9ec;
+      --muted: #9a9ba1;
+      --border: #23252b;
+      --good: #58c98b;
+      --warn: #ffbf63;
+      --err:  #ff5d76;
+      /* Bus/device categories. The identity gives one signal plus ok/warn/info;
+         a CAN map needs more, so these sit in the same muted register. */
+      --info: #7fa8c9;
+      --viol: #b79ada;
+      --teal: #5fb8bd;
     }
     * { box-sizing: border-box; }
     html, body {
       margin: 0; padding: 0;
       background:
-        radial-gradient(ellipse at 0% 0%, rgba(74,222,128,0.06), transparent 60%),
-        radial-gradient(ellipse at 100% 100%, rgba(233,69,96,0.08), transparent 60%),
+        radial-gradient(ellipse at 0% 0%, rgba(255,255,255,0.05), transparent 60%),
+        radial-gradient(ellipse at 100% 100%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 60%),
         var(--bg);
       color: var(--text);
-      font-family: ui-sans-serif, system-ui, -apple-system, "SF Pro Text", Segoe UI, sans-serif;
+      font-family: "Segoe UI Variable Text", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
       min-height: 100vh;
     }
     header {
@@ -35,7 +40,7 @@
       display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
       backdrop-filter: blur(6px);
       position: sticky; top: 0; z-index: 5;
-      background: linear-gradient(180deg, rgba(27,34,64,0.85) 0%, transparent 100%);
+      background: linear-gradient(180deg, color-mix(in srgb, var(--panel) 85%, transparent) 0%, transparent 100%);
     }
     header h1 { margin: 0; font-size: 18px; font-weight: 700; }
     header .badge { padding: 2px 10px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 600; }
@@ -69,10 +74,10 @@
     .row.compact { grid-template-columns: 70px 1fr; align-items: center; }
 
     .btn {
-      background: linear-gradient(135deg, var(--accent), #ff6b8a);
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
       color: #fff; border: 0; border-radius: 8px;
       padding: 9px 14px; font-size: 13px; font-weight: 600;
-      cursor: pointer; box-shadow: 0 4px 12px rgba(233,69,96,0.35);
+      cursor: pointer; box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 35%, transparent);
       transition: transform 0.12s ease;
     }
     .btn:hover { transform: translateY(-1px); }
@@ -83,11 +88,11 @@
     .btn.ghost:hover { border-color: var(--accent); color: var(--accent2); }
     .btn.danger {
       background: transparent; color: var(--err);
-      border: 1px solid rgba(248,113,113,0.3);
+      border: 1px solid color-mix(in srgb, var(--err) 30%, transparent);
       padding: 4px 8px; font-size: 11px;
       box-shadow: none;
     }
-    .btn.danger:hover { background: rgba(248,113,113,0.12); }
+    .btn.danger:hover { background: color-mix(in srgb, var(--err) 12%, transparent); }
 
     .device-list { display: flex; flex-direction: column; gap: 8px; }
     .device {
@@ -100,12 +105,12 @@
       border-radius: 10px;
       transition: border-color 0.12s ease, transform 0.12s ease;
     }
-    .device.conflict { border-color: var(--err); background: rgba(248,113,113,0.06); }
-    .device.bus-canivore { border-left: 3px solid #fbbf24; }
-    .device.bus-rio      { border-left: 3px solid #60a5fa; }
+    .device.conflict { border-color: var(--err); background: color-mix(in srgb, var(--err) 6%, transparent); }
+    .device.bus-canivore { border-left: 3px solid var(--warn); }
+    .device.bus-rio      { border-left: 3px solid var(--info); }
 
     .id-chip {
-      font-family: ui-monospace, monospace;
+      font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums;
       font-weight: 700; font-size: 16px;
       text-align: center;
       padding: 6px 8px;
@@ -122,17 +127,17 @@
       font-size: 10px; font-weight: 700; text-transform: uppercase;
       letter-spacing: 0.5px;
     }
-    .tag.kraken    { background: rgba(96,165,250,0.18); color: #60a5fa; }
-    .tag.falcon    { background: rgba(96,165,250,0.18); color: #60a5fa; }
-    .tag.cancoder  { background: rgba(233,69,96,0.16);  color: var(--accent2); }
-    .tag.pigeon    { background: rgba(251,191,36,0.18); color: var(--warn); }
-    .tag.candle    { background: rgba(252,165,165,0.16);color: #fcd34d; }
-    .tag.candi     { background: rgba(165,180,252,0.18);color: #a5b4fc; }
-    .tag.pdh       { background: rgba(165,243,252,0.18);color: #67e8f9; }
-    .tag.rev       { background: rgba(74,222,128,0.18); color: var(--good); }
-    .tag.wcp       { background: rgba(251,191,36,0.18); color: var(--warn); }
-    .tag.canivore  { background: rgba(251,191,36,0.18); color: var(--warn); }
-    .tag.rio       { background: rgba(96,165,250,0.18); color: #60a5fa; }
+    .tag.kraken    { background: color-mix(in srgb, var(--info) 18%, transparent); color: var(--info); }
+    .tag.falcon    { background: color-mix(in srgb, var(--info) 18%, transparent); color: var(--info); }
+    .tag.cancoder  { background: color-mix(in srgb, var(--accent) 16%, transparent);  color: var(--accent2); }
+    .tag.pigeon    { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+    .tag.candle    { background: color-mix(in srgb, var(--warn) 18%, transparent);color: var(--warn); }
+    .tag.candi     { background: color-mix(in srgb, var(--viol) 18%, transparent);color: var(--viol); }
+    .tag.pdh       { background: color-mix(in srgb, var(--teal) 18%, transparent);color: var(--teal); }
+    .tag.rev       { background: color-mix(in srgb, var(--good) 18%, transparent); color: var(--good); }
+    .tag.wcp       { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+    .tag.canivore  { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+    .tag.rio       { background: color-mix(in srgb, var(--info) 18%, transparent); color: var(--info); }
 
     .summary {
       display: grid; grid-template-columns: repeat(4, 1fr);
@@ -160,7 +165,7 @@
     .output {
       background: var(--bg); border: 1px solid var(--border);
       border-radius: 10px; padding: 14px;
-      font-family: ui-monospace, monospace; font-size: 12px;
+      font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums; font-size: 12px;
       max-height: 360px; overflow: auto;
       white-space: pre;
     }
@@ -181,10 +186,10 @@
     .seg-btn.active {
       background: var(--accent); color: #fff;
     }
-    .output .kw  { color: #ef798a; }
-    .output .str { color: #9ee493; }
-    .output .num { color: #f4d35e; }
-    .output .cmt { color: #6a7088; font-style: italic; }
+    .output .kw  { color: var(--accent2); }
+    .output .str { color: var(--good); }
+    .output .num { color: var(--warn); }
+    .output .cmt { color: var(--muted); font-style: italic; }
 
     .credit { padding: 14px 28px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); }
     .credit a { color: var(--accent2); text-decoration: none; }
@@ -275,7 +280,7 @@
       <button class="btn ghost" id="downloadTxt">Download .txt</button>
     </div>
     <div class="actions" id="javaActions" style="display:none">
-      <input type="text" id="javaPkg" placeholder="frc.robot" value="frc.robot" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:12px;font-family:ui-monospace,monospace;flex:1">
+      <input type="text" id="javaPkg" placeholder="frc.robot" value="frc.robot" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:12px;font-family:"Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums;flex:1">
       <button class="btn" id="copyJava">Copy</button>
       <button class="btn ghost" id="downloadJava">Download CANIds.java</button>
     </div>
@@ -354,7 +359,7 @@
           <div class="meta">
             <span class="tag ${cls}">${escapeHtml(d.type)}</span>
             <span class="tag ${d.bus}">${d.bus}</span>
-            ${conflict ? '<span class="tag" style="background:rgba(248,113,113,0.16);color:var(--err)">conflict</span>' : ''}
+            ${conflict ? '<span class="tag" style="background:color-mix(in srgb, var(--err) 16%, transparent);color:var(--err)">conflict</span>' : ''}
           </div>
         </div>
         <button class="btn danger" data-i="${d._i}">remove</button>

@@ -6,33 +6,33 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     :root {
-      --bg: #0f1424;
-      --bg-2: #161c33;
-      --panel: #1b2240;
-      --panel2: #131831;
+      --bg: #0d0e12;
+      --bg-2: #131418;
+      --panel: #131418;
+      --panel2: #0d0e12;
       --accent: #e94560;
-      --accent2: #f0648a;
-      --text: #f4f4f8;
-      --muted: #8a8aa8;
-      --pos: #4ade80;
-      --vel: #60a5fa;
-      --acc: #fbbf24;
-      --border: rgba(255,255,255,0.07);
+      --accent2: #ff5d76;
+      --text: #e8e9ec;
+      --muted: #9a9ba1;
+      --pos: #58c98b;
+      --vel: #7fa8c9;
+      --acc: #ffbf63;
+      --border: #23252b;
     }
     * { box-sizing: border-box; }
     html, body {
       margin: 0; padding: 0;
       background:
-        radial-gradient(ellipse at 80% 0%, rgba(233,69,96,0.10), transparent 60%),
-        radial-gradient(ellipse at 0% 100%, rgba(96,165,250,0.08), transparent 60%),
+        radial-gradient(ellipse at 80% 0%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 60%),
+        radial-gradient(ellipse at 0% 100%, rgba(255,255,255,0.05), transparent 60%),
         var(--bg);
       color: var(--text);
-      font-family: ui-sans-serif, system-ui, -apple-system, "SF Pro Text", Segoe UI, sans-serif;
+      font-family: "Segoe UI Variable Text", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
       min-height: 100vh;
     }
     header {
       padding: 16px 28px;
-      background: linear-gradient(180deg, rgba(27,34,64,0.85) 0%, transparent 100%);
+      background: linear-gradient(180deg, color-mix(in srgb, var(--panel) 85%, transparent) 0%, transparent 100%);
       border-bottom: 1px solid var(--border);
       display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
       backdrop-filter: blur(6px);
@@ -75,7 +75,7 @@
       display: flex; justify-content: space-between; align-items: baseline;
     }
     .row label span.value {
-      color: var(--accent2); font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      color: var(--accent2); font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums;
       font-weight: 600;
     }
     .row input[type=range] {
@@ -86,7 +86,7 @@
     .row input[type=range]::-webkit-slider-thumb {
       appearance: none; width: 16px; height: 16px;
       background: var(--accent); border-radius: 50%;
-      box-shadow: 0 2px 6px rgba(233,69,96,0.5);
+      box-shadow: 0 2px 6px color-mix(in srgb, var(--accent) 50%, transparent);
       cursor: pointer;
     }
     .stats {
@@ -99,7 +99,7 @@
       padding: 4px 0; font-size: 13px;
     }
     .stat-row .v {
-      font-family: ui-monospace, monospace; color: var(--accent2);
+      font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums; color: var(--accent2);
       font-weight: 600;
     }
     .stat-row.warn .v { color: var(--acc); }
@@ -116,14 +116,14 @@
       transform: translateY(-1px);
     }
     .export {
-      background: linear-gradient(135deg, var(--accent), #ff6b8a);
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
       color: #fff; border: 0; border-radius: 8px;
       padding: 10px 14px; font-size: 13px; font-weight: 600;
       cursor: pointer; width: 100%;
-      box-shadow: 0 4px 12px rgba(233,69,96,0.35);
+      box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 35%, transparent);
       transition: transform 0.12s ease, box-shadow 0.12s ease;
     }
-    .export:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(233,69,96,0.5); }
+    .export:hover { transform: translateY(-1px); box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 50%, transparent); }
     .export code { background: rgba(255,255,255,0.18); padding: 1px 6px; border-radius: 4px; font-size: 11px; }
     .chart-area {
       display: flex; flex-direction: column; gap: 14px;
@@ -145,7 +145,7 @@
       letter-spacing: 1.2px; color: var(--muted); font-weight: 700;
     }
     .chart-head .peak {
-      font-size: 11px; color: var(--muted); font-family: ui-monospace, monospace;
+      font-size: 11px; color: var(--muted); font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums;
     }
     .chart-head .peak strong { color: var(--accent2); }
     .legend-dot {
@@ -250,6 +250,10 @@
 </div>
 
 <script>
+  // Palette — read once from the identity tokens on :root.
+  const CSSVARS = getComputedStyle(document.documentElement);
+  const COL = n => CSSVARS.getPropertyValue(n).trim();
+
   // ============================================================
   // Profile solvers
   // ============================================================
@@ -482,8 +486,8 @@
     }
 
     // Axis labels
-    ctx.fillStyle = "#8a8aa8";
-    ctx.font = "11px ui-monospace, monospace";
+    ctx.fillStyle = COL("--muted");
+    ctx.font = "11px 'Cascadia Code', 'Cascadia Mono', ui-monospace, Consolas, monospace";
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
     for (let i = 0; i <= 4; i++) {
@@ -582,9 +586,9 @@
     $("peakVelLabel").textContent = peakV.toFixed(2) + " rps";
     $("peakAccLabel").textContent = peakA.toFixed(1) + " rps²";
 
-    drawChart("chartPos", samples, s => s.p, "#4ade80");
-    drawChart("chartVel", samples, s => s.v, "#60a5fa");
-    drawChart("chartAcc", samples, s => s.a, "#fbbf24", { includeZero: true });
+    drawChart("chartPos", samples, s => s.p, COL("--pos"));
+    drawChart("chartVel", samples, s => s.v, COL("--vel"));
+    drawChart("chartAcc", samples, s => s.a, COL("--acc"), { includeZero: true });
   }
 
   // ============================================================

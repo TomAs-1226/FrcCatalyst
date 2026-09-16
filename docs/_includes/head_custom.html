@@ -1,26 +1,30 @@
 <!-- Catalyst custom polish layered on top of just-the-docs -->
 <style>
   :root {
-    --catalyst-accent:    #e94560;
-    --catalyst-accent-2:  #f0648a;
-    --catalyst-accent-d:  #c0314e;
-    --catalyst-blue:      #60a5fa;
-    --catalyst-green:     #4ade80;
-    --catalyst-amber:     #fbbf24;
-    --catalyst-panel:     rgba(255,255,255,0.04);
-    --catalyst-border:    rgba(255,255,255,0.08);
+    /* docs/assets/identity.css, under this site's names. Nothing here is
+       invented: each value is the token named in the comment beside it. */
+    --catalyst-ground:    #0d0e12;   /* --cat-ground      */
+    --catalyst-accent:    #e94560;   /* --cat-signal      */
+    --catalyst-accent-2:  #ff5d76;   /* --cat-signal-lt   */
+    --catalyst-accent-d:  #8e2739;   /* --cat-signal-dk   */
+    --catalyst-accent-i:  #ff92a3;   /* --cat-signal-ink  */
+    --catalyst-blue:      #7fa8c9;   /* --cat-info        */
+    --catalyst-green:     #58c98b;   /* --cat-ok          */
+    --catalyst-amber:     #ffbf63;   /* --cat-warn        */
+    --catalyst-panel:     #131418;   /* --cat-surface-1   */
+    --catalyst-border:    #2f323a;   /* --cat-line-strong */
   }
 
   /* ---------- Background aurora ---------- */
   body {
     background-image:
-      radial-gradient(900px 600px at 110% -10%, rgba(233,69,96,0.06), transparent 60%),
-      radial-gradient(800px 600px at -10% 110%, rgba(96,165,250,0.05), transparent 60%);
+      radial-gradient(900px 600px at 110% -10%, color-mix(in srgb, var(--catalyst-accent) 6%, transparent), transparent 60%),
+      radial-gradient(800px 600px at -10% 110%, rgba(255,255,255,0.05), transparent 60%);
   }
 
   /* ---------- Page titles ---------- */
   .main-content h1:first-child {
-    background: linear-gradient(135deg, #e94560 0%, #f0648a 55%, #ffd6e0 100%);
+    background: linear-gradient(135deg, var(--catalyst-accent) 0%, var(--catalyst-accent-2) 55%, var(--catalyst-accent-i) 100%);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -64,7 +68,7 @@
     background: var(--catalyst-accent-2) !important;
     border-color: var(--catalyst-accent-2) !important;
     transform: translateY(-1px);
-    box-shadow: 0 6px 14px rgba(233,69,96,0.25) !important;
+    box-shadow: 0 6px 14px color-mix(in srgb, var(--catalyst-accent) 25%, transparent) !important;
   }
 
   .main-content .btn-outline {
@@ -104,7 +108,7 @@
   .aux-nav-list .aux-nav-list-item:first-child .site-button:hover {
     background: var(--catalyst-accent-2);
     border-color: var(--catalyst-accent-2);
-    box-shadow: 0 4px 10px rgba(233,69,96,0.25);
+    box-shadow: 0 4px 10px color-mix(in srgb, var(--catalyst-accent) 25%, transparent);
   }
 
   /* ---------- Tables ---------- */
@@ -124,7 +128,7 @@
     font-weight: 700;
   }
   .main-content table tr:hover td {
-    background: rgba(233,69,96,0.04);
+    background: color-mix(in srgb, var(--catalyst-accent) 4%, transparent);
   }
 
   /* ---------- Code blocks ---------- */
@@ -145,7 +149,7 @@
 
   /* ---------- Side nav ---------- */
   .nav-list .nav-list-item .nav-list-link.active {
-    background-image: linear-gradient(90deg, rgba(233,69,96,0.14), transparent 70%);
+    background-image: linear-gradient(90deg, color-mix(in srgb, var(--catalyst-accent) 14%, transparent), transparent 70%);
     border-left: 3px solid var(--catalyst-accent);
   }
   .nav-list .nav-list-item .nav-list-link:hover {
@@ -153,9 +157,9 @@
   }
 
   /* ---------- Callouts ---------- */
-  .main-content .note    { box-shadow: 0 0 0 1px rgba(96,165,250,0.22); }
-  .main-content .tip     { box-shadow: 0 0 0 1px rgba(74,222,128,0.22); }
-  .main-content .warning { box-shadow: 0 0 0 1px rgba(233,69,96,0.30); }
+  .main-content .note    { box-shadow: 0 0 0 1px color-mix(in srgb, var(--catalyst-blue) 22%, transparent); }
+  .main-content .tip     { box-shadow: 0 0 0 1px color-mix(in srgb, var(--catalyst-green) 22%, transparent); }
+  .main-content .warning { box-shadow: 0 0 0 1px color-mix(in srgb, var(--catalyst-accent) 30%, transparent); }
 
   /* ---------- Scrollbar polish (chromium) ---------- */
   ::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -171,13 +175,13 @@
      across; the rest of Rev 2 is not applied to this site.
        <span class="proven">measured</span>   <span class="attempted">not yet measured</span> */
   :root {
-    --cat-white:      #E4E7E1;
-    --cat-muted:      #98A09A;
-    --cat-coral:      #E9583D;
+    --cat-white:      #e8e9ec;   /* --cat-ink    */
+    --cat-muted:      #9a9ba1;   /* --cat-dim    */
+    --cat-coral:      #e94560;   /* --cat-signal */
     --cat-fs-caption: 12px;
     --cat-fs-small:   13px;
-    --cat-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
-                "Liberation Mono", monospace;
+    --cat-mono: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas,
+                monospace;
   }
 
   .proven,

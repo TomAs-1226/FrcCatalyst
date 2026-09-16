@@ -6,23 +6,24 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     :root {
-      --bg: #1a1a2e;
-      --panel: #16213e;
-      --panel2: #0f1a30;
+      --bg: #0d0e12;
+      --panel: #131418;
+      --panel2: #1a1c21;
       --accent: #e94560;
-      --accent2: #f0648a;
-      --text: #f4f4f8;
-      --muted: #8a8aa8;
-      --border: #2a3050;
-      --good: #4ade80;
-      --warn: #fbbf24;
+      --accent2: #ff5d76;
+      --text: #e8e9ec;
+      --muted: #9a9ba1;
+      --border: #2f323a;
+      --good: #58c98b;
+      --warn: #ffbf63;
+      --info: #7fa8c9;
     }
     * { box-sizing: border-box; }
     html, body {
       margin: 0; padding: 0;
       background: var(--bg);
       color: var(--text);
-      font-family: ui-sans-serif, system-ui, -apple-system, "SF Pro Text", Segoe UI, sans-serif;
+      font-family: "Segoe UI Variable Text", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
       min-height: 100vh;
     }
     header {
@@ -89,18 +90,18 @@
     th.sort-asc::after { content: " ▴"; color: var(--accent2); }
     th.sort-desc::after { content: " ▾"; color: var(--accent2); }
     tr { cursor: pointer; transition: background 0.08s; }
-    tr:hover { background: rgba(233,69,96,0.06); }
-    tr.selected { background: rgba(233,69,96,0.12); }
-    td.num { text-align: right; font-family: ui-monospace, monospace; color: var(--accent2); }
+    tr:hover { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+    tr.selected { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+    td.num { text-align: right; font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums; color: var(--accent2); }
     td .badge {
       display: inline-block; padding: 1px 7px; border-radius: 999px;
       font-size: 10px; font-weight: 700; letter-spacing: 0.5px;
       margin-left: 6px;
     }
-    .badge.ctre { background: rgba(96, 165, 250, 0.2); color: #60a5fa; }
-    .badge.rev  { background: rgba(74, 222, 128, 0.2); color: #4ade80; }
-    .badge.wcp  { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
-    .badge.foc  { background: rgba(233, 69, 96, 0.2); color: var(--accent2); }
+    .badge.ctre { background: color-mix(in srgb, var(--info) 20%, transparent); color: var(--info); }
+    .badge.rev  { background: color-mix(in srgb, var(--good) 20%, transparent); color: var(--good); }
+    .badge.wcp  { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
+    .badge.foc  { background: color-mix(in srgb, var(--accent) 20%, transparent); color: var(--accent2); }
 
     .calc {
       background: var(--panel); border: 1px solid var(--border);
@@ -123,7 +124,7 @@
       border: 1px solid var(--border);
       border-radius: 6px;
       padding: 6px 10px;
-      font-size: 13px; font-family: ui-monospace, monospace;
+      font-size: 13px; font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums;
       text-align: right;
     }
     .calc-row input:focus { border-color: var(--accent); outline: none; }
@@ -138,7 +139,7 @@
       font-size: 13px; padding: 4px 0;
     }
     .result-row .v {
-      font-family: ui-monospace, monospace;
+      font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums;
       color: var(--accent2);
     }
 
@@ -146,16 +147,16 @@
       background: var(--bg); border: 1px solid var(--border);
       border-radius: 6px;
       padding: 10px 12px;
-      font-family: ui-monospace, monospace;
+      font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums;
       font-size: 12px;
       margin-top: 12px;
-      color: #d9e0f0;
+      color: var(--text);
       white-space: pre;
       overflow-x: auto;
     }
-    .snippet .kw { color: #ef798a; }
-    .snippet .str { color: #9ee493; }
-    .snippet .lit { color: #f4d35e; }
+    .snippet .kw { color: var(--accent2); }
+    .snippet .str { color: var(--good); }
+    .snippet .lit { color: var(--warn); }
 
     .actions { display: flex; gap: 8px; margin-top: 12px; }
     .btn {

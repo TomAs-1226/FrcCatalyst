@@ -6,23 +6,23 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     :root {
-      --bg: #1a1a2e;
-      --panel: #16213e;
-      --panel2: #0f1a30;
+      --bg: #0d0e12;
+      --panel: #131418;
+      --panel2: #1a1c21;
       --accent: #e94560;
-      --accent2: #f0648a;
-      --text: #f4f4f8;
-      --muted: #8a8aa8;
-      --good: #4caf50;
-      --warn: #ffb020;
-      --border: #2a3050;
+      --accent2: #ff5d76;
+      --text: #e8e9ec;
+      --muted: #9a9ba1;
+      --good: #58c98b;
+      --warn: #ffbf63;
+      --border: #2f323a;
     }
     * { box-sizing: border-box; }
     html, body {
       margin: 0; padding: 0;
       background: var(--bg);
       color: var(--text);
-      font-family: ui-sans-serif, system-ui, -apple-system, "SF Pro Text", Segoe UI, sans-serif;
+      font-family: "Segoe UI Variable Text", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
       min-height: 100vh;
     }
     header {
@@ -78,7 +78,7 @@
     .preset-btn-card:hover {
       transform: translateY(-1px);
       border-color: var(--accent);
-      background: rgba(233,69,96,0.06);
+      background: color-mix(in srgb, var(--accent) 6%, transparent);
     }
     .preset-btn-card .pname {
       font-weight: 700; font-size: 12px; color: var(--accent2);
@@ -96,7 +96,7 @@
     }
     .mech-btn:hover { background: rgba(255,255,255,0.04); }
     .mech-btn.active {
-      background: rgba(233,69,96,0.12);
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
       border-color: var(--accent);
       color: var(--accent2);
       font-weight: 600;
@@ -188,22 +188,22 @@
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 16px 18px;
-      font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums;
       font-size: 13px;
       line-height: 1.5;
       overflow: auto;
       flex: 1;
       margin: 0;
-      color: #d9e0f0;
+      color: var(--text);
       white-space: pre;
     }
-    .preview-area pre .kw { color: #ef798a; }
-    .preview-area pre .lit { color: #f4d35e; }
-    .preview-area pre .str { color: #9ee493; }
+    .preview-area pre .kw { color: var(--accent2); }
+    .preview-area pre .lit { color: var(--warn); }
+    .preview-area pre .str { color: var(--good); }
     .preview-area pre .cmt { color: var(--muted); font-style: italic; }
     .toast {
       position: fixed; bottom: 20px; right: 20px;
-      background: var(--good); color: #082; padding: 10px 16px;
+      background: var(--good); color: var(--bg); padding: 10px 16px;
       border-radius: 8px; font-weight: 600; opacity: 0;
       transition: opacity 0.2s; pointer-events: none;
     }
@@ -240,7 +240,7 @@
       background: var(--bg); color: var(--text);
       border: 1px solid var(--border);
       border-radius: 6px;
-      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums;
       font-size: 12px; padding: 10px;
       resize: vertical;
     }

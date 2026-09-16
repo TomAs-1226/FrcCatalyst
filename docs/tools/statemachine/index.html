@@ -6,28 +6,28 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     :root {
-      --bg: #0f1424;
-      --panel: #1b2240;
-      --panel2: #131831;
+      --bg: #0d0e12;
+      --panel: #131418;
+      --panel2: #0d0e12;
       --accent: #e94560;
-      --accent2: #f0648a;
-      --text: #f4f4f8;
-      --muted: #8a8aa8;
-      --border: rgba(255,255,255,0.07);
-      --good: #4ade80;
-      --warn: #fbbf24;
-      --err:  #f87171;
-      --info: #60a5fa;
+      --accent2: #ff5d76;
+      --text: #e8e9ec;
+      --muted: #9a9ba1;
+      --border: #23252b;
+      --good: #58c98b;
+      --warn: #ffbf63;
+      --err:  #ff5d76;
+      --info: #7fa8c9;
     }
     * { box-sizing: border-box; }
     html, body {
       margin: 0; padding: 0;
       background:
-        radial-gradient(ellipse at 0% 0%, rgba(96,165,250,0.06), transparent 60%),
-        radial-gradient(ellipse at 100% 100%, rgba(233,69,96,0.08), transparent 60%),
+        radial-gradient(ellipse at 0% 0%, rgba(255,255,255,0.05), transparent 60%),
+        radial-gradient(ellipse at 100% 100%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 60%),
         var(--bg);
       color: var(--text);
-      font-family: ui-sans-serif, system-ui, -apple-system, "SF Pro Text", Segoe UI, sans-serif;
+      font-family: "Segoe UI Variable Text", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
       min-height: 100vh;
     }
     header {
@@ -36,7 +36,7 @@
       display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
       backdrop-filter: blur(6px);
       position: sticky; top: 0; z-index: 5;
-      background: linear-gradient(180deg, rgba(27,34,64,0.85) 0%, transparent 100%);
+      background: linear-gradient(180deg, color-mix(in srgb, var(--panel) 85%, transparent) 0%, transparent 100%);
     }
     header h1 { margin: 0; font-size: 18px; font-weight: 700; }
     header .badge { padding: 2px 10px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 600; }
@@ -65,7 +65,7 @@
       border: 1px solid var(--border);
       border-radius: 8px;
       padding: 9px 11px; font-size: 12px;
-      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums;
       resize: vertical; line-height: 1.5;
     }
     textarea:focus { border-color: var(--accent); outline: none; }
@@ -86,10 +86,10 @@
     .seg-btn.active { background: var(--accent); color: #fff; }
 
     .btn {
-      background: linear-gradient(135deg, var(--accent), #ff6b8a);
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
       color: #fff; border: 0; border-radius: 8px;
       padding: 9px 14px; font-size: 13px; font-weight: 600;
-      cursor: pointer; box-shadow: 0 4px 12px rgba(233,69,96,0.35);
+      cursor: pointer; box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 35%, transparent);
       transition: transform 0.12s ease;
     }
     .btn:hover { transform: translateY(-1px); }
@@ -109,8 +109,8 @@
       border-radius: 8px; font-size: 12px; line-height: 1.5;
       border: 1px solid var(--border);
     }
-    .parse-msg.ok   { border-color: rgba(74,222,128,0.3);  color: var(--good); background: rgba(74,222,128,0.06); }
-    .parse-msg.err  { border-color: rgba(248,113,113,0.3); color: var(--err);  background: rgba(248,113,113,0.06); }
+    .parse-msg.ok   { border-color: color-mix(in srgb, var(--good) 30%, transparent);  color: var(--good); background: color-mix(in srgb, var(--good) 6%, transparent); }
+    .parse-msg.err  { border-color: color-mix(in srgb, var(--err) 30%, transparent); color: var(--err);  background: color-mix(in srgb, var(--err) 6%, transparent); }
 
     /* ---- diagram ---- */
     .diagram-toolbar {
@@ -121,7 +121,7 @@
     .legend .lg { display: inline-flex; align-items: center; gap: 5px; }
     .legend .swatch { width: 22px; height: 0; border-top: 2px solid var(--muted); }
     .legend .swatch.guard { border-top: 2px dashed var(--accent2); }
-    .legend .swatch.node  { width: 12px; height: 12px; border: 1px solid var(--info); border-radius: 3px; border-top-width: 1px; background: rgba(96,165,250,0.14); }
+    .legend .swatch.node  { width: 12px; height: 12px; border: 1px solid var(--info); border-radius: 3px; border-top-width: 1px; background: color-mix(in srgb, var(--info) 14%, transparent); }
     .legend .swatch.issue { width: 12px; height: 12px; border: 1px dashed var(--warn); border-radius: 3px; border-top-width: 1px; }
 
     .svg-wrap {
@@ -141,14 +141,14 @@
     }
 
     .node rect {
-      fill: rgba(96,165,250,0.10);
+      fill: color-mix(in srgb, var(--info) 10%, transparent);
       stroke: var(--info); stroke-width: 1.4;
       transition: fill 0.12s ease, stroke 0.12s ease;
       cursor: pointer;
     }
-    .node text { fill: var(--text); font-size: 13px; font-weight: 600; pointer-events: none; font-family: ui-monospace, monospace; }
-    .node:hover rect { fill: rgba(96,165,250,0.22); }
-    .node.selected rect { fill: rgba(233,69,96,0.20); stroke: var(--accent); stroke-width: 2; }
+    .node text { fill: var(--text); font-size: 13px; font-weight: 600; pointer-events: none; font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums; }
+    .node:hover rect { fill: color-mix(in srgb, var(--info) 22%, transparent); }
+    .node.selected rect { fill: color-mix(in srgb, var(--accent) 20%, transparent); stroke: var(--accent); stroke-width: 2; }
     .node.target rect { stroke: var(--good); }
     .node.deadend rect { stroke: var(--warn); stroke-dasharray: 4 3; }
     .node.orphan rect  { stroke: var(--err);  stroke-dasharray: 4 3; }
@@ -158,7 +158,7 @@
     .edge.guard { stroke: var(--accent2); stroke-dasharray: 6 4; }
     .edge.hi   { stroke: var(--accent); stroke-width: 2.4; }
     .edge.dim  { opacity: 0.14; }
-    .edge-label { fill: var(--accent2); font-size: 10px; font-family: ui-monospace, monospace; pointer-events: none; }
+    .edge-label { fill: var(--accent2); font-size: 10px; font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums; pointer-events: none; }
     .edge-label-bg { fill: var(--bg); opacity: 0.85; }
     .edge-label.dim, .edge-label-bg.dim { opacity: 0.12; }
 
@@ -186,35 +186,35 @@
       transition: border-color 0.12s ease, background 0.12s ease;
     }
     .state-row:hover { border-color: var(--accent); }
-    .state-row.selected { border-color: var(--accent); background: rgba(233,69,96,0.08); }
-    .state-row .sname { font-family: ui-monospace, monospace; font-size: 13px; font-weight: 600; flex: 1; }
-    .state-row .out { font-size: 11px; color: var(--muted); font-family: ui-monospace, monospace; }
+    .state-row.selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+    .state-row .sname { font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums; font-size: 13px; font-weight: 600; flex: 1; }
+    .state-row .out { font-size: 11px; color: var(--muted); font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums; }
     .flag {
       font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
       padding: 2px 6px; border-radius: 999px;
     }
-    .flag.deadend { background: rgba(251,191,36,0.16); color: var(--warn); }
-    .flag.orphan  { background: rgba(248,113,113,0.16); color: var(--err); }
+    .flag.deadend { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+    .flag.orphan  { background: color-mix(in srgb, var(--err) 16%, transparent); color: var(--err); }
 
     .detail {
       margin-top: 14px; padding: 14px;
       background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
       font-size: 13px;
     }
-    .detail .dtitle { font-family: ui-monospace, monospace; font-weight: 700; font-size: 15px; color: var(--accent2); margin-bottom: 4px; }
+    .detail .dtitle { font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums; font-weight: 700; font-size: 15px; color: var(--accent2); margin-bottom: 4px; }
     .detail .dsub { color: var(--muted); font-size: 11px; margin-bottom: 12px; }
     .target-row {
       display: flex; align-items: center; gap: 8px;
       padding: 7px 0; border-top: 1px solid rgba(255,255,255,0.05);
-      font-family: ui-monospace, monospace; font-size: 12px;
+      font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums; font-size: 12px;
     }
     .target-row .arrow { color: var(--muted); }
     .target-row .tname { color: var(--good); }
     .guard-chip {
       margin-left: auto;
       font-size: 10px; padding: 2px 8px; border-radius: 999px;
-      background: rgba(240,100,138,0.16); color: var(--accent2);
-      font-family: ui-monospace, monospace;
+      background: color-mix(in srgb, var(--accent2) 16%, transparent); color: var(--accent2);
+      font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;font-variant-numeric:tabular-nums;
     }
     .detail .none { color: var(--warn); font-size: 12px; padding-top: 6px; }
     .detail .incoming { margin-top: 12px; font-size: 11px; color: var(--muted); }
@@ -627,11 +627,11 @@ CLIMB->CLIMB_READY|cost=1.0`;
 
     let defs = `<defs>
       <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-        <path d="M0,0 L10,5 L0,10 z" fill="#8a8aa8"/></marker>
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
       <marker id="arrowGuard" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-        <path d="M0,0 L10,5 L0,10 z" fill="#f0648a"/></marker>
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--accent2)"/></marker>
       <marker id="arrowHi" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-        <path d="M0,0 L10,5 L0,10 z" fill="#e94560"/></marker>
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker>
     </defs>`;
 
     let edgeSvg = "", labelSvg = "";
@@ -791,7 +791,7 @@ CLIMB->CLIMB_READY|cost=1.0`;
     body += outs.map(e => `<div class="target-row">
         <span class="arrow">→</span>
         <span class="tname">${escapeHtml(e.to)}${e.to === selected ? " (self)" : ""}</span>
-        ${e.guard ? `<span class="guard-chip">guard: ${escapeHtml(e.guard)}</span>` : (e.cost != null ? `<span class="guard-chip" style="background:rgba(96,165,250,0.14);color:var(--info)">cost ${e.cost}</span>` : "")}
+        ${e.guard ? `<span class="guard-chip">guard: ${escapeHtml(e.guard)}</span>` : (e.cost != null ? `<span class="guard-chip" style="background:color-mix(in srgb, var(--info) 14%, transparent);color:var(--info)">cost ${e.cost}</span>` : "")}
       </div>`).join("");
     const inNames = ins.map(e => e.from).filter(f => f !== selected);
     body += `<div class="incoming">${inNames.length ? "Reached from: " + inNames.map(escapeHtml).join(", ") : "Nothing transitions into this state — no way in."}</div>`;
