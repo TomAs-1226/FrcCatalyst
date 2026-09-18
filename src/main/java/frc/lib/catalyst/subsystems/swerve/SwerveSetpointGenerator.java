@@ -90,6 +90,15 @@ public final class SwerveSetpointGenerator {
     private final double maxTranslationalAccel;
     private final double maxAngularAccel;
     private final Priority priority;
+    /**
+     * Headroom {@link Priority#ROTATION} leaves for the heading loop's own correction on top of the feedforward: the
+     * turn is allocated as if it were {@code 1 / allocationMargin} as fast, so the room kept grows with the turn and
+     * none is kept driving straight - straight-line top speed is never shaved. (The X1's AimDriveShaper shrinks the
+     * whole limit instead, which in turret mode costs 3% of top speed; a general option should not.)
+     */
+    private double allocationMargin = DEFAULT_ALLOCATION_MARGIN;
+    /** {@link #allocationMargin(double)}'s default. */
+    public static final double DEFAULT_ALLOCATION_MARGIN = 0.97;
     /** Wheel positions, robot frame {x, y}, m, for {@link Priority#ROTATION}. */
     private final double[][] modules;
 
@@ -150,6 +159,20 @@ public final class SwerveSetpointGenerator {
     }
 
     /** Reset the internal "previous" state. Call when re-enabling. */
+    /**
+     * How much of a turn's wheel speed {@link Priority#ROTATION} budgets for (0.5-1, default
+     * {@value #DEFAULT_ALLOCATION_MARGIN}): the turn is allocated as {@code 1 / share} as fast, leaving headroom
+     * in proportion to it for the heading loop's correction. 1 fills the wheels to the top speed exactly.
+     *
+     * @return this, for chaining
+     */
+    public SwerveSetpointGenerator allocationMargin(double share) {
+        if (Double.isFinite(share)) {
+            allocationMargin = Math.max(0.5, Math.min(1.0, share));
+        }
+        return this;
+    }
+
     public void reset() {
         prev = new ChassisVelocities();
         lastTs = -1;
@@ -222,7 +245,7 @@ public final class SwerveSetpointGenerator {
             double s = robotHeading.getSin();
             double rx = nextV.getX() * c + nextV.getY() * s;
             double ry = -nextV.getX() * s + nextV.getY() * c;
-            double scale = translationScale(rx, ry, nextOmega, maxTranslationMPS, modules);
+            double scale = translationScale(rx, ry, nextOmega / allocationMargin, maxTranslationMPS, modules);
             // Anything that is not a number here (a heading or a rotation that is not one) leaves the
             // translation as it was: the drivetrain's own desaturation still stands behind it.
             if (Double.isFinite(scale)) {

@@ -83,8 +83,36 @@ class SwerveSetpointGeneratorTest {
         assertEquals(3.0, out.omega, 0.0, "the turn is kept whole");
         assertEquals(0.0, out.vy, 0.0, "the direction is kept");
         assertTrue(out.vx < 5.0);
-        assertEquals(TOP, fastest(out.vx, out.vy, out.omega), 1e-9);
+        // Just under the top speed: the turn was budgeted a little faster than it is, for the heading loop.
+        double fastest = fastest(out.vx, out.vy, out.omega);
+        assertTrue(fastest < TOP && fastest > 0.95 * TOP, "fastest wheel " + fastest + " of " + TOP);
         assertEquals(out.vx / 5.0, gen.getTranslationScale(), 1e-12);
+    }
+
+    @Test
+    void theAllocationMarginIsSetAndClamped() {
+        SwerveSetpointGenerator gen = unramped(Priority.ROTATION).allocationMargin(1.0);
+        ChassisVelocities out = gen.generate(new ChassisVelocities(5.0, 0.0, 3.0), 0.02);
+        assertEquals(TOP, fastest(out.vx, out.vy, out.omega), 1e-9);
+        double full = gen.getTranslationScale();
+        gen.allocationMargin(0.1).reset();
+        gen.generate(new ChassisVelocities(5.0, 0.0, 3.0), 0.02);
+        double half = gen.getTranslationScale();
+        assertTrue(half < full, "a smaller share keeps more room: " + half + " vs " + full);
+        SwerveSetpointGenerator clamped = unramped(Priority.ROTATION).allocationMargin(0.5);
+        clamped.generate(new ChassisVelocities(5.0, 0.0, 3.0), 0.02);
+        assertEquals(clamped.getTranslationScale(), half, 1e-12, "0.1 is clamped to 0.5");
+        gen.allocationMargin(Double.NaN).reset();
+        gen.generate(new ChassisVelocities(5.0, 0.0, 3.0), 0.02);
+        assertEquals(half, gen.getTranslationScale(), 1e-12, "NaN leaves it as it was");
+    }
+
+    @Test
+    void theMarginNeverShavesStraightLineSpeed() {
+        // No turn, so no module is shared with a rotation: the translation cap alone applies.
+        SwerveSetpointGenerator gen = unramped(Priority.ROTATION);
+        ChassisVelocities out = gen.generate(new ChassisVelocities(TOP, 0.0, 0.0), 0.02);
+        assertEquals(TOP, out.vx, 1e-9);
     }
 
     @Test

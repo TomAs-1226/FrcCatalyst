@@ -153,6 +153,7 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
                            PathPlannerConfig pathPlannerConfig) {
         this.drivetrain = drivetrain;
         this.maxSpeedMPS = maxSpeedMPS;
+        raiseYawRateSignal();
         // Commands v3's Mechanism has no constructor to hook, so periodic() is registered
         // explicitly. Without this the method compiles and is simply never called - see
         // CatalystSubsystem#registerPeriodic.
@@ -334,6 +335,26 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
      *
      * @since 2.0.0
      */
+    /** The least rate the Pigeon's yaw rate is sent at, Hz: twice the 50 Hz loop that reads it. */
+    static final double YAW_RATE_HZ = 100.0;
+
+    /**
+     * The Pigeon 2 sends {@code AngularVelocityZWorld} at 10 Hz by default on CAN 2.0 - every Systemcore bus, and
+     * the roboRIO's - so {@link #getYawRateRadPerSec()} would read a rate up to 100 ms old at a 50 Hz loop: the
+     * very lag it exists to avoid. {@code CatalystGyro} raises it for its own reads; a drivetrain built without one
+     * did not. Raise it to at least {@link #YAW_RATE_HZ}, and never lower a rate something else - Phoenix's
+     * odometry, a CANivore's faster frames - already set higher.
+     */
+    private void raiseYawRateSignal() {
+        if (RobotBase.isSimulation()) {
+            return;
+        }
+        var rate = drivetrain.getPigeon2().getAngularVelocityZWorld();
+        if (rate.getAppliedUpdateFrequency() < YAW_RATE_HZ) {
+            rate.setUpdateFrequency(YAW_RATE_HZ);
+        }
+    }
+
     @Override
     public double getYawRateRadPerSec() {
         if (RobotBase.isSimulation()) {

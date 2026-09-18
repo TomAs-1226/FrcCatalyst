@@ -194,7 +194,7 @@ public final class AimWhileDriving {
         // The rotation is kept whole. 3% of the wheels' top speed is left for the facing request's own
         // correction, which Phoenix works out after this, in its odometry thread. No acceleration
         // limit: the governor already eases the speed.
-        allocation = new SwerveSetpointGenerator(0.97 * drive.getMaxSpeedMPS(), MAX_TURN,
+        allocation = new SwerveSetpointGenerator(drive.getMaxSpeedMPS(), MAX_TURN,
                 Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY,
                 SwerveSetpointGenerator.Priority.ROTATION, modules);
         // P only, at the tracker's gain: its observer models this request.
@@ -349,8 +349,10 @@ whether the robot has actually slowed to the cap yet.
 - **Construction.** Takes the module positions: `drive.getDrivetrain().getModuleLocations()`.
 - **Which frame.** `generate(desired, dt, robotHeading)` takes a field-relative request. The older
   overloads judge the request as robot-relative.
-- **What it fills.** It fills the modules up to `maxTranslationMPS`. The example passes 0.97 of the top
-  speed, which leaves the facing request's own correction some room.
+- **What it leaves.** The rotation priority budgets the turn as if it were a little faster than asked
+  (`allocationMargin(double)`, 0.5-1, default 0.97: the turn counts as 1/0.97 of itself), so the facing
+  request's own correction has room in proportion to the turn. Driving straight nothing is held back, and
+  straight-line top speed is never shaved. (The X1's own shaper shrinks the whole limit instead.)
 - **What it did.** `getTranslationScale()` is the share of the translation it kept, 1 unless it had
   to give some up.
 - **The default.** `Priority.PROPORTIONAL` is the behaviour every existing user already has.
