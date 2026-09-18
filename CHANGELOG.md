@@ -45,6 +45,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   the wheels' `getChassisSpeeds().omega`, so existing sinks compile and behave as before.
   `SwerveSubsystem` overrides it with its Pigeon 2's `AngularVelocityZWorld`, and uses the wheels'
   rate in simulation.
+- **Docs: [Shoot on the Move](docs/advanced/shoot-on-the-move.md).** The three pieces above, a wiring
+  example adapted from the X1's turret mode, every knob with its range, the `/Catalyst/Aim` contract
+  (`State`, `Target`, `AimPoint`, `HeadingErrorDeg`, `DistanceMeters`, `TimeOfFlightSeconds`, `Ready`,
+  `SpeedCapMps`, `Mode`), what to watch on the robot, and the X1 harness's evidence.
+  - There is no skew or discretization term, on purpose. Phoenix's `FieldCentric` requests discretize
+    already, and the page says what the X1's own term measured.
 
 ### Changed
 

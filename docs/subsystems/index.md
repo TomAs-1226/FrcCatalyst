@@ -167,7 +167,7 @@ The corrected radius + a copy-paste constant publish to
 
 ### SwerveSetpointGenerator (v0.4.0+)
 
-Light chassis-aware accel/skid clamp. Wraps a `ChassisSpeeds` and
+Light chassis-aware accel/skid clamp. Wraps a `ChassisVelocities` and
 returns one limited by max wheel speed, max angular rate, and a
 per-second delta-v cap.
 
@@ -175,15 +175,34 @@ per-second delta-v cap.
 SwerveSetpointGenerator gen = new SwerveSetpointGenerator(
     drive.getMaxSpeedMPS(), drive.getMaxAngularRate(), 8.0); // 8 m/s² accel cap
 
-ChassisSpeeds limited = gen.generate(requestedSpeeds);
-drivetrain.setControl(req.withVelocityX(limited.vxMetersPerSecond)
-                        .withVelocityY(limited.vyMetersPerSecond)
-                        .withRotationalRate(limited.omegaRadiansPerSecond));
+ChassisVelocities limited = gen.generate(requestedSpeeds);
+drivetrain.setControl(req.withVelocityX(limited.vx)
+                        .withVelocityY(limited.vy)
+                        .withRotationalRate(limited.omega));
 ```
 
 Catches the most common driver-induced skid (jerking the stick from
 full-forward to full-right) without doing a full per-wheel feasibility
 solve. Cheap.
+
+**Keeping the rotation (unreleased, on this branch).** When translation and rotation together ask a
+module for more than its top speed, the drivetrain's own desaturation shrinks both in proportion, and
+that stays the default. `Priority.ROTATION` shrinks only the translation, along its direction, by
+the largest factor that fits every module beside the rotation. That is the one wheel-by-wheel question
+a robot aiming itself needs answered:
+
+```java
+SwerveSetpointGenerator aimGen = new SwerveSetpointGenerator(
+    drive.getMaxSpeedMPS(), 3.0, 8.0, Math.PI * 8,
+    SwerveSetpointGenerator.Priority.ROTATION,
+    drive.getDrivetrain().getModuleLocations());
+
+// A field-relative request, judged where the robot faces:
+ChassisVelocities send = aimGen.generate(requested, dt, drive.getHeading());
+double kept = aimGen.getTranslationScale();  // 1 unless translation gave way
+```
+
+[Shoot on the Move]({% link advanced/shoot-on-the-move.md %}) shows it in use.
 
 ## VisionSubsystem
 
@@ -192,7 +211,8 @@ Multi-camera pose estimation with Kalman filter integration. Limelight-first: Me
 **Features:**
 - **Distance-scaled standard deviations** — trusts close targets more
 - **Ambiguity-scaled std devs** — higher ambiguity = less trust
-- **Spin rejection** — ignores vision during fast rotation
+- **Spin rejection** — ignores vision during fast rotation, as the gyro measures it
+  (`VisionPoseSink.getYawRateRadPerSec()`), not as the wheels report it
 - **High-speed rejection** — ignores vision while driving fast
 - **Heading divergence filtering** — rejects single-tag poses that disagree with the gyro
 - **Kalman innovation tracking** — logs innovation norms for tuning
