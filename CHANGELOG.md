@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **`HeadingTracker`: shoot on the move for a swerve drivetrain that aims itself.** The Catalyst X1's
+  turret-mode controller, which the X1 calls V8. It says where to face and how fast that direction is
+  turning, as a reference for Phoenix's `FieldCentricFacingAngle`.
+  - The shot is solved from the shooter's exit, carrying the exit's own velocity round a turning
+    robot. The solve is a fixed-point iteration, so a measured time-of-flight table need not be
+    monotonic, and a `converged` flag says when it could not settle.
+  - The heading follows a second-order reference with a noise band, never the raw aim. Its feedforward
+    is led by the drivetrain's delay, and a disturbance observer takes out the turn the gyro sees but
+    the requests do not explain.
+  - `onTargetIn(lookahead, tolerance)` is the ready-to-shoot answer for a feeder that takes that long.
+  - On a model of the X1 fitted to its recordings, 0.5-1.5 m/s strafes held 0.8-1.9° RMS of aim error,
+    where Phoenix's facing request on its own held 2.4-7.1°. The modules steered a third to two thirds
+    as much. Not yet driven.
+  - Plain doubles with no WPILib imports, so the same source builds for WPILib 2026 and 2027.
+
 ### Fixed
 
 - **`DifferentialWristMechanism`'s roll gains publish where the docs say.** Since 0.3.5-beta
