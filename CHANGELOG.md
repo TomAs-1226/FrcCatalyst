@@ -23,6 +23,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
     where Phoenix's facing request on its own held 2.4-7.1°. The modules steered a third to two thirds
     as much. Not yet driven.
   - Plain doubles with no WPILib imports, so the same source builds for WPILib 2026 and 2027.
+- **`AimSpeedGovernor`: the speed cap for aiming at speed.** It caps the driver's speed where the
+  target's swing would outrun the turn the drivetrain has left.
+  - The limit is the facing request's rate cap or the modules' headroom, less a reserve, and there is
+    an optional cap on closing speed. The smaller scale wins, the direction is kept, and the cap eases
+    rather than steps. That is team 581's radial and tangential structure, with the tangential cap
+    worked out rather than set by hand.
+  - `movingBeyondSafeSpeed(...)` gates the shot on the velocity actually measured.
+  - On the X1's model it took a 3 m/s arc round the target from 44° RMS to 8.7°, for 15-28% of the
+    mean speed there.
 
 ### Fixed
 

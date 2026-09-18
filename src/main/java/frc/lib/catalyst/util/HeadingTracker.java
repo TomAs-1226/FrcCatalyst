@@ -89,7 +89,7 @@ import java.util.function.DoubleUnaryOperator;
  * <p>On a model of the Catalyst X1 fitted to its recordings (simulated, not yet driven), this held
  * 0.8-1.9° RMS in 0.5-1.5 m/s strafes where Phoenix's facing request on its own (kP 8 and a 0.12 s
  * lookahead) held 2.4-7.1°, while steering the modules a third to two thirds as much. At 2 m/s and up,
- * pair it with {@code AimSpeedGovernor} and {@code SwerveSetpointGenerator.Priority.ROTATION}. The
+ * pair it with {@link AimSpeedGovernor} and {@code SwerveSetpointGenerator.Priority.ROTATION}. The
  * shoot-on-the-move page in the docs has the numbers, the wiring and what to watch on the robot.
  *
  * <p>Units throughout: field metres, blue origin; radians counter-clockwise; velocities m/s in the
