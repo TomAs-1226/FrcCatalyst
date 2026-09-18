@@ -361,6 +361,7 @@ Fifteen minutes gets you most of the value:
 - [ ] Weigh the robot in competition config — battery, bumpers, no game piece
 - [ ] Tape-measure the footprint **between contact patches**, not the frame
 - [ ] Run `WheelRadiusCalibration` for the effective rolling radius
+- [ ] Run `SlipCurrentCalibration` against a wall for the drive's slip current
 - [ ] Tilt or pull test for friction, five runs, keep the spread
 
 An afternoon gets you the rest:

@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **`SlipCurrentCalibration`** measures the drive's slip current, the stator limit Phoenix calls
+  `kSlipCurrent`, the way CTRE describes: bumper against a wall, modules straight, the drive
+  voltage ramped until a wheel spins up. It stops itself at the slip, at 6 V, or when a wheel turns
+  on a few amps (rolling, not held), leaves the drive at 0 V however it ends, and publishes the
+  result and a snippet under `/Catalyst/Calibration/SlipCurrent/`. Ported from team 5805's X1.
+
 - **`HeadingTracker`: shoot on the move for a swerve drivetrain that aims itself.** The Catalyst X1's
   turret-mode controller, which the X1 calls V8. It says where to face and how fast that direction is
   turning, as a reference for Phoenix's `FieldCentricFacingAngle`.

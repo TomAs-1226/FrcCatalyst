@@ -165,6 +165,28 @@ test.a().onTrue(WheelRadiusCalibration.builder(swerve)
 The corrected radius + a copy-paste constant publish to
 `/Catalyst/Calibration/WheelRadius/...`.
 
+### SlipCurrentCalibration (Unreleased)
+
+Measures Phoenix's **slip current** — the drive's stator current limit
+(`kSlipCurrent`) — instead of keeping a number copied from another robot. A
+light robot's wheels break traction far below a heavy one's, and a wheel
+spinning on the carpet is motion the odometry believes. CTRE's method: front
+bumper squarely against a wall, modules straight, the drive voltage ramped
+slowly until a wheel spins up; that wheel's peak current is the answer.
+
+```java
+test.b().onTrue(SlipCurrentCalibration.builder(swerve)
+    .currentSlipAmps(120)         // what your constants say today, for the snippet
+    .build());
+```
+
+It stops by itself at the slip, at its voltage cap (6 V), or when a wheel
+turns on a few amps — the robot is rolling, not held, and nothing is
+measured — and leaves the drive at 0 V however it ends, cancellation
+included. `Status`, `Volts`, `PeakAmps`, `SlipAmps`, `RecommendedAmps`
+(rounded down to 5 A), `Result` and `Snippet` publish to
+`/Catalyst/Calibration/SlipCurrent/...`.
+
 ### SwerveSetpointGenerator (v0.4.0+)
 
 Light chassis-aware accel/skid clamp. Wraps a `ChassisVelocities` and
