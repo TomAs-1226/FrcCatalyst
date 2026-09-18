@@ -167,7 +167,9 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
         // The best too-far rejection this cycle: what the cameras would have the pose be.
         Accepted disagreement = null;
         double yaw = currentPose.getRotation().getDegrees();
-        double yawRate = fusing ? poseSink.getChassisSpeeds().omega : 0.0;
+        // The gyro's turn rate, read once for the loop: MegaTag2 gets it below, and the spin gate uses
+        // the same number for every camera.
+        double yawRate = fusing ? sinkYawRate() : 0.0;
 
         // ---- Phase 1: snapshot every camera once, filter independently ----
         // Snapshotting up front means an async NT update mid-loop can't make
@@ -211,7 +213,7 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
                 continue;
             }
 
-            String rejectReason = filterEstimate(pe, currentPose, camera.isPrefiltered(), anchored);
+            String rejectReason = filterEstimate(pe, currentPose, yawRate, camera.isPrefiltered(), anchored);
             if (rejectReason != null) {
                 totalRejected++;
                 cycleRejected++;
@@ -391,6 +393,15 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
     }
 
     /**
+     * How fast the robot is turning, rad/s: the sink's gyro ({@link VisionPoseSink#getYawRateRadPerSec()}),
+     * or the rotation the wheels report when the gyro has no number to give.
+     */
+    private double sinkYawRate() {
+        double gyro = poseSink.getYawRateRadPerSec();
+        return Double.isFinite(gyro) ? gyro : poseSink.getChassisSpeeds().omega;
+    }
+
+    /**
      * Filter a pose estimate. Returns null if accepted, or a rejection reason string.
      *
      * <p>Split by what each side can know. A source that reports
@@ -402,8 +413,10 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
      * <p>What is never skipped is the half the camera cannot do, because it does not know where the
      * robot thinks it is or what it is doing: distance from the current fused pose, angular and
      * translational velocity, heading divergence. Those run for every source.
+     *
+     * @param yawRate the gyro's turn rate this loop, rad/s - see {@link #sinkYawRate()}
      */
-    private String filterEstimate(CameraSource.PoseEstimate pe, Pose2d currentPose,
+    private String filterEstimate(CameraSource.PoseEstimate pe, Pose2d currentPose, double yawRate,
                                   boolean prefiltered, boolean anchored) {
         if (!prefiltered) {
             // Reject if no tags seen
@@ -443,9 +456,10 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
             }
         }
 
-        // Reject during high angular velocity (motion blur)
+        // Reject during high angular velocity (motion blur) - as the gyro sees it: the wheels report a
+        // turn the chassis has not made yet at every onset, and sometimes one it is not making at all.
         if (config.rejectDuringSpinThreshold > 0) {
-            double spinRate = Math.abs(poseSink.getChassisSpeeds().omega);
+            double spinRate = Math.abs(yawRate);
             if (spinRate > config.rejectDuringSpinThreshold) {
                 return "Spinning(" + String.format("%.1frad/s", spinRate) + ")";
             }
