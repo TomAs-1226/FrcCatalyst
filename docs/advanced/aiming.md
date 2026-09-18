@@ -39,6 +39,11 @@ directly — but together they do shoot-while-moving.
 > instead treats the shot as a velocity vector and also solves the hood angle and wheel speed. Pick
 > whichever matches how your shooter is characterised — both are pure math and unit-tested.
 
+> **No turret?** A swerve drivetrain can be the turret: `HeadingTracker` aims the whole robot while
+> the driver drives it, with its own lag and yaw handled. See
+> [Shoot on the Move]({% link advanced/shoot-on-the-move.md %}). On this line that is ported and
+> compiled, not run: it drives a CTRE drivetrain, and Phoenix 6 has no alpha-7 release yet.
+
 ---
 
 ## TurretMechanism
@@ -135,11 +140,13 @@ Supplier<AimingSolver.Solution> sol =
     () -> solver.solve(drive.getPose(), drive.getFieldRelativeSpeeds());
 
 // Turret leads the moving goal with exact analytic-rate feedforward. Pass the
-// chassis yaw rate too, so it stays locked while you ALSO rotate:
+// chassis yaw rate too, so it stays locked while you ALSO rotate - the gyro's
+// rate, not the one the wheels report, which runs ahead of the chassis at
+// every turn onset:
 turret.setDefaultCommand(turret.track(
     sol,
     () -> drive.getHeading().getDegrees(),
-    () -> Math.toDegrees(drive.getChassisSpeeds().omega)));
+    () -> Math.toDegrees(drive.getYawRateRadPerSec())));
 
 // Flywheel RPM and hood angle follow the live distance every loop (v1.0):
 shooter.setDefaultCommand(shooter.track(() -> sol.get().shooterRpm() / 60.0));  // RPM -> RPS
