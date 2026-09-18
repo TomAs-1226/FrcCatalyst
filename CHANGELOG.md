@@ -32,6 +32,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   - `movingBeyondSafeSpeed(...)` gates the shot on the velocity actually measured.
   - On the X1's model it took a 3 m/s arc round the target from 44° RMS to 8.7°, for 15-28% of the
     mean speed there.
+- **`SwerveSetpointGenerator.Priority.ROTATION`.** When translation and rotation together would take a
+  module past its top speed, the translation alone gives way. It is shrunk along its direction by the
+  largest factor that fits every module, solved per module.
+  - Opt-in: `Priority.PROPORTIONAL` stays the default, and the existing constructors and `generate`
+    overloads behave exactly as before.
+  - New: a constructor taking the priority and the module positions, a field-relative
+    `generate(desired, dt, robotHeading)`, and `getTranslationScale()`.
+  - On the X1's model, in a 5 m/s pass, Phoenix's desaturation went from acting 25-35% of the time
+    to never.
 
 ### Fixed
 
