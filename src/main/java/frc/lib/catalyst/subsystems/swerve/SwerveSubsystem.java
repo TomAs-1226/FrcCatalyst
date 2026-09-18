@@ -325,6 +325,25 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
     }
 
     /**
+     * {@inheritDoc}
+     *
+     * <p>The drivetrain's Pigeon 2, its {@code AngularVelocityZWorld}: the turn the chassis is making,
+     * not the one the wheels report. Close heading loops and judge turns on this rate rather than on
+     * {@code getChassisSpeeds().omega}. In simulation it is the wheels' rate, since Phoenix's simulated
+     * gyro is integrated from those same wheels and an external physics engine does not drive it at all.
+     *
+     * @since 2.0.0
+     */
+    @Override
+    public double getYawRateRadPerSec() {
+        if (RobotBase.isSimulation()) {
+            return getChassisSpeeds().omega;
+        }
+        double degPerSec = drivetrain.getPigeon2().getAngularVelocityZWorld().getValueAsDouble();
+        return Double.isFinite(degPerSec) ? Math.toRadians(degPerSec) : getChassisSpeeds().omega;
+    }
+
+    /**
      * The module setpoints the drivetrain most recently commanded (angle + speed per module).
      *
      * <p>This is the clean "speeds-out" seam for bridging an external physics engine such as

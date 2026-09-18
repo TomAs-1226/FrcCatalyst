@@ -51,6 +51,25 @@ public interface VisionPoseSink {
     ChassisVelocities getChassisSpeeds();
 
     /**
+     * How fast the robot is turning, rad/s counter-clockwise, as its gyro measures it.
+     * {@link VisionSubsystem} uses it for the spin gate ({@code rejectDuringSpin}) and for the yaw rate
+     * it hands every camera alongside the heading, for MegaTag2.
+     *
+     * <p>The default is the rotation the wheels report, {@code getChassisSpeeds().omega}, so a sink
+     * written before this method existed compiles and behaves exactly as it did. A sink with a gyro
+     * should override it. The wheel kinematics and the gyro disagree exactly when it matters: on the
+     * Catalyst X1 (recordings of 2026-09-17) the two disagreed in 13 of 41 turning seconds, some of them
+     * in sign, and at every turn onset the wheels reported the full rate 100-200 ms before the gyro saw
+     * it, while the modules fought and slipped. Return NaN for a gyro with nothing to report and the
+     * wheels' rate is used instead.
+     *
+     * @since 2.0.0
+     */
+    default double getYawRateRadPerSec() {
+        return getChassisSpeeds().omega;
+    }
+
+    /**
      * Fuse an accepted vision estimate.
      *
      * @param visionPose       field-relative pose the camera measured

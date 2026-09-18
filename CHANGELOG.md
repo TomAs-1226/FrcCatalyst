@@ -41,6 +41,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
     `generate(desired, dt, robotHeading)`, and `getTranslationScale()`.
   - On the X1's model, in a 5 m/s pass, Phoenix's desaturation went from acting 25-35% of the time
     to never.
+- **`VisionPoseSink.getYawRateRadPerSec()`.** The gyro's own turn rate. The default method returns
+  the wheels' `getChassisSpeeds().omega`, so existing sinks compile and behave as before.
+  `SwerveSubsystem` overrides it with its Pigeon 2's `AngularVelocityZWorld`, and uses the wheels'
+  rate in simulation.
+
+### Changed
+
+- **Vision's spin gate and MegaTag2's yaw rate come from the gyro.** Both used to read
+  `getChassisSpeeds().omega`, the rotation the wheel kinematics report.
+  - In the X1's 2026-09-17 recordings that rate disagreed with the gyro in 13 of 41 turning seconds,
+    some of them in sign. At every turn onset it led the gyro by 100-200 ms while the modules fought
+    and slipped.
+  - As a result the gate rejected sharp frames at every turn onset, before the chassis had turned, and
+    could pass blurred ones.
+  - Both now read `VisionPoseSink.getYawRateRadPerSec()`, once a loop, and fall back to the wheels'
+    rate when the gyro has no number to give.
 
 ### Fixed
 
