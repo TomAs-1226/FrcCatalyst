@@ -22,9 +22,11 @@ class StateSpaceControllerTest {
     @BeforeAll
     static void needsWpimathNatives() {
         try {
-            elevator();
-        } catch (UnsatisfiedLinkError | NoClassDefFoundError | ExceptionInInitializerError e) {
-            Assumptions.abort("wpimath's native library will not load here: " + e);
+            // Loaded here, by hand, rather than by building a filter and letting WPILib's own loader try:
+            // that loader ends the process when it fails, which no test can catch or report.
+            System.loadLibrary("wpimathjni");
+        } catch (UnsatisfiedLinkError e) {
+            Assumptions.abort("wpimath's native library will not load here: " + e.getMessage());
         }
     }
 
