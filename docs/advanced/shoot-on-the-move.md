@@ -12,7 +12,7 @@ A swerve drivetrain that aims itself while the driver drives it: the whole drive
 {: .fs-6 .fw-300 }
 
 {: .warning }
-> Unreleased: on this line (`upgrade/alpha-7`) after 2.0.0-beta.1, so no release has it yet.
+> Unreleased: on this line (`upgrade/alpha-7`) after 2.0.0-beta.2, so no release has it yet.
 > **Ported and compiled here, not run.** Phoenix 6 has no WPILib alpha-7 release, so no CTRE
 > drivetrain can run this line yet. What this page says about running on one (the Pigeon's turn
 > rate, the facing request, the wiring example, the checks on the robot) applies to the alpha-6

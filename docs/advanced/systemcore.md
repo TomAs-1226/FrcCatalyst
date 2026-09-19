@@ -31,7 +31,7 @@ that deploys and then does nothing.
 
 | Component | Version |
 |---|---|
-| Catalyst | 2.0.0-beta.1 |
+| Catalyst | 2.0.0-beta.2 |
 | WPILib | 2027.0.0-alpha-7 |
 | Systemcore OS | **beta 14** (`limelightosr-2027.0.0-beta14-210`) |
 | Phoenix 6 | 26.50.0-alpha-1, an alpha-5/6 build: **no alpha-7 release yet** |
@@ -50,7 +50,7 @@ before you read a single line of your own code.
 
 > **Get the WPILib version right, and be careful which alpha-6 anyone means.**
 >
-> Catalyst 2.0.0-beta.1 targets **WPILib 2027.0.0-alpha-7**, which is on `frcmaven/release` — a
+> Catalyst 2.0.0-beta.2 targets **WPILib 2027.0.0-alpha-7**, which is on `frcmaven/release` — a
 > public maven. That is what makes a tag installable through the vendordep rather than needing a
 > source build, and it is the single biggest practical difference from the alpha-6 era.
 >
@@ -84,7 +84,7 @@ It is excluded from the source set rather than deleted, so it returns unchanged 
 ships one. **PhotonVision is a direction, not a gap.** Catalyst is Limelight-first: the pipeline is
 built into the hardware and it is the supported path, so `PhotonSource` is unlikely to return.
 
-This list was four classes longer until 2.0.0-beta.1. `WpiTelemetrySink`, `TelemetryUtil`,
+This list was four classes longer until 2.0.0-beta.2. `WpiTelemetrySink`, `TelemetryUtil`,
 `MechanismVisualizer` and `DriverBoard` were excluded because `org.wpilib.telemetry` and
 `DriverStationDisplay` existed only in a WPILib development snapshot and not in any release. Alpha-7
 ships both, so all four compile and are in the build. If you read an older version of this page and
@@ -762,7 +762,7 @@ CAN topics that the readings above are built on.
   ```
 
   So a vendordep must say exactly what the project says — `2027_alpha7` for this release, not the
-  bare `2027` Catalyst's used to carry. Catalyst's published vendordep was fixed in 2.0.0-beta.1;
+  bare `2027` Catalyst's used to carry. Catalyst's published vendordep was fixed in 2.0.0-beta.2;
   a project of your own needs its `.wpilib/wpilib_preferences.json` and every file in `vendordeps/`
   to agree. The message is worth reading closely: it says editing a dependency to get past the check
   breaks at runtime, and the check exists precisely so a vendordep built for one alpha cannot

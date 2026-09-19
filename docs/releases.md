@@ -28,7 +28,7 @@ shims, because carrying both would have meant every class in the library branchi
 | Gradle | 8.x | **9.7+** |
 | Commands | v2 | **v3** |
 | CAN buses | 1 | **5** |
-| Latest | `v1.12.0` | `v2.0.0-beta.1` |
+| Latest | `v1.12.0` | `v2.0.0-beta.2` |
 | Docs | [stable](https://tomas-1226.github.io/FrcCatalyst/) | you are reading them |
 
 {: .warning }
@@ -42,9 +42,9 @@ shims, because carrying both would have meant every class in the library branchi
 
 ---
 
-## v2.0.0-beta.1
+## v2.0.0-beta.2
 
-*9 September 2026* · [release](https://github.com/TomAs-1226/FrcCatalyst/releases/tag/v2.0.0-beta.1)
+*9 September 2026* · [release](https://github.com/TomAs-1226/FrcCatalyst/releases/tag/v2.0.0-beta.2)
 
 The 2027 port, on the WPILib and Systemcore OS pair that actually run together.
 
@@ -59,7 +59,7 @@ pairing is not advice — a build made against alpha-7 aborts on beta 13 before 
 the 26.50.0-alpha-1 and 2027.0.0-alpha-3 this depends on are alpha-5/6 builds.
 
 ```gradle
-implementation 'com.github.TomAs-1226:FrcCatalyst:v2.0.0-beta.1'
+implementation 'com.github.TomAs-1226:FrcCatalyst:v2.0.0-beta.2'
 ```
 
 Installable through the vendordep again. Alpha-6's release was on no public maven, so JitPack could

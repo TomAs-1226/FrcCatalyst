@@ -151,7 +151,7 @@
       <text x="12" y="169">TESTED</text><text x="12" y="203">DRIVEN ON A ROBOT</text>
     </g>
     <g class="mono val">
-      <text x="182" y="67" font-weight="700">2.0.0-beta.1</text>
+      <text x="182" y="67" font-weight="700">2.0.0-beta.2</text>
       <text x="182" y="101">254 files &#183; 60,145 lines</text>
       <text x="182" y="135">Systemcore &#183; alpha-7 &#183; Java 25</text>
     </g>

@@ -32,7 +32,7 @@ the live picture. `docs/versions.md` on `main` is the same map written for peopl
 |---|---|---|---|
 | 1.x, the competition line | `main` | roboRIO, WPILib 2026, Java 17 | JitPack, through the stable vendordep |
 | 2.0.0-alpha.5 | `systemcore-alpha6`, published from `systemcore` | Systemcore image 13, WPILib 2027 alpha-6, Java 25 | **source build only** |
-| 2.0.0-beta.1 | `upgrade/alpha-7` | Systemcore image 14, WPILib 2027 alpha-7, Java 25 | JitPack; cannot drive a CTRE robot until CTRE ships alpha-7 |
+| 2.0.0-beta.2 | `upgrade/alpha-7` | Systemcore image 14, WPILib 2027 alpha-7, Java 25 | JitPack; cannot drive a CTRE robot until CTRE ships alpha-7 |
 
 - **A version names one build.** Never publish a second build under a version that already exists.
   `devtools release FrcCatalyst <version>` does the bump, the CHANGELOG date, the checks, the commit

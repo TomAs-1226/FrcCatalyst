@@ -29,7 +29,7 @@ migration notes. That is what a second generation is supposed to cost you, and i
 hold this release to.
 
 ```gradle
-implementation 'com.github.TomAs-1226:FrcCatalyst:v2.0.0-beta.1'
+implementation 'com.github.TomAs-1226:FrcCatalyst:v2.0.0-beta.2'
 ```
 
 ## What state this is in
@@ -71,9 +71,9 @@ Which Catalyst goes on which robot is kept on one page,
 |---|---|
 | Competing this season on a roboRIO | **1.12.0**: tag `v1.12.0`, WPILib 2026.2.1, on JitPack |
 | Testing on a Systemcore with CTRE motors, today | **2.0.0-alpha.4**: tag `v2.0.0-alpha.4` (commit `9684685`) on branch `systemcore-alpha6`, WPILib 2027.0.0-alpha-6, Systemcore OS image 13. Source build only. |
-| Trying WPILib alpha-7 on Systemcore image 14 | **2.0.0-beta.1**: tag `v2.0.0-beta.1` on branch `upgrade/alpha-7`, on JitPack. Phoenix 6 and PathPlannerLib have no alpha-7 release, so a robot with CTRE motors cannot run it yet. |
+| Trying WPILib alpha-7 on Systemcore image 14 | **2.0.0-beta.2**: tag `v2.0.0-beta.2` on branch `upgrade/alpha-7`, on JitPack. Phoenix 6 and PathPlannerLib have no alpha-7 release, so a robot with CTRE motors cannot run it yet. |
 
-This branch, `upgrade/alpha-7`, is `v2.0.0-beta.1` plus docs. Its documentation is not published yet: the beta site is built from `systemcore`.
+This branch, `upgrade/alpha-7`, is `v2.0.0-beta.2` plus docs. Its documentation is not published yet: the beta site is built from `systemcore`.
 
 `python tools/catalyst-versions.py` prints the live map from git and Maven local: every tag and
 branch head with the WPILib and vendor versions it pins, and every local build traced to the commit
@@ -156,7 +156,7 @@ repositories {
 }
 
 dependencies {
-    implementation "com.github.TomAs-1226:FrcCatalyst:v2.0.0-beta.1"
+    implementation "com.github.TomAs-1226:FrcCatalyst:v2.0.0-beta.2"
 }
 ```
 </details>
@@ -198,7 +198,7 @@ operatorController.b().onTrue(elevator.goTo("STOW"));
 
 ---
 
-## v2.0.0-beta.1: WPILib 2027 and Limelight Systemcore
+## v2.0.0-beta.2: WPILib 2027 and Limelight Systemcore
 
 The 2027 port. Commands v3, Java 25, five CAN buses, and a control system that reports on itself.
 
@@ -585,7 +585,7 @@ changes wait for 2.0.0. Go build something awesome. 🚀
 - **Swerve module telemetry**: measured and target `SwerveModuleState[]` publish to `/Catalyst/Swerve/ModuleStates` and `/ModuleTargets` for the AdvantageScope swerve view.
 - **SimDashboard v2**: per-mechanism sparkline history, a pause/resume toggle, and CSV export of the live snapshot.
 - **`SimCameraSource`**: a vision source that emits noisy, latency-delayed pose estimates from a simulated pose, so the multi-camera fusion pipeline runs in the simulator with no hardware.
-- **WPILib 2027**: done, and it is this branch. See v2.0.0-beta.1 above.
+- **WPILib 2027**: done, and it is this branch. See v2.0.0-beta.2 above.
 
 ## What's New in v1.0.0-rc3: Configurable simulation
 
@@ -1263,7 +1263,7 @@ exercises the library in simulation across every mechanism type.
 
 ## Requirements
 
-Catalyst 2.x — this branch, `v2.0.0-beta.1`:
+Catalyst 2.x — this branch, `v2.0.0-beta.2`:
 
 | Dependency | Version |
 |-----------|---------|

@@ -69,7 +69,7 @@
     </g>
     <text class="mono lbl" x="16" y="22" font-size="10">TITLE</text>
     <text class="sans" x="16" y="44" font-size="27" font-weight="800" fill="#1A1E1B" letter-spacing="1.5">CATALYST</text>
-    <text class="mono" x="612" y="44" font-size="20" font-weight="700" fill="#D6412A" text-anchor="end">2.0.0-beta.1</text>
+    <text class="mono" x="612" y="44" font-size="20" font-weight="700" fill="#D6412A" text-anchor="end">2.0.0-beta.2</text>
     <g class="mono lbl" font-size="10.5">
       <text x="16" y="82">SCALE</text><text x="16" y="128">TARGET</text>
       <text x="16" y="174">TESTED</text><text x="16" y="220">DRIVEN ON A ROBOT</text>

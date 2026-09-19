@@ -5,7 +5,7 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [2.0.0-beta.2] — 2026-09-19 — The alpha-6 line's aiming and slip current, on the line teams can install
 
 2.0.0-alpha.4's changes, ported from the alpha-6 line. Phoenix 6 has no WPILib alpha-7 release, so
 on this line everything here that runs on a CTRE drivetrain is compiled, not run:

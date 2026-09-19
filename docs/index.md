@@ -38,7 +38,7 @@ Pre-built mechanisms, swerve, vision and whole-robot state machines for FRC — 
 
 ---
 
-## 2.0.0-beta.1 — the pre-season release
+## 2.0.0-beta.2 — the pre-season release
 
 Tagged 9 September 2026. 867 tests, 0 failures. On JitPack.
 {: .fs-5 .fw-300 }
@@ -59,7 +59,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.TomAs-1226:FrcCatalyst:v2.0.0-beta.1'
+    implementation 'com.github.TomAs-1226:FrcCatalyst:v2.0.0-beta.2'
 }
 ```
 
@@ -101,7 +101,7 @@ an alpha that has changed `Mechanism` from an interface to a class and back acro
 ## What Catalyst does
 
 Five things it does, and one list of what 2027 changed. Every type and method in the samples below
-was checked against the 2.0.0-beta.1 source — they are fragments to read, not files to paste.
+was checked against the 2.0.0-beta.2 source — they are fragments to read, not files to paste.
 {: .fs-5 .fw-300 }
 
 ### A mechanism is a description, not a subsystem
@@ -481,7 +481,7 @@ Eleven single-file tools served from this site. Click and use — no clone, no i
 
 ## Release history
 
-**2.0.0-beta.1** is the 2027 port, on the WPILib and Systemcore OS pair that actually run together.
+**2.0.0-beta.2** is the 2027 port, on the WPILib and Systemcore OS pair that actually run together.
 Alongside the port it fixes a defect worth knowing about even if you stay on 1.x: `CatalystMath`,
 `AllianceFlipUtil` and `VisionConfig` all defaulted to a **field width of 8.21 m**, 2024 Crescendo's
 width, while the rest of the library used 8.07 m. A team that never called `configure(...)` had

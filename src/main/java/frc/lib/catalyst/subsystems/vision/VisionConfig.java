@@ -124,7 +124,7 @@ public class VisionConfig {
         private double maxHeadingDivergenceDegrees = 0; // 0 = disabled
 
         // Field dimensions: the 2026 REBUILT field, from WPILib's 2026-rebuilt-welded AprilTag layout,
-        // as AllianceFlipUtil and CatalystMath have it. Before 2.0.0-beta.1 the width was 8.21, 2024's,
+        // as AllianceFlipUtil and CatalystMath have it. Before 2.0.0-beta.2 the width was 8.21, 2024's,
         // which put every field-bounds vision reject 14 cm off on one edge.
         private double fieldLengthMeters = 16.541;
         private double fieldWidthMeters = 8.069;
