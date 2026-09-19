@@ -7,8 +7,99 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+2.0.0-alpha.4's changes, ported from the alpha-6 line. Phoenix 6 has no WPILib alpha-7 release, so
+on this line everything here that runs on a CTRE drivetrain is compiled, not run:
+`SlipCurrentCalibration`, the Pigeon's yaw rate, and the facing request the shoot-on-the-move pieces
+feed. A CTRE robot gets them from 2.0.0-alpha.4 on the alpha-6 line.
+
+### Added
+
+- **`SlipCurrentCalibration`** measures the drive's slip current, the stator limit Phoenix calls
+  `kSlipCurrent`, the way CTRE describes: bumper against a wall, modules straight, the drive
+  voltage ramped until a wheel spins up. It stops itself at the slip, at 6 V, or when a wheel turns
+  on a few amps (rolling, not held), leaves the drive at 0 V however it ends, and publishes the
+  result and a snippet under `/Catalyst/Calibration/SlipCurrent/`. Ported from team 5805's X1.
+- **`HeadingTracker`: shoot on the move for a swerve drivetrain that aims itself.** The Catalyst X1's
+  turret-mode controller, which the X1 calls V8. It says where to face and how fast that direction is
+  turning, as a reference for Phoenix's `FieldCentricFacingAngle`.
+  - The shot is solved from the shooter's exit, carrying the exit's own velocity round a turning
+    robot. The solve is a fixed-point iteration, so a measured time-of-flight table need not be
+    monotonic, and a `converged` flag says when it could not settle.
+  - The heading follows a second-order reference with a noise band, never the raw aim. Its feedforward
+    is led by the drivetrain's delay, and a disturbance observer takes out the turn the gyro sees but
+    the requests do not explain.
+  - `onTargetIn(lookahead, tolerance)` is the ready-to-shoot answer for a feeder that takes that long.
+  - On a model of the X1 fitted to its recordings, 0.5-1.5 m/s strafes held 0.8-1.9° RMS of aim error,
+    where Phoenix's facing request on its own held 2.4-7.1°. The modules steered a third to two thirds
+    as much. Not yet driven.
+  - Plain doubles with no WPILib imports, so the same source builds for WPILib 2026 and 2027.
+- **`AimSpeedGovernor`: the speed cap for aiming at speed.** It caps the driver's speed where the
+  target's swing would outrun the turn the drivetrain has left.
+  - The limit is the facing request's rate cap or the modules' headroom, less a reserve, and there is
+    an optional cap on closing speed. The smaller scale wins, the direction is kept, and the cap eases
+    rather than steps. That is team 581's radial and tangential structure, with the tangential cap
+    worked out rather than set by hand.
+  - `movingBeyondSafeSpeed(...)` gates the shot on the velocity actually measured.
+  - On the X1's model it took a 3 m/s arc round the target from 44° RMS to 8.7°, for 15-28% of the
+    mean speed there.
+- **`SwerveSetpointGenerator.Priority.ROTATION`.** When translation and rotation together would take a
+  module past its top speed, the translation alone gives way. It is shrunk along its direction by the
+  largest factor that fits every module, solved per module.
+  - Opt-in: `Priority.PROPORTIONAL` stays the default, and the existing constructors and `generate`
+    overloads behave exactly as before.
+  - New: a constructor taking the priority and the module positions, a field-relative
+    `generate(desired, dt, robotHeading)`, and `getTranslationScale()`.
+  - On the X1's model, in a 5 m/s pass, Phoenix's desaturation went from acting 25-35% of the time
+    to never.
+  - `allocationMargin(double)`, default 0.97, is the room it keeps for the heading loop's own
+    correction: the turn is budgeted as 1/0.97 of itself, so the room grows with the turn and none is
+    kept driving straight. (The docs' earlier workaround, passing 0.97 of the top speed, cut
+    straight-line speed by 3%.)
+- **`CatalystMotor.getSupplyCurrentLimit()` and `getStatorCurrentLimit()`.** The limits last
+  written: the builder's, or the last runtime change.
+- **`VisionPoseSink.getYawRateRadPerSec()`.** The gyro's own turn rate. The default method returns
+  the wheels' `getChassisSpeeds().omega`, so existing sinks compile and behave as before.
+  `SwerveSubsystem` overrides it with its Pigeon 2's `AngularVelocityZWorld`, and uses the wheels'
+  rate in simulation.
+- **Docs: [Shoot on the Move](docs/advanced/shoot-on-the-move.md).** The three pieces above, a wiring
+  example adapted from the X1's turret mode, every knob with its range, the `/Catalyst/Aim` contract
+  (`State`, `Target`, `AimPoint`, `HeadingErrorDeg`, `DistanceMeters`, `TimeOfFlightSeconds`, `Ready`,
+  `SpeedCapMps`, `Mode`), what to watch on the robot, and the X1 harness's evidence. On this line it
+  says which of that is compiled but not run.
+  - There is no skew or discretization term, on purpose. Phoenix's `FieldCentric` requests discretize
+    already, and the page says what the X1's own term measured.
+
+### Changed
+
+- **Vision's spin gate and MegaTag2's yaw rate come from the gyro.** Both used to read
+  `getChassisSpeeds().omega`, the rotation the wheel kinematics report.
+  - In the X1's 2026-09-17 recordings that rate disagreed with the gyro in 13 of 41 turning seconds,
+    some of them in sign. At every turn onset it led the gyro by 100-200 ms while the modules fought
+    and slipped.
+  - As a result the gate rejected sharp frames at every turn onset, before the chassis had turned, and
+    could pass blurred ones.
+  - Both now read `VisionPoseSink.getYawRateRadPerSec()`, once a loop, and fall back to the wheels'
+    rate when the gyro has no number to give.
+- **`SwerveSubsystem` raises its Pigeon 2's yaw rate to at least 100 Hz.** The Pigeon sends
+  `AngularVelocityZWorld` at 10 Hz by default on CAN 2.0, every Systemcore bus and the roboRIO's, so
+  `getYawRateRadPerSec()` could read a rate 100 ms old: the lag it exists to avoid. `CatalystGyro`
+  raised it for its own reads; a drivetrain built without one did not. A rate already set higher is
+  never lowered.
+- **The field defaults are REBUILT's exact size.** `AllianceFlipUtil`, `VisionConfig`'s field bounds
+  and `CatalystMath.FIELD_LENGTH` and `FIELD_WIDTH` are now 16.541 x 8.069 m, the field in WPILib's
+  2026-rebuilt-welded AprilTag layout, where 2.0.0-beta.1 had rounded it to 16.54 x 8.07. A robot
+  that relies on the default flips red poses about a millimetre differently; one that calls
+  `AllianceFlipUtil.configure(...)` is unaffected. (On the alpha-6 line this entry is 2.0.0-alpha.4's
+  fix of 2024's 8.21 m width, which beta.1 had already made here.)
+
 ### Fixed
 
+- **Runtime current limits reach a motor's followers.** `setSupplyCurrentLimit`,
+  `setStatorCurrentLimit` and `setCurrentLimits` wrote the leader alone, though the builder gives
+  every follower the leader's limits. A follower kept its boot limit through every state, so a
+  state-based power budget that cut a roller pair to 5 A cut one motor of the two. Every follower is
+  written now. Each write waits for the motor to acknowledge it: switch limits often from a
+  background thread, not the main loop.
 - **`DifferentialWristMechanism`'s roll gains publish where the docs say.** Since 0.3.5-beta
   the six Slot 1 tunables (`kP`, `kI`, `kD`, `kS`, `kV`, `kA`) were created with `Catalyst/Tuning/`
   already in their key, and `TunableNumber` files every key under that table itself, so they went
