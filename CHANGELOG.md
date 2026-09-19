@@ -5,7 +5,7 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [2.0.0-alpha.4] — 2026-09-19 — Shoot on the move, the slip current, and three fixes
 
 ### Added
 

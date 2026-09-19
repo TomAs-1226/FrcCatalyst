@@ -12,8 +12,8 @@ A swerve drivetrain that aims itself while the driver drives it: the whole drive
 {: .fs-6 .fw-300 }
 
 {: .warning }
-> Unreleased: on the alpha-6 line (`systemcore-alpha6`) after 2.0.0-alpha.3, so only a source build
-> of this branch has it. Built offline against a model of the Catalyst X1 fitted to its recordings,
+> New in 2.0.0-alpha.4, on the alpha-6 line (`systemcore-alpha6`): a source build, like every
+> release of that line. Built offline against a model of the Catalyst X1 fitted to its recordings,
 > and **not yet driven**. Every number marked *(sim)* comes from that model.
 
 ## Table of contents
