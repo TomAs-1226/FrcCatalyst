@@ -5,6 +5,18 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- **`StateSpaceController.Position.correct(position)` taught the filter a velocity nothing had measured.**
+  For a mechanism with no velocity sensor it passed the filter's own velocity estimate back as a
+  measurement, at the real sensor's noise. A Kalman covariance update does not look at the value, only
+  at the noise it is claimed to have, so every loop shrank the filter's uncertainty in velocity as
+  though a fresh, precise reading had arrived; it ended up certain of a velocity nothing measured and
+  under-weighted the next real disturbance. It now corrects with the noise of a sensor that does not
+  exist, so that channel contributes nothing, and the class has tests.
+
 ## [2.0.0-beta.2] — 2026-09-19 — The alpha-6 line's aiming and slip current, on the line teams can install
 
 2.0.0-alpha.4's changes, ported from the alpha-6 line. Phoenix 6 has no WPILib alpha-7 release, so
