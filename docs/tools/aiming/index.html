@@ -7,28 +7,13 @@
   <link rel="stylesheet" href="../tool.css" />
   <script src="../tool.js" defer></script>
   <style>
-    /* This tool's own: the field, the pair of readouts under it, and the legend. Everything else -
-       header, sidebar, cards, sliders, buttons, the code block - is ../tool.css. */
+    /* This tool's own: the field and the pair of readouts under it. Everything else - header,
+       sidebar, cards, sliders, buttons, the legend, the code block - is ../tool.css. */
     canvas { cursor: crosshair; }
     .out { display: grid; grid-template-columns: 1fr 1fr; gap: var(--cat-space-2); }
     .stat .val { font-size: var(--cat-fs-15); font-weight: var(--cat-w-semi); }
     pre.code .fn { color: var(--cat-info); }
     pre.code .num { color: var(--cat-ok); }
-    .legend {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--cat-space-4);
-      color: var(--cat-quiet);
-      font-size: var(--cat-fs-12);
-    }
-    .legend i {
-      display: inline-block;
-      width: 10px;
-      height: 10px;
-      border-radius: 2px;
-      margin-right: 5px;
-      vertical-align: middle;
-    }
   </style>
 </head>
 <body>
@@ -58,10 +43,10 @@
       <h2>Field — top down</h2>
       <canvas id="view" width="760" height="378"></canvas>
       <div class="legend">
-        <span><i style="background:var(--cat-ok)"></i>real goal</span>
-        <span><i style="background:var(--cat-warn)"></i>virtual goal (aim here)</span>
-        <span><i style="background:var(--cat-info)"></i>velocity</span>
-        <span><i style="background:var(--cat-signal)"></i>turret bore</span>
+        <span class="lg"><i class="swatch round" style="--c: var(--cat-ok)"></i>real goal</span>
+        <span class="lg"><i class="swatch round" style="--c: var(--cat-warn)"></i>virtual goal (aim here)</span>
+        <span class="lg"><i class="swatch" style="--c: var(--cat-info)"></i>velocity</span>
+        <span class="lg"><i class="swatch" style="--c: var(--cat-signal)"></i>turret bore</span>
       </div>
     </div>
     <div class="card">
@@ -140,7 +125,7 @@ function draw(s){
   // real goal
   x.fillStyle=TINT('--cat-ok',.18);x.beginPath();x.arc(gx,gy,22,0,7);x.fill();
   x.fillStyle=COL('--cat-ok');x.beginPath();x.arc(gx,gy,8,0,7);x.fill();
-  x.fillStyle=COL('--cat-ok');x.font='11px "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace';x.fillText('goal',gx-12,gy-15);
+  x.fillStyle=COL('--cat-ok');x.font=COL('--cat-fs-11')+' '+COL('--cat-mono');x.fillText('goal',gx-12,gy-15);
   // lead line + virtual goal
   x.strokeStyle=TINT('--cat-warn',.7);x.setLineDash([5,5]);x.lineWidth=1.5;
   x.beginPath();x.moveTo(gx,gy);x.lineTo(vgx,vgy);x.stroke();x.setLineDash([]);
