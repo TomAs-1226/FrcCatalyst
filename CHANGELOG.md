@@ -47,6 +47,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
     `generate(desired, dt, robotHeading)`, and `getTranslationScale()`.
   - On the X1's model, in a 5 m/s pass, Phoenix's desaturation went from acting 25-35% of the time
     to never.
+  - `allocationMargin(double)`, default 0.97, is the room it keeps for the heading loop's own
+    correction: the turn is budgeted as 1/0.97 of itself, so the room grows with the turn and none is
+    kept driving straight. (The docs' earlier workaround, passing 0.97 of the top speed, cut
+    straight-line speed by 3%.)
+- **`CatalystMotor.getSupplyCurrentLimit()` and `getStatorCurrentLimit()`.** The limits last
+  written: the builder's, or the last runtime change.
 - **`VisionPoseSink.getYawRateRadPerSec()`.** The gyro's own turn rate. The default method returns
   the wheels' `getChassisSpeeds().omega`, so existing sinks compile and behave as before.
   `SwerveSubsystem` overrides it with its Pigeon 2's `AngularVelocityZWorld`, and uses the wheels'
@@ -69,8 +75,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
     could pass blurred ones.
   - Both now read `VisionPoseSink.getYawRateRadPerSec()`, once a loop, and fall back to the wheels'
     rate when the gyro has no number to give.
+- **`SwerveSubsystem` raises its Pigeon 2's yaw rate to at least 100 Hz.** The Pigeon sends
+  `AngularVelocityZWorld` at 10 Hz by default on CAN 2.0, every Systemcore bus and the roboRIO's, so
+  `getYawRateRadPerSec()` could read a rate 100 ms old: the lag it exists to avoid. `CatalystGyro`
+  raised it for its own reads; a drivetrain built without one did not. A rate already set higher is
+  never lowered.
 
 ### Fixed
+
+- **Runtime current limits reach a motor's followers.** `setSupplyCurrentLimit`,
+  `setStatorCurrentLimit` and `setCurrentLimits` wrote the leader alone, though the builder gives
+  every follower the leader's limits. A follower kept its boot limit through every state, so a
+  state-based power budget that cut a roller pair to 5 A cut one motor of the two. Every follower is
+  written now. Each write waits for the motor to acknowledge it: switch limits often from a
+  background thread, not the main loop.
+- **The field defaults are REBUILT's real size.** `AllianceFlipUtil` said it defaulted to the 2026
+  REBUILT field and used 16.54 x 8.21 m, 2024's width, as did `VisionConfig`'s field bounds and
+  `CatalystMath.FIELD_WIDTH`. All three are now 16.541 x 8.069 m, the field in WPILib's
+  2026-rebuilt-welded AprilTag layout. A robot that relied on the default flipped red poses 14 cm off
+  in Y and now flips them right; one that calls `AllianceFlipUtil.configure(...)` is unaffected.
 
 - **`DifferentialWristMechanism`'s roll gains publish where the docs say.** Since 0.3.5-beta
   the six Slot 1 tunables (`kP`, `kI`, `kD`, `kS`, `kV`, `kA`) were created with `Catalyst/Tuning/`
