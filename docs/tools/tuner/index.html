@@ -4,314 +4,134 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Catalyst Tuner</title>
+<link rel="stylesheet" href="../tool.css" />
+<script src="../tool.js" defer></script>
 <style>
-  :root {
-    --bg-0: #1a1a2e;
-    --bg-1: #16213e;
-    --bg-2: #0f1a2e;
-    --bg-card: #1f2a44;
-    --bg-input: #0e1626;
-    --accent: #e94560;
-    --accent-2: #ff6b6b;
-    --fg: #ffffff;
-    --fg-muted: #8892b0;
-    --fg-dim: #5a6478;
-    --ok: #4ade80;
-    --warn: #fbbf24;
-    --err: #f87171;
-    --border: #2a3a5c;
-  }
+  /* This tool's own: the mechanism panels and the gain row inside them.
+     Everything else - header, sidebar, fields, sliders, buttons, the dialog and
+     the toast - is ../tool.css. */
 
-  * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-    background: linear-gradient(135deg, var(--bg-0), var(--bg-1));
-    color: var(--fg);
-    min-height: 100vh;
-  }
-
-  header {
-    padding: 20px 32px;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    border-bottom: 1px solid var(--border);
-    background: rgba(15, 26, 46, 0.7);
-    backdrop-filter: blur(8px);
-    position: sticky;
-    top: 0;
-    z-index: 10;
-  }
-  .brand { display: flex; align-items: center; gap: 12px; }
-  .brand svg { width: 28px; height: 28px; }
-  .brand-title { font-weight: 900; font-size: 20px; letter-spacing: 2px; }
-  .brand-sub { font-size: 12px; color: var(--accent); margin-left: 6px; }
-
-  .conn {
-    display: flex; gap: 8px; align-items: center; margin-left: auto;
-  }
-  .conn input[type="text"] {
-    background: var(--bg-input);
-    border: 1px solid var(--border);
-    color: var(--fg);
-    padding: 8px 12px;
-    border-radius: 6px;
-    width: 200px;
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 13px;
-  }
-  .conn input[type="text"]:focus {
-    outline: none;
-    border-color: var(--accent);
-  }
-  button {
-    background: var(--accent);
-    color: white;
-    border: 0;
-    padding: 8px 16px;
-    border-radius: 6px;
-    font-weight: 600;
-    cursor: pointer;
-    font-size: 13px;
-    transition: background 120ms ease, transform 80ms ease;
-  }
-  button:hover { background: var(--accent-2); }
-  button:active { transform: translateY(1px); }
-  button.secondary { background: var(--bg-card); color: var(--fg-muted); border: 1px solid var(--border); }
-  button.secondary:hover { background: var(--bg-2); color: var(--fg); }
-  button.ghost { background: transparent; color: var(--fg-muted); border: 1px solid var(--border); padding: 4px 10px; font-size: 12px; }
-  button.ghost:hover { color: var(--fg); border-color: var(--accent); }
-  button:disabled { opacity: 0.4; cursor: not-allowed; }
-
-  .status {
-    display: inline-flex; align-items: center; gap: 8px;
-    font-size: 12px; color: var(--fg-muted);
-    margin-right: 4px;
-  }
-  .dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: var(--fg-dim);
-    transition: background 200ms ease;
-  }
-  .dot.connecting { background: var(--warn); animation: pulse 1s ease-in-out infinite; }
-  .dot.connected { background: var(--ok); }
-  .dot.error { background: var(--err); }
-  @keyframes pulse { 50% { opacity: 0.3; } }
-
-  main { padding: 24px 32px 80px; }
-
-  .empty {
-    text-align: center;
-    color: var(--fg-muted);
-    padding: 80px 20px;
-    font-size: 15px;
-    line-height: 1.6;
-  }
-  .empty code {
-    background: var(--bg-card);
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 13px;
-  }
-  .empty .hint {
-    margin-top: 24px;
-    font-size: 13px;
-    color: var(--fg-dim);
-  }
-
+  /* One panel per mechanism, as many across as the window allows. Not `.card`,
+     deliberately: the chrome animates a card in when it arrives, and these are
+     rebuilt whenever the robot announces a topic. */
   .mechs {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
-    gap: 18px;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: var(--cat-space-4);
+    min-width: 0;
   }
 
   .mech {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
+    border: 1px solid var(--cat-line);
+    border-radius: var(--cat-r-card);
+    background: var(--cat-surface-1);
     overflow: hidden;
+    animation: tool-in var(--cat-dur-release) var(--cat-ease-release) both;
   }
+
+  .mech:nth-child(2) { animation-delay: 40ms; }
+  .mech:nth-child(3) { animation-delay: 80ms; }
+
   .mech-head {
-    padding: 14px 18px;
-    background: rgba(233, 69, 96, 0.08);
-    border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; justify-content: space-between;
-    gap: 10px;
-  }
-  .mech-name {
-    font-weight: 700;
-    font-size: 15px;
-    color: var(--fg);
-  }
-  .mech-name-mm {
-    font-size: 11px;
-    color: var(--accent);
-    margin-left: 6px;
-    font-weight: 500;
-  }
-  .mech-actions { display: flex; gap: 6px; }
-
-  .gains { padding: 8px 0; }
-  .group-label {
-    padding: 10px 18px 6px;
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-    color: var(--fg-dim);
-    font-weight: 700;
-  }
-
-  .gain {
-    display: grid;
-    grid-template-columns: 70px 1fr 100px;
+    display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 6px 18px;
+    gap: var(--cat-space-2);
+    padding: var(--cat-space-3) var(--cat-space-4);
+    border-bottom: 1px solid var(--cat-line);
+    background: var(--cat-surface-2);
   }
-  .gain:hover { background: rgba(255, 255, 255, 0.02); }
-  .gain-label {
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 13px;
-    color: var(--fg-muted);
+
+  .mech-name {
+    font-family: var(--cat-sans);
+    font-size: var(--cat-fs-15);
+    font-weight: var(--cat-w-semi);
+    color: var(--cat-ink-strong);
   }
-  .gain.dirty .gain-label { color: var(--warn); }
-  .gain input[type="range"] {
-    width: 100%;
-    accent-color: var(--accent);
+
+  .mech-head .reset { margin-left: auto; min-height: 26px; font-size: var(--cat-fs-11); }
+
+  .gains { display: grid; gap: var(--cat-space-1); padding: var(--cat-space-3); }
+  .gains .section-label { padding: var(--cat-space-2) var(--cat-space-2) 0; }
+
+  /* A gain is the chrome's `.row`: label with its value pushed to the end, the
+     slider under it. The name used to sit in a 70px column, which "CruiseVelocity"
+     never fitted in. */
+  .gain {
+    padding: var(--cat-space-2);
+    border-radius: var(--cat-r-inner);
+    transition: background-color var(--cat-dur-effect) var(--cat-ease-effect);
   }
-  .gain input[type="number"] {
-    background: var(--bg-input);
-    border: 1px solid var(--border);
-    color: var(--fg);
-    padding: 5px 8px;
-    border-radius: 4px;
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 13px;
-    width: 100%;
+
+  .gain:hover { background: var(--cat-surface-2); }
+  .gain > label { font-family: var(--cat-mono); transition: color var(--cat-dur-effect) var(--cat-ease-effect); }
+
+  .gain .v {
+    width: 88px;
+    min-height: 26px;
+    padding: 2px var(--cat-space-2);
     text-align: right;
   }
-  .gain input[type="number"]:focus {
-    outline: none;
-    border-color: var(--accent);
-  }
-  .gain.dirty input[type="number"] {
-    border-color: var(--warn);
-  }
 
-  footer {
-    position: fixed;
-    bottom: 0; left: 0; right: 0;
-    padding: 12px 32px;
-    background: rgba(15, 26, 46, 0.95);
-    backdrop-filter: blur(8px);
-    border-top: 1px solid var(--border);
-    display: flex;
-    gap: 10px;
-    align-items: center;
-  }
-  footer .info { color: var(--fg-muted); font-size: 12px; margin-right: auto; }
-  footer .info strong { color: var(--fg); }
+  /* Written, not yet echoed back by the robot. */
+  .gain.dirty > label { color: var(--cat-warn); }
+  .gain.dirty .v { border-color: var(--cat-warn); }
 
-  dialog {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    color: var(--fg);
-    padding: 24px;
-    max-width: 640px;
-    width: 90vw;
-  }
-  dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
-  dialog h2 { margin-top: 0; }
-  dialog pre {
-    background: var(--bg-input);
-    border: 1px solid var(--border);
-    padding: 14px;
-    border-radius: 8px;
-    overflow: auto;
-    max-height: 50vh;
-    font-size: 12px;
-    color: var(--fg);
-  }
-  dialog .row { display: flex; gap: 8px; margin-top: 14px; }
+  /* The link light, in a stat row beside its word. */
+  .link { display: inline-flex; align-items: center; gap: var(--cat-space-2); }
 
-  .toast {
-    position: fixed;
-    bottom: 80px;
-    right: 32px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-left: 3px solid var(--accent);
-    padding: 12px 18px;
-    border-radius: 6px;
-    font-size: 13px;
-    color: var(--fg);
-    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-    z-index: 100;
-    opacity: 0;
-    transform: translateY(8px);
-    transition: opacity 180ms ease, transform 180ms ease;
-    pointer-events: none;
-  }
-  .toast.show { opacity: 1; transform: translateY(0); }
-  .toast.ok { border-left-color: var(--ok); }
-  .toast.err { border-left-color: var(--err); }
+  dialog pre { max-height: 50vh; }
 </style>
 </head>
 <body>
 
 <header>
-  <div class="brand">
-    <svg viewBox="0 0 100 100">
-      <path d="M55,10 L35,52 L52,48 L42,90 L70,40 L52,44 L62,10 Z" fill="#e94560"/>
-    </svg>
-    <div>
-      <span class="brand-title">CATALYST</span>
-      <span class="brand-sub">Tuner</span>
-    </div>
-  </div>
-  <div class="conn">
-    <span class="status"><span class="dot" id="dot"></span><span id="statusText">disconnected</span></span>
-    <input type="text" id="host" placeholder="10.TE.AM.2 or robot.local" value="127.0.0.1" />
-    <button id="connectBtn">Connect</button>
-  </div>
+  <h1>Tuner</h1>
+  <span class="badge">2.0.0-alpha.5</span>
+  <span class="hint">Live gains over NetworkTables. Every move writes straight to the robot.</span>
+  <a href="../" class="back"></a>
 </header>
 
 <main>
-  <div id="empty" class="empty">
-    <div>Connect to a robot or simulator to start tuning.</div>
-    <div class="hint">
-      The tuner subscribes to <code>Catalyst/Tuning/*</code> and discovers
-      mechanisms automatically. Make sure your robot is running Catalyst v0.3.5
-      or newer.
+  <aside>
+    <h2>Robot</h2>
+    <div class="row">
+      <label for="host">Host <span class="v">NT4 &middot; 5810</span></label>
+      <input type="text" id="host" placeholder="10.TE.AM.2 or robot.local" value="127.0.0.1" />
     </div>
-  </div>
-  <div id="mechs" class="mechs"></div>
-</main>
+    <div class="actions stack"><button class="primary" id="connectBtn">Connect</button></div>
 
-<footer>
-  <div class="info">
-    <strong id="mechCount">0</strong> mechanisms ·
-    <strong id="gainCount">0</strong> live gains ·
-    <span id="latency">--</span>
+    <div class="stats">
+      <div class="stat"><span class="k">link</span><span class="val link"><span class="dot" id="dot"></span><span id="statusText">disconnected</span></span></div>
+      <div class="stat"><span class="k">mechanisms</span><span class="val" id="mechCount">0</span></div>
+      <div class="stat"><span class="k">live gains</span><span class="val" id="gainCount">0</span></div>
+      <div class="stat"><span class="k">stream</span><span class="val" id="latency">&mdash;</span></div>
+    </div>
+
+    <h2>Session</h2>
+    <div class="actions stack">
+      <button id="resetAllBtn">Reset all to defaults</button>
+      <button id="downloadJsonBtn" title="Download a JSON snapshot of every tuned gain">Download JSON</button>
+      <button id="exportBtn">Export as Java</button>
+      <button id="lockBtn">Lock for competition</button>
+    </div>
+  </aside>
+
+  <div class="cards">
+    <div id="empty" class="empty">
+      Connect to a robot or simulator to start tuning.
+      <br>The tuner subscribes to <code>Catalyst/Tuning/</code> and discovers mechanisms by itself.
+    </div>
+    <div id="mechs" class="mechs"></div>
   </div>
-  <button class="secondary" id="resetAllBtn">Reset all to defaults</button>
-  <button class="secondary" id="downloadJsonBtn" title="Download a JSON snapshot of every tuned gain">Download JSON</button>
-  <button class="secondary" id="exportBtn">Export as Java</button>
-  <button id="lockBtn">Lock for competition</button>
-</footer>
+</main>
 
 <dialog id="exportDialog">
   <h2>Java snippets</h2>
-  <p style="color: var(--fg-muted); font-size: 13px;">
-    Paste these back into your mechanism config builders. Values reflect what is
-    currently live on the robot.
-  </p>
+  <p class="hint">Paste these back into your mechanism config builders. The values are what is live on the robot right now.</p>
   <pre id="exportContent"></pre>
-  <div class="row">
-    <button id="copyExportBtn">Copy</button>
-    <button class="secondary" id="closeExportBtn">Close</button>
+  <div class="actions">
+    <button id="closeExportBtn">Close</button>
+    <button class="primary" id="copyExportBtn">Copy</button>
   </div>
 </dialog>
 
@@ -579,16 +399,15 @@ function onValue(name, value) {
 function setStatus(kind, detail) {
   const dot = $('dot');
   const txt = $('statusText');
-  dot.classList.remove('connecting', 'connected', 'error');
+  // The chrome's three states, each a shape as well as a colour: a circle for ok,
+  // a diamond for warn, a square for bad.
+  dot.className = 'dot' + ({ connecting: ' warn', connected: ' ok', error: ' bad' }[kind] || '');
   if (kind === 'connecting') {
-    dot.classList.add('connecting');
     txt.textContent = 'connecting…';
   } else if (kind === 'connected') {
-    dot.classList.add('connected');
     txt.textContent = 'connected';
     $('connectBtn').textContent = 'Disconnect';
   } else if (kind === 'error') {
-    dot.classList.add('error');
     txt.textContent = detail || 'error';
     $('connectBtn').textContent = 'Connect';
   } else {
@@ -606,29 +425,41 @@ nt.handlers.status = setStatus;
 // ============================================================
 
 let renderRequested = false;
+let structure = '';
+
 function render() {
   if (renderRequested) return;
   renderRequested = true;
   requestAnimationFrame(doRender);
 }
 
+/** What the panels are made of, as a string. Values are deliberately not in it. */
+function structureKey(names) {
+  return names
+    .map((n) => n + '{' + [...state.mechanisms.get(n).gains.keys()].sort().join(',') + '}')
+    .join('|');
+}
+
 function doRender() {
   renderRequested = false;
-  const container = $('mechs');
-  const empty = $('empty');
   const names = [...state.mechanisms.keys()].sort();
-  if (names.length === 0) {
-    empty.style.display = '';
-    container.innerHTML = '';
-    $('mechCount').textContent = '0';
-    $('gainCount').textContent = '0';
-    return;
+  const key = structureKey(names);
+
+  // Panels are rebuilt only when a mechanism or a gain appears or goes away. They
+  // used to be rebuilt on every value the robot sent, several times a second,
+  // which re-ran their arrival animation continuously and threw away the caret of
+  // whatever field you were typing in.
+  if (key !== structure) {
+    structure = key;
+    buildPanels(names);
   }
-  empty.style.display = 'none';
-  let totalGains = 0;
-  container.innerHTML = names.map((mechName) => {
+  updateValues();
+}
+
+function buildPanels(names) {
+  $('empty').hidden = names.length > 0;
+  $('mechs').innerHTML = names.map((mechName) => {
     const m = state.mechanisms.get(mechName);
-    totalGains += m.gains.size;
     const pidRows = GAIN_ORDER
       .filter((g) => m.gains.has(g))
       .map((g) => renderGain(mechName, m.gains.get(g)))
@@ -640,30 +471,55 @@ function doRender() {
     return `
       <div class="mech" data-mech="${mechName}">
         <div class="mech-head">
-          <div class="mech-name">${mechName}${m.hasMM ? '<span class="mech-name-mm">+ Motion Magic</span>' : ''}</div>
-          <div class="mech-actions">
-            <button class="ghost" data-action="reset" data-mech="${mechName}">reset</button>
-          </div>
+          <div class="mech-name">${mechName}</div>
+          ${m.hasMM ? '<span class="tag">Motion Magic</span>' : ''}
+          <button class="ghost reset" data-action="reset" data-mech="${mechName}">reset</button>
         </div>
         <div class="gains">
-          ${pidRows ? `<div class="group-label">PID + Feedforward</div>${pidRows}` : ''}
-          ${mmRows ? `<div class="group-label">Motion Magic</div>${mmRows}` : ''}
+          ${pidRows ? `<div class="section-label">PID + feedforward</div>${pidRows}` : ''}
+          ${mmRows ? `<div class="section-label">Motion Magic</div>${mmRows}` : ''}
         </div>
       </div>
     `;
   }).join('');
-  $('mechCount').textContent = names.length;
+}
+
+/** Values only. Nothing here replaces an element, so nothing here moves a caret. */
+function updateValues() {
+  let totalGains = 0;
+  for (const m of state.mechanisms.values()) totalGains += m.gains.size;
+  $('mechCount').textContent = state.mechanisms.size;
   $('gainCount').textContent = totalGains;
+
+  for (const row of $('mechs').querySelectorAll('.gain')) {
+    const g = gainOf(row);
+    if (!g || g.dirty) continue;      // a pending write outranks the robot's echo
+    const range = row.querySelector('input[type=range]');
+    const num = row.querySelector('input[type=number]');
+    const max = sliderMax(g);
+    if (range && range !== document.activeElement) {
+      range.max = max;
+      range.value = Math.max(0, Math.min(g.value, max));
+    }
+    if (num && num !== document.activeElement) num.value = formatNumber(g.value);
+  }
+}
+
+/** The gain a row stands for, from the row's own data attributes. */
+function gainOf(row) {
+  const mech = state.mechanisms.get(row.dataset.mech);
+  if (!mech) return null;
+  return mech.gains.get(row.dataset.gain + (row.dataset.mm === 'true' ? '__MM' : '')) || null;
 }
 
 function renderGain(mechName, g) {
   const max = sliderMax(g);
   const step = sliderStep(g);
+  const value = formatNumber(g.value);
   return `
-    <div class="gain ${g.dirty ? 'dirty' : ''}" data-mech="${mechName}" data-gain="${g.name}" data-mm="${g.isMM}">
-      <div class="gain-label">${g.name}</div>
-      <input type="range" min="0" max="${max}" step="${step}" value="${Math.max(0, Math.min(g.value, max))}" />
-      <input type="number" step="${step}" value="${formatNumber(g.value)}" />
+    <div class="gain row" data-mech="${mechName}" data-gain="${g.name}" data-mm="${g.isMM}">
+      <label>${g.name}<input type="number" class="v" step="${step}" value="${value}" aria-label="${g.name}"></label>
+      <input type="range" min="0" max="${max}" step="${step}" value="${Math.max(0, Math.min(g.value, max))}" aria-label="${g.name} slider" />
     </div>
   `;
 }
@@ -706,12 +562,7 @@ function formatNumber(v) {
 $('mechs').addEventListener('input', (e) => {
   const row = e.target.closest('.gain');
   if (!row) return;
-  const mechName = row.dataset.mech;
-  const gainName = row.dataset.gain;
-  const isMM = row.dataset.mm === 'true';
-  const mech = state.mechanisms.get(mechName);
-  const key = gainName + (isMM ? '__MM' : '');
-  const g = mech.gains.get(key);
+  const g = gainOf(row);
   if (!g) return;
 
   const newValue = parseFloat(e.target.value);
@@ -725,8 +576,9 @@ $('mechs').addEventListener('input', (e) => {
   const other = row.querySelector(otherSelector);
   if (other) other.value = e.target.type === 'range' ? formatNumber(newValue) : newValue;
 
+  // The dirty colour is a class, not an inline style: the row says "written, not
+  // yet echoed", and the chrome decides what that looks like.
   row.classList.add('dirty');
-  row.querySelector('.gain-label').style.color = 'var(--warn)';
 
   // Push to robot.
   nt.setValue(g.fullName, 'double', newValue);
@@ -736,7 +588,6 @@ $('mechs').addEventListener('input', (e) => {
   g._dirtyTimer = setTimeout(() => {
     g.dirty = false;
     row.classList.remove('dirty');
-    row.querySelector('.gain-label').style.color = '';
   }, 600);
 });
 

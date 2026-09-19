@@ -54,10 +54,21 @@ That adds FrcCatalyst to your project and lets WPILib check for updates.
 Make sure the Phoenix 6, PathPlanner and LimelightLib vendordeps are also
 installed - Catalyst depends on them. PhotonVision is **not** one of them; see above.
 
+{: .warning }
+> **This URL installs `v2.0.0-alpha.1`, which does not start on Systemcore OS image 13.** It is the
+> only 2.x tag JitPack could build before beta.1, and it was built on a WPILib development snapshot
+> rather than the alpha-6 release that image 13 runs: measured on hardware, the program aborts at
+> startup with `MRC API version mismatch`. For image 13, use Option 3 and build `v2.0.0-alpha.5`, the
+> version this site documents.
+> [Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html) has the
+> whole map.
+
 ## Option 2: JitPack (build.gradle)
 
-If you'd rather add it by hand, put the JitPack repository and the
-dependency in your robot project's `build.gradle`:
+JitPack can build one tag on this line: `v2.0.0-alpha.1`, the same one the vendordep above
+installs, with the same problem on image 13. WPILib's alpha-6 release is on no public maven, so
+JitPack cannot build `v2.0.0-alpha.2`, `v2.0.0-alpha.3` or anything after them. For completeness,
+the coordinate is:
 
 ```gradle
 repositories {
@@ -67,18 +78,20 @@ repositories {
 
 dependencies {
     // ... your existing dependencies ...
-    implementation "com.github.TomAs-1226:FrcCatalyst:v1.12.0"
+    implementation "com.github.TomAs-1226:FrcCatalyst:v2.0.0-alpha.1"
 }
 ```
 
 ## Option 3: Local Maven (From Source)
 
-If you prefer to build from source or need to modify the library:
+On this line, this is the route that runs on image 13. It needs JDK 25 and the WPILib 2027 alpha-6
+installer on the machine, because alpha-6 is on no public maven:
 
 ```bash
-# Clone FrcCatalyst
+# Clone FrcCatalyst, then check out the version this site documents:
 git clone https://github.com/TomAs-1226/FrcCatalyst.git
 cd FrcCatalyst
+git checkout v2.0.0-alpha.5
 
 # Publish to local Maven
 ./gradlew publishToMavenLocal

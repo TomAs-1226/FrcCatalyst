@@ -4,139 +4,159 @@
   <meta charset="utf-8" />
   <title>Catalyst Motor History</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="../tool.css" />
+  <script src="../tool.js" defer></script>
   <style>
-    :root {
-      --bg: #0f1424;
-      --panel: #1b2240;
-      --panel2: #131831;
-      --accent: #e94560;
-      --accent2: #f0648a;
-      --text: #f4f4f8;
-      --muted: #8a8aa8;
-      --border: rgba(255,255,255,0.07);
-      --good: #4ade80;
-      --warn: #fbbf24;
-      --err:  #f87171;
+    /* This tool's own: what file is loaded, the motor's name cell with its résumé under it, the
+       row you opened and the panel that opens with it, and the strip of one bar per boot.
+       Everything else — header, sidebar, cards, fields, buttons, chips, bars, notices, the
+       table, its sort arrows and the empty state — is ../tool.css. */
+
+    /* --------------------------------------------------------------- the file */
+    /* Keys and their values, not `.stat` rows: half these values are sentences, and a bordered
+       row would put every one of them on a second line. */
+    .kv {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: var(--cat-space-1) var(--cat-space-3);
+      font-size: var(--cat-fs-13);
     }
-    * { box-sizing: border-box; }
-    html, body {
-      margin: 0; padding: 0;
-      background:
-        radial-gradient(ellipse at 0% 0%, rgba(74,222,128,0.06), transparent 60%),
-        radial-gradient(ellipse at 100% 100%, rgba(233,69,96,0.08), transparent 60%),
-        var(--bg);
-      color: var(--text);
-      font-family: ui-sans-serif, system-ui, -apple-system, "SF Pro Text", Segoe UI, sans-serif;
-      min-height: 100vh;
-    }
-    header {
-      padding: 16px 28px;
-      border-bottom: 1px solid var(--border);
-      display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-      position: sticky; top: 0; z-index: 5;
-      background: linear-gradient(180deg, rgba(27,34,64,0.95) 0%, rgba(15,20,36,0.9) 100%);
-      backdrop-filter: blur(6px);
-    }
-    header h1 { margin: 0; font-size: 18px; font-weight: 700; }
-    header .badge { padding: 2px 10px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 600; }
-    header .hint { color: var(--muted); font-size: 13px; }
-    main { display: grid; grid-template-columns: 330px 1fr; gap: 20px; padding: 22px 24px; }
-    @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
-    .left, .right {
-      background: linear-gradient(180deg, var(--panel) 0%, var(--panel2) 100%);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 20px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+
+    .kv dt { color: var(--cat-dim); }
+    .kv dd {
+      margin: 0;
       min-width: 0;
+      font-family: var(--cat-mono);
+      font-size: var(--cat-fs-12);
+      color: var(--cat-ink);
+      overflow-wrap: anywhere;
     }
-    h2 { margin: 0 0 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 1.4px; color: var(--muted); font-weight: 700; }
-    h2:not(:first-child) { margin-top: 22px; }
-    .row { display: grid; grid-template-columns: 1fr; gap: 6px; margin-bottom: 10px; }
-    .row label { color: var(--muted); font-size: 12px; }
-    input, select {
-      width: 100%; padding: 9px 11px; border-radius: 9px; border: 1px solid var(--border);
-      background: rgba(0,0,0,0.25); color: var(--text); font: inherit; font-size: 13px;
+
+    /* An aside that has to be read but must not be read first — "unnamed", "none yet", a footnote
+       under a panel. The chrome's `.muted` is a paragraph's colour and size; this is only the
+       colour, so it can sit inside a line that has its own. */
+    .dim { color: var(--cat-quiet); }
+
+    /* -------------------------------------------------------------- the table */
+    /* Ten columns is more than a narrow window has room for, and a column squeezed down to two
+       characters is worse than one you have to scroll to. Both `min-width: 0`s are load-bearing:
+       a grid item's default minimum is its content, so without them the table's 880px pushed the
+       panel — and then the whole page — wider than the window instead of scrolling inside it. */
+    #table { min-width: 0; }
+    .tscroll { min-width: 0; overflow-x: auto; }
+    .tscroll table { min-width: 880px; }
+
+    /* Every figure here is a measurement, so every figure is mono and right-aligned — the chrome
+       aligns and faces `.num`; this only stops a unit wrapping under its own number. */
+    td.num, th.num { white-space: nowrap; }
+
+    /* A motor is a name, and under it everything that identifies it: where it is on the bus, the
+       tail of its serial, its model, and how many identities it has worn before this one. */
+    td.name { color: var(--cat-ink); font-weight: var(--cat-w-semi); }
+    td.name small {
+      display: block;
+      margin-top: 2px;
+      font-family: var(--cat-mono);
+      font-size: var(--cat-fs-11);
+      font-weight: var(--cat-w-normal);
+      color: var(--cat-quiet);
     }
-    input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accent2); outline-offset: 1px; }
-    .btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
-    button {
-      padding: 9px 14px; border-radius: 9px; border: 1px solid var(--border);
-      background: rgba(255,255,255,0.06); color: var(--text); font: inherit; font-size: 13px; cursor: pointer;
+
+    /* Powered is what the table sorts by until you say otherwise, so it is the one column that
+       carries a length as well as a number. The bar goes under its own figure rather than beside
+       it, because a bar in front of the digits moves them every time the sort changes. */
+    td.powered { width: 132px; }
+    td.powered .bar { margin-top: 5px; }
+
+    /* Hot is the one thing in this table that is a warning rather than a measurement. */
+    td.hot { color: var(--cat-warn); }
+
+    /* A row is a control: it opens. The one that is open keeps the signal, and nothing else on
+       this page spends it. */
+    tbody tr.dev { cursor: pointer; transition: background-color var(--cat-dur-effect) var(--cat-ease-effect); }
+    tbody tr.dev:hover > td { background: var(--cat-surface-2); }
+    tbody tr.dev.open > td { background: var(--cat-signal-tint); }
+    tbody tr.dev.open td:first-child { box-shadow: inset 2px 0 0 var(--cat-signal); }
+
+    /* ------------------------------------------------- one motor's whole life */
+    tr.detail > td {
+      padding: var(--cat-space-4);
+      background: var(--cat-surface-2);
+      white-space: normal;
     }
-    button.primary { background: var(--accent); border-color: transparent; font-weight: 600; }
-    button:disabled { opacity: 0.45; cursor: default; }
-    .status { margin-top: 12px; font-size: 12.5px; color: var(--muted); line-height: 1.5; min-height: 1.5em; }
-    .status.err { color: var(--err); }
-    .status.ok { color: var(--good); }
-    .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 12.5px; }
-    .kv dt { color: var(--muted); }
-    .kv dd { margin: 0; font-variant-numeric: tabular-nums; }
-    code { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12px; background: rgba(0,0,0,0.3); padding: 1px 5px; border-radius: 5px; }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
-    th { text-align: right; font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 0 8px 8px 0; white-space: nowrap; cursor: pointer; user-select: none; }
-    th:first-child, td:first-child { text-align: left; }
-    th[data-active="true"] { color: var(--accent2); }
-    td { padding: 8px 8px 8px 0; text-align: right; border-top: 1px solid var(--border); white-space: nowrap; vertical-align: middle; }
-    td.name { font-weight: 600; }
-    td.name small { display: block; color: var(--muted); font-weight: 500; font-size: 11.5px; }
-    td.warn { color: var(--warn); font-weight: 700; }
-    tr.dev { cursor: pointer; }
-    tr.dev:hover td { background: rgba(255,255,255,0.03); }
-    tr.detail td { text-align: left; white-space: normal; background: rgba(0,0,0,0.18); padding: 12px 14px; }
-    .bar { display: inline-block; width: 70px; height: 6px; margin-right: 8px; vertical-align: middle; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
-    .bar i { display: block; height: 100%; background: var(--accent); }
-    .pill { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 999px; background: rgba(251,191,36,0.15); color: var(--warn); font-size: 10.5px; font-weight: 600; }
-    .timeline { display: grid; grid-template-columns: auto auto 1fr; gap: 4px 14px; font-size: 12.5px; }
-    .timeline .t { color: var(--muted); }
-    .sessions { display: flex; gap: 3px; align-items: flex-end; height: 44px; margin-top: 8px; }
-    .sessions i { display: block; width: 9px; background: var(--accent2); border-radius: 2px 2px 0 0; min-height: 2px; opacity: 0.85; }
-    .sessions i[data-hot="true"] { background: var(--warn); }
-    .empty { color: var(--muted); font-size: 13px; padding: 30px 0; text-align: center; }
-    .dim { color: var(--muted); font-weight: 500; }
+
+    .detail-body { display: grid; gap: var(--cat-space-2); }
+    .detail-body b { color: var(--cat-ink); font-weight: var(--cat-w-semi); }
+
+    /* Every id, name and firmware this serial has carried, oldest first. */
+    .timeline {
+      display: grid;
+      grid-template-columns: auto auto minmax(0, 1fr);
+      gap: var(--cat-space-1) var(--cat-space-4);
+      font-family: var(--cat-mono);
+      font-size: var(--cat-fs-12);
+    }
+
+    .timeline .t { color: var(--cat-dim); white-space: nowrap; }
+
+    /* One bar per boot, height is revolutions. Quiet, like every other quantity drawn as a length
+       here; amber is the only one of them that means anything, and it means the motor got hot. */
+    .sessions { display: flex; align-items: flex-end; gap: 3px; height: 44px; }
+    .sessions i {
+      display: block;
+      width: 9px;
+      min-height: 2px;
+      border-radius: 2px 2px 0 0;
+      background: var(--cat-dim);
+    }
+    .sessions i[data-hot="true"] { background: var(--cat-warn); }
   </style>
 </head>
 <body>
   <header>
     <h1>Motor History</h1>
-    <span class="badge">Catalyst</span>
+    <span class="badge">2.0.0-alpha.5</span>
     <span class="hint">What every motor on the robot has been through, by serial number. Pulled off the Systemcore, saved wherever you keep such things.</span>
+    <a href="../" class="back"></a>
   </header>
+
   <main>
-    <section class="left">
+    <aside>
       <h2>Robot</h2>
       <div class="row">
         <label for="team">Team number</label>
         <input id="team" inputmode="numeric" placeholder="5805" />
       </div>
       <div class="row">
-        <label for="host">Systemcore address (blank = 10.TE.AM.2)</label>
+        <label for="host">Systemcore address <span class="v">blank = 10.TE.AM.2</span></label>
         <input id="host" placeholder="10.58.5.2 or 172.26.0.1 over USB" />
       </div>
-      <div class="btns">
+      <div class="actions">
         <button class="primary" id="fetch">Fetch history</button>
+        <button id="load">Open a saved file</button>
         <button id="saveJson" disabled>Save JSON</button>
         <button id="saveCsv" disabled>Save CSV</button>
-        <button id="load">Open a saved file</button>
         <input type="file" id="file" accept=".json,application/json" hidden />
       </div>
-      <div class="status" id="status">The robot program writes <code>catalyst/motor-history.json</code> beside itself; <code>catalyst-agent</code> 2.0.3 on the Systemcore serves it on port 9010.</div>
+      <p class="notice" id="status" role="status">The robot program writes <code>catalyst/motor-history.json</code> beside itself; <code>catalyst-agent</code> 2.0.3 on the Systemcore serves it on port 9010.</p>
 
       <h2>This file</h2>
       <dl class="kv" id="meta"><dt>—</dt><dd>nothing loaded</dd></dl>
 
       <h2>Reading it</h2>
-      <div class="status">
-        <b>Powered</b> is time on the bus; <b>turning</b> wore the bearings; <b>loaded</b> (over 5 A) wore the windings.
-        <b>Hot</b> counts time at or above 70 °C. <b>Past</b> identities are old ids, names or firmware: the motor's résumé.
-        Click a row for its identities and recent boots.
-      </div>
-    </section>
+      <p class="hint">
+        <b>Powered</b> is time on the bus; <b>turning</b> wore the bearings; <b>loaded</b> (over 5 A) wore
+        the windings. <b>Hot</b> counts time at or above 70 °C. <b>Past</b> identities are old ids, names
+        or firmware: the motor's résumé. Click a row for its identities and recent boots.
+      </p>
+    </aside>
 
-    <section class="right">
-      <h2>Motors</h2>
-      <div id="table"><div class="empty">Fetch from a robot, or open a saved file.</div></div>
-    </section>
+    <div class="cards">
+      <div class="card">
+        <h2>Motors</h2>
+        <div id="table"><p class="empty">Fetch from a robot, or open a saved file.</p></div>
+      </div>
+    </div>
   </main>
 
   <script>
@@ -179,10 +199,12 @@
       return `10.${Math.floor(team / 100)}.${team % 100}.2`;
     }
 
+    /* The chrome's notice, in the three states it has: neutral while nothing has happened, and
+       ok / bad once something has. */
     function status(text, kind) {
       const el = $("#status");
       el.textContent = text;
-      el.className = "status" + (kind ? " " + kind : "");
+      el.className = "notice" + (kind ? " " + kind : "");
     }
 
     function hours(s) {
@@ -236,7 +258,7 @@
 
     function render() {
       const meta = $("#meta");
-      if (!doc) { meta.innerHTML = "<dt>—</dt><dd>nothing loaded</dd>"; $("#table").innerHTML = '<div class="empty">Fetch from a robot, or open a saved file.</div>'; return; }
+      if (!doc) { meta.innerHTML = "<dt>—</dt><dd>nothing loaded</dd>"; $("#table").innerHTML = '<p class="empty">Fetch from a robot, or open a saved file.</p>'; return; }
       const motors = rows.filter((r) => r.kind === "motor");
       const totalH = motors.reduce((a, r) => a + r.poweredSeconds, 0) / 3600;
       const hottest = motors.reduce((a, r) => (!a || r.peakTempC > a.peakTempC ? r : a), null);
@@ -257,21 +279,28 @@
       });
       const others = rows.filter((r) => r.kind !== "motor");
       const max = Math.max(1, ...sorted.map((r) => r.poweredSeconds));
-      const head = COLS.map(([k, label]) => `<th data-sort="${k}" data-active="${k === sortKey}">${label}${k === sortKey ? (sortDesc ? " ↓" : " ↑") : ""}</th>`).join("");
+      // The arrow and the announcement are one attribute, which is what the chrome draws from —
+      // this used to hand-build its own ↓ and ↑ and tell a screen reader nothing.
+      const head = COLS.map(([k, label], i) => {
+        const mark = k === sortKey ? ` aria-sort="${sortDesc ? "descending" : "ascending"}"` : "";
+        return `<th data-sort="${k}"${i ? ' class="num"' : ""}${mark}>${label}</th>`;
+      }).join("");
       const body = sorted.map((r) => {
         const where = [r.bus, r.id != null && r.id !== "" ? `id ${r.id}` : ""].filter(Boolean).join(" · ");
-        const past = r.identities.length > 1 ? `<span class="pill" title="renumbered, renamed or reflashed ${r.identities.length - 1} time(s)">${r.identities.length - 1} past</span>` : "";
-        const main = `<tr class="dev" data-serial="${esc(r.serial)}">
-          <td class="name">${esc(r.name) || '<span class="dim">unnamed</span>'}<small>${esc(where)} · ${esc(shortSerial(r.serial))} · ${esc(r.model)}${past}</small></td>
-          <td><span class="bar"><i style="width:${(100 * r.poweredSeconds / max).toFixed(1)}%"></i></span>${hours(r.poweredSeconds)}</td>
-          <td>${hours(r.runningSeconds)}</td>
-          <td>${hours(r.loadedSeconds)}</td>
-          <td>${revs(r.revolutions)}</td>
-          <td>${r.peakStatorAmps ? r.peakStatorAmps.toFixed(0) : "—"}</td>
-          <td class="${r.peakTempC >= HOT_C ? "warn" : ""}">${r.peakTempC ? r.peakTempC.toFixed(0) : "—"}</td>
-          <td class="${r.hotSeconds > 0 ? "warn" : ""}">${r.hotSeconds > 0 ? hours(r.hotSeconds) : "—"}</td>
-          <td>${r.boots}</td>
-          <td>${date(r.firstSeenMs, doc.clockTrusted)}</td>
+        // Beside the name, not down in the small print: how many identities this serial has worn
+        // before this one is the one thing here that is about the motor rather than about a number.
+        const past = r.identities.length > 1 ? ` <span class="chip sm warn" title="renumbered, renamed or reflashed ${r.identities.length - 1} time(s)">${r.identities.length - 1} past</span>` : "";
+        const main = `<tr class="dev${open === r.serial ? " open" : ""}" data-serial="${esc(r.serial)}">
+          <td class="name">${esc(r.name) || '<span class="dim">unnamed</span>'}${past}<small>${esc(where)} · ${esc(shortSerial(r.serial))} · ${esc(r.model)}</small></td>
+          <td class="num powered">${hours(r.poweredSeconds)}<span class="bar"><i style="width:${(100 * r.poweredSeconds / max).toFixed(1)}%"></i></span></td>
+          <td class="num">${hours(r.runningSeconds)}</td>
+          <td class="num">${hours(r.loadedSeconds)}</td>
+          <td class="num">${revs(r.revolutions)}</td>
+          <td class="num">${r.peakStatorAmps ? r.peakStatorAmps.toFixed(0) : "—"}</td>
+          <td class="num${r.peakTempC >= HOT_C ? " hot" : ""}">${r.peakTempC ? r.peakTempC.toFixed(0) : "—"}</td>
+          <td class="num${r.hotSeconds > 0 ? " hot" : ""}">${r.hotSeconds > 0 ? hours(r.hotSeconds) : "—"}</td>
+          <td class="num">${r.boots}</td>
+          <td class="num">${date(r.firstSeenMs, doc.clockTrusted)}</td>
         </tr>`;
         if (open !== r.serial) return main;
         const ids = r.identities.map((i) => `<span class="t">${date(i.firstSeenMs, doc.clockTrusted)} – ${date(i.lastSeenMs, doc.clockTrusted)}</span><span>id ${esc(i.id)} on ${esc(i.bus)}</span><span>${esc(i.name) || "<i>unnamed</i>"} · ${esc(i.firmware) || "firmware unknown"}</span>`).join("");
@@ -279,18 +308,18 @@
         const smax = Math.max(1, ...sessions.map((s) => s.revolutions || 0));
         const bars = sessions.map((s) => `<i style="height:${Math.max(4, 100 * (s.revolutions || 0) / smax).toFixed(0)}%" data-hot="${(s.hotSeconds || 0) > 0}" title="${date(s.startMs, doc.clockTrusted)}: ${hours(s.seconds)} powered, ${revs(s.revolutions)} revs, peak ${(s.peakAmps || 0).toFixed(0)} A / ${(s.peakTempC || 0).toFixed(0)} °C"></i>`).join("");
         const energy = r.energyJoules > 0 ? `${(r.energyJoules / 3600).toFixed(1)} Wh` : "—";
-        return main + `<tr class="detail"><td colspan="10">
+        return main + `<tr class="detail"><td colspan="10"><div class="detail-body">
           <b>Identities</b> — every id, name and firmware this serial has carried
-          <div class="timeline" style="margin:6px 0 12px">${ids}</div>
+          <div class="timeline">${ids}</div>
           <b>Recent boots</b> — one bar per boot, height is revolutions, amber had hot time (${sessions.length} of ${r.boots} on record)
           <div class="sessions">${bars || '<span class="dim">none yet</span>'}</div>
-          <div style="margin-top:10px" class="dim">Energy through the windings ${energy} · sticky faults ever set: ${r.stickyFaults ? "0x" + r.stickyFaults.toString(16) : "none"} · serial ${esc(r.serial)} · ${esc(r.dev.hardwareRev ? "hardware " + r.dev.hardwareRev : "")} ${esc(r.dev.manufactured ? "made " + r.dev.manufactured : "")}</div>
-        </td></tr>`;
+          <div class="dim">Energy through the windings ${energy} · sticky faults ever set: ${r.stickyFaults ? "0x" + r.stickyFaults.toString(16) : "none"} · serial ${esc(r.serial)} · ${esc(r.dev.hardwareRev ? "hardware " + r.dev.hardwareRev : "")} ${esc(r.dev.manufactured ? "made " + r.dev.manufactured : "")}</div>
+        </div></td></tr>`;
       }).join("");
-      const rest = others.length ? `<div class="status">${others.length} other device${others.length === 1 ? "" : "s"} on record: ${others.map((o) => esc(o.name || shortSerial(o.serial)) + " (" + esc(o.model) + ")").join(", ")}</div>` : "";
+      const rest = others.length ? `<p class="hint">${others.length} other device${others.length === 1 ? "" : "s"} on record: ${others.map((o) => esc(o.name || shortSerial(o.serial)) + " (" + esc(o.model) + ")").join(", ")}</p>` : "";
       $("#table").innerHTML = motors.length
-        ? `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>${rest}`
-        : `<div class="empty">No motors on record yet. The robot program writes the file once it has seen a motor.</div>${rest}`;
+        ? `<div class="tscroll"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>${rest}`
+        : `<p class="empty">No motors on record yet. The robot program writes the file once it has seen a motor.</p>${rest}`;
       $("#table").querySelectorAll("th[data-sort]").forEach((th) => th.addEventListener("click", () => {
         const k = th.dataset.sort;
         if (sortKey === k) sortDesc = !sortDesc; else { sortKey = k; sortDesc = k !== "name"; }

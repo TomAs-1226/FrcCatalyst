@@ -4,83 +4,121 @@
   <meta charset="utf-8" />
   <title>Catalyst Wiring Diagram Generator</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="../tool.css" />
+  <script src="../tool.js" defer></script>
   <style>
-    :root{--bg:#0f1424;--panel:#1b2240;--panel2:#131831;--accent:#e94560;--accent2:#f0648a;
-          --text:#f4f4f8;--muted:#8a8aa8;--border:rgba(255,255,255,.08);--ok:#4ade80;--warn:#fbbf24;--err:#f87171;
-          --pwr:#e94560;--gnd:#1f2640;--can:#fbbf24;--sig:#60a5fa;--reg:#4ade80;}
-    *{box-sizing:border-box}
-    html,body{margin:0;background:radial-gradient(ellipse at 100% 0%,rgba(96,165,250,.10),transparent 60%),
-      radial-gradient(ellipse at 0% 100%,rgba(233,69,96,.08),transparent 60%),var(--bg);color:var(--text);
-      font-family:ui-sans-serif,system-ui,-apple-system,"SF Pro Text",Segoe UI,sans-serif;min-height:100vh}
-    header{padding:16px 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;flex-wrap:wrap;
-      position:sticky;top:0;z-index:5;background:linear-gradient(180deg,rgba(27,34,64,.85),transparent);backdrop-filter:blur(6px)}
-    header h1{margin:0;font-size:18px;font-weight:700}
-    header .badge{padding:2px 10px;border-radius:999px;background:var(--accent);color:#fff;font-size:11px;font-weight:600}
-    header .hint{color:var(--muted);font-size:13px}
-    header .back{color:var(--accent2);text-decoration:none;font-size:13px;margin-left:auto}
-    main{display:grid;grid-template-columns:330px 1fr;gap:20px;padding:22px 24px}
-    aside,.card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);
-      border-radius:14px;padding:18px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
-    aside h2,.card h2{margin:0 0 12px;font-size:11px;text-transform:uppercase;letter-spacing:1.3px;color:var(--muted);font-weight:700}
-    aside h2:not(:first-child){margin-top:18px}
-    label{color:var(--muted);font-size:12px;display:block;margin-bottom:5px}
-    select,input{width:100%;background:#0d1226;color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:13px}
-    .form{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end}
-    .form .full{grid-column:span 2}
-    button{background:rgba(255,255,255,.04);color:var(--text);border:1px solid var(--border);border-radius:8px;
-      padding:9px;font-size:13px;font-weight:600;cursor:pointer;transition:.12s}
-    button:hover{border-color:var(--accent);transform:translateY(-1px)}
-    button.primary{background:linear-gradient(135deg,var(--accent),#ff6b8a);border-color:transparent;color:#fff}
-    .devs{margin-top:10px;max-height:230px;overflow:auto}
-    .dev{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;font-size:12px;border-bottom:1px solid var(--border)}
-    .dev .nm{flex:1;font-weight:600}.dev .br{font-family:ui-monospace,monospace;color:var(--accent2)}
-    .dev .x{cursor:pointer;color:var(--muted)}.dev .x:hover{color:var(--err)}
-    .diagram{overflow:auto;border-radius:10px;background:#0a0f1e}
-    svg{display:block}
-    .recs{font-size:13px;line-height:1.55}
-    .recs .r{display:flex;gap:9px;padding:5px 0;border-bottom:1px dashed var(--border)}
-    .recs .r b{color:var(--accent2)}
-    .warnbar{background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.3);color:var(--warn);border-radius:9px;padding:9px 12px;font-size:13px;margin-bottom:10px}
-    table{width:100%;border-collapse:collapse;font-size:12.5px}
-    th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--border)}
-    th{color:var(--muted);font-weight:600;text-transform:uppercase;font-size:10.5px;letter-spacing:.5px}
-    td.m{font-family:ui-monospace,monospace;color:var(--accent2)}
-    .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:10px}
-    .legend i{display:inline-block;width:16px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
-    input.cell{width:54px;background:#0d1226;color:var(--accent2);border:1px solid var(--border);border-radius:6px;
-      padding:3px 5px;font-family:ui-monospace,monospace;font-size:12px;text-align:center}
-    input.cell:focus{border-color:var(--accent);outline:none}
-    td.vd{font-family:ui-monospace,monospace}
-    td.vd.warn{color:var(--warn)} td.vd.bad{color:var(--err);font-weight:700}
-    .chk{display:flex;gap:10px;align-items:flex-start;padding:6px 0;font-size:13px;border-bottom:1px dashed var(--border)}
-    .chk .ic{font-size:15px;line-height:1.3}
-    .chk.pass .ic{color:var(--ok)} .chk.warn .ic{color:var(--warn)} .chk.bad .ic{color:var(--err)}
-    .chk .t b{color:var(--text)}
-    .exp{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
-    @media(max-width:920px){main{grid-template-columns:1fr}}
-    @media print{header,aside,.no-print{display:none}main{grid-template-columns:1fr;padding:0}.card{border:0;box-shadow:none}}
+    /* This tool's own: what colour a wire is, the schematic it draws with those colours, the
+       device list, the checklist, the inline cells in the schedule, and the print sheet.
+       Everything else — header, sidebar, cards, fields, buttons, chips, notices, tables — is
+       ../tool.css. */
+
+    /* Wire function is the one thing this page encodes in colour, so the four are named for the
+       job and not the hue, and each is one of the identity's own status colours: crimson, green,
+       amber, blue. Four hues that stay apart on a dark ground, in a printed sheet and for the
+       common colour-vision deficiencies — and the legend names every one of them in words, so
+       nothing here depends on telling them apart. They live on `body` rather than `:root` so it
+       is plain that this is the tool's legend and not a second palette. */
+    body {
+      --pwr: var(--cat-signal);   /* +12 V, the red wire */
+      --reg: var(--cat-ok);       /* regulated / low-current */
+      --can: var(--cat-warn);     /* CAN, the yellow of the twisted pair */
+      --sig: var(--cat-info);     /* Ethernet and signal */
+    }
+
+    .diagram { overflow: auto; border-radius: var(--cat-r-inner); background: var(--cat-ground); }
+    .diagram svg { display: block; }
+
+    .legend { display: flex; flex-wrap: wrap; gap: var(--cat-space-4); color: var(--cat-quiet); font-size: var(--cat-fs-12); }
+    .legend i {
+      display: inline-block;
+      width: 16px;
+      height: 3px;
+      border-radius: 2px;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+
+    /* The devices you have added: a scrolling list of rows, each one name, type, breaker, remove. */
+    .devs { display: grid; gap: 2px; max-height: 240px; overflow: auto; margin-right: calc(var(--cat-space-2) * -1); padding-right: var(--cat-space-2); }
+    .dev {
+      display: flex;
+      align-items: center;
+      gap: var(--cat-space-2);
+      padding: var(--cat-space-1) var(--cat-space-2);
+      border-radius: var(--cat-r-inner);
+      background: var(--cat-surface-2);
+      font-size: var(--cat-fs-12);
+    }
+    .dev .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--cat-ink); font-weight: var(--cat-w-semi); }
+    .dev .ty { color: var(--cat-quiet); white-space: nowrap; }
+    .dev .br { font-family: var(--cat-mono); font-size: var(--cat-fs-11); color: var(--cat-dim); }
+    .dev .x { min-height: var(--cat-space-5); padding: 0 6px; border: 0; background: transparent; color: var(--cat-faint); }
+    .dev .x:hover { background: var(--cat-bad-tint); color: var(--cat-bad); }
+
+    .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--cat-space-2); }
+
+    /* A recommendation is a short key and a paragraph about it. */
+    .recs { display: grid; gap: var(--cat-space-3); }
+    .recs .r { display: grid; grid-template-columns: 116px minmax(0, 1fr); gap: var(--cat-space-3); font-size: var(--cat-fs-13); line-height: 1.55; }
+    .recs .k { align-self: start; }
+    .recs b { color: var(--cat-ink); font-weight: var(--cat-w-semi); }
+
+    /* Pre-flight: a verdict mark, then what it is about. The mark is a glyph and not only a
+       colour — ✓, ▲ and ✕ read the same to everyone. */
+    .chk { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--cat-space-3); padding: var(--cat-space-2) 0; border-top: 1px solid var(--cat-line); font-size: var(--cat-fs-13); line-height: 1.55; }
+    .chk:first-child { border-top: 0; padding-top: 0; }
+    .chk .ic { font-family: var(--cat-mono); font-size: var(--cat-fs-13); line-height: 1.5; }
+    .chk.pass .ic { color: var(--cat-ok); }
+    .chk.warn .ic { color: var(--cat-warn); }
+    .chk.bad .ic { color: var(--cat-bad); }
+    .chk .t b { display: block; color: var(--cat-ink); font-weight: var(--cat-w-semi); }
+    .chk .t span { color: var(--cat-quiet); }
+    .chk .t span b { display: inline; color: var(--cat-ink); }
+
+    /* The two cells in the schedule you can edit in place. */
+    input.cell {
+      width: 56px;
+      min-height: var(--cat-space-5);
+      padding: 0 6px;
+      border: 1px solid var(--cat-line-strong);
+      border-radius: var(--cat-r-inner);
+      background: var(--cat-surface-2);
+      color: var(--cat-ink);
+      font-family: var(--cat-mono);
+      font-size: var(--cat-fs-12);
+      text-align: right;
+    }
+    td.vd.warn { color: var(--cat-warn); }
+    td.vd.bad { color: var(--cat-bad); font-weight: var(--cat-w-semi); }
+
+    /* On paper the chrome is noise: the diagram, the checks and the schedule are the sheet. */
+    @media print {
+      header, aside, .no-print { display: none; }
+      main { display: block; padding: 0; }
+      .card { border: 0; background: none; padding: 0 0 var(--cat-space-5); }
+    }
   </style>
 </head>
 <body>
 <header>
   <h1>Wiring Diagram Generator</h1>
-  <span class="badge">v2.0.0-alpha.5 beta</span>
-  <span class="hint">Imports your <a href="../canids/" style="color:var(--accent2)">CAN ID Planner</a> and builds an optimal power tree + CAN bus.</span>
-  <a href="../" class="back">← Catalyst tools</a>
+  <span class="badge">2.0.0-alpha.5</span>
+  <span class="hint">Imports your <a href="../canids/">CAN ID Planner</a> and builds a power tree and CAN bus.</span>
+  <a href="../" class="back"></a>
 </header>
 <main>
   <aside>
     <h2>Power distribution</h2>
     <select id="pdu">
-      <option value="PDH">REV PDH (20× 40A + 3× low-current)</option>
-      <option value="PDP">CTRE PDP (8× 40A + 8× 30A)</option>
+      <option value="PDH">REV PDH (20× 40 A + 3× low-current)</option>
+      <option value="PDP">CTRE PDP (8× 40 A + 8× 30 A)</option>
     </select>
 
     <h2>Devices</h2>
-    <button class="primary" id="import" style="width:100%;margin-bottom:8px">⇪ Import from CAN ID Planner</button>
-    <div class="form">
-      <div class="full"><label>Name</label><input id="dName" placeholder="Front-Left Drive"></div>
-      <div><label>Type</label>
+    <button class="primary" id="import">Import from the CAN ID Planner</button>
+    <div class="pair">
+      <div class="row" style="grid-column:span 2"><label for="dName">Name</label><input id="dName" placeholder="Front-Left Drive"></div>
+      <div class="row"><label for="dType">Type</label>
         <select id="dType">
           <option>Kraken X60</option><option>Kraken X44</option><option>Falcon 500</option>
           <option>NEO</option><option>NEO Vortex</option><option>NEO 550</option><option>Minion</option>
@@ -88,27 +126,29 @@
           <option>PH (Pneumatic Hub)</option><option>PCM</option><option>Other</option>
         </select>
       </div>
-      <div><label>CAN bus</label><select id="dBus"><option>can_s0</option><option>can_s1</option><option>can_s2</option><option>can_s3</option><option>can_s4</option><option>canivore</option></select></div>
-      <button class="full primary" id="add">+ Add device</button>
+      <div class="row"><label for="dBus">CAN bus</label><select id="dBus"><option>can_s0</option><option>can_s1</option><option>can_s2</option><option>can_s3</option><option>can_s4</option><option>canivore</option></select></div>
     </div>
+    <button id="add">Add device</button>
     <div class="devs" id="devs"></div>
-    <div class="exp">
+    <div class="btn-grid">
       <button id="sample">Sample swerve</button>
-      <button id="clear">Clear</button>
-      <button id="print">🖨 Print</button>
-      <button id="dlSvg">⬇ Diagram SVG</button>
-      <button id="saveJson">💾 Save JSON</button>
-      <button id="loadJson">📂 Load JSON</button>
+      <button class="ghost" id="clear">Clear</button>
+      <button id="print">Print</button>
+      <button id="dlSvg">Diagram SVG</button>
+      <button id="saveJson">Save JSON</button>
+      <button id="loadJson">Open JSON</button>
     </div>
-    <input type="file" id="loadFile" accept=".json" style="display:none">
+    <input type="file" id="loadFile" accept=".json" hidden>
 
     <h2>Default wire length</h2>
-    <label>Used when a device's length is blank · <span id="defLenV" style="color:var(--accent2)">6 ft</span></label>
-    <input type="range" id="defLen" min="2" max="20" step="1" value="6">
-    <p style="font-size:12px;color:var(--muted);margin:8px 0 0">Voltage drop is computed from each run's gauge, current and length. Edit breaker/length per device in the schedule table.</p>
+    <div class="row">
+      <label for="defLen">Used when a device's length is blank <span class="v" id="defLenV">6 ft</span></label>
+      <input type="range" id="defLen" min="2" max="20" step="1" value="6">
+    </div>
+    <p class="hint">Voltage drop comes from each run's gauge, current and length. Edit the breaker and the length per device in the schedule.</p>
   </aside>
 
-  <div style="display:flex;flex-direction:column;gap:20px;min-width:0">
+  <div class="cards">
     <div class="card">
       <h2 class="no-print">Wiring diagram</h2>
       <div id="warn"></div>
@@ -121,7 +161,7 @@
       </div>
     </div>
     <div class="card">
-      <h2>Pre-flight checklist <span style="color:var(--muted);font-weight:600;text-transform:none;letter-spacing:0">· auto-validated</span></h2>
+      <div class="card-head"><h2>Pre-flight checklist</h2><span class="hint">auto-validated</span></div>
       <div id="checks"></div>
     </div>
     <div class="card">
@@ -130,13 +170,12 @@
     </div>
     <div class="card">
       <h2>Channel &amp; wire schedule</h2>
-      <table><thead><tr><th>Device</th><th>Type</th><th>Chan</th><th>Breaker</th><th>Typ.A</th><th>Len ft</th><th>V-drop</th><th>Wire</th><th>Bus</th></tr></thead>
+      <table><thead><tr><th>Device</th><th>Type</th><th>Chan</th><th>Breaker</th><th class="num">Typ. A</th><th class="num">Len ft</th><th class="num">V-drop</th><th>Wire</th><th>Bus</th></tr></thead>
         <tbody id="tbody"></tbody></table>
     </div>
     <div class="card">
-      <h2>Bill of materials <span class="h2sub" style="color:var(--muted);font-weight:600;text-transform:none;letter-spacing:0">· estimated</span></h2>
-      <table><thead><tr><th>Qty</th><th>Item</th><th>Notes</th></tr></thead><tbody id="bom"></tbody></table>
-      <button id="bomCsv" style="margin-top:10px">⬇ Export BOM (CSV)</button>
+      <div class="card-head"><h2>Bill of materials</h2><span class="hint">estimated</span><button id="bomCsv">Export CSV</button></div>
+      <table><thead><tr><th class="num">Qty</th><th>Item</th><th>Notes</th></tr></thead><tbody id="bom"></tbody></table>
     </div>
   </div>
 </main>
@@ -199,6 +238,11 @@ $('sample').onclick=()=>{
   render();
 };
 $('print').onclick=()=>window.print();
+// remove a device (delegated; survives re-render)
+$('devs').addEventListener('click',e=>{
+  const b=e.target.closest('button[data-del]'); if(!b) return;
+  devices.splice(+b.dataset.del,1); render();
+});
 // edit breaker / wire length inline in the schedule (delegated; survives re-render)
 $('tbody').addEventListener('change',e=>{
   const inp=e.target.closest('input.cell'); if(!inp) return;
@@ -207,8 +251,19 @@ $('tbody').addEventListener('change',e=>{
   render();
 });
 $('defLen').oninput=()=>{defLen=+$('defLen').value;$('defLenV').textContent=defLen+' ft';render();};
+
+// Every custom property the schematic paints with. A saved .svg is opened outside this page, where
+// nothing defines them, so the export carries its own copy — otherwise every wire in the file is
+// black on black and the diagram that looked right on screen is a blank sheet on disk.
+const SVG_VARS=['--pwr','--reg','--can','--sig','--cat-ground','--cat-surface-1','--cat-surface-2',
+  '--cat-line','--cat-line-strong','--cat-signal','--cat-ink-strong','--cat-dim'];
+function svgFile(){
+  const cs=getComputedStyle(document.body);
+  const decls=SVG_VARS.map(n=>n+':'+cs.getPropertyValue(n).trim()).join(';');
+  return $('svg').outerHTML.replace('>','><style>svg{'+decls+'}</style>');
+}
 $('dlSvg').onclick=()=>{const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([$('svg').outerHTML],{type:'image/svg+xml'}));a.download='catalyst-wiring.svg';a.click();};
+  a.href=URL.createObjectURL(new Blob([svgFile()],{type:'image/svg+xml'}));a.download='catalyst-wiring.svg';a.click();};
 $('saveJson').onclick=()=>{const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([JSON.stringify({catalyst:'wiring',pdu,defLen,devices},null,2)],{type:'application/json'}));a.download='catalyst-wiring.json';a.click();};
 $('loadJson').onclick=()=>$('loadFile').click();
@@ -223,9 +278,10 @@ function render(){
   $('pdu').value=pdu; save();
   // device list
   $('devs').innerHTML=devices.map((d,i)=>{const s=SPEC[d.type]||SPEC.Other;
-    return `<div class="dev"><span class="nm">${esc(d.name)}</span><span style="color:var(--muted)">${d.type}</span>`
-      +`<span class="br">${s.br?s.br+'A':'CAN'}</span><span class="x" onclick="del(${i})">✕</span></div>`;}).join('')
-    ||'<div style="color:var(--muted);font-size:12px;padding:8px">No devices. Import from the CAN planner or add some.</div>';
+    return `<div class="dev"><span class="nm">${esc(d.name)}</span><span class="ty">${d.type}</span>`
+      +`<span class="br">${s.br?s.br+' A':'CAN'}</span>`
+      +`<button class="x" type="button" data-del="${i}" title="Remove ${esc(d.name)}">✕</button></div>`;}).join('')
+    ||'<p class="empty">No devices. Import from the CAN planner, or add some.</p>';
   buildSchedule();
   drawDiagram();
   buildRecs();
@@ -245,7 +301,7 @@ function buildValidation(){
   const C=[
     ['pass','Main breaker & battery','120 A main between battery (+) and the '+pdu+', 6 AWG leads.'],
     ['warn','Systemcore power','<b>Battery voltage directly</b>, not a regulated output. '
-      + 'Limelight are explicit that a regulator such as the VRM cannot supply it under full load - '
+      + 'Limelight are explicit that a regulator such as the VRM cannot supply it under full load — '
       + 'this is the opposite of where a roboRIO went. Beta units take power only through the '
       + 'MicroFit Pwr/Bridge port (MicroFit-to-XT30, or Bridge to Motioncore). Radio on a '
       + 'low-current channel as before.'],
@@ -269,9 +325,8 @@ function buildValidation(){
     [typSum>120?'warn':'pass','Running current','~'+typSum.toFixed(0)+' A est.'+(typSum>120?' — over the 120 A main on paper; the breaker is time-delayed, but watch sustained load & brownouts.':' within the 120 A main.')],
     [bad?'bad':warn?'warn':'pass','Voltage drop', bad? bad+' run(s) over 0.5 V — shorten or up-gauge.' : warn? warn+' run(s) 0.3–0.5 V — acceptable, tighten if you can.' : 'All runs under 0.3 V.'],
   ];
-  $('checks').innerHTML=C.map(([s,t,d])=>`<div class="chk ${s}"><span class="ic">${s==='pass'?'✓':s==='warn'?'▲':'✕'}</span><div class="t"><b>${t}</b><br><span style="color:var(--muted)">${d}</span></div></div>`).join('');
+  $('checks').innerHTML=C.map(([s,t,d])=>`<div class="chk ${s}"><span class="ic">${s==='pass'?'✓':s==='warn'?'▲':'✕'}</span><div class="t"><b>${t}</b><span>${d}</span></div></div>`).join('');
 }
-function del(i){devices.splice(i,1);render()}
 function esc(t){return(t+'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
 
 let assigned=[];
@@ -288,26 +343,25 @@ function buildSchedule(){
   assigned.forEach(a=>{
     const vd=a.spec.pwr?vdrop(a.spec.g,a.spec.typ,a.len):0;
     const vc=vd>0.5?'bad':vd>0.3?'warn':'';
-    t.innerHTML += `<tr><td>${esc(a.name)}</td><td>${a.type}</td><td class="m">${a.chan}</td>`
-      +`<td>${a.spec.pwr?`<input class="cell" data-i="${a.i}" data-f="br" value="${a.br}">`:'—'}</td>`
-      +`<td class="m">${a.spec.typ}</td>`
-      +`<td>${a.spec.pwr?`<input class="cell" data-i="${a.i}" data-f="len" value="${a.len}">`:'—'}</td>`
-      +`<td class="vd ${vc}">${a.spec.pwr?vd.toFixed(2)+' V':'—'}</td>`
-      +`<td class="m">${a.spec.g}</td><td class="m">${a.bus}</td></tr>`;
+    t.innerHTML += `<tr><td>${esc(a.name)}</td><td>${a.type}</td><td class="num">${a.chan}</td>`
+      +`<td class="num">${a.spec.pwr?`<input class="cell" data-i="${a.i}" data-f="br" value="${a.br}">`:'—'}</td>`
+      +`<td class="num">${a.spec.typ}</td>`
+      +`<td class="num">${a.spec.pwr?`<input class="cell" data-i="${a.i}" data-f="len" value="${a.len}">`:'—'}</td>`
+      +`<td class="num vd ${vc}">${a.spec.pwr?vd.toFixed(2)+' V':'—'}</td>`
+      +`<td class="num">${a.spec.g}</td><td class="num">${a.bus}</td></tr>`;
   });
   if(hasPneu()) t.innerHTML += sysRow('Compressor','pneu','PH port','—',COMPRESSOR_TYP,8,'14 AWG','—');
   const overHi=hi>ch.hi, overLo=lo>ch.lo;
   $('warn').innerHTML=(overHi||overLo)
-    ? `<div class="warnbar">⚠ ${overHi?hi+' devices need 40A channels but '+pdu+' has only '+ch.hi+'. ':''}${overLo?lo+' low-current devices but only '+ch.lo+' channels. ':''}Add a second PDU or an MPM/MXP breakout.</div>` : '';
+    ? `<div class="notice warn"><b>Out of channels</b> · ${overHi?hi+' devices need 40 A channels but '+pdu+' has only '+ch.hi+'. ':''}${overLo?lo+' low-current devices but only '+ch.lo+' channels. ':''}Add a second PDU or an MPM/MXP breakout.</div>` : '';
 }
 function sysRow(n,t,c,b,typ,len,g,bus){const vd=vdrop(g,typ,len);const vc=vd>0.5?'bad':vd>0.3?'warn':'';
-  return `<tr><td>${n}</td><td>${t}</td><td class="m">${c}</td><td class="m">${b}</td><td class="m">${typ}</td><td class="m">${len}</td><td class="vd ${vc}">${vd?vd.toFixed(2)+' V':'—'}</td><td class="m">${g}</td><td class="m">${bus}</td></tr>`;}
+  return `<tr><td>${n}</td><td>${t}</td><td class="num">${c}</td><td class="num">${b}</td><td class="num">${typ}</td><td class="num">${len}</td><td class="num vd ${vc}">${vd?vd.toFixed(2)+' V':'—'}</td><td class="num">${g}</td><td class="num">${bus}</td></tr>`;}
 function hasPneu(){return devices.some(d=>(SPEC[d.type]||{}).pneu);}
 
 function buildRecs(){
   const pwr=assigned.filter(a=>a.spec.pwr);
   const totalBr=pwr.reduce((s,a)=>s+a.spec.br,0);
-  const canCount=devices.length;
   const r=[];
   r.push(['Main breaker','120 A Cooper-Bussmann between battery (+) and the PDU. 6 AWG battery leads.']);
   r.push(['Breaker sizing','Krakens / Falcons / NEOs → <b>40 A</b>; NEO 550 → <b>30 A</b>; CANdle → <b>20 A</b>. Snap-action breakers in the PDH high-current bays.']);
@@ -315,10 +369,10 @@ function buildRecs(){
   r.push(['CAN bus','Daisy-chain CANH/CANL through the device(s) on each bus. <b>120 &Omega; termination at BOTH ends of every bus</b>: set the PDH switch (or add a resistor) at one end, and check what Systemcore does at its own end rather than assuming a built-in terminator. Keep a CANivore on its own bus if present.']);
   const typSum=pwr.reduce((s,a)=>s+(a.spec.typ||0),0)+3+(hasPneu()?COMPRESSOR_TYP:0);
   const heavy=typSum>110;
-  r.push(['Estimated current','~<b>'+typSum.toFixed(0)+' A</b> typical running draw (motors at active-driving average + Systemcore + radio'+(hasPneu()?' + compressor':'')+'). Peak if every breaker tripped at once would be <b>'+totalBr+' A</b>, but motors never all stall together. '+(heavy?'⚠ That running estimate is high — the 120 A main is time-delayed so brief bursts are fine, but watch sustained current and battery sag on the heaviest mechanisms.':'The 120 A main + an 18 Ah battery carry this comfortably.')]);
+  r.push(['Estimated current','~<b>'+typSum.toFixed(0)+' A</b> typical running draw (motors at active-driving average + Systemcore + radio'+(hasPneu()?' + compressor':'')+'). Peak if every breaker tripped at once would be <b>'+totalBr+' A</b>, but motors never all stall together. '+(heavy?'That running estimate is high — the 120 A main is time-delayed so brief bursts are fine, but watch sustained current and battery sag on the heaviest mechanisms.':'The 120 A main + an 18 Ah battery carry this comfortably.')]);
   if(hasPneu()) r.push(['Pneumatics','Compressor wires to the Pneumatic Hub compressor port (not the PDU). Add an analog pressure transducer (PH) or pressure switch (PCM); solenoids plug into the hub\'s channels.']);
-  r.push(['Colors','Red = +12 V, black = ground, twisted yellow/green = CAN. Label both ends of every run.']);
-  $('recs').innerHTML=r.map(([k,v])=>`<div class="r"><b style="min-width:120px">${k}</b><span>${v}</span></div>`).join('');
+  r.push(['Colours','Red = +12 V, black = ground, twisted yellow/green = CAN. Label both ends of every run.']);
+  $('recs').innerHTML=r.map(([k,v])=>`<div class="r"><span class="k">${k}</span><span>${v}</span></div>`).join('');
 }
 
 let bomRows=[];
@@ -345,7 +399,7 @@ function buildBom(){
     rows.push(['—','Pneumatic tubing + fittings','Compressor → tank → regulator → solenoids']);
   }
   bomRows=rows;
-  $('bom').innerHTML=rows.map(([q,i,n])=>`<tr><td class="m">${q}</td><td>${esc(i)}</td><td style="color:var(--muted)">${esc(n)}</td></tr>`).join('');
+  $('bom').innerHTML=rows.map(([q,i,n])=>`<tr><td class="num">${q}</td><td>${esc(i)}</td><td class="muted">${esc(n)}</td></tr>`).join('');
 }
 $('bomCsv').onclick=()=>{
   const csv='Qty,Item,Notes\n'+bomRows.map(r=>r.map(c=>`"${(''+c).replace(/"/g,'""')}"`).join(',')).join('\n');
@@ -354,50 +408,57 @@ $('bomCsv').onclick=()=>{
 
 function drawDiagram(){
   const pwr=assigned.filter(a=>a.spec.pwr);
-  const sys=[{name:'Systemcore',col:'var(--reg)'},{name:'Radio',col:'var(--reg)'}];
-  const rows=sys.length+pwr.length+(hasPneu()?1:0);
+  const rows=2+pwr.length+(hasPneu()?1:0);   // Systemcore and the radio, then every powered device
   const rowH=40, top=70, W=760, H=Math.max(420, top+rows*rowH+40);
   const pduX=250, pduY=top, pduH=rows*rowH+10, devX=470;
   const canX=W-26, hasCv=devices.some(d=>d.bus==='canivore'), canX2=canX-26;
+  const SANS='"Segoe UI Variable Text", "Segoe UI", ui-sans-serif, system-ui, sans-serif';
+  const MONO='"Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace';
   let s=`<svg id="svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
-  const box=(x,y,w,h,fill,stroke,label,sub)=>`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="7" fill="${fill}" stroke="${stroke}" stroke-width="1.5"/>`
-    +`<text x="${x+w/2}" y="${y+(sub?h/2-2:h/2+4)}" text-anchor="middle" font-family="ui-sans-serif" font-size="12" font-weight="700" fill="#fff">${label}</text>`
-    +(sub?`<text x="${x+w/2}" y="${y+h/2+13}" text-anchor="middle" font-family="ui-monospace" font-size="10" fill="#9aa3c4">${sub}</text>`:'');
+  s+=`<rect x="0" y="0" width="${W}" height="${H}" fill="var(--cat-ground)"/>`;
+  const box=(x,y,w,h,fill,stroke,label,sub)=>`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="${fill}" stroke="${stroke}" stroke-width="1.5"/>`
+    +`<text x="${x+w/2}" y="${y+(sub?h/2-2:h/2+4)}" text-anchor="middle" font-family='${SANS}' font-size="12" font-weight="600" fill="var(--cat-ink-strong)">${label}</text>`
+    +(sub?`<text x="${x+w/2}" y="${y+h/2+13}" text-anchor="middle" font-family='${MONO}' font-size="10" fill="var(--cat-dim)">${sub}</text>`:'');
   const wire=(x1,y1,x2,y2,col,w=2.5)=>`<path d="M${x1},${y1} C${(x1+x2)/2},${y1} ${(x1+x2)/2},${y2} ${x2},${y2}" fill="none" stroke="${col}" stroke-width="${w}"/>`;
   // battery + main breaker
-  s+=box(24,top+10,90,46,'#10182e','#3a4366','Battery','12 V');
-  s+=box(24,top+78,90,42,'#10182e','#3a4366','Main 120 A','breaker');
-  s+=`<text x="24" y="${top+150}" font-family="ui-monospace" font-size="10" fill="#566087">6 AWG</text>`;
+  s+=box(24,top+10,90,46,'var(--cat-surface-1)','var(--cat-line-strong)','Battery','12 V');
+  s+=box(24,top+78,90,42,'var(--cat-surface-1)','var(--cat-line-strong)','Main 120 A','breaker');
+  s+=`<text x="24" y="${top+150}" font-family='${MONO}' font-size="10" fill="var(--cat-dim)">6 AWG</text>`;
   s+=wire(114,top+33,pduX,pduY+24,'var(--pwr)',3.5);
   s+=wire(114,top+99,pduX,pduY+24,'var(--pwr)',2);
   // PDU
-  s+=box(pduX,pduY,150,pduH,'#16203c','var(--accent)',pdu,pduChannels().hi+'× 40A bays');
-  // CAN rail(s): the RIO bus always, plus a separate CANivore bus if present
+  s+=box(pduX,pduY,150,pduH,'var(--cat-surface-2)','var(--cat-signal)',pdu,pduChannels().hi+'× 40 A bays');
+  // CAN rail(s): the Systemcore bus always, plus a separate CANivore bus if present
   const rail=(rx,label)=>{
     s+=`<line x1="${rx}" y1="${top}" x2="${rx}" y2="${H-30}" stroke="var(--can)" stroke-width="2.5"/>`;
-    s+=`<text x="${rx-2}" y="${top-8}" text-anchor="end" font-family="ui-monospace" font-size="10" fill="var(--can)">${label}</text>`;
-    s+=`<circle cx="${rx}" cy="${top}" r="4" fill="var(--can)"/><text x="${rx-8}" y="${top+4}" text-anchor="end" font-size="9" fill="var(--can)">120Ω</text>`;
-    s+=`<circle cx="${rx}" cy="${H-30}" r="4" fill="var(--can)"/><text x="${rx-8}" y="${H-26}" text-anchor="end" font-size="9" fill="var(--can)">120Ω</text>`;
+    s+=`<text x="${rx-2}" y="${top-8}" text-anchor="end" font-family='${MONO}' font-size="10" fill="var(--can)">${label}</text>`;
+    s+=`<circle cx="${rx}" cy="${top}" r="4" fill="var(--can)"/><text x="${rx-8}" y="${top+4}" text-anchor="end" font-family='${MONO}' font-size="9" fill="var(--can)">120Ω</text>`;
+    s+=`<circle cx="${rx}" cy="${H-30}" r="4" fill="var(--can)"/><text x="${rx-8}" y="${H-26}" text-anchor="end" font-family='${MONO}' font-size="9" fill="var(--can)">120Ω</text>`;
   };
   rail(canX, hasCv?'Systemcore CAN':'CAN bus');
   if(hasCv) rail(canX2,'CANivore');
   // rows: system then powered devices
   let y=top;
-  const drawRow=(name,sub,col,railX,fromPduReg)=>{
+  const drawRow=(name,sub,railX,fromPduReg)=>{
     const cy=y+rowH/2;
-    s+=box(devX,y+4,170,rowH-8,'#10182e','#2a3658',name,sub);
+    s+=box(devX,y+4,170,rowH-8,'var(--cat-surface-1)','var(--cat-line)',name,sub);
     s+=wire(pduX+150, cy, devX, cy, fromPduReg?'var(--reg)':'var(--pwr)', fromPduReg?2:2.5);
     if(railX){ s+=`<line x1="${devX+170}" y1="${cy}" x2="${railX}" y2="${cy}" stroke="var(--can)" stroke-width="2"/>`
               +`<circle cx="${railX}" cy="${cy}" r="3.5" fill="var(--can)"/>`; }
     y+=rowH;
   };
-  drawRow('Systemcore','battery · CAN','var(--reg)',canX,true);
-  drawRow('Radio','PoE / 12V','var(--reg)',null,true);
-  pwr.forEach(a=>{ drawRow(a.name.slice(0,18),a.br+'A · '+a.spec.g+' · '+a.chan,'var(--pwr)', a.bus==='canivore'?canX2:canX, false); });
-  if(hasPneu()) drawRow('Compressor','via PH port · '+COMPRESSOR_TYP+'A','var(--pwr)',null,false);
+  drawRow('Systemcore','battery · CAN',canX,true);
+  drawRow('Radio','PoE / 12 V',null,true);
+  pwr.forEach(a=>{ drawRow(a.name.slice(0,18),a.br+' A · '+a.spec.g+' · '+a.chan, a.bus==='canivore'?canX2:canX, false); });
+  if(hasPneu()) drawRow('Compressor','via PH port · '+COMPRESSOR_TYP+' A',null,false);
+  // the radio's Ethernet back to Systemcore is the only signal run the sheet draws
+  s+=`<line x1="${devX+170}" y1="${top+rowH+rowH/2}" x2="${devX+196}" y2="${top+rowH+rowH/2}" stroke="var(--sig)" stroke-width="2"/>`
+    +`<line x1="${devX+196}" y1="${top+rowH+rowH/2}" x2="${devX+196}" y2="${top+rowH/2}" stroke="var(--sig)" stroke-width="2"/>`
+    +`<line x1="${devX+196}" y1="${top+rowH/2}" x2="${devX+170}" y2="${top+rowH/2}" stroke="var(--sig)" stroke-width="2"/>`
+    +`<text x="${devX+202}" y="${top+rowH+4}" font-family='${MONO}' font-size="9" fill="var(--sig)">Eth</text>`;
   // CAN-only sensors (no power row) — tap onto their bus rail
   const canOnly=assigned.filter(a=>!a.spec.pwr);
-  if(canOnly.length){ s+=`<text x="${devX}" y="${y+22}" font-family="ui-sans-serif" font-size="11" fill="#9aa3c4">CAN-only: ${canOnly.map(a=>esc(a.name)).join(', ').slice(0,56)}</text>`;
+  if(canOnly.length){ s+=`<text x="${devX}" y="${y+22}" font-family='${SANS}' font-size="11" fill="var(--cat-dim)">CAN-only: ${canOnly.map(a=>esc(a.name)).join(', ').slice(0,56)}</text>`;
     s+=`<line x1="${devX+250}" y1="${y+18}" x2="${canX}" y2="${y+18}" stroke="var(--can)" stroke-width="2"/>`;
     if(hasCv&&canOnly.some(a=>a.bus==='canivore')) s+=`<line x1="${devX+250}" y1="${y+18}" x2="${canX2}" y2="${y+18}" stroke="var(--can)" stroke-width="2"/>`; }
   s+='</svg>';

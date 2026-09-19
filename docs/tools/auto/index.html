@@ -4,128 +4,175 @@
   <meta charset="utf-8" />
   <title>Catalyst Auto Builder</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="../tool.css" />
+  <script src="../tool.js" defer></script>
   <style>
-    :root {
-      --bg:#0f1424; --panel:#1b2240; --panel2:#131831;
-      --accent:#e94560; --accent2:#f0648a; --text:#f4f4f8; --muted:#8a8aa8;
-      --border:rgba(255,255,255,0.08); --good:#4ade80; --blue:#60a5fa; --amber:#fbbf24;
+    /* This tool's own: the two editor lists it is made of — actions, and the steps or behaviors
+       that use them — the small card that is one entry in either, and the four token colours in
+       the Java it writes. Everything else — header, sidebar, cards, fields, buttons, the
+       segmented control, the code block, the toast, the footer — is ../tool.css. */
+
+    /* The form on the left of the work area and the Java it makes on the right, which stays put
+       while the form scrolls: the preview is the answer to what you are typing, and it was
+       previously only reachable by scrolling past every step. The same shape the Builder uses,
+       except that the editors take a fixed column and the code takes the rest — a generated
+       `.run(() -> swerve.followChoreoPath("X").andThen(...))` is 80 characters, and an even split
+       cut every one of them in half. */
+    .work {
+      display: grid;
+      grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+      gap: var(--cat-space-4);
+      align-items: start;
+      min-width: 0;
     }
-    * { box-sizing:border-box; }
-    html,body{margin:0;padding:0;background:
-      radial-gradient(ellipse at 100% 0%,rgba(233,69,96,0.08),transparent 60%),
-      radial-gradient(ellipse at 0% 100%,rgba(96,165,250,0.06),transparent 60%),var(--bg);
-      color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,"SF Pro Text",Segoe UI,sans-serif;min-height:100vh;}
-    header{padding:16px 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;flex-wrap:wrap;
-      position:sticky;top:0;z-index:5;background:linear-gradient(180deg,rgba(27,34,64,0.85),transparent);backdrop-filter:blur(6px);}
-    header h1{margin:0;font-size:18px;font-weight:700;}
-    header .badge{padding:2px 10px;border-radius:999px;background:var(--accent);color:#fff;font-size:11px;font-weight:600;}
-    header .hint{color:var(--muted);font-size:13px;}
-    header .back{color:var(--accent2);text-decoration:none;font-size:13px;margin-left:auto;}
-    main{display:grid;grid-template-columns:420px 1fr;gap:20px;padding:22px 24px;}
-    aside{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:14px;
-      padding:20px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.25);}
-    h2{margin:0 0 10px;font-size:11px;text-transform:uppercase;letter-spacing:1.3px;color:var(--muted);font-weight:700;}
-    h2:not(:first-child){margin-top:22px;}
-    .seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;}
-    .seg button{background:rgba(255,255,255,0.03);color:var(--text);border:1px solid var(--border);border-radius:8px;
-      padding:9px;font-size:13px;cursor:pointer;transition:all .12s ease;}
-    .seg button.active{background:linear-gradient(135deg,var(--accent),#ff6b8a);border-color:transparent;box-shadow:0 4px 10px rgba(233,69,96,.35);}
-    .row{display:grid;grid-template-columns:1fr;gap:5px;margin-bottom:10px;}
-    .row label{color:var(--muted);font-size:12px;}
-    .row input,.row select,.row textarea{background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;
-      padding:7px 10px;font-size:13px;font-family:inherit;}
-    .row textarea{font-family:ui-monospace,monospace;font-size:12px;min-height:38px;resize:vertical;}
-    .row input:focus,.row select:focus,.row textarea:focus{border-color:var(--accent);outline:none;}
-    .btn{background:linear-gradient(135deg,var(--accent),#ff6b8a);color:#fff;border:0;border-radius:8px;padding:8px 12px;
-      font-size:12px;font-weight:600;cursor:pointer;box-shadow:0 4px 12px rgba(233,69,96,.3);}
-    .btn:hover{transform:translateY(-1px);}
-    .btn.ghost{background:transparent;color:var(--text);border:1px solid var(--border);box-shadow:none;}
-    .btn.ghost:hover{border-color:var(--accent);color:var(--accent2);}
-    .btn.danger{background:transparent;color:var(--accent);border:1px solid rgba(233,69,96,.3);padding:3px 9px;font-size:11px;box-shadow:none;}
-    .btn.danger:hover{background:rgba(233,69,96,.12);}
-    .steps{display:flex;flex-direction:column;gap:8px;}
-    .step{background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:10px 12px;}
-    .step .top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;}
-    .step .nm{font-weight:700;font-size:13px;color:var(--accent2);}
-    .step .grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
-    .step input,.step select{background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:12px;width:100%;}
-    .actions{display:flex;gap:8px;flex-wrap:wrap;}
-    .preview-area{display:flex;flex-direction:column;}
-    .preview-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
-    .preview-head h2{margin:0;}
-    pre{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:16px 18px;flex:1;margin:0;overflow:auto;
-      font-family:"JetBrains Mono",ui-monospace,Menlo,monospace;font-size:12.5px;line-height:1.55;white-space:pre;color:#d9e0f0;}
-    pre .kw{color:#ef798a;} pre .str{color:#9ee493;} pre .num{color:#f4d35e;} pre .cmt{color:var(--muted);font-style:italic;}
-    .note{font-size:12px;color:var(--muted);line-height:1.5;margin-top:8px;}
-    .toast{position:fixed;bottom:20px;right:20px;background:var(--good);color:#082;padding:10px 16px;border-radius:8px;font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;}
-    .toast.show{opacity:1;}
-    .credit{padding:12px 28px;color:var(--muted);font-size:12px;border-top:1px solid var(--border);}
-    .credit a{color:var(--accent2);text-decoration:none;}
-    @media (max-width:980px){main{grid-template-columns:1fr;}}
+
+    .preview { position: sticky; top: 72px; }
+
+    @media (max-width: 1180px) {
+      .work { grid-template-columns: minmax(0, 1fr); }
+      .preview { position: static; }
+    }
+
+    /* ------------------------------------------------------- one entry in a list */
+    /* An action, a step or a behavior: a row of fields on the card's second surface. Not a
+       `.card` — these are rebuilt on every keystroke, and a card animates itself in. */
+    .steps { display: grid; gap: var(--cat-space-2); }
+
+    .step {
+      display: grid;
+      gap: var(--cat-space-2);
+      padding: var(--cat-space-3);
+      border: 1px solid var(--cat-line);
+      border-radius: var(--cat-r-inner);
+      background: var(--cat-surface-2);
+    }
+
+    .step .top { display: flex; align-items: center; gap: var(--cat-space-2); }
+    .step .top > :first-child { flex: 1 1 auto; min-width: 0; }
+
+    /* "Step 3" is a position, not a name you can edit: the eyebrow, at the size the chrome
+       writes every other section label. It used to be crimson and bold, which made a numbered
+       list the loudest thing in the panel. */
+    .step .nm {
+      font-family: var(--cat-mono);
+      font-size: var(--cat-fs-11);
+      font-weight: var(--cat-w-bold);
+      letter-spacing: var(--cat-track-eyebrow);
+      text-transform: uppercase;
+      color: var(--cat-dim);
+    }
+
+    .step .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--cat-space-2); min-width: 0; }
+    .step input, .step select, .step textarea { width: 100%; min-width: 0; min-height: 28px; }
+    .step textarea { min-height: 54px; }
+
+    /* Remove: nothing until the pointer is on it, and then the one thing on the page that is
+       about to destroy something. */
+    .step .x {
+      min-height: 26px;
+      padding: 0 var(--cat-space-2);
+      border-color: transparent;
+      background: transparent;
+      color: var(--cat-faint);
+      font-family: var(--cat-mono);
+    }
+
+    .step .x:hover {
+      border-color: color-mix(in srgb, var(--cat-bad) 45%, transparent);
+      background: var(--cat-bad-tint);
+      color: var(--cat-bad);
+    }
+
+    /* A checkbox and its words ride the middle of a card's title line, not its baseline. */
+    .card-head .opt { align-items: center; white-space: nowrap; }
+
+    /* ---------------------------------------------------------------- the Java */
+    /* Four hues and no more, as the identity allows: a keyword, a literal, a string, a comment.
+       The same four the Builder and the aiming tool print code in. */
+    #preview { max-height: 62vh; white-space: pre; }
+    #preview .kw  { color: var(--cat-info); }
+    #preview .lit { color: var(--cat-warn); }
+    #preview .str { color: var(--cat-ok); }
+    #preview .cmt { color: var(--cat-quiet); font-style: italic; }
   </style>
 </head>
 <body>
 <header>
   <h1>Auto Builder</h1>
-  <span class="badge">v2.0.0-alpha.5 beta</span>
+  <span class="badge">2.0.0-alpha.5</span>
   <span class="hint">Generate a Catalyst behavior-framework auto. PathPlanner / Choreo do the driving.</span>
-  <a href="../" class="back">← Catalyst tools</a>
+  <a href="../" class="back"></a>
 </header>
 
 <main>
   <aside>
     <h2>Mode</h2>
-    <div class="seg" id="modeSeg">
-      <button data-mode="sequence" class="active">Sequence (resilient)</button>
-      <button data-mode="utility">Utility (Strategist)</button>
+    <div class="seg block" id="modeSeg">
+      <button type="button" data-mode="sequence" aria-pressed="true">Sequence</button>
+      <button type="button" data-mode="utility" aria-pressed="false">Utility</button>
     </div>
-    <div class="note" id="modeNote"></div>
+    <p class="hint" id="modeNote"></p>
 
     <h2>Auto name</h2>
-    <div class="row"><input type="text" id="autoName" value="ThreePiece"></div>
-
-    <h2>Actions</h2>
-    <div class="note">Name each capability and pick how it drives. <b>PathPlanner paths are the plan</b> the robot follows when it can; <b>chase / align</b> deliberately bend it off-course, so the <b>next</b> path step should <b>pathfind → rejoin</b> from wherever you ended up rather than assume you're at the path start. <a href="../../advanced/autonomous.html" style="color:var(--accent2)">Architecture →</a></div>
-    <div class="actions" style="margin:8px 0">
-      <button class="btn ghost" id="addAction">+ Action</button>
-      <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px"><input type="checkbox" id="scaffold" checked> emit Action stubs</label>
-    </div>
-    <div class="steps" id="actionList"></div>
-
-    <h2 id="stepsHeading">Sequence steps</h2>
-    <div class="actions" style="margin-bottom:8px"><button class="btn ghost" id="addStep">+ Step</button></div>
-    <div class="steps" id="stepList"></div>
+    <div class="row"><input type="text" id="autoName" value="ThreePiece" aria-label="Auto name"></div>
 
     <div id="seqExtra">
-      <h2>Bail (low time / abort)</h2>
-      <div class="row"><label>deadline seconds (0 = none)</label><input type="number" id="deadline" value="14" step="0.5"></div>
-      <div class="row"><label>onBail action (optional)</label><input type="text" id="bailAction" placeholder="alignAndShoot"></div>
+      <h2>Bail — low time or abort</h2>
+      <div class="row"><label for="deadline">deadline seconds <span class="v">0 = none</span></label><input type="number" id="deadline" value="14" step="0.5"></div>
+      <div class="row"><label for="bailAction">onBail action (optional)</label><input type="text" id="bailAction" placeholder="alignAndShoot"></div>
     </div>
 
     <h2>Storage</h2>
-    <div class="actions">
-      <button class="btn ghost" id="resetBtn">Reset</button>
-    </div>
+    <p class="hint">Auto-saved to this browser, so a half-built auto survives a reload.</p>
+    <div class="actions"><button id="resetBtn">Reset</button></div>
   </aside>
 
-  <div class="preview-area">
-    <div class="preview-head">
-      <h2>Generated Java</h2>
-      <div class="actions">
-        <button class="btn ghost" id="downloadBtn">Download .java</button>
-        <button class="btn" id="copyBtn">Copy</button>
+  <div class="work">
+    <div class="cards">
+      <div class="card">
+        <div class="card-head">
+          <h2>Actions</h2>
+          <label class="opt"><input type="checkbox" id="scaffold" checked> emit Action stubs</label>
+          <button class="ghost" id="addAction">+ Action</button>
+        </div>
+        <p class="hint">
+          Name each capability and pick how it drives. <b>PathPlanner paths are the plan</b> the robot
+          follows when it can; <b>chase / align</b> deliberately bend it off-course, so the <b>next</b>
+          path step should <b>pathfind → rejoin</b> from wherever you ended up rather than assume you are
+          at the path start. <a href="../../advanced/autonomous.html">Architecture →</a>
+        </p>
+        <div class="steps" id="actionList"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2 id="stepsHeading">Sequence steps</h2>
+          <button class="ghost" id="addStep">+ Step</button>
+        </div>
+        <div class="steps" id="stepList"></div>
       </div>
     </div>
-    <pre id="preview"></pre>
+
+    <div class="card preview">
+      <div class="card-head">
+        <h2>Generated Java</h2>
+        <div class="actions">
+          <button id="downloadBtn" title="Download as a .java file">Download</button>
+          <button class="primary" id="copyBtn">Copy</button>
+        </div>
+      </div>
+      <pre id="preview"></pre>
+    </div>
   </div>
 </main>
 
-<div class="credit">
+<footer>
   Generates the autonomy <em>wiring</em> (<code>BehaviorEngine</code> / <code>Strategist</code>). Path-following is left to
   <a href="https://pathplanner.dev" target="_blank" rel="noopener">PathPlanner</a> / Choreo — reference your paths inside the action commands.
   See the <a href="../../advanced/behavior.html">behavior framework guide</a>.
-</div>
-<div class="toast" id="toast">Copied</div>
+</footer>
+
+<div class="toast" id="toast" role="status"></div>
 
 <script>
   const $ = id => document.getElementById(id);
@@ -149,6 +196,15 @@
   function save(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch{} }
   function load(){ try{ const r=localStorage.getItem(KEY); if(r) state=Object.assign(state, JSON.parse(r)); }catch{} }
 
+  let toastTimer = 0;
+  function toast(text, kind){
+    const t = $("toast");
+    t.textContent = text;
+    t.className = "toast show" + (kind ? " " + kind : "");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
+  }
+
   const NOTES = {
     sequence: "Runs actions in order; each precondition is checked when reached. If one can't start, it falls back (skip / substitute / abort) instead of blindly running. Best for resilient autos.",
     utility: "Each loop, the highest-scoring eligible behavior runs, switching when another wins. Express \"chase until time runs short, then go shoot\" as crossing score curves. No state machine.",
@@ -162,9 +218,13 @@
     $("autoName").value = state.autoName;
     $("scaffold").checked = state.scaffold;
     $("modeNote").textContent = NOTES[state.mode];
-    document.querySelectorAll("#modeSeg button").forEach(b=>b.classList.toggle("active", b.dataset.mode===state.mode));
+    // The arrow, the announcement and the fill are one attribute, as the chrome's segmented
+    // control draws it — there is no second "active" class to keep in step.
+    document.querySelectorAll("#modeSeg button").forEach(b =>
+      b.setAttribute("aria-pressed", String(b.dataset.mode === state.mode)));
     $("stepsHeading").textContent = state.mode==="sequence" ? "Sequence steps" : "Behaviors";
-    $("seqExtra").style.display = state.mode==="sequence" ? "" : "none";
+    $("addStep").textContent = state.mode==="sequence" ? "+ Step" : "+ Behavior";
+    $("seqExtra").hidden = state.mode !== "sequence";
     renderActions();
     renderSteps();
     generate();
@@ -185,13 +245,17 @@
 
   function renderActions(){
     const wrap = $("actionList"); wrap.innerHTML="";
+    if(!state.actions.length){
+      wrap.innerHTML = '<p class="empty">No actions yet. Every step names one, so start here.</p>';
+      return;
+    }
     state.actions.forEach((a,i)=>{
       const el=document.createElement("div"); el.className="step";
       const opts = Object.keys(TEMPLATES).map(t=>`<option>${t}</option>`).join("");
-      el.innerHTML = `<div class="top"><input value="${esc(a.name)}" data-k="name" placeholder="actionName">
-        <button class="btn danger" data-del="${i}">×</button></div>
-        <select data-tpl style="margin-bottom:5px"><option value="">— command template —</option>${opts}</select>
-        <input data-k="cmd" value="${esc(a.cmd)}" placeholder="swerve.followPath(&quot;X&quot;)">`;
+      el.innerHTML = `<div class="top"><input value="${esc(a.name)}" data-k="name" placeholder="actionName" aria-label="Action name">
+        <button class="x" data-del="${i}" title="Remove this action" aria-label="Remove this action">×</button></div>
+        <select data-tpl aria-label="Command template"><option value="">— command template —</option>${opts}</select>
+        <input data-k="cmd" value="${esc(a.cmd)}" placeholder="swerve.followPath(&quot;X&quot;)" aria-label="Command">`;
       el.querySelectorAll("[data-k]").forEach(inp=>inp.oninput=e=>{a[e.target.dataset.k]=e.target.value; generate(); save();});
       el.querySelector("[data-tpl]").onchange=e=>{
         const t = TEMPLATES[e.target.value];
@@ -209,30 +273,32 @@
   function renderSteps(){
     const wrap=$("stepList"); wrap.innerHTML="";
     if(state.mode==="sequence"){
+      if(!state.steps.length){ wrap.innerHTML = '<p class="empty">No steps yet. The auto would do nothing.</p>'; return; }
       state.steps.forEach((s,i)=>{
         const el=document.createElement("div"); el.className="step";
-        el.innerHTML=`<div class="top"><span class="nm">Step ${i+1}</span><button class="btn danger" data-del="${i}">×</button></div>
+        el.innerHTML=`<div class="top"><span class="nm">Step ${i+1}</span><button class="x" data-del="${i}" title="Remove this step" aria-label="Remove this step">×</button></div>
           <div class="grid2">
-            <select data-k="action">${actionOptions(s.action)}</select>
-            <select data-k="fallback">
+            <select data-k="action" aria-label="Action">${actionOptions(s.action)}</select>
+            <select data-k="fallback" aria-label="If it cannot start">
               <option value="skip" ${s.fallback==="skip"?"selected":""}>orElseSkip</option>
               <option value="substitute" ${s.fallback==="substitute"?"selected":""}>orElse(sub)</option>
               <option value="abort" ${s.fallback==="abort"?"selected":""}>orElseAbort</option>
             </select>
           </div>
-          <div class="subrow" style="margin-top:6px;${s.fallback==="substitute"?"":"display:none"}">
-            <select data-k="sub">${actionOptions(s.sub)}</select>
+          <div class="subrow"${s.fallback==="substitute"?"":" hidden"}>
+            <select data-k="sub" aria-label="Substitute action">${actionOptions(s.sub)}</select>
           </div>`;
         el.querySelectorAll("[data-k]").forEach(inp=>inp.onchange=e=>{s[e.target.dataset.k]=e.target.value; render();});
         el.querySelector("[data-del]").onclick=()=>{state.steps.splice(i,1); render();};
         wrap.appendChild(el);
       });
     } else {
+      if(!state.behaviors.length){ wrap.innerHTML = '<p class="empty">No behaviors yet. The Strategist would have nothing to choose between.</p>'; return; }
       state.behaviors.forEach((b,i)=>{
         const el=document.createElement("div"); el.className="step";
-        el.innerHTML=`<div class="top"><input value="${esc(b.name)}" data-k="name" placeholder="BehaviorName"><button class="btn danger" data-del="${i}">×</button></div>
-          <div class="grid2"><select data-k="action">${actionOptions(b.action)}</select><span></span></div>
-          <textarea data-k="score" placeholder="ctx -> ... return a score">${esc(b.score)}</textarea>`;
+        el.innerHTML=`<div class="top"><input value="${esc(b.name)}" data-k="name" placeholder="BehaviorName" aria-label="Behavior name"><button class="x" data-del="${i}" title="Remove this behavior" aria-label="Remove this behavior">×</button></div>
+          <div class="grid2"><select data-k="action" aria-label="Action">${actionOptions(b.action)}</select><span></span></div>
+          <textarea data-k="score" placeholder="ctx -> ... return a score" aria-label="Score">${esc(b.score)}</textarea>`;
         el.querySelectorAll("[data-k]").forEach(inp=>inp.oninput=e=>{b[e.target.dataset.k]=e.target.value; generate(); save();});
         el.querySelector("[data-del]").onclick=()=>{state.behaviors.splice(i,1); render();};
         wrap.appendChild(el);
@@ -285,7 +351,7 @@
     return code.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
       .replace(/(\".*?\")/g,'<span class="str">$1</span>')
       .replace(/\b(Command|Action|new|return)\b/g,'<span class="kw">$1</span>')
-      .replace(/\b(-?\d+\.?\d*)\b/g,'<span class="num">$1</span>')
+      .replace(/\b(-?\d+\.?\d*)\b/g,'<span class="lit">$1</span>')
       .replace(/(\/\/[^\n]*)/g,'<span class="cmt">$1</span>');
   }
 
@@ -305,10 +371,14 @@
   $("bailAction").value=state.bailAction;
   $("bailAction").oninput=e=>{state.bailAction=e.target.value; generate(); save();};
   $("resetBtn").onclick=()=>{ if(confirm("Reset the auto?")){ localStorage.removeItem(KEY); location.reload(); } };
-  $("copyBtn").onclick=async()=>{ try{ await navigator.clipboard.writeText(plainCode()); const t=$("toast"); t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),900);}catch{alert("clipboard blocked");} };
+  $("copyBtn").onclick=async()=>{
+    try{ await navigator.clipboard.writeText(plainCode()); toast("Copied.", "ok"); }
+    catch{ toast("Clipboard blocked.", "bad"); }
+  };
   $("downloadBtn").onclick=()=>{
     const blob=new Blob([plainCode()],{type:"text/x-java-source"}); const a=document.createElement("a");
     a.href=URL.createObjectURL(blob); a.download=(state.autoName||"Auto")+".java"; document.body.appendChild(a); a.click(); a.remove();
+    toast("Saved " + ((state.autoName||"Auto")+".java") + ".", "ok");
   };
 
   load();

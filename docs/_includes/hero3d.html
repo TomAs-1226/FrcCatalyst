@@ -8,9 +8,9 @@
     border-radius: 16px;
     overflow: hidden;
     background:
-      radial-gradient(ellipse at 30% 30%, rgba(233,69,96,0.18), transparent 60%),
-      radial-gradient(ellipse at 80% 80%, rgba(96,165,250,0.18), transparent 60%),
-      #0f1424;
+      radial-gradient(ellipse at 30% 30%, color-mix(in srgb, var(--catalyst-accent, #e94560) 18%, transparent), transparent 60%),
+      radial-gradient(ellipse at 80% 80%, rgba(255,255,255,0.05), transparent 60%),
+      var(--catalyst-ground, #0d0e12);
     border: 1px solid rgba(255,255,255,0.06);
     box-shadow: 0 12px 36px rgba(0,0,0,0.40);
   }
@@ -34,13 +34,14 @@
     color: #fff; max-width: 60%;
   }
   .catalyst-hero .tagline span.accent {
-    background: linear-gradient(135deg, #e94560, #f0648a 60%, #ffb4c2);
+    background: linear-gradient(135deg, var(--catalyst-accent, #e94560), var(--catalyst-accent-2, #ff5d76) 60%, var(--catalyst-accent-i, #ff92a3));
     -webkit-background-clip: text; background-clip: text;
     -webkit-text-fill-color: transparent;
   }
   .catalyst-hero .meta {
     font-size: 13px; color: rgba(255,255,255,0.55);
-    font-family: ui-monospace, monospace;
+    font-family: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
   }
   @media (max-width: 720px) {
     .catalyst-hero { height: 260px; }
@@ -94,7 +95,7 @@
     // a sin/cos sweep so the highlight crawls across the surface.
     const geo = new THREE.TorusKnotGeometry(1.3, 0.42, 220, 32);
     const mat = new THREE.MeshStandardMaterial({
-      color: 0x1b2240,
+      color: 0x1a1c21,
       metalness: 0.55,
       roughness: 0.20,
       emissive: 0xe94560,
@@ -115,11 +116,11 @@
     scene.add(wire);
 
     // Lighting
-    scene.add(new THREE.AmbientLight(0x6a7088, 0.4));
-    const keyLight = new THREE.PointLight(0xff6b8a, 2.4, 18);
+    scene.add(new THREE.AmbientLight(0x6a6c72, 0.4));
+    const keyLight = new THREE.PointLight(0xff5d76, 2.4, 18);
     keyLight.position.set(4, 3, 4);
     scene.add(keyLight);
-    const rimLight = new THREE.PointLight(0x60a5fa, 1.6, 20);
+    const rimLight = new THREE.PointLight(0xe8e9ec, 1.6, 20);
     rimLight.position.set(-4, -3, 2);
     scene.add(rimLight);
 
@@ -134,7 +135,7 @@
     }
     particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     const particleMat = new THREE.PointsMaterial({
-      color: 0xf0648a,
+      color: 0xff5d76,
       size: 0.04,
       transparent: true,
       opacity: 0.5,

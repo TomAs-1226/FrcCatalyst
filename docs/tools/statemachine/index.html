@@ -4,309 +4,323 @@
   <meta charset="utf-8" />
   <title>Catalyst State Machine Visualizer</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="../tool.css" />
+  <script src="../tool.js" defer></script>
   <style>
-    :root {
-      --bg: #0f1424;
-      --panel: #1b2240;
-      --panel2: #131831;
-      --accent: #e94560;
-      --accent2: #f0648a;
-      --text: #f4f4f8;
-      --muted: #8a8aa8;
-      --border: rgba(255,255,255,0.07);
-      --good: #4ade80;
-      --warn: #fbbf24;
-      --err:  #f87171;
-      --info: #60a5fa;
-    }
-    * { box-sizing: border-box; }
-    html, body {
-      margin: 0; padding: 0;
-      background:
-        radial-gradient(ellipse at 0% 0%, rgba(96,165,250,0.06), transparent 60%),
-        radial-gradient(ellipse at 100% 100%, rgba(233,69,96,0.08), transparent 60%),
-        var(--bg);
-      color: var(--text);
-      font-family: ui-sans-serif, system-ui, -apple-system, "SF Pro Text", Segoe UI, sans-serif;
-      min-height: 100vh;
-    }
-    header {
-      padding: 16px 28px;
-      border-bottom: 1px solid var(--border);
-      display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-      backdrop-filter: blur(6px);
-      position: sticky; top: 0; z-index: 5;
-      background: linear-gradient(180deg, rgba(27,34,64,0.85) 0%, transparent 100%);
-    }
-    header h1 { margin: 0; font-size: 18px; font-weight: 700; }
-    header .badge { padding: 2px 10px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 600; }
-    header .hint { color: var(--muted); font-size: 13px; }
-    header .back { color: var(--accent2); text-decoration: none; font-size: 13px; margin-left: auto; }
+    /* This tool's own: the graph. The state boxes, the edges and their three
+       arrowheads, the summary tiles, the list of states and the detail for the
+       one you picked. Everything else — header, sidebar, cards, fields,
+       buttons, the segmented control, chips, the legend, notices — is
+       ../tool.css.
 
-    main {
-      display: grid; grid-template-columns: 320px 1fr 288px;
-      gap: 20px; padding: 22px 24px;
-    }
-    .left, .center, .right {
-      background: linear-gradient(180deg, var(--panel) 0%, var(--panel2) 100%);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 20px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
-    }
-    .center { padding: 14px; display: flex; flex-direction: column; min-width: 0; }
-    h2 { margin: 0 0 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 1.4px; color: var(--muted); font-weight: 700; }
-    h2:not(:first-child) { margin-top: 22px; }
+       The diagram has one crimson in it and it means "this is the state you
+       selected". Everything else that carries a hue carries a verdict, in the
+       identity's four: green is somewhere this state can go, amber is a state
+       with no way out, red is a state with no way in, blue is a guard.
 
-    label { color: var(--muted); font-size: 12px; display: block; margin-bottom: 5px; }
-    textarea {
-      width: 100%;
-      background: var(--bg); color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 9px 11px; font-size: 12px;
-      font-family: ui-monospace, "SF Mono", Menlo, monospace;
-      resize: vertical; line-height: 1.5;
-    }
-    textarea:focus { border-color: var(--accent); outline: none; }
+       Measured against the graphite the diagram sits on: the box outline is
+       5.8:1, an ordinary edge 7.0:1, a guarded one 7.7:1, a highlighted one
+       5.0:1 — a graphic needs 3:1, and the outline was the one that did not
+       clear it at the first colour I tried. */
 
-    .seg-mode {
-      display: inline-flex; gap: 0;
-      border: 1px solid var(--border); border-radius: 8px;
-      overflow: hidden; margin-bottom: 12px; width: 100%;
+    /* The diagram takes the width it is given; the overview beside it is a
+       fixed reading column. They stack before the chrome stacks the sidebar,
+       because the graph is the thing that suffers first from a narrow column. */
+    .work {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 300px;
+      gap: var(--cat-space-5);
+      align-items: start;
+      min-width: 0;
     }
-    .seg-btn {
-      background: transparent; color: var(--muted);
-      border: 0; padding: 7px 10px; font-size: 12px;
-      cursor: pointer; font-family: inherit; flex: 1;
-      transition: all 0.12s ease;
-    }
-    .seg-btn + .seg-btn { border-left: 1px solid var(--border); }
-    .seg-btn:hover { color: var(--text); background: rgba(255,255,255,0.04); }
-    .seg-btn.active { background: var(--accent); color: #fff; }
 
-    .btn {
-      background: linear-gradient(135deg, var(--accent), #ff6b8a);
-      color: #fff; border: 0; border-radius: 8px;
-      padding: 9px 14px; font-size: 13px; font-weight: 600;
-      cursor: pointer; box-shadow: 0 4px 12px rgba(233,69,96,0.35);
-      transition: transform 0.12s ease;
-    }
-    .btn:hover { transform: translateY(-1px); }
-    .btn.ghost {
-      background: transparent; color: var(--text);
-      border: 1px solid var(--border); box-shadow: none;
-    }
-    .btn.ghost:hover { border-color: var(--accent); color: var(--accent2); }
-    .actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
-    .actions .btn { flex: 1; }
+    @media (max-width: 1200px) { .work { grid-template-columns: minmax(0, 1fr); } }
 
-    .field { margin-bottom: 12px; }
-    .field.hidden { display: none; }
+    /* Two textareas that are one answer. */
+    .fields { display: grid; gap: var(--cat-space-3); }
 
-    .parse-msg {
-      margin-top: 12px; padding: 9px 12px;
-      border-radius: 8px; font-size: 12px; line-height: 1.5;
-      border: 1px solid var(--border);
-    }
-    .parse-msg.ok   { border-color: rgba(74,222,128,0.3);  color: var(--good); background: rgba(74,222,128,0.06); }
-    .parse-msg.err  { border-color: rgba(248,113,113,0.3); color: var(--err);  background: rgba(248,113,113,0.06); }
+    /* ------------------------------------------------------------ diagram */
 
-    /* ---- diagram ---- */
-    .diagram-toolbar {
-      display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;
-    }
-    .diagram-toolbar .spacer { margin-left: auto; }
-    .diagram-toolbar .legend { display: flex; gap: 14px; font-size: 11px; color: var(--muted); flex-wrap: wrap; }
-    .legend .lg { display: inline-flex; align-items: center; gap: 5px; }
-    .legend .swatch { width: 22px; height: 0; border-top: 2px solid var(--muted); }
-    .legend .swatch.guard { border-top: 2px dashed var(--accent2); }
-    .legend .swatch.node  { width: 12px; height: 12px; border: 1px solid var(--info); border-radius: 3px; border-top-width: 1px; background: rgba(96,165,250,0.14); }
-    .legend .swatch.issue { width: 12px; height: 12px; border: 1px dashed var(--warn); border-radius: 3px; border-top-width: 1px; }
-
+    /* An explicit ratio rather than a height: the SVG inside is drawn to a
+       900×620 viewBox, and giving the frame the same shape means the graph
+       fills it instead of floating in a letterbox. */
     .svg-wrap {
-      flex: 1; min-height: 460px;
-      background:
-        radial-gradient(circle at 50% 40%, rgba(255,255,255,0.02), transparent 70%),
-        var(--bg);
-      border: 1px solid var(--border); border-radius: 12px;
-      overflow: hidden; position: relative;
+      position: relative;
+      aspect-ratio: 900 / 620;
+      min-height: 420px;
+      border: 1px solid var(--cat-line);
+      border-radius: var(--cat-r-inner);
+      background: var(--cat-ground);
+      overflow: hidden;
     }
-    svg { display: block; width: 100%; height: 100%; }
+
+    .svg-wrap svg { display: block; width: 100%; height: 100%; }
+
+    /* One paragraph, centred. It has to be one element and not a run of text
+       with a <code> in it: a flex container makes an anonymous item of every
+       text run and drops the whitespace between them, which is how "or click
+       Load example" lost the space before the words it names. */
     .svg-empty {
-      position: absolute; inset: 0;
-      display: flex; align-items: center; justify-content: center;
-      text-align: center; padding: 40px;
-      color: var(--muted); font-size: 13px; line-height: 1.6;
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: var(--cat-space-6);
+      color: var(--cat-quiet);
+      font-size: var(--cat-fs-13);
+      text-align: center;
     }
 
+    .svg-empty p { max-width: 46ch; line-height: 1.6; }
+
+    /* A state is the chrome's chip, drawn in SVG: the same neutral surface and
+       hairline, so that a box only takes a colour when it has something to say. */
     .node rect {
-      fill: rgba(96,165,250,0.10);
-      stroke: var(--info); stroke-width: 1.4;
-      transition: fill 0.12s ease, stroke 0.12s ease;
+      fill: var(--cat-surface-2);
+      stroke: var(--cat-quiet);
+      stroke-width: 1.2;
       cursor: pointer;
+      transition: fill var(--cat-dur-effect) var(--cat-ease-effect),
+                  stroke var(--cat-dur-effect) var(--cat-ease-effect);
     }
-    .node text { fill: var(--text); font-size: 13px; font-weight: 600; pointer-events: none; font-family: ui-monospace, monospace; }
-    .node:hover rect { fill: rgba(96,165,250,0.22); }
-    .node.selected rect { fill: rgba(233,69,96,0.20); stroke: var(--accent); stroke-width: 2; }
-    .node.target rect { stroke: var(--good); }
-    .node.deadend rect { stroke: var(--warn); stroke-dasharray: 4 3; }
-    .node.orphan rect  { stroke: var(--err);  stroke-dasharray: 4 3; }
-    .node.dim { opacity: 0.35; }
 
-    .edge { fill: none; stroke: var(--muted); stroke-width: 1.6; }
-    .edge.guard { stroke: var(--accent2); stroke-dasharray: 6 4; }
-    .edge.hi   { stroke: var(--accent); stroke-width: 2.4; }
-    .edge.dim  { opacity: 0.14; }
-    .edge-label { fill: var(--accent2); font-size: 10px; font-family: ui-monospace, monospace; pointer-events: none; }
-    .edge-label-bg { fill: var(--bg); opacity: 0.85; }
-    .edge-label.dim, .edge-label-bg.dim { opacity: 0.12; }
-
-    /* ---- right panel ---- */
-    .summary { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px; }
-    .summary .card {
-      padding: 11px 12px;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid var(--border);
-      border-radius: 10px; text-align: center;
+    .node text {
+      fill: var(--cat-ink);
+      font-family: var(--cat-mono);
+      font-size: var(--cat-fs-13);
+      font-weight: var(--cat-w-semi);
+      pointer-events: none;
     }
-    .summary .label { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
-    .summary .val { font-size: 22px; font-weight: 700; color: var(--info); margin-top: 3px; }
-    .summary .card.warn .val { color: var(--warn); }
-    .summary .card.issue .val { color: var(--good); }
-    .summary .card.issue.has .val { color: var(--err); }
 
-    .state-list { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow: auto; }
+    .node { transition: opacity var(--cat-dur-effect) var(--cat-ease-effect); }
+    .node:hover rect { fill: var(--cat-surface-3); }
+    .node.selected rect { fill: var(--cat-signal-tint-2); stroke: var(--cat-signal); stroke-width: 2; }
+    .node.selected text { fill: var(--cat-ink-strong); }
+    .node.target rect { fill: var(--cat-ok-tint); stroke: var(--cat-ok); }
+    .node.deadend rect { stroke: var(--cat-warn); stroke-dasharray: 4 3; }
+    .node.orphan rect { stroke: var(--cat-bad); stroke-dasharray: 4 3; }
+    .node.dim { opacity: .3; }
+
+    /* Every edge colour is checked against the graphite the diagram sits on:
+       dim 6.6:1, info 7.7:1, signal 5.0:1 — a line needs 3:1 and all three
+       clear it, arrowheads included, which is why the heads take the same
+       three tokens rather than a darker relative of them. */
+    .edge {
+      fill: none;
+      stroke: var(--cat-dim);
+      stroke-width: 1.6;
+      transition: opacity var(--cat-dur-effect) var(--cat-ease-effect);
+    }
+
+    .edge.guard { stroke: var(--cat-info); stroke-dasharray: 6 4; }
+    .edge.hi { stroke: var(--cat-signal); stroke-width: 2.4; }
+    .edge.dim { opacity: .16; }
+
+    .edge-label {
+      fill: var(--cat-info);
+      font-family: var(--cat-mono);
+      font-size: var(--cat-fs-11);
+      pointer-events: none;
+    }
+
+    .edge-label-bg { fill: var(--cat-ground); opacity: .85; }
+    .edge-label.dim, .edge-label-bg.dim { opacity: .12; }
+
+    /* ----------------------------------------------------------- overview */
+
+    .summary { display: grid; grid-template-columns: 1fr 1fr; gap: var(--cat-space-2); }
+
+    .tile {
+      display: grid;
+      gap: 2px;
+      padding: var(--cat-space-2) var(--cat-space-3);
+      border: 1px solid var(--cat-line);
+      border-radius: var(--cat-r-inner);
+      background: var(--cat-surface-2);
+      transition: border-color var(--cat-dur-effect) var(--cat-ease-effect),
+                  background-color var(--cat-dur-effect) var(--cat-ease-effect);
+    }
+
+    .tile .k {
+      font-family: var(--cat-mono);
+      font-size: var(--cat-fs-11);
+      font-weight: var(--cat-w-bold);
+      letter-spacing: var(--cat-track-eyebrow);
+      text-transform: uppercase;
+      color: var(--cat-dim);
+    }
+
+    .tile .val {
+      font-family: var(--cat-mono);
+      font-size: var(--cat-fs-22);
+      font-weight: var(--cat-w-semi);
+      line-height: 1.2;
+      color: var(--cat-ink-strong);
+    }
+
+    /* The only tile that ever takes the signal, and only when it is not zero:
+       a guarded edge is a decision, an issue is a mistake. */
+    .tile.issues.has { border-color: var(--cat-signal-line); background: var(--cat-signal-tint); }
+    .tile.issues.has .val { color: var(--cat-signal-ink); }
+
+    .state-list {
+      display: grid;
+      gap: var(--cat-space-1);
+      max-height: 320px;
+      overflow: auto;
+      margin-right: calc(var(--cat-space-2) * -1);
+      padding-right: var(--cat-space-2);
+    }
+
+    /* A row is a button, so it presses like every other control in the app and
+       reaches the keyboard. `aria-pressed` carries the selection, which is the
+       same attribute the segmented control uses for the same idea. */
     .state-row {
-      display: flex; align-items: center; gap: 8px;
-      padding: 8px 10px;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid var(--border);
-      border-radius: 8px; cursor: pointer;
-      transition: border-color 0.12s ease, background 0.12s ease;
+      justify-content: flex-start;
+      width: 100%;
+      padding: 0 var(--cat-space-2);
+      border-color: var(--cat-line);
+      font-weight: var(--cat-w-normal);
     }
-    .state-row:hover { border-color: var(--accent); }
-    .state-row.selected { border-color: var(--accent); background: rgba(233,69,96,0.08); }
-    .state-row .sname { font-family: ui-monospace, monospace; font-size: 13px; font-weight: 600; flex: 1; }
-    .state-row .out { font-size: 11px; color: var(--muted); font-family: ui-monospace, monospace; }
-    .flag {
-      font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
-      padding: 2px 6px; border-radius: 999px;
+
+    .state-row[aria-pressed="true"] {
+      border-color: var(--cat-signal-line);
+      background: var(--cat-signal-tint);
     }
-    .flag.deadend { background: rgba(251,191,36,0.16); color: var(--warn); }
-    .flag.orphan  { background: rgba(248,113,113,0.16); color: var(--err); }
+
+    .state-row .sname {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-family: var(--cat-mono);
+      font-size: var(--cat-fs-13);
+      font-weight: var(--cat-w-semi);
+      color: var(--cat-ink);
+      text-align: left;
+    }
+
+    .state-row .out { font-family: var(--cat-mono); font-size: var(--cat-fs-11); color: var(--cat-quiet); }
 
     .detail {
-      margin-top: 14px; padding: 14px;
-      background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
-      font-size: 13px;
+      display: grid;
+      gap: var(--cat-space-2);
+      padding: var(--cat-space-3);
+      border: 1px solid var(--cat-line);
+      border-radius: var(--cat-r-inner);
+      background: var(--cat-surface-2);
     }
-    .detail .dtitle { font-family: ui-monospace, monospace; font-weight: 700; font-size: 15px; color: var(--accent2); margin-bottom: 4px; }
-    .detail .dsub { color: var(--muted); font-size: 11px; margin-bottom: 12px; }
+
+    .detail .dtitle {
+      font-family: var(--cat-mono);
+      font-size: var(--cat-fs-15);
+      font-weight: var(--cat-w-semi);
+      color: var(--cat-ink-strong);
+    }
+
+    .detail .dsub { font-family: var(--cat-mono); font-size: var(--cat-fs-11); color: var(--cat-quiet); }
+
     .target-row {
-      display: flex; align-items: center; gap: 8px;
-      padding: 7px 0; border-top: 1px solid rgba(255,255,255,0.05);
-      font-family: ui-monospace, monospace; font-size: 12px;
-    }
-    .target-row .arrow { color: var(--muted); }
-    .target-row .tname { color: var(--good); }
-    .guard-chip {
-      margin-left: auto;
-      font-size: 10px; padding: 2px 8px; border-radius: 999px;
-      background: rgba(240,100,138,0.16); color: var(--accent2);
-      font-family: ui-monospace, monospace;
-    }
-    .detail .none { color: var(--warn); font-size: 12px; padding-top: 6px; }
-    .detail .incoming { margin-top: 12px; font-size: 11px; color: var(--muted); }
-
-    .empty {
-      text-align: center; padding: 28px 14px;
-      color: var(--muted); font-size: 12px;
-      border: 1px dashed var(--border); border-radius: 10px;
+      display: flex;
+      align-items: center;
+      gap: var(--cat-space-2);
+      padding-top: var(--cat-space-2);
+      border-top: 1px solid var(--cat-line);
+      font-family: var(--cat-mono);
+      font-size: var(--cat-fs-12);
     }
 
-    .credit { padding: 14px 28px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); line-height: 1.6; }
-    .credit code { color: var(--accent2); }
-    .credit a { color: var(--accent2); text-decoration: none; }
-    .credit a:hover { text-decoration: underline; }
-
-    @media (max-width: 1100px) { main { grid-template-columns: 1fr; padding: 14px; } .svg-wrap { min-height: 420px; } }
+    .target-row .arrow { color: var(--cat-quiet); }
+    .target-row .tname { color: var(--cat-ok); }    /* green, as in the diagram */
+    .target-row .chip { margin-left: auto; }
+    .detail .incoming { color: var(--cat-quiet); font-size: var(--cat-fs-12); line-height: 1.5; }
   </style>
 </head>
 <body>
 
 <header>
   <h1>State Machine Visualizer</h1>
-  <span class="badge">v2.0.0-alpha.5 beta</span>
+  <span class="badge">2.0.0-alpha.5</span>
   <span class="hint">See your superstructure — states, legal edges, guards — without a laptop-side debugger.</span>
-  <a href="../" class="back">← Catalyst tools</a>
+  <a href="../" class="back"></a>
 </header>
 
 <main>
   <!-- ------------------------------------------------ INPUT -->
-  <div class="left">
+  <aside>
     <h2>Paste the logged graph</h2>
-    <div class="seg-mode">
-      <button class="seg-btn active" data-mode="dot">DOT string</button>
-      <button class="seg-btn" data-mode="arrays">States + Edges</button>
+    <div class="seg block" id="modeSeg">
+      <button type="button" data-mode="dot" aria-pressed="true">DOT string</button>
+      <button type="button" data-mode="arrays" aria-pressed="false">States + Edges</button>
     </div>
 
-    <div class="field" id="dotField">
-      <label>Value of <code style="color:var(--accent2)">/Catalyst/&lt;prefix&gt;/Graph/Dot</code></label>
+    <div class="row" id="dotField">
+      <label for="dotInput">Value of <code>/Catalyst/&lt;prefix&gt;/Graph/Dot</code></label>
       <textarea id="dotInput" rows="14" spellcheck="false" placeholder="digraph Superstructure {&#10;  rankdir=LR;&#10;  STOW;&#10;  STOW -> INTAKE;&#10;  ...&#10;}"></textarea>
     </div>
 
-    <div class="field hidden" id="arraysField">
-      <label>Value of <code style="color:var(--accent2)">Graph/States</code> — one name per line</label>
-      <textarea id="statesInput" rows="6" spellcheck="false" placeholder="STOW&#10;INTAKE&#10;AIM"></textarea>
-      <label style="margin-top:10px">Value of <code style="color:var(--accent2)">Graph/Edges</code> — one per line</label>
-      <textarea id="edgesInput" rows="8" spellcheck="false" placeholder="STOW->INTAKE|cost=1.0&#10;AIM->SHOOT|cost=1.0|guard=hasNote"></textarea>
+    <div class="fields" id="arraysField" hidden>
+      <div class="row">
+        <label for="statesInput">Value of <code>Graph/States</code> — one name per line</label>
+        <textarea id="statesInput" rows="6" spellcheck="false" placeholder="STOW&#10;INTAKE&#10;AIM"></textarea>
+      </div>
+      <div class="row">
+        <label for="edgesInput">Value of <code>Graph/Edges</code> — one per line</label>
+        <textarea id="edgesInput" rows="8" spellcheck="false" placeholder="STOW->INTAKE|cost=1.0&#10;AIM->SHOOT|cost=1.0|guard=hasNote"></textarea>
+      </div>
     </div>
 
     <div class="actions">
-      <button class="btn" id="renderBtn">Render</button>
-      <button class="btn ghost" id="exampleBtn">Load example</button>
-      <button class="btn ghost" id="clearBtn">Clear</button>
+      <button type="button" class="primary" id="renderBtn">Render</button>
+      <button type="button" id="exampleBtn">Load example</button>
+      <button type="button" class="ghost" id="clearBtn">Clear</button>
     </div>
-    <div id="parseMsg"></div>
-  </div>
 
-  <!-- ------------------------------------------------ DIAGRAM -->
-  <div class="center">
-    <div class="diagram-toolbar">
-      <div class="seg-mode" style="width:auto;margin:0">
-        <button class="seg-btn active" data-layout="force">Force layout</button>
-        <button class="seg-btn" data-layout="circle">Circular</button>
+    <div id="parseMsg" hidden></div>
+  </aside>
+
+  <div class="work">
+    <!-- ------------------------------------------------ DIAGRAM -->
+    <div class="card">
+      <div class="card-head">
+        <h2>Diagram</h2>
+        <div class="seg" id="layoutSeg">
+          <button type="button" data-layout="force" aria-pressed="true">Force</button>
+          <button type="button" data-layout="circle" aria-pressed="false">Circular</button>
+        </div>
       </div>
-      <div class="spacer"></div>
+
       <div class="legend">
-        <span class="lg"><span class="swatch"></span>edge</span>
-        <span class="lg"><span class="swatch guard"></span>guarded</span>
-        <span class="lg"><span class="swatch node"></span>state</span>
-        <span class="lg"><span class="swatch issue"></span>dead-end / no way in</span>
+        <span class="lg"><i class="swatch" style="--c: var(--cat-dim)"></i>edge</span>
+        <span class="lg"><i class="swatch dashed" style="--c: var(--cat-info)"></i>guarded</span>
+        <span class="lg"><i class="swatch box" style="--c: var(--cat-quiet)"></i>state</span>
+        <span class="lg"><i class="swatch box dashed" style="--c: var(--cat-warn)"></i>dead-end</span>
+        <span class="lg"><i class="swatch box dashed" style="--c: var(--cat-bad)"></i>no way in</span>
+      </div>
+
+      <div class="svg-wrap" id="svgWrap">
+        <svg id="svg" viewBox="0 0 900 620" preserveAspectRatio="xMidYMid meet"></svg>
+        <div class="svg-empty" id="svgEmpty" hidden></div>
       </div>
     </div>
-    <div class="svg-wrap" id="svgWrap">
-      <svg id="svg" viewBox="0 0 900 620" preserveAspectRatio="xMidYMid meet"></svg>
-      <div class="svg-empty" id="svgEmpty" style="display:none"></div>
+
+    <!-- ------------------------------------------------ STATE LIST -->
+    <div class="card">
+      <h2>Overview</h2>
+      <div class="summary">
+        <div class="tile"><span class="k">States</span><span class="val" id="sumStates">0</span></div>
+        <div class="tile"><span class="k">Edges</span><span class="val" id="sumEdges">0</span></div>
+        <div class="tile"><span class="k">Guarded</span><span class="val" id="sumGuarded">0</span></div>
+        <div class="tile issues" id="issueTile"><span class="k">Issues</span><span class="val" id="sumIssues">0</span></div>
+      </div>
+
+      <h2>States</h2>
+      <div class="state-list" id="stateList"></div>
+      <div class="empty" id="stateEmpty">Nothing parsed yet.</div>
+
+      <div class="detail" id="detail" hidden></div>
     </div>
-  </div>
-
-  <!-- ------------------------------------------------ STATE LIST -->
-  <div class="right">
-    <h2>Overview</h2>
-    <div class="summary">
-      <div class="card"><div class="label">States</div><div class="val" id="sumStates">0</div></div>
-      <div class="card"><div class="label">Edges</div><div class="val" id="sumEdges">0</div></div>
-      <div class="card warn"><div class="label">Guarded</div><div class="val" id="sumGuarded">0</div></div>
-      <div class="card issue" id="issueCard"><div class="label">Issues</div><div class="val" id="sumIssues">0</div></div>
-    </div>
-
-    <h2>States</h2>
-    <div class="state-list" id="stateList"></div>
-    <div class="empty" id="stateEmpty">Nothing parsed yet.</div>
-
-    <div class="detail" id="detail" style="display:none"></div>
   </div>
 </main>
 
@@ -314,8 +328,8 @@
   Reads what a running robot already logs — the <code>Graph/Dot</code> string, or the <code>Graph/States</code> and
   <code>Graph/Edges</code> arrays under <code>/Catalyst/&lt;prefix&gt;/</code>. Edge format is
   <code>STOW-&gt;AIM|cost=1.0|guard=endgame</code>, exactly as <code>StateGraph.describeEdges()</code> emits it.
-  A state with no way out is a <span style="color:var(--warn)">dead-end</span>; a state nothing transitions into has
-  <span style="color:var(--err)">no way in</span> — both are usually a missing edge you meant to declare.
+  A state with no way out is a <span style="color:var(--cat-warn)">dead-end</span>; a state nothing transitions into has
+  <span style="color:var(--cat-bad)">no way in</span> — both are usually a missing edge you meant to declare.
   Runs entirely in your browser; nothing is uploaded.
 </div>
 
@@ -446,11 +460,13 @@ CLIMB->CLIMB_READY|cost=1.0`;
     return { states, edges };
   }
 
+  // What the parser has to say, as the chrome's notice: `ok` or `err`.
   function setMsg(kind, html) {
     const el = $("parseMsg");
-    if (!kind) { el.innerHTML = ""; el.className = ""; return; }
-    el.className = "parse-msg " + kind;
+    if (!kind) { el.innerHTML = ""; el.className = ""; el.hidden = true; return; }
+    el.className = "notice " + kind;
     el.innerHTML = html;
+    el.hidden = false;
   }
 
   function doParse() {
@@ -502,8 +518,8 @@ CLIMB->CLIMB_READY|cost=1.0`;
 
   function showEmpty(html) {
     $("svg").innerHTML = "";
-    $("svgEmpty").style.display = "flex";
-    $("svgEmpty").innerHTML = html;
+    $("svgEmpty").innerHTML = "<p>" + html + "</p>";
+    $("svgEmpty").hidden = false;
   }
 
   // ---------------------------------------------------------------
@@ -618,20 +634,21 @@ CLIMB->CLIMB_READY|cost=1.0`;
   function renderDiagram() {
     const svg = $("svg");
     if (model.states.length === 0) { showEmpty("Nothing to draw yet."); return; }
-    $("svgEmpty").style.display = "none";
+    $("svgEmpty").hidden = true;
 
     const { deadend, orphan } = analysis();
     // Detect bidirectional pairs so we can bow them apart.
-    const pairSet = new Set(model.edges.map(e => e.from + " " + e.to));
-    const NS = "http://www.w3.org/2000/svg";
+    const pairSet = new Set(model.edges.map(e => e.from + " " + e.to));
 
+    // One head per edge colour. They are filled from the same tokens the edges
+    // use, so a head can never drift away from the line it caps.
     let defs = `<defs>
       <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-        <path d="M0,0 L10,5 L0,10 z" fill="#8a8aa8"/></marker>
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--cat-dim)"/></marker>
       <marker id="arrowGuard" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-        <path d="M0,0 L10,5 L0,10 z" fill="#f0648a"/></marker>
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--cat-info)"/></marker>
       <marker id="arrowHi" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-        <path d="M0,0 L10,5 L0,10 z" fill="#e94560"/></marker>
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--cat-signal)"/></marker>
     </defs>`;
 
     let edgeSvg = "", labelSvg = "";
@@ -655,7 +672,7 @@ CLIMB->CLIMB_READY|cost=1.0`;
         const end = clipRect(b, db.w, db.h, a);
         const mx = (start.x + end.x) / 2, my = (start.y + end.y) / 2;
         // Bow curve if the reverse edge also exists.
-        const hasReverse = pairSet.has(e.to + " " + e.from);
+        const hasReverse = pairSet.has(e.to + " " + e.from);
         let ctrlX = mx, ctrlY = my;
         if (hasReverse) {
           const dx = end.x - start.x, dy = end.y - start.y;
@@ -676,7 +693,7 @@ CLIMB->CLIMB_READY|cost=1.0`;
       if (e.guard) {
         const w = e.guard.length * 6 + 8;
         labelSvg += `<g data-lbl="${i}">
-          <rect class="edge-label-bg" x="${lx - w/2}" y="${ly - 8}" width="${w}" height="14" rx="3"></rect>
+          <rect class="edge-label-bg" x="${lx - w/2}" y="${ly - 9}" width="${w}" height="15" rx="3"></rect>
           <text class="edge-label" x="${lx}" y="${ly + 3}" text-anchor="middle">${escapeHtml(e.guard)}</text></g>`;
       }
     });
@@ -748,25 +765,25 @@ CLIMB->CLIMB_READY|cost=1.0`;
     $("sumGuarded").textContent = model.edges.filter(e => e.guard).length;
     const issues = new Set([...deadend, ...orphan]).size;
     $("sumIssues").textContent = issues;
-    $("issueCard").classList.toggle("has", issues > 0);
+    $("issueTile").classList.toggle("has", issues > 0);
 
     const list = $("stateList");
     if (model.states.length === 0) {
       list.innerHTML = "";
-      $("stateEmpty").style.display = "";
+      $("stateEmpty").hidden = false;
       return;
     }
-    $("stateEmpty").style.display = "none";
+    $("stateEmpty").hidden = true;
     list.innerHTML = model.states.map(s => {
       const outCount = out[s].filter(e => e.to !== s).length;
       const flags = [];
-      if (deadend.has(s)) flags.push('<span class="flag deadend">dead-end</span>');
-      if (orphan.has(s)) flags.push('<span class="flag orphan">no way in</span>');
-      return `<div class="state-row ${selected === s ? "selected" : ""}" data-state="${escapeHtml(s)}">
+      if (deadend.has(s)) flags.push('<span class="chip sm warn">dead-end</span>');
+      if (orphan.has(s)) flags.push('<span class="chip sm bad">no way in</span>');
+      return `<button type="button" class="state-row" aria-pressed="${selected === s}" data-state="${escapeHtml(s)}">
         <span class="sname">${escapeHtml(s)}</span>
         ${flags.join("")}
         <span class="out">${outCount}→</span>
-      </div>`;
+      </button>`;
     }).join("");
     list.querySelectorAll(".state-row").forEach(r => {
       r.addEventListener("click", () => {
@@ -778,20 +795,21 @@ CLIMB->CLIMB_READY|cost=1.0`;
 
   function renderDetail() {
     const el = $("detail");
-    if (!selected || model.states.length === 0) { el.style.display = "none"; return; }
-    const { out, inn, deadend } = analysis();
-    el.style.display = "";
+    if (!selected || model.states.length === 0) { el.hidden = true; return; }
+    const { out, inn } = analysis();
+    el.hidden = false;
     const outs = out[selected];
     const ins = inn[selected];
     let body = `<div class="dtitle">${escapeHtml(selected)}</div>
       <div class="dsub">${outs.length} legal target${outs.length===1?"":"s"} · ${ins.length} incoming</div>`;
     if (outs.filter(e => e.to !== selected).length === 0) {
-      body += `<div class="none">⚠ Dead-end — no declared way out. If the robot can enter this state it can never leave it. Did you forget an edge?</div>`;
+      body += `<div class="notice warn"><b>Dead-end</b> — no declared way out. If the robot can enter this state it can never leave it. Did you forget an edge?</div>`;
     }
     body += outs.map(e => `<div class="target-row">
         <span class="arrow">→</span>
         <span class="tname">${escapeHtml(e.to)}${e.to === selected ? " (self)" : ""}</span>
-        ${e.guard ? `<span class="guard-chip">guard: ${escapeHtml(e.guard)}</span>` : (e.cost != null ? `<span class="guard-chip" style="background:rgba(96,165,250,0.14);color:var(--info)">cost ${e.cost}</span>` : "")}
+        ${e.guard ? `<span class="chip sm info">guard: ${escapeHtml(e.guard)}</span>`
+                  : (e.cost != null ? `<span class="chip sm">cost ${e.cost}</span>` : "")}
       </div>`).join("");
     const inNames = ins.map(e => e.from).filter(f => f !== selected);
     body += `<div class="incoming">${inNames.length ? "Reached from: " + inNames.map(escapeHtml).join(", ") : "Nothing transitions into this state — no way in."}</div>`;
@@ -801,20 +819,22 @@ CLIMB->CLIMB_READY|cost=1.0`;
   // ---------------------------------------------------------------
   // UI wiring
   // ---------------------------------------------------------------
-  document.querySelectorAll("[data-mode]").forEach(b => {
+  // `aria-pressed` rather than a class: these are sets of exclusive choices,
+  // and the attribute a screen reader reads is the one that draws them.
+  document.querySelectorAll("#modeSeg button").forEach(b => {
     b.addEventListener("click", () => {
-      document.querySelectorAll("[data-mode]").forEach(x => x.classList.remove("active"));
-      b.classList.add("active");
+      document.querySelectorAll("#modeSeg button")
+        .forEach(x => x.setAttribute("aria-pressed", String(x === b)));
       inputMode = b.dataset.mode;
-      $("dotField").classList.toggle("hidden", inputMode !== "dot");
-      $("arraysField").classList.toggle("hidden", inputMode !== "arrays");
+      $("dotField").hidden = inputMode !== "dot";
+      $("arraysField").hidden = inputMode !== "arrays";
     });
   });
 
-  document.querySelectorAll("[data-layout]").forEach(b => {
+  document.querySelectorAll("#layoutSeg button").forEach(b => {
     b.addEventListener("click", () => {
-      document.querySelectorAll("[data-layout]").forEach(x => x.classList.remove("active"));
-      b.classList.add("active");
+      document.querySelectorAll("#layoutSeg button")
+        .forEach(x => x.setAttribute("aria-pressed", String(x === b)));
       layoutMode = b.dataset.layout;
       if (model.states.length) { computeLayout(); renderDiagram(); applyHighlight(); }
     });

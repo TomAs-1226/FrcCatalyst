@@ -3,18 +3,18 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/TomAs-1226/FrcCatalyst/actions"><img src="https://img.shields.io/github/actions/workflow/status/TomAs-1226/FrcCatalyst/build.yml?style=for-the-badge&logo=github&label=Build" alt="Build Status"/></a>
-  <a href="https://github.com/TomAs-1226/FrcCatalyst/releases"><img src="https://img.shields.io/github/v/release/TomAs-1226/FrcCatalyst?style=for-the-badge&logo=semanticrelease&color=e94560" alt="Release"/></a>
-  <a href="https://github.com/TomAs-1226/FrcCatalyst/blob/main/LICENSE"><img src="https://img.shields.io/github/license/TomAs-1226/FrcCatalyst?style=for-the-badge&color=0f3460" alt="License"/></a>
-  <a href="https://tomas-1226.github.io/FrcCatalyst/beta/"><img src="https://img.shields.io/badge/Docs-beta-blue?style=for-the-badge&logo=github" alt="Docs"/></a>
+  <a href="https://github.com/TomAs-1226/FrcCatalyst/actions"><img src="https://img.shields.io/github/actions/workflow/status/TomAs-1226/FrcCatalyst/build.yml?style=flat-square&logo=github&logoColor=9a9ba1&label=build&color=2c2e34" alt="Build Status"/></a>
+  <a href="https://github.com/TomAs-1226/FrcCatalyst/releases"><img src="https://img.shields.io/github/v/release/TomAs-1226/FrcCatalyst?style=flat-square&color=e94560&label=release" alt="Release"/></a>
+  <a href="https://github.com/TomAs-1226/FrcCatalyst/blob/main/LICENSE"><img src="https://img.shields.io/github/license/TomAs-1226/FrcCatalyst?style=flat-square&color=2c2e34" alt="License"/></a>
+  <a href="https://tomas-1226.github.io/FrcCatalyst/beta/"><img src="https://img.shields.io/badge/docs-beta-2c2e34?style=flat-square" alt="Docs"/></a>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/WPILib-2027%20alpha--6-green?style=flat-square" alt="WPILib"/>
+  <img src="https://img.shields.io/badge/WPILib-2027%20alpha--6-2c2e34?style=flat-square" alt="WPILib"/>
   <img src="https://img.shields.io/badge/Systemcore-OS%20beta%2013-e94560?style=flat-square" alt="Systemcore"/>
-  <img src="https://img.shields.io/badge/Phoenix%206-26.50.0--alpha--1-orange?style=flat-square" alt="Phoenix 6"/>
-  <img src="https://img.shields.io/badge/Java-25-blue?style=flat-square&logo=openjdk" alt="Java 25"/>
-  <img src="https://img.shields.io/badge/PathPlanner-2027.0.0--alpha--3-purple?style=flat-square" alt="PathPlanner"/>
+  <img src="https://img.shields.io/badge/Phoenix%206-26.50.0--alpha--1-2c2e34?style=flat-square" alt="Phoenix 6"/>
+  <img src="https://img.shields.io/badge/Java-25-2c2e34?style=flat-square&logo=openjdk&logoColor=9a9ba1" alt="Java 25"/>
+  <img src="https://img.shields.io/badge/PathPlanner-2027.0.0--alpha--3-2c2e34?style=flat-square" alt="PathPlanner"/>
 </p>
 
 ---
@@ -26,6 +26,34 @@
 > For a robot that is competing on a roboRIO, use
 > [1.12.0](https://github.com/TomAs-1226/FrcCatalyst/releases/tag/v1.12.0) and the
 > [stable documentation](https://tomas-1226.github.io/FrcCatalyst/).
+
+<p align="center">
+  <img src="docs/assets/release-2.0.svg" alt="FrcCatalyst 2.0 — what moved underneath, and the five command decorators you have to rename" width="100%"/>
+</p>
+
+## Versions and compatibility
+
+Which Catalyst goes on which robot is kept on one page,
+**[Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html)**. As of
+12 September 2026:
+
+| If you are | Use |
+|---|---|
+| Competing this season on a roboRIO | **1.12.0**: tag `v1.12.0`, WPILib 2026.2.1, on JitPack |
+| Testing on a Systemcore with CTRE motors, today | **2.0.0-alpha.3**: tag `v2.0.0-alpha.3` (commit `14e2080`) on branch `systemcore-alpha6`, WPILib 2027.0.0-alpha-6, Systemcore OS image 13. Source build only. |
+| Trying WPILib alpha-7 on Systemcore image 14 | **2.0.0-beta.1**: tag `v2.0.0-beta.1` on branch `upgrade/alpha-7`, on JitPack. Phoenix 6 and PathPlannerLib have no alpha-7 release, so a robot with CTRE motors cannot run it yet. |
+
+This branch, `systemcore`, is `v2.0.0-alpha.3` plus docs, and builds the beta docs site.
+
+`python tools/catalyst-versions.py` prints the live map from git and Maven local: every tag and
+branch head with the WPILib and vendor versions it pins, and every local build traced to the commit
+its sources came from. `--online` adds the upstream Systemcore matrix, JitPack's build status and
+the vendordeps the docs site serves; `--apps` adds CatalystApp and CatalystConsole when they are
+checked out beside this repository. It only reads, and needs nothing beyond Python 3.8. A version
+number in Maven local is whatever `build.gradle` said when that build was published, which is not
+always the tag with the same number; the script says which commit each one really is.
+
+---
 
 ## What is FrcCatalyst?
 
@@ -75,17 +103,23 @@ Also required: Java 25 and Gradle 9.7 or later.
 https://tomas-1226.github.io/FrcCatalyst/beta/vendordep/FrcCatalyst.json
 ```
 
-Make sure the **Phoenix 6**, **PathPlanner**, and **PhotonVision** vendordeps are installed too (Catalyst builds on them).
+Make sure the **Phoenix 6** and **PathPlanner** vendordeps are installed too (Catalyst builds on them). PhotonVision is not used on this line.
 
-<details><summary>Or add it by hand in <code>build.gradle</code></summary>
+> **That URL installs `v2.0.0-alpha.1`, which does not start on Systemcore OS image 13**: it was
+> built on a WPILib development snapshot. For image 13, build this branch's tag,
+> `v2.0.0-alpha.3` (commit `14e2080`, 11 Sep 2026, branch `systemcore-alpha6`), from source: run
+> `git checkout v2.0.0-alpha.3` then `./gradlew publishToMavenLocal`. See
+> [Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html).
+
+<details><summary>A source build, in <code>build.gradle</code></summary>
 
 ```gradle
 repositories {
-    maven { url "https://jitpack.io" }
+    mavenLocal()
 }
 
 dependencies {
-    implementation "com.github.TomAs-1226:FrcCatalyst:v1.12.0"
+    implementation "com.frccatalyst:FrcCatalyst:2.0.0-alpha.3"
 }
 ```
 </details>
