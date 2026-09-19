@@ -31,7 +31,7 @@ that deploys and then does nothing.
 
 | Component | Version |
 |---|---|
-| Catalyst | 2.0.0-alpha.4 |
+| Catalyst | 2.0.0-alpha.5 |
 | WPILib | 2027.0.0-alpha-6 |
 | Systemcore OS | beta 13 |
 | Phoenix 6 | 26.50.0-alpha-1 |
@@ -55,7 +55,7 @@ Systemcore OS **beta 14 requires WPILib alpha-7**, which is not released. Until 
 > - The release publishes `org.wpilib:commands3-java`; the snapshot publishes
 >   `org.wpilib:commandsv3-java`.
 >
-> **Catalyst 2.0.0-alpha.4 targets the release**, so the installer is sufficient and no
+> **Catalyst 2.0.0-alpha.5 targets the release**, so the installer is sufficient and no
 > development maven is needed. Five classes that can only exist on the snapshot are excluded from
 > this build — see [What is not in this build](#what-is-not-in-this-build).
 >
@@ -68,7 +68,7 @@ Systemcore OS **beta 14 requires WPILib alpha-7**, which is not released. Until 
 
 ## What is not in this build
 
-Five classes that exist in the source tree do not ship in `2.0.0-alpha.4`. None of them are
+Five classes that exist in the source tree do not ship in `2.0.0-alpha.5`. None of them are
 deleted — every one is excluded from the source set, so it comes back unchanged the moment the thing
 it needs exists in a release. They are listed here so that "why can I not import this" has an answer
 that is not a compile error.

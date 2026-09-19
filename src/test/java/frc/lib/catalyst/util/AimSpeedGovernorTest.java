@@ -47,6 +47,41 @@ class AimSpeedGovernorTest {
     }
 
     @Test
+    void theFlatTopSpeedHoldsEveryDirection() {
+        // Team 5805's X1, 2026-09-19: the geometry caps let it drive straight at the hub as fast as it liked,
+        // and its aim broke above 1.3 m/s. A flat top speed holds closing speed too.
+        AimSpeedGovernor g = governor();
+        g.config().capSlewMps2(50).topSpeedMps(1.0);
+        double[] closing = null;
+        for (int i = 0; i < 10; i++) {
+            closing = g.govern(0.02, 4.0, 0.0, 0, 0, 1.0, 0.0);
+        }
+        assertTrue(g.limiting());
+        assertEquals(1.0, closing[0], 1e-9);
+        assertEquals(0.0, closing[1], 1e-9);
+        // Standing still it is still the cap that is being eased toward, not infinity.
+        assertEquals(1.0, g.safeSpeedMps(0.0, 0.0, 0, 0, 1.0, 0.0), 1e-9);
+        // Across the target the smaller of the two wins. With the flat cap the looser of the pair, the
+        // geometry still binds: a drivetrain that turns at 1 rad/s may only swing 0.75 of that.
+        g.config().maxTurnRadps(1.0);
+        assertEquals(0.75, g.safeSpeedMps(0.0, 1.0, 0, 0, 1.0, 0.0), 1e-9);
+    }
+
+    @Test
+    void theFlatTopSpeedIsOffUntilItIsAskedFor() {
+        AimSpeedGovernor g = governor();
+        assertEquals(0.0, g.config().topSpeedMps(), 0.0);
+        double[] closing = g.govern(0.02, 4.0, 0.0, 0, 0, 1.0, 0.0);
+        assertEquals(4.0, closing[0], 1e-9);
+        assertFalse(g.limiting());
+        // And it is clamped like every other setting: a nonsense value leaves it where it was.
+        g.config().topSpeedMps(1.5).topSpeedMps(Double.NaN);
+        assertEquals(1.5, g.config().topSpeedMps(), 0.0);
+        g.config().topSpeedMps(99.0);
+        assertEquals(10.0, g.config().topSpeedMps(), 0.0);
+    }
+
+    @Test
     void theModulesHeadroomCapsTooWhenItIsTheSmaller() {
         // With a rate cap too high to bind, the modules' top speed is what is shared: at the cap, the swing
         // takes exactly (1 - reserve) of the rotation the modules have left above the speed.

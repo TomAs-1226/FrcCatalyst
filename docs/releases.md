@@ -28,7 +28,7 @@ shims, because carrying both would have meant every class in the library branchi
 | Gradle | 8.x | **9.7+** |
 | Commands | v2 | **v3** |
 | CAN buses | 1 | **5** |
-| Latest | `v1.12.0` | `v2.0.0-alpha.4` |
+| Latest | `v1.12.0` | `v2.0.0-alpha.5` |
 | Docs | [stable](https://tomas-1226.github.io/FrcCatalyst/) | you are reading them |
 
 {: .warning }

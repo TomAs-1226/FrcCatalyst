@@ -1,5 +1,6 @@
 package frc.lib.catalyst.subsystems.swerve;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -48,10 +49,63 @@ class SlipCurrentDetectorTest {
         assertEquals(SlipCurrentDetector.Phase.SLIPPED, m.phase());
         assertEquals(2, m.slipWheel());
         // The ramp adds 0.2 A a loop here, so the reading is within one loop of the true 48.3 A.
-        assertEquals(48.3, m.slipAmps(), 0.25);
+        // The ramp adds 0.2 A a loop here and the median of three costs one, so it is within two loops.
+        assertEquals(48.3, m.slipAmps(), 0.5);
         assertEquals(45.0, m.recommendedAmps(), 0.0);
         assertEquals(0.0, m.volts(), 0.0);
         assertEquals(0.0, m.step(99, new double[] {0, 0, 0, 0}, new double[] {0, 0, 0, 0}), 0.0, "stays at 0 V once done");
+    }
+
+    @Test
+    void aWheelCarryingLittleWeightSpinsEarlyAndTheRampGoesOnToTheLoadedOnes() {
+        // Team 5805's X1 against a wall, 2026-09-19: one wheel barely touching the floor broke loose at 3 A while
+        // the others held. Under the old rule that stopped the whole measurement as "rolling".
+        SlipCurrentDetector m = run(0.05, new double[] {55, 52, 48.3, 3}, false, 2000);
+        assertEquals(SlipCurrentDetector.Phase.SLIPPED, m.phase(), m.reason());
+        assertEquals(2, m.slipWheel());
+        assertEquals(48.3, m.slipAmps(), 0.5);
+        assertArrayEquals(new int[] {3}, m.lightWheels());
+        assertTrue(m.breakAmps()[3] < SlipCurrentDetector.HELD_AMPS, "light wheel at " + m.breakAmps()[3]);
+    }
+
+    @Test
+    void threeLightWheelsAreStillNotARollingRobot() {
+        // The same robot: front right on 2 A, front left and back left on 12 A, only the back right loaded.
+        SlipCurrentDetector m = run(0.05, new double[] {12.3, 2.0, 12.4, 27.0}, false, 2000);
+        assertEquals(SlipCurrentDetector.Phase.SLIPPED, m.phase(), m.reason());
+        assertEquals(3, m.slipWheel());
+        assertEquals(27.0, m.slipAmps(), 0.5);
+        assertEquals(25.0, m.recommendedAmps(), 0.0);
+        assertArrayEquals(new int[] {0, 1, 2}, m.lightWheels());
+    }
+
+    @Test
+    void aOneLoopSpikeIsNotABreakCurrent() {
+        // Held, with one light wheel and a single loop reading 29 A shortly before it breaks loose. Taken at face
+        // value that spike would make it a loaded wheel slipping at 29 A.
+        SlipCurrentDetector m = new SlipCurrentDetector();
+        double volts = 0.0;
+        boolean lightSlipped = false;
+        for (int k = 0; k < 2000 && !m.done(); k++) {
+            double held = volts / 0.05;
+            double light = held;
+            if (light >= 3.0) {
+                lightSlipped = true;
+            }
+            double lightMps = lightSlipped ? 1.5 : 0.0;
+            if (lightSlipped) {
+                light = 1.8;
+            }
+            if (k == 12) {
+                light = 29.0;
+            }
+            double loaded = held >= 48.3 ? 29.0 : held;
+            double loadedMps = held >= 48.3 ? 1.5 : 0.0;
+            volts = m.step(k * DT, new double[] {0, 0, loadedMps, lightMps}, new double[] {held, held, loaded, light});
+        }
+        assertEquals(SlipCurrentDetector.Phase.SLIPPED, m.phase(), m.reason());
+        assertEquals(2, m.slipWheel());
+        assertArrayEquals(new int[] {3}, m.lightWheels());
     }
 
     @Test

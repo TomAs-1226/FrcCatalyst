@@ -63,6 +63,7 @@ public final class AimSpeedGovernor {
         double turnReserve = 0.25;
         double radialCapMps = 0.0;
         double capSlewMps2 = 4.0;
+        double topSpeedMps = 0.0;
 
         /**
          * The modules' top speed, m/s — Phoenix's {@code kSpeedAt12Volts}, or
@@ -117,6 +118,26 @@ public final class AimSpeedGovernor {
         }
 
         /** How fast the cap may move, m/s per second. Default 4, accepted 0.5-50. */
+        /**
+         * A flat top speed to drive at while aiming, m/s, whatever the direction; 0, the default, is none.
+         *
+         * <p>The caps above are worked out from the geometry, and they move as the robot moves. This one does
+         * not, and on a real robot that is the difference between an aim that holds and one that does not.
+         * Team 5805's X1 measured it on 2026-09-19: capping the speed across the line to the hub alone left
+         * the robot changing speed every time the geometry changed, and in the harness that cost aim (a 2 m/s
+         * strafe went from 2.5° to 3.6° RMS when the geometry cap was tightened). A flat top speed instead
+         * took the same robot to 1.3° RMS, 94% of its turret-mode time on target. Team 581 do the same, at
+         * 1.5 m/s while they score.
+         *
+         * <p>Pick it from where the aim breaks rather than from taste: X1 held 1.2-2.0° RMS up to 1.3 m/s at
+         * 1.5 m from the target and 3.4-5.5° above that, which is a bearing sweeping at 0.6 rad/s, so it caps
+         * at 1.0 m/s. A drivetrain that answers a turn faster, or a target further off, allows more.
+         */
+        public Config topSpeedMps(double v) {
+            topSpeedMps = clampFinite(v, 0.0, 10.0, topSpeedMps);
+            return this;
+        }
+
         public Config capSlewMps2(double v) {
             capSlewMps2 = clampFinite(v, 0.5, 50.0, capSlewMps2);
             return this;
@@ -150,6 +171,11 @@ public final class AimSpeedGovernor {
         /** @see #radialCapMps(double) */
         public double radialCapMps() {
             return radialCapMps;
+        }
+
+        /** @see #topSpeedMps(double) */
+        public double topSpeedMps() {
+            return topSpeedMps;
         }
 
         /** @see #capSlewMps2(double) */
@@ -261,8 +287,10 @@ public final class AimSpeedGovernor {
         double dx = tx - x;
         double dy = ty - y;
         double dist = Math.hypot(dx, dy);
+        // The flat top speed holds whatever the geometry says, so it is where every other cap starts from.
+        double flat = config.topSpeedMps > 0 ? config.topSpeedMps : Double.POSITIVE_INFINITY;
         if (!(speed > 1e-6) || !(dist > 1e-9)) {
-            return Double.POSITIVE_INFINITY;
+            return flat;
         }
         double d = Math.max(dist, NEAR_FLOOR_M);
         // The velocity across the line to the target, and along it, per unit of speed.
@@ -270,13 +298,13 @@ public final class AimSpeedGovernor {
         double along = Math.abs(dx * vx + dy * vy) / dist / speed;
         double keep = 1.0 - config.turnReserve;
         double swingPerMps = across / d;
-        double target = Double.POSITIVE_INFINITY;
+        double target = flat;
         if (swingPerMps > 1e-9) {
             // Swing within the rate cap, and within the modules' headroom above the speed: a module at
             // speed s has (top - s) left to turn with, which is (top - s) / r of rotation.
             double byRate = keep * config.maxTurnRadps / swingPerMps;
             double byModules = keep * config.maxModuleSpeedMps / (config.moduleRadiusM * swingPerMps + keep);
-            target = Math.min(byRate, byModules);
+            target = Math.min(target, Math.min(byRate, byModules));
         }
         if (config.radialCapMps > 0 && along > 1e-9) {
             target = Math.min(target, config.radialCapMps / along);
