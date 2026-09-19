@@ -22,9 +22,13 @@ class CatalystMotorCurrentLimitTest {
         CANRegistry.clear();
     }
 
+    /** Phoenix's own default for a config read is 50 ms, which a loaded build machine misses; a second is plenty. */
+    private static final double READ_TIMEOUT_S = 1.0;
+
     private static CurrentLimitsConfigs read(TalonFX motor) {
         CurrentLimitsConfigs limits = new CurrentLimitsConfigs();
-        assertTrue(motor.getConfigurator().refresh(limits).isOK(), "id " + motor.getDeviceID() + " unread");
+        assertTrue(motor.getConfigurator().refresh(limits, READ_TIMEOUT_S).isOK(),
+                "id " + motor.getDeviceID() + " unread");
         return limits;
     }
 
