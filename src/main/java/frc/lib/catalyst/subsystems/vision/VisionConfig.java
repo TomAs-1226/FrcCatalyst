@@ -342,7 +342,7 @@ public class VisionConfig {
 
         /**
          * Set field dimensions for off-field rejection.
-         * Defaults to 2025+ FRC field (16.54m x 8.21m).
+         * Defaults to the REBUILT 2026 field, 16.541 m x 8.069 m.
          * @param lengthMeters field length (X dimension)
          * @param widthMeters field width (Y dimension)
          */
