@@ -262,23 +262,18 @@ public final class CatalystMath {
     /** Falcon 500 with FOC free speed in RPM. */
     public static final double FALCON_FOC_FREE_SPEED_RPM = 6080;
 
-    /**
-     * REBUILT 2026 field length in metres.
-     *
-     * <p>WPILib's own 2026-rebuilt-welded layout says 16.541 x 8.069; these are that, rounded the
-     * way the rest of the library rounds it.
-     */
-    public static final double FIELD_LENGTH = 16.54;
+    /** The 2026 REBUILT field's length in metres: WPILib's 2026-rebuilt-welded AprilTag layout. */
+    public static final double FIELD_LENGTH = 16.541;
 
     /**
-     * REBUILT 2026 field width in metres.
+     * The 2026 REBUILT field's width in metres: WPILib's 2026-rebuilt-welded AprilTag layout.
      *
-     * <p>This was 8.21 until 2026-09-09 - the REEFSCAPE width, a season out of date, and the value
-     * a team got by reaching for the obvious public constant. It is the more dangerous of the two
+     * <p>This was 8.21 until 2026-09-09 - 2024's width, two seasons out of date, and the value a
+     * team got by reaching for the obvious public constant. It is the more dangerous of the two
      * because it is only wrong on one alliance: anything mirrored about the field's centre line
      * landed 14 cm out, consistently, on red only.
      */
-    public static final double FIELD_WIDTH = 8.07;
+    public static final double FIELD_WIDTH = 8.069;
 
     /** Gravity acceleration constant in m/s^2. */
     public static final double G = 9.81;

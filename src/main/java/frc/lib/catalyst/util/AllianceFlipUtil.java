@@ -22,7 +22,7 @@ import org.wpilib.math.geometry.Translation2d;
  *
  * <pre>{@code
  * // once, at startup (REBUILT is the default, so this is optional):
- * AllianceFlipUtil.configure(16.54, 8.07, AllianceFlipUtil.Symmetry.ROTATIONAL);
+ * AllianceFlipUtil.configure(16.541, 8.069, AllianceFlipUtil.Symmetry.ROTATIONAL);
  *
  * // author in blue coordinates, use anywhere:
  * Translation2d hub = AllianceFlipUtil.apply(Field.BLUE_HUB);
@@ -38,12 +38,12 @@ public final class AllianceFlipUtil {
     /** How the field is symmetric between the two alliances. */
     public enum Symmetry { ROTATIONAL, MIRRORED }
 
-    // REBUILT 2026, from WPILib's own 2026-rebuilt-welded layout: 16.541 x 8.069 m, rounded the
-    // way the rest of the library rounds it. The width was 8.21 until 2026-09-09 - the REEFSCAPE
-    // number, left behind by a season. An unconfigured robot flipped every red-alliance Y about an
-    // axis 7 cm off centre, putting each mirrored waypoint 14 cm out on one alliance only.
-    private static volatile double fieldLength = 16.54;
-    private static volatile double fieldWidth = 8.07;
+    // The 2026 REBUILT field: "field" in WPILib's 2026-rebuilt-welded AprilTag layout (org.wpilib.fields).
+    // The width was 8.21 until 2026-09-09 - 2024's number, left behind by two seasons. An unconfigured
+    // robot flipped every red-alliance Y about an axis 7 cm off centre, putting each mirrored waypoint
+    // 14 cm out on one alliance only.
+    private static volatile double fieldLength = 16.541; // metres
+    private static volatile double fieldWidth = 8.069;
     private static volatile Symmetry symmetry = Symmetry.ROTATIONAL;
 
     private AllianceFlipUtil() {}

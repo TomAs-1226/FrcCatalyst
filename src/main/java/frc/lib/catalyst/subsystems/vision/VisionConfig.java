@@ -123,11 +123,11 @@ public class VisionConfig {
         private double rejectDuringHighSpeedThreshold = 0; // 0 = disabled, m/s
         private double maxHeadingDivergenceDegrees = 0; // 0 = disabled
 
-        // Field dimensions
-        private double fieldLengthMeters = 16.54;
-        // REBUILT 2026, matching AllianceFlipUtil and CollisionField. Was 8.21, the REEFSCAPE
-        // width, which put every field-bounds vision reject 14 cm off on one edge.
-        private double fieldWidthMeters = 8.07;
+        // Field dimensions: the 2026 REBUILT field, from WPILib's 2026-rebuilt-welded AprilTag layout,
+        // as AllianceFlipUtil and CatalystMath have it. Before 2.0.0-beta.1 the width was 8.21, 2024's,
+        // which put every field-bounds vision reject 14 cm off on one edge.
+        private double fieldLengthMeters = 16.541;
+        private double fieldWidthMeters = 8.069;
         private double fieldBoundsMargin = 0.5;
 
         /**
@@ -344,7 +344,7 @@ public class VisionConfig {
 
         /**
          * Set field dimensions for off-field rejection.
-         * Defaults to the REBUILT 2026 field, 16.54 m x 8.07 m.
+         * Defaults to the REBUILT 2026 field, 16.541 m x 8.069 m.
          * @param lengthMeters field length (X dimension)
          * @param widthMeters field width (Y dimension)
          */

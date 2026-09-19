@@ -1144,7 +1144,7 @@ VisionSubsystem vision = new VisionSubsystem(VisionConfig.builder()
 `addPhotonCamera(...)` was removed in 2.0.0 — PhotonVision has no 2027 build, and the
 `AprilTagFieldLayout` it took is gone from WPILib 2027 as well. Use `addLimelight(...)`, or
 `addCamera(...)` with your own `CameraSource`. The field bounds default to the REBUILT field,
-16.54 m x 8.07 m; `fieldDimensions(...)` overrides them for an off-season field.
+16.541 m x 8.069 m; `fieldDimensions(...)` overrides them for an off-season field.
 
 ---
 
