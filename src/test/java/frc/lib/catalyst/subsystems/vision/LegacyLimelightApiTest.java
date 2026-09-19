@@ -76,7 +76,9 @@ class LegacyLimelightApiTest {
         // 25 ms of latency means the measurement describes the robot 25 ms ago. Handing a pose
         // estimator "now" for a measurement that is a loop old is a quiet, permanent bias.
         String cam = fresh("b");
+        double before = org.wpilib.system.Timer.getTimestamp();
         publish(cam, botpose(1.0, 1.0, 0.0, 1, 2.0), 1);
+        double after = org.wpilib.system.Timer.getTimestamp();
 
         LimelightSource src = new LimelightSource(cam, MOUNT, true);
         src.setRobotOrientation(0.0, 0.0, 0.0, 0.0);
@@ -86,7 +88,10 @@ class LegacyLimelightApiTest {
 
         assertTrue(est.timestampSeconds() < now,
                 "the estimate must be stamped in the past, not at read time");
-        assertEquals(0.025, now - est.timestampSeconds(), 0.02);
+        // The capture time is when the value was published, less the camera's 25 ms. Measured from the
+        // publish itself, not from a "now" read after building the source: on a cold JVM that build
+        // alone can take tens of milliseconds, which is what made a 20 ms tolerance fail now and then.
+        assertEquals(0.025, (before + after) / 2 - est.timestampSeconds(), (after - before) / 2 + 0.005);
     }
 
     @Test

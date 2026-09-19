@@ -319,14 +319,21 @@ final class LegacyLimelightReader {
     }
 
     /**
+     * NetworkTables time per second: microseconds on WPILib 2027 alpha-6 - measured, {@code
+     * NetworkTablesJNI.now()} is exactly a million times {@code Timer.getTimestamp()}. alpha-7 keeps it
+     * in nanoseconds, so this is the one number to change when this reader moves between the two.
+     */
+    static final double NT_TIME_PER_SECOND = 1e6;
+
+    /**
      * When the frame was captured, on the robot's clock.
      *
      * <p>Two subtractions from now: how long ago NetworkTables received the value, and the pipeline
      * latency the camera reports on top of that. Written as a difference of two NetworkTables times
      * rather than by converting one directly, so it holds whatever the two clocks' origins are.
      */
-    private static double captureTime(long ntPublishMicros, double latencyMs) {
-        double ageSeconds = (NetworkTablesJNI.now() - ntPublishMicros) / 1_000_000.0;
+    private static double captureTime(long ntPublishTime, double latencyMs) {
+        double ageSeconds = (NetworkTablesJNI.now() - ntPublishTime) / NT_TIME_PER_SECOND;
         return Timer.getTimestamp() - ageSeconds - (latencyMs / 1000.0);
     }
 
@@ -343,7 +350,7 @@ final class LegacyLimelightReader {
             return java.util.OptionalDouble.empty();
         }
         return java.util.OptionalDouble.of(
-                (NetworkTablesJNI.now() - lastConsumedNt) / 1_000_000.0);
+                (NetworkTablesJNI.now() - lastConsumedNt) / NT_TIME_PER_SECOND);
     }
 
     /**
@@ -358,7 +365,7 @@ final class LegacyLimelightReader {
         if (hb.timestamp == NEVER) {
             return java.util.OptionalDouble.empty();
         }
-        return java.util.OptionalDouble.of((NetworkTablesJNI.now() - hb.timestamp) / 1_000_000.0);
+        return java.util.OptionalDouble.of((NetworkTablesJNI.now() - hb.timestamp) / NT_TIME_PER_SECOND);
     }
 
     /** Whether the heartbeat advanced within the last second. */
