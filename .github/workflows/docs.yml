@@ -4,14 +4,16 @@ name: Deploy Docs
 #
 # A repository gets exactly one Pages deployment, so the stable docs and the 2027/Systemcore beta
 # docs cannot each own one. The build below assembles both into a single artifact: `main` at the
-# root and the `systemcore` branch under /beta/. The beta branch sets its own baseurl to match.
+# root and the `systemcore-alpha6` branch under /beta/, which is the 2.x line that ships: the docs
+# branch it used to build from was folded into it on 2026-09-19, so the site and the releases can no
+# longer drift apart. The beta branch sets its own baseurl to match.
 #
 # This file must live on `main`, because that is the branch whose workflow GitHub runs for the Pages
 # environment. Pushing docs to `systemcore` triggers it too, and it rebuilds both.
 
 on:
   push:
-    branches: [ main, master, systemcore ]
+    branches: [ main, master, systemcore-alpha6 ]
     paths:
       - 'docs/**'
       - 'README.md'
@@ -28,7 +30,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  BETA_BRANCH: systemcore
+  BETA_BRANCH: systemcore-alpha6
 
 jobs:
   build:
