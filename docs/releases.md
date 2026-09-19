@@ -36,7 +36,7 @@ shims, because carrying both would have meant every class in the library branchi
 > and has never run on hardware. It is for an offseason robot you can afford to have not work.
 
 {: .note }
-> **On a Systemcore with CTRE motors today, 2.x means 2.0.0-alpha.3** on WPILib alpha-6 and OS
+> **On a Systemcore with CTRE motors today, 2.x means 2.0.0-alpha.4** on WPILib alpha-6 and OS
 > beta 13, not beta.1: Phoenix 6 and PathPlannerLib have no alpha-7 release yet. See
 > [Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html).
 
@@ -66,8 +66,8 @@ Installable through the vendordep again. Alpha-6's release was on no public mave
 not build the library at all and every tag after `v2.0.0-alpha.1` had to be built from source on a
 machine with the WPILib installer. Alpha-7 is on `frcmaven/release`, so that cost is paid.
 
-**Fixed: the default field was a season out of date.** `CatalystMath.FIELD_WIDTH`,
-`AllianceFlipUtil` and `VisionConfig` all defaulted to 8.21 m — the REEFSCAPE width — while the rest
+**Fixed: the default field was two seasons out of date.** `CatalystMath.FIELD_WIDTH`,
+`AllianceFlipUtil` and `VisionConfig` all defaulted to 8.21 m — 2024 Crescendo's width — while the rest
 of the library used 8.07 m. A team that never called `configure(...)` had every red-alliance Y
 flipped about an axis 7 cm off centre: 14 cm of error on every mirrored waypoint, on one alliance
 only, with nothing reporting a fault.
@@ -199,7 +199,7 @@ Roughly in the order that will save you time.
    run `CANBusPlanner.suggest()` before you rewire anything.
 5. **Remove PhotonVision** from your vendordeps.
 6. **Phoenix 6 and PathPlanner.** Neither has a WPILib alpha-7 release yet, so on beta.1 there is
-   nothing to add and a CTRE robot cannot run. On alpha-6 (2.0.0-alpha.3), add them by hand:
+   nothing to add and a CTRE robot cannot run. On alpha-6 (2.0.0-alpha.4), add them by hand:
    neither publishes a 2027 vendordep JSON at a discoverable URL, so the usual online install
    fetches a 2026 one, which installs cleanly and fails at build with an error naming none of this.
 7. **Check `getChooser()` and `getServo()`** if you used them.

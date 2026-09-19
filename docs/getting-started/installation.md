@@ -34,7 +34,7 @@ Add FrcCatalyst to your WPILib robot project.
   > **A robot with CTRE devices cannot run this release today.** The newest Phoenix 6
   > (26.50.0-alpha-1) and PathPlannerLib (2027.0.0-alpha-3) are built for WPILib alpha-5/6. CTRE
   > says its alpha-7 release follows RobotPy's, and that forcing an older vendordep into an alpha-7
-  > project is unsupported on Systemcore. For that robot, use 2.0.0-alpha.3 on OS beta 13: see
+  > project is unsupported on Systemcore. For that robot, use 2.0.0-alpha.4 on OS beta 13: see
   > [Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html).
   >
   > When the alpha-7 releases arrive, add them by hand from the vendors' own 2027 instructions.

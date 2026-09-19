@@ -40,7 +40,7 @@ that deploys and then does nothing.
 | Java | 25 |
 
 **Flash the OS to beta 14, unless the robot has CTRE devices.** Phoenix 6 has no alpha-7 release, so
-that robot stays on beta 13 with 2.0.0-alpha.3
+that robot stays on beta 13 with 2.0.0-alpha.4
 ([Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html)). Beta 14 is
 titled "(REQUIRES WPILIB ALPHA 7)" and the pairing is
 not advice — a build made against alpha-7 will not start on beta 13. It does not degrade: the

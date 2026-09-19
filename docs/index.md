@@ -66,12 +66,12 @@ dependencies {
 The vendordep route is on [Installation](getting-started/installation). Of the vendor libraries
 Catalyst builds on, only LimelightLib has an alpha-7 release. **Phoenix 6 and PathPlannerLib do
 not, so a robot with CTRE devices cannot run this release yet**; for that robot the 2.x to use is
-2.0.0-alpha.3 on OS beta 13. See
+2.0.0-alpha.4 on OS beta 13. See
 [Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html).
 
 {: .warning }
 > **Flash the Systemcore to OS beta 14 first, unless the robot has CTRE devices:** Phoenix 6 has no
-> alpha-7 release, so keep that robot on beta 13 with 2.0.0-alpha.3. The pairing with WPILib
+> alpha-7 release, so keep that robot on beta 13 with 2.0.0-alpha.4. The pairing with WPILib
 > `2027.0.0-alpha-7` is hard,
 > not advisory — that OS release is titled "(REQUIRES WPILIB ALPHA 7)", and a mismatch does not
 > degrade, it aborts before any robot code runs. On the mismatch we actually measured, alpha-6
@@ -483,8 +483,8 @@ Eleven single-file tools served from this site. Click and use — no clone, no i
 
 **2.0.0-beta.1** is the 2027 port, on the WPILib and Systemcore OS pair that actually run together.
 Alongside the port it fixes a defect worth knowing about even if you stay on 1.x: `CatalystMath`,
-`AllianceFlipUtil` and `VisionConfig` all defaulted to a **field width of 8.21 m**, the REEFSCAPE
-number, while the rest of the library used 8.07 m. A team that never called `configure(...)` had
+`AllianceFlipUtil` and `VisionConfig` all defaulted to a **field width of 8.21 m**, 2024 Crescendo's
+width, while the rest of the library used 8.07 m. A team that never called `configure(...)` had
 every red-alliance Y flipped about an axis 7 cm off centre — 14 cm of error on every mirrored
 waypoint, on one alliance only, with nothing reporting a fault. The 2026 REBUILT field is
 **16.54 m x 8.07 m** everywhere now, pinned by a test against WPILib's own layout so the two cannot
