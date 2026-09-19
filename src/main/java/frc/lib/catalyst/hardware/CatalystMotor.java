@@ -491,12 +491,23 @@ public class CatalystMotor {
 
     /**
      * Change the supply current limit at runtime (e.g. state-based power
-     * budgeting). Re-sends the whole {@link CurrentLimitsConfigs} group so the
-     * stator limit and both enables are preserved.
+     * budgeting), on the leader and every follower. Re-sends the whole
+     * {@link CurrentLimitsConfigs} group so the stator limit and both enables are
+     * preserved. Blocks until each motor acknowledges.
      */
     public void setSupplyCurrentLimit(double amps) {
         this.supplyCurrentLimit = amps;
         applyCurrentLimits();
+    }
+
+    /** The supply current limit last written, A: the builder's, or the last runtime change. */
+    public double getSupplyCurrentLimit() {
+        return supplyCurrentLimit;
+    }
+
+    /** The stator current limit last written, A: the builder's, or the last runtime change. */
+    public double getStatorCurrentLimit() {
+        return statorCurrentLimit;
     }
 
     /** Change the stator current limit at runtime. Preserves the supply limit. */
@@ -512,6 +523,10 @@ public class CatalystMotor {
         applyCurrentLimits();
     }
 
+    // Every motor on the mechanism: the builder gave the followers the leader's limits, and a change
+    // that wrote the leader alone would leave a follower drawing its boot limit in every state.
+    // Each write waits for the device to acknowledge it, so switching limits often belongs on a
+    // background thread rather than the main loop.
     private void applyCurrentLimits() {
         CurrentLimitsConfigs limits = new CurrentLimitsConfigs();
         limits.SupplyCurrentLimitEnable = true;
@@ -519,6 +534,10 @@ public class CatalystMotor {
         limits.StatorCurrentLimitEnable = true;
         limits.StatorCurrentLimit = statorCurrentLimit;
         applyOrReport(motor.getConfigurator().apply(limits), "current limits");
+        for (TalonFX follower : followers) {
+            applyOrReport(follower.getConfigurator().apply(limits),
+                    "follower " + follower.getDeviceID() + " current limits");
+        }
     }
 
     /**
