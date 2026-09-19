@@ -262,11 +262,11 @@ public final class CatalystMath {
     /** Falcon 500 with FOC free speed in RPM. */
     public static final double FALCON_FOC_FREE_SPEED_RPM = 6080;
 
-    /** Standard FRC field length in meters (2025+). */
-    public static final double FIELD_LENGTH = 16.54;
+    /** The 2026 REBUILT field's length in meters: WPILib's 2026-rebuilt-welded AprilTag layout. */
+    public static final double FIELD_LENGTH = 16.541;
 
-    /** Standard FRC field width in meters. */
-    public static final double FIELD_WIDTH = 8.21;
+    /** The 2026 REBUILT field's width in meters (8.21 was 2024's): WPILib's 2026-rebuilt-welded layout. */
+    public static final double FIELD_WIDTH = 8.069;
 
     /** Gravity acceleration constant in m/s^2. */
     public static final double G = 9.81;

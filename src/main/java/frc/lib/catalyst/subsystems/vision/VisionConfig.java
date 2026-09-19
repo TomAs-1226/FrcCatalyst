@@ -123,9 +123,9 @@ public class VisionConfig {
         private double rejectDuringHighSpeedThreshold = 0; // 0 = disabled, m/s
         private double maxHeadingDivergenceDegrees = 0; // 0 = disabled
 
-        // Field dimensions
-        private double fieldLengthMeters = 16.54;
-        private double fieldWidthMeters = 8.21;
+        // Field dimensions: the 2026 REBUILT field, from WPILib's 2026-rebuilt-welded AprilTag layout.
+        private double fieldLengthMeters = 16.541;
+        private double fieldWidthMeters = 8.069;
         private double fieldBoundsMargin = 0.5;
 
         /**
