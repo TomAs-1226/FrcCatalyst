@@ -158,7 +158,6 @@ public final class SwerveSetpointGenerator {
         }
     }
 
-    /** Reset the internal "previous" state. Call when re-enabling. */
     /**
      * How much of a turn's wheel speed {@link Priority#ROTATION} budgets for (0.5-1, default
      * {@value #DEFAULT_ALLOCATION_MARGIN}): the turn is allocated as {@code 1 / share} as fast, leaving headroom
@@ -173,6 +172,7 @@ public final class SwerveSetpointGenerator {
         return this;
     }
 
+    /** Reset the internal "previous" state. Call when re-enabling. */
     public void reset() {
         prev = new ChassisVelocities();
         lastTs = -1;
