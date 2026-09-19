@@ -82,36 +82,38 @@ class LegacyLimelightApiTest {
         // 25 ms of latency means the measurement describes the robot 25 ms ago. Handing a pose
         // estimator "now" for a measurement that is a loop old is a quiet, permanent bias.
         //
-        // Asserted as a DIFFERENCE between two reads rather than as a wall-clock number. captureTime
-        // also subtracts how long ago NetworkTables received the value, and that age is real elapsed
-        // time this test cannot control - JIT, GC and NT round-trip all land in it. Pinning an
-        // absolute figure made this a stopwatch on the JVM: it measured 0.048 s against a 0.045 s
-        // ceiling and reported a vision bug that did not exist. Differencing cancels the elapsed
-        // time and leaves exactly the quantity under test.
+        // Asserted against each value's own publish time, bracketed by two clock reads, not against a
+        // clock read afterwards. captureTime subtracts how long ago NetworkTables received the value,
+        // so a "now" read later carries every millisecond of JIT, GC and class loading in between - an
+        // absolute figure once measured 0.048 s against a 0.045 s ceiling, and a difference of two such
+        // reads still failed now and then, because a cold JVM's first read is the slow one. The publish
+        // bracket leaves exactly the quantity under test.
         String slow = fresh("lat-slow");
         LimelightSource slowSrc = new LimelightSource(slow, MOUNT, true);
         slowSrc.setRobotOrientation(0.0, 0.0, 0.0, 0.0);
+        double slowBefore = org.wpilib.system.Timer.getTimestamp();
         publish(slow, botposeWithLatency(1.0, 1.0, 0.0, 1, 2.0, 125.0), 1);
-        double slowNow = org.wpilib.system.Timer.getTimestamp();
+        double slowAfter = org.wpilib.system.Timer.getTimestamp();
         var slowEst = slowSrc.getEstimatedPose().orElseThrow();
-        double slowAge = slowNow - slowEst.timestampSeconds();
 
         String fast = fresh("lat-fast");
         LimelightSource fastSrc = new LimelightSource(fast, MOUNT, true);
         fastSrc.setRobotOrientation(0.0, 0.0, 0.0, 0.0);
+        double fastBefore = org.wpilib.system.Timer.getTimestamp();
         publish(fast, botposeWithLatency(1.0, 1.0, 0.0, 1, 2.0, 25.0), 1);
-        double fastNow = org.wpilib.system.Timer.getTimestamp();
+        double fastAfter = org.wpilib.system.Timer.getTimestamp();
         var fastEst = fastSrc.getEstimatedPose().orElseThrow();
-        double fastAge = fastNow - fastEst.timestampSeconds();
 
-        assertTrue(fastEst.timestampSeconds() < fastNow,
+        assertTrue(fastEst.timestampSeconds() < org.wpilib.system.Timer.getTimestamp(),
                 "the estimate must be stamped in the past, not at read time");
-        // 100 ms more reported latency must move the timestamp 100 ms further back, and nothing else
-        // about the two reads differs. 15 ms of slack for the elapsed-time noise that does not cancel.
-        assertEquals(0.100, slowAge - fastAge, 0.015,
-                "extra pipeline latency must push the capture time further into the past");
-        assertTrue(fastAge >= 0.025,
-                "an estimate cannot be newer than the latency the camera reported");
+        // Each capture time is its publish time less the latency the camera reported, to within the
+        // bracket and 5 ms for reading NetworkTables' clock and the robot's a moment apart.
+        assertEquals(0.125, (slowBefore + slowAfter) / 2 - slowEst.timestampSeconds(),
+                (slowAfter - slowBefore) / 2 + 0.005,
+                "125 ms of reported latency must put the capture 125 ms before the publish");
+        assertEquals(0.025, (fastBefore + fastAfter) / 2 - fastEst.timestampSeconds(),
+                (fastAfter - fastBefore) / 2 + 0.005,
+                "25 ms of reported latency must put the capture 25 ms before the publish");
     }
 
     @Test

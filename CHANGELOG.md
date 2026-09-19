@@ -94,6 +94,14 @@ feed. A CTRE robot gets them from 2.0.0-alpha.4 on the alpha-6 line.
 
 ### Fixed
 
+- **The older Limelight API's times were a thousand times too long on WPILib alpha-7.** NetworkTables
+  keeps time in nanoseconds on alpha-7, where alpha-6 used microseconds, and `LegacyLimelightReader`
+  (written on alpha-6) divided by a million. A frame 20 ms old was stamped 20 s in the past, so its
+  pose reached the estimator at the wrong time or not at all, and a live camera's heartbeat read as
+  dead. Measured: `NetworkTablesJNI.now()` read 2.4062e13 with `Timer.getTimestamp()` at 24,062 s. It
+  affects cameras on the per-key API (Limelight OS 2026) only. It came to light when the latency test
+  was changed to check the capture time against the publish itself; it had compared two estimates,
+  and the error, the same in both, cancelled.
 - **Runtime current limits reach a motor's followers.** `setSupplyCurrentLimit`,
   `setStatorCurrentLimit` and `setCurrentLimits` wrote the leader alone, though the builder gives
   every follower the leader's limits. A follower kept its boot limit through every state, so a

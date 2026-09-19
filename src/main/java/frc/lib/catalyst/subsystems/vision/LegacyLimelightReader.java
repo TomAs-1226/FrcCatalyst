@@ -319,14 +319,23 @@ final class LegacyLimelightReader {
     }
 
     /**
+     * NetworkTables time per second. WPILib 2027 alpha-7 keeps NetworkTables time in nanoseconds -
+     * measured: {@code NetworkTablesJNI.now()} read 2.4062e13 with {@code Timer.getTimestamp()} at
+     * 24,062 s - where alpha-6 kept it in microseconds, and this reader was written on alpha-6.
+     * Dividing a nanosecond age by a million made every age here a thousand times too long: a frame
+     * 20 ms old was stamped 20 s in the past, and a live camera's heartbeat read as dead.
+     */
+    static final double NT_TIME_PER_SECOND = 1e9;
+
+    /**
      * When the frame was captured, on the robot's clock.
      *
      * <p>Two subtractions from now: how long ago NetworkTables received the value, and the pipeline
      * latency the camera reports on top of that. Written as a difference of two NetworkTables times
      * rather than by converting one directly, so it holds whatever the two clocks' origins are.
      */
-    private static double captureTime(long ntPublishMicros, double latencyMs) {
-        double ageSeconds = (NetworkTablesJNI.now() - ntPublishMicros) / 1_000_000.0;
+    private static double captureTime(long ntPublishTime, double latencyMs) {
+        double ageSeconds = (NetworkTablesJNI.now() - ntPublishTime) / NT_TIME_PER_SECOND;
         return Timer.getTimestamp() - ageSeconds - (latencyMs / 1000.0);
     }
 
@@ -343,7 +352,7 @@ final class LegacyLimelightReader {
             return java.util.OptionalDouble.empty();
         }
         return java.util.OptionalDouble.of(
-                (NetworkTablesJNI.now() - lastConsumedNt) / 1_000_000.0);
+                (NetworkTablesJNI.now() - lastConsumedNt) / NT_TIME_PER_SECOND);
     }
 
     /**
@@ -358,7 +367,7 @@ final class LegacyLimelightReader {
         if (hb.timestamp == NEVER) {
             return java.util.OptionalDouble.empty();
         }
-        return java.util.OptionalDouble.of((NetworkTablesJNI.now() - hb.timestamp) / 1_000_000.0);
+        return java.util.OptionalDouble.of((NetworkTablesJNI.now() - hb.timestamp) / NT_TIME_PER_SECOND);
     }
 
     /** Whether the heartbeat advanced within the last second. */
