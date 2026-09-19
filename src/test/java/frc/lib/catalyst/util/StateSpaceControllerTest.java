@@ -3,6 +3,8 @@ package frc.lib.catalyst.util;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.wpilib.math.system.DCMotor;
 
@@ -11,6 +13,22 @@ import org.wpilib.math.system.DCMotor;
  * behind it, and the filter must not end up certain of a velocity nothing measured.
  */
 class StateSpaceControllerTest {
+
+    /**
+     * Every test here builds a Kalman filter, which solves its gain in wpimath's native library. On the alpha-7
+     * line that library cannot load - it wants a libtelemetry that WPILib alpha-7 does not ship beside it - so
+     * there the class skips rather than reporting a failure it cannot fix.
+     */
+    @BeforeAll
+    static void needsWpimathNatives() {
+        try {
+            // Loaded here, by hand, rather than by building a filter and letting WPILib's own loader try:
+            // that loader ends the process when it fails, which no test can catch or report.
+            System.loadLibrary("wpimathjni");
+        } catch (UnsatisfiedLinkError e) {
+            Assumptions.abort("wpimath's native library will not load here: " + e.getMessage());
+        }
+    }
 
     private static StateSpaceController.Position elevator() {
         // motor, mass, drum radius, gearing; then the model and encoder noise, the error budget and the volts.
