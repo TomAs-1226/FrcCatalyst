@@ -116,6 +116,7 @@ public final class SlipCurrentCalibration {
             nt.getEntry("RecommendedAmps").setDouble(Double.NaN);
             nt.getEntry("Result").setString("");
             nt.getEntry("Snippet").setString("");
+            nt.getEntry("BreakAmps").setDoubleArray(new double[0]);
 
             double volts = 0.0;
             while (!detector.done()) {
@@ -132,8 +133,17 @@ public final class SlipCurrentCalibration {
                 volts = detector.step(Timer.getTimestamp(), speed, amps);
                 nt.getEntry("Volts").setDouble(detector.volts());
                 nt.getEntry("PeakAmps").setDouble(detector.peakAmps());
+                // Per wheel, every loop: what a recording needs to tell a light wheel from a jammed one.
+                nt.getEntry("WheelAmps").setDoubleArray(detector.wheelAmps());
+                nt.getEntry("WheelMps").setDoubleArray(speed);
             }
             drivetrain.setControl(request.withVolts(0.0));
+            nt.getEntry("BreakAmps").setDoubleArray(detector.breakAmps());
+            StringBuilder light = new StringBuilder();
+            for (int i : detector.lightWheels()) {
+                light.append(light.length() == 0 ? "; spun early, carrying little weight: module " : ", module ")
+                        .append(i).append(String.format(" at %.0f A", detector.breakAmps()[i]));
+            }
 
             if (detector.phase() == SlipCurrentDetector.Phase.SLIPPED) {
                 double slip = detector.slipAmps();
@@ -141,7 +151,8 @@ public final class SlipCurrentCalibration {
                 nt.getEntry("SlipAmps").setDouble(slip);
                 nt.getEntry("RecommendedAmps").setDouble(set);
                 nt.getEntry("Result").setString(String.format(
-                        "Wheels slip at %.0f A (module %d first): set %.0f A", slip, detector.slipWheel(), set));
+                        "Wheels slip at %.0f A (module %d first under load): set %.0f A%s",
+                        slip, detector.slipWheel(), set, light));
                 nt.getEntry("Snippet").setString(String.format("kSlipCurrent = Amps.of(%.0f); // measured %.1f A%s",
                         set, slip, Double.isFinite(currentSlipAmps) ? String.format(" (was %.0f A)", currentSlipAmps) : ""));
                 nt.getEntry("Status").setString("done");

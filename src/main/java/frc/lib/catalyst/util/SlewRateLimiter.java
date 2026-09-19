@@ -22,6 +22,11 @@ import org.wpilib.system.Timer;
  */
 public class SlewRateLimiter {
 
+    /** The shortest step the clock may report, s: one loop's worth, so a stalled clock cannot freeze the ramp. */
+    private static final double MIN_DT_SECONDS = 0.001;
+    /** The longest, s: after a pause the value ramps on rather than jumping wherever the gap would allow. */
+    private static final double MAX_DT_SECONDS = 0.1;
+
     private final double positiveRateLimit;
     private final double negativeRateLimit;
     private double previousValue;
@@ -54,7 +59,11 @@ public class SlewRateLimiter {
      */
     public double calculate(double input) {
         double currentTimestamp = Timer.getTimestamp();
-        double dt = currentTimestamp - previousTimestamp;
+        // A clock that steps back or stands still must not turn the limit around: with a negative dt the
+        // rising branch's ceiling goes negative and the output falls while the input climbs. Replay and
+        // simulation reach that; the robot rarely does. One loop of headroom is the floor, as
+        // SwerveSetpointGenerator uses, and a long gap is treated as one loop rather than a free jump.
+        double dt = Math.min(Math.max(currentTimestamp - previousTimestamp, MIN_DT_SECONDS), MAX_DT_SECONDS);
         previousTimestamp = currentTimestamp;
 
         double delta = input - previousValue;

@@ -12,6 +12,54 @@ on this line everything here that runs on a CTRE drivetrain is compiled, not run
 `SlipCurrentCalibration`, the Pigeon's yaw rate, and the facing request the shoot-on-the-move pieces
 feed. A CTRE robot gets them from 2.0.0-alpha.4 on the alpha-6 line.
 
+The alpha-6 line's 2.0.0-alpha.5 as well, measured on team 5805's Catalyst X1 on 2026-09-19:
+its aim error fell from 4.2° RMS to 1.3°, with 94% of turret-mode time on target.
+
+### Added
+
+- **`AimSpeedGovernor` takes a flat top speed while aiming** (`Config.topSpeedMps`, 0 = off). The
+  governor's other caps are worked out from the geometry and move as the robot moves, and on a real
+  robot that turned out to be the problem: every change of geometry changed the robot's speed, and
+  each change knocked the aim. In the harness, tightening the geometry cap made a 2 m/s strafe aim
+  *worse*, 3.6° against 2.5°. A flat cap does not move. X1 holds 1.3° RMS at 1.0 m/s where it broke
+  above 1.3 m/s uncapped; team 581 cap their own robot at 1.5 m/s while it scores. Pick the number
+  from where the aim breaks, not from taste — the setter's javadoc shows the arithmetic.
+
+### Changed
+
+- **The slip-current measurement tells a light wheel from a rolling robot.** A wheel carrying little
+  of the robot's weight spins in place on a few amps while the others still hold: X1's front right
+  broke loose at 2 A against a wall while its back right held past 25 A. The old rule stopped the
+  whole measurement as "rolling" the moment any wheel turned on under 15 A, which on that robot meant
+  it never measured anything. Now such a wheel is noted as light and the ramp goes on to the first
+  wheel that breaks loose under load; only *every* wheel turning that way is the robot rolling.
+  Currents are read through the median of three loops and a break current is the highest of the last
+  0.3 s, so neither a one-loop spike nor a transient at the start passes for a slip.
+- **`SlipCurrentCalibration` publishes what a recording needs to judge it:** `WheelAmps` and
+  `WheelMps` every loop, `BreakAmps` at the end, and a result line that names the wheels that spun
+  early, so a jammed or unloaded corner is visible instead of being averaged away.
+- **`CatalystMath.mirrorPose` is deprecated.** It mirrors across the field's centre line, which is not
+  the alliance flip on a rotationally symmetric field like REBUILT — a pose flipped with it lands at
+  the wrong y with a heading up to 180° out. `AllianceFlipUtil.flip(Pose2d)` knows the field and its
+  symmetry. The method still mirrors, for the fields that really are mirrored.
+
+### Fixed
+
+- **`InterpolatingTable.get` answered a key that is not a number with the table's last value.** Java
+  orders NaN above every real number, so a corrupt distance found the top of a shot table and came
+  back as a plausible RPM, and the caller's `isFinite` guard never fired. It returns NaN now.
+- **`SlewRateLimiter` turned its own limit around when the clock stepped back.** It took the loop
+  period straight from the clock; a negative one made the rising ceiling negative, so the output fell
+  while the input climbed. Replay and simulation reach that. The period is now floored and capped the
+  way `SwerveSetpointGenerator` does.
+- The legacy Limelight reader's latency test measures from the publish rather than from a later read,
+  and the reader names its time unit, so the alpha-6 line's microseconds and the alpha-7 line's
+  nanoseconds cannot be confused again.
+- Two doc comments that a merge had orphaned are back on their methods, `VisionConfig`'s field
+  dimensions document their default, and the motor-history tests ignore what they do not set.
+
+## [2.0.0-alpha.4] — 2026-09-19 — Shoot on the move, the slip current, and three fixes
+
 ### Added
 
 - **`SlipCurrentCalibration`** measures the drive's slip current, the stator limit Phoenix calls
