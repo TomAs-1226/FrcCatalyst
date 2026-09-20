@@ -1,95 +1,165 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2400 420" width="2400" height="420" role="img"
-     aria-label="Catalyst 2.0 - the whole-robot library for FRC, redrawn for Limelight Systemcore.">
-<!-- REV 2 - THE DRAWING SET.  Wide repo banner, 2400x420.  Sheet 2 of the set.
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 340" width="1200" height="340" role="img" aria-label="FrcCatalyst 2.0 — different computer, same library. A swerve robot following an autonomous trajectory. WPILib 2027, Limelight Systemcore and Commands v3. Version 2.0.0-beta.2, the beta line.">
+  <title>FrcCatalyst 2.0</title>
 
-     Same sheet language as social-card.svg, re-composed for a 5.7:1 strip: the drawing rotates to
-     the CAN plan view running the length of the banner, and the title block collapses to a right
-     column. The fill rule is preserved - a ticked row and an unticked row, adjacent. -->
+  <!--
+    A swerve chassis on an auto trajectory, because an FRC team reads that in half a second. An
+    earlier draft put a velocity profile here: true - the library does produce one - but nobody can
+    tell what an abstract curve is without being told, and a graphic that needs a caption has already
+    failed.
+
+    The robot is built the way one actually looks from above: bumpers as a ring around the frame with
+    the front face lighter, four module mounts at the corners, and the wheels turned off the chassis
+    axis. That last part is the point of a swerve - the chassis holds its heading while the modules
+    do the steering.
+  -->
   <defs>
-    <pattern id="g2" width="30" height="30" patternUnits="userSpaceOnUse">
-      <path d="M30 0H0V30" fill="none" stroke="#C4CAC3" stroke-width="1" opacity="0.9"/>
-    </pattern>
-    <style>
-      .mono { font-family: Consolas,"DejaVu Sans Mono","Liberation Mono",ui-monospace,monospace; }
-      .sans { font-family: "Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif; }
-      .lbl  { font-size:12px; letter-spacing:1.2px; fill:#5C635E; }
-    </style>
+    <linearGradient id="ground" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#191a20"/>
+      <stop offset="55%" stop-color="#101116"/>
+      <stop offset="100%" stop-color="#08090b"/>
+    </linearGradient>
+    <radialGradient id="keyLight" cx="76%" cy="46%" r="50%">
+      <stop offset="0%" stop-color="#e94560" stop-opacity="0.19"/>
+      <stop offset="45%" stop-color="#e94560" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#e94560" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="rimLight" cx="16%" cy="16%" r="52%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.07"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- The trajectory bleeds off the left edge rather than beginning at a point on the canvas, so
+         the robot reads as part-way through a route instead of at the start of a short one. -->
+    <linearGradient id="traj" gradientUnits="userSpaceOnUse" x1="-20" y1="0" x2="992" y2="0">
+      <stop offset="0%" stop-color="#e94560" stop-opacity="0"/>
+      <stop offset="28%" stop-color="#e94560" stop-opacity="0.40"/>
+      <stop offset="68%" stop-color="#ff5d76" stop-opacity="0.92"/>
+      <stop offset="100%" stop-color="#ff6b81" stop-opacity="1"/>
+    </linearGradient>
+    <linearGradient id="trajGlow" gradientUnits="userSpaceOnUse" x1="-20" y1="0" x2="992" y2="0">
+      <stop offset="0%" stop-color="#e94560" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#ff5d76" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#ff5d76" stop-opacity="0.42"/>
+    </linearGradient>
+
+    <filter id="softGlow" x="-30%" y="-200%" width="160%" height="500%">
+      <feGaussianBlur stdDeviation="9"/>
+    </filter>
+    <filter id="tightGlow" x="-30%" y="-200%" width="160%" height="500%">
+      <feGaussianBlur stdDeviation="3"/>
+    </filter>
+    <filter id="drop" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="11"/>
+    </filter>
+
+    <linearGradient id="hair" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#e94560" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#e94560" stop-opacity="0"/>
+    </linearGradient>
   </defs>
 
-  <rect width="2400" height="420" fill="#E4E7E1"/>
-  <rect x="24" y="24" width="2352" height="372" fill="url(#g2)"/>
-  <rect x="24" y="24" width="2352" height="372" fill="none" stroke="#1A1E1B" stroke-width="1"/>
-  <rect x="36" y="36" width="2328" height="348" fill="none" stroke="#5C635E" stroke-width="0.5" opacity="0.5"/>
-  <g stroke="#1A1E1B" stroke-width="1">
-    <path d="M1200 24v12M1200 396v-12M24 210h12M2376 210h-12"/>
+  <rect width="1200" height="340" rx="18" fill="url(#ground)"/>
+  <rect width="1200" height="340" rx="18" fill="url(#keyLight)"/>
+  <rect width="1200" height="340" rx="18" fill="url(#rimLight)"/>
+
+  <!-- Kept subtle and oversized: it gives the right half depth without asking to be read. -->
+  <text x="1168" y="318" text-anchor="end"
+        font-family="Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="250" font-weight="700"
+        letter-spacing="-13" fill="#ffffff" fill-opacity="0.032">2.0</text>
+
+  <g clip-path="inset(0 round 18)">
+    <!-- Two glow passes rather than one: a wide soft haze for the bloom and a tight one right on the
+         line, which is what stops it reading as a blurred smear near the robot. -->
+    <path id="route" d="M-20 320 C180 318 320 306 430 280 C540 254 600 214 720 196 C830 180 906 178 992 160"
+          fill="none" stroke="url(#trajGlow)" stroke-width="10" stroke-linecap="round" filter="url(#softGlow)"/>
+    <use href="#route" stroke="url(#trajGlow)" stroke-width="4" filter="url(#tightGlow)"/>
+    <use href="#route" stroke="url(#traj)" stroke-width="3.2"/>
+
+    <!-- Sampled poses along the route, fading back down it. -->
+    <g fill="#ff8fa0">
+      <circle cx="120" cy="317" r="2.6" fill-opacity="0.16"/>
+      <circle cx="300" cy="301" r="2.8" fill-opacity="0.28"/>
+      <circle cx="430" cy="280" r="3"   fill-opacity="0.42"/>
+      <circle cx="578" cy="228" r="3.2" fill-opacity="0.58"/>
+      <circle cx="720" cy="196" r="3.4" fill-opacity="0.74"/>
+      <circle cx="862" cy="177" r="3.4" fill-opacity="0.88"/>
+    </g>
+
+    <!-- Where it is going. -->
+    <path d="M992 160 C1044 148 1096 140 1152 136"
+          fill="none" stroke="#ff5d76" stroke-opacity="0.5" stroke-width="2.6"
+          stroke-linecap="round" stroke-dasharray="2 11"/>
+    <circle cx="1152" cy="136" r="5.5" fill="none" stroke="#ff8fa0" stroke-width="2" stroke-opacity="0.75"/>
+
+    <!-- The robot. -->
+    <g transform="translate(992 160) rotate(-14)">
+      <!-- Contact shadow, so it sits on the carpet instead of floating over it. -->
+      <rect x="-56" y="-44" width="112" height="92" rx="16" fill="#000000" fill-opacity="0.55" filter="url(#drop)"/>
+
+      <!-- Bumpers: a ring around the frame, which is the silhouette everyone recognises. Darker than
+           the accent so it frames the robot instead of becoming the brightest thing on the card. -->
+      <rect x="-58" y="-48" width="116" height="96" rx="15"
+            fill="none" stroke="#8e2739" stroke-width="7.5"/>
+      <!-- Front face in the full accent, so heading is legible without the arrow doing all the work. -->
+      <path d="M43 -48 h0 a15 15 0 0 1 15 15 v66 a15 15 0 0 1 -15 15 h0"
+            fill="none" stroke="#ff5d76" stroke-width="7.5" stroke-linecap="butt"/>
+
+      <!-- Frame, with a light top edge picking up the same rim light as the card. -->
+      <rect x="-52" y="-42" width="104" height="84" rx="9" fill="#14151a" stroke="#3d404a" stroke-width="1.4"/>
+      <path d="M-45 -41.3 h90" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.4" stroke-linecap="round"/>
+
+      <!-- Four modules: a fixed mount at each corner, wheel turned off the chassis axis. -->
+      <g>
+        <g transform="translate(-32 -27)">
+          <rect x="-13" y="-11" width="26" height="22" rx="5" fill="#1e2127" stroke="#474a53" stroke-width="1.2"/>
+          <g transform="rotate(-24)"><rect x="-12" y="-4.5" width="24" height="9" rx="4.5" fill="#0c0d11" stroke="#82858f" stroke-width="1.3"/></g>
+        </g>
+        <g transform="translate(32 -27)">
+          <rect x="-13" y="-11" width="26" height="22" rx="5" fill="#1e2127" stroke="#474a53" stroke-width="1.2"/>
+          <g transform="rotate(-24)"><rect x="-12" y="-4.5" width="24" height="9" rx="4.5" fill="#0c0d11" stroke="#82858f" stroke-width="1.3"/></g>
+        </g>
+        <g transform="translate(-32 27)">
+          <rect x="-13" y="-11" width="26" height="22" rx="5" fill="#1e2127" stroke="#474a53" stroke-width="1.2"/>
+          <g transform="rotate(-24)"><rect x="-12" y="-4.5" width="24" height="9" rx="4.5" fill="#0c0d11" stroke="#82858f" stroke-width="1.3"/></g>
+        </g>
+        <g transform="translate(32 27)">
+          <rect x="-13" y="-11" width="26" height="22" rx="5" fill="#1e2127" stroke="#474a53" stroke-width="1.2"/>
+          <g transform="rotate(-24)"><rect x="-12" y="-4.5" width="24" height="9" rx="4.5" fill="#0c0d11" stroke="#82858f" stroke-width="1.3"/></g>
+        </g>
+      </g>
+
+      <!-- Hub: the point the pose is reported about. No arrow - once the front bumper is the only
+           lit face, an arrow on the deck is saying the same thing twice, and filled and centred it
+           reads as a play button. Real robots do not have one painted on either. -->
+      <circle cx="0" cy="0" r="3" fill="#82858f"/>
+    </g>
   </g>
 
-  <!-- ============ identity ============ -->
-  <g transform="translate(76,92)">
-    <text class="mono lbl" x="0" y="5">REV</text>
-    <path d="M48 -13 L62 10 L34 10 Z" fill="none" stroke="#D6412A" stroke-width="1.8"/>
-    <text class="mono" x="48" y="8" font-size="13" font-weight="700" fill="#D6412A" text-anchor="middle">2</text>
-    <text class="mono lbl" x="80" y="5">WHOLE-ROBOT LIBRARY FOR FRC &#183; TEAM 5805</text>
-  </g>
-  <text class="sans" x="76" y="216" font-size="86" font-weight="800" fill="#1A1E1B" letter-spacing="3">CATALYST</text>
-  <text class="mono" x="571" y="216" font-size="52" font-weight="700" fill="#D6412A">2.0</text>
-  <path d="M76 248H700" stroke="#C4CAC3" stroke-width="1"/>
-  <text class="sans" x="76" y="284" font-size="21" font-weight="500" fill="#5C635E">New computer. New JVM. New command framework.</text>
-  <text class="sans" x="76" y="316" font-size="21" font-weight="700" fill="#1A1E1B">974 of 986 public methods kept their name.</text>
-
-  <!-- ============ CAN plan view, running the length ============ -->
-  <g transform="translate(800,120)">
-    <text class="mono lbl" x="0" y="-16" font-size="11">CAN &#183; PLAN VIEW &#183; can_s0 THROUGH can_s4</text>
-    <g stroke="#1A1E1B" stroke-width="1.6">
-      <path d="M0 0h600"/><path d="M0 30h600"/><path d="M0 60h600"/><path d="M0 90h600"/><path d="M0 120h600"/>
-    </g>
-    <g class="mono" font-size="11.5" fill="#5C635E">
-      <text x="612" y="4">can_s0</text><text x="612" y="34">can_s1</text><text x="612" y="64">can_s2</text>
-      <text x="612" y="94">can_s3</text><text x="612" y="124">can_s4</text>
-    </g>
-    <g stroke="#D6412A" stroke-width="1.4" fill="none">
-      <path d="M694 0 h12 v30 h-12"/>
-      <path d="M694 60 h12"/>
-      <path d="M694 90 h12 v30 h-12"/>
-    </g>
-    <g stroke="#5C635E" stroke-width="0.8" stroke-dasharray="2 2">
-      <path d="M706 15h34"/><path d="M706 60h34"/><path d="M706 105h34"/>
-    </g>
-    <g class="mono" font-size="11" fill="#1A1E1B">
-      <text x="746" y="19">SPI 1</text><text x="746" y="64">SPI 2</text><text x="746" y="109">SPI 3</text>
-    </g>
-    <text class="mono lbl" x="0" y="156" font-size="11">3 CONTROLLER GROUPS &#183; 2-1-2 &#183; NOT FIVE INDEPENDENT LANES</text>
+  <!-- The mark -->
+  <g transform="translate(76 84) scale(2.5)">
+    <path d="M13.5 2 5 13h5l-1.5 9L19 10h-5.5z" fill="#e94560"/>
   </g>
 
-  <!-- ============ title block, right column ============ -->
-  <g transform="translate(1712,72)">
-    <rect x="0" y="0" width="628" height="276" fill="none" stroke="#1A1E1B" stroke-width="1"/>
-    <g stroke="#5C635E" stroke-width="0.5" opacity="0.6">
-      <path d="M0 54h628M0 100h628M0 146h628M0 192h628M0 238h628M232 54v184"/>
-    </g>
-    <text class="mono lbl" x="16" y="22" font-size="10">TITLE</text>
-    <text class="sans" x="16" y="44" font-size="27" font-weight="800" fill="#1A1E1B" letter-spacing="1.5">CATALYST</text>
-    <text class="mono" x="612" y="44" font-size="20" font-weight="700" fill="#D6412A" text-anchor="end">2.0.0-beta.2</text>
-    <g class="mono lbl" font-size="10.5">
-      <text x="16" y="82">SCALE</text><text x="16" y="128">TARGET</text>
-      <text x="16" y="174">TESTED</text><text x="16" y="220">DRIVEN ON A ROBOT</text>
-    </g>
-    <g class="mono" font-size="13" fill="#1A1E1B">
-      <text x="248" y="82">254 files &#183; 60,145 lines</text>
-      <text x="248" y="128">Systemcore &#183; WPILib 2027 a7</text>
-    </g>
-    <rect x="248" y="163" width="12" height="12" fill="#1A1E1B"/>
-    <text class="mono" x="269" y="174" font-size="13" fill="#1A1E1B">867 tests, 0 failures</text>
-    <rect x="248" y="209" width="12" height="12" fill="none" stroke="#D6412A" stroke-width="1.4" stroke-dasharray="2.5 2"/>
-    <text class="mono" x="269" y="220" font-size="13" fill="#5C635E">bench only &#8212; see README</text>
-    <g class="mono lbl" font-size="10">
-      <text x="16" y="262">DRAWN BY TEAM 5805</text>
-      <text x="612" y="262" text-anchor="end">SHEET 2 OF 2</text>
-    </g>
-  </g>
+  <text x="138" y="124" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="62">
+    <tspan font-weight="200" letter-spacing="-1.8" fill="#8d8f97">Frc</tspan><tspan
+           font-weight="700" letter-spacing="-2.6" fill="#ffffff">Catalyst</tspan><tspan
+           font-weight="200" letter-spacing="-1.8" fill="#ff5d76" dx="18">2.0</tspan>
+  </text>
 
-  <g transform="translate(76,372)" stroke="#5C635E" stroke-width="0.75" opacity="0.8">
-    <path d="M-6 0h12M0 -6v12"/>
+  <rect x="140" y="146" width="300" height="1.5" fill="url(#hair)"/>
+
+  <text x="139" y="184" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif"
+        font-size="25" font-weight="600" fill="#e6e7ea">Different computer, same library.</text>
+
+  <text x="140" y="212" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif"
+        font-size="15" font-weight="500" fill="#83858d">WPILib 2027 alpha-7 · Systemcore image 14 · Commands v3</text>
+
+  <!-- Version, and the alpha said out loud: one that looks like a release gets deployed like one. -->
+  <g transform="translate(140 240)">
+    <rect width="140" height="30" rx="15" fill="#e94560" fill-opacity="0.14" stroke="#e94560" stroke-opacity="0.6"/>
+    <circle cx="19" cy="15" r="4" fill="#ff5d76"/>
+    <text x="33" y="20" font-family="Consolas, ui-monospace, monospace" font-size="13" font-weight="600" fill="#ff92a3">2.0.0-beta.2</text>
   </g>
-  <text class="mono" x="90" y="375" font-size="9" fill="#5C635E" opacity="0.75">0,0</text>
+  <text x="300" y="260" font-family="Consolas, ui-monospace, monospace" font-size="11" font-weight="700"
+        letter-spacing="1.6" fill="#6b6d75">BETA · ON JITPACK</text>
 </svg>
