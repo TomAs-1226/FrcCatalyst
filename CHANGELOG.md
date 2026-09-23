@@ -7,7 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **The wiring tool plans ports, not a picture.** It drew a schematic: boxes joined by curves,
+  correct about what connects to what and not much use at the robot, because it never said which
+  channel anything went in — it auto-numbered them and showed you a diagram. It now draws the
+  boards. Every channel of the PDH or PDP appears in the board's own numbering; you pick a device
+  up and put it in one; and what comes out is a run list with **both ends of every run named**
+  (`PDH 7 → BR Steer`, `MPM F0 → LEDs`), its gauge, its length and its voltage drop. The schematic
+  is still there, as one card among several rather than the whole answer.
+- **Breakouts are first-class**, which is what makes the port model worth having: an MPM, VRM, RPM
+  or Servo Hub takes a channel on the main board and provides its own, and a device is placed into
+  one exactly the way it is placed into the board. A device that needs a regulated supply will only
+  go where regulated power exists, and everything else dims while you hold it. Auto-assign fills
+  breakouts before the main board, because filling the bays first leaves the MPM empty and the
+  board full, which is the problem the MPM was bought to solve.
+- **CAN is drawn as a chain.** The old diagram drew a rail with taps; the wiring is a daisy chain,
+  and showing it as a bus is the most common way a diagram misleads someone who has not wired one.
+  Each bus now prints in order, `Systemcore can_s0 → FL Drive → … → 120 Ω`, and the check that used
+  to count buses now knows the SPI pairing: two buses that share a controller read as a split that
+  buys much less than one across `can_s2`.
+- **The device catalogue is about six times larger** — brushed motors and the controllers they
+  need, Talon FXS and SRX, Thrifty Nova, CANrange, CANifier, Limelight cameras, network switches,
+  servos, limit switches, analog and quadrature inputs — and each entry says how it wants to be
+  fed rather than only what breaker it takes.
+- **Systemcore's own ports are on the sheet**: the five CAN buses with their controller groups,
+  the power inlet, Ethernet, the USB ports the Hailo accelerator sits on, the SmartIO header at
+  3.3 V, and the I²C port on GPIO 10/11 with its SCL/SDA swap.
+
 ### Fixed
+
+- **The wiring tool stated several things it had no source for.** It attributed a recommendation
+  about regulators, a connector name and a wire gauge to Limelight, and none of them could be found
+  in any Limelight or WPILib document. The advice is kept, because a controller that browns out
+  mid-match is not a mistake worth inheriting from a diagram — but it now reads as what it is,
+  something to confirm against the hardware, in the same voice the docs already use for CAN
+  termination. The channel counts and running currents say plainly that they are the usual figures
+  and not values read off a datasheet.
+- **A breakout's feed run sized its voltage drop from its breaker rather than its load**, so a
+  lightly loaded MPM reported a 0.76 V problem it did not have. It uses what its tenants actually
+  draw. The run table also split its one ambiguous amps column into the breaker and the typical
+  running current, which were being shown and calculated from separately.
 
 - **`StateSpaceController.Position.correct(position)` taught the filter a velocity nothing had measured.**
   For a mechanism with no velocity sensor it passed the filter's own velocity estimate back as a

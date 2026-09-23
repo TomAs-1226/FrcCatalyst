@@ -2,22 +2,26 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Catalyst Wiring Diagram Generator</title>
+  <title>Catalyst Wiring Planner</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="../tool.css" />
   <script src="../tool.js" defer></script>
   <style>
-    /* This tool's own: what colour a wire is, the schematic it draws with those colours, the
-       device list, the checklist, the inline cells in the schedule, and the print sheet.
-       Everything else — header, sidebar, cards, fields, buttons, chips, notices, tables — is
-       ../tool.css. */
+    /* This tool's own: the wire-function colours, the port panel, the device tray, the checklist
+       and the print sheet. Everything else — header, sidebar, cards, fields, buttons, chips,
+       notices, tables — is ../tool.css.
+
+       The panel is the point of this page. An earlier version drew a schematic: boxes joined by
+       curves, correct about what connects to what and useless at the robot, because it never said
+       WHICH channel or WHICH port. You cannot wire from "the PDH". You wire from "channel 7". So
+       the primary view is every port the plan uses, in its own numbering, with what is in it. */
 
     /* Wire function is the one thing this page encodes in colour, so the four are named for the
        job and not the hue, and each is one of the identity's own status colours: crimson, green,
        amber, blue. Four hues that stay apart on a dark ground, in a printed sheet and for the
-       common colour-vision deficiencies — and the legend names every one of them in words, so
-       nothing here depends on telling them apart. They live on `body` rather than `:root` so it
-       is plain that this is the tool's legend and not a second palette. */
+       common colour-vision deficiencies — and every legend names them in words, so nothing here
+       depends on telling them apart. They live on `body` rather than `:root` so it is plain that
+       this is the tool's legend and not a second palette. */
     body {
       --pwr: var(--cat-signal);   /* +12 V, the red wire */
       --reg: var(--cat-ok);       /* regulated / low-current */
@@ -25,39 +29,132 @@
       --sig: var(--cat-info);     /* Ethernet and signal */
     }
 
-    .diagram { overflow: auto; border-radius: var(--cat-r-inner); background: var(--cat-ground); }
-    .diagram svg { display: block; }
+    /* ---------------------------------------------------------------- the panel */
 
-    .legend { display: flex; flex-wrap: wrap; gap: var(--cat-space-4); color: var(--cat-quiet); font-size: var(--cat-fs-12); }
-    .legend i {
-      display: inline-block;
-      width: 16px;
-      height: 3px;
-      border-radius: 2px;
-      margin-right: 6px;
-      vertical-align: middle;
+    .board {
+      border: 1px solid var(--cat-line-strong);
+      border-radius: var(--cat-r-inner);
+      background: var(--cat-surface-1);
+      padding: var(--cat-space-3);
+      margin-bottom: var(--cat-space-3);
     }
+    .board:last-child { margin-bottom: 0; }
+    .board-head {
+      display: flex; align-items: baseline; flex-wrap: wrap;
+      gap: var(--cat-space-2); margin-bottom: var(--cat-space-3);
+    }
+    .board-head b { color: var(--cat-ink-strong); font-size: var(--cat-fs-13); font-weight: var(--cat-w-semi); }
+    .board-head .sub { color: var(--cat-quiet); font-size: var(--cat-fs-11); font-family: var(--cat-mono); }
+    .board-head .spacer { flex: 1; }
 
-    /* The devices you have added: a scrolling list of rows, each one name, type, breaker, remove. */
-    .devs { display: grid; gap: 2px; max-height: 240px; overflow: auto; margin-right: calc(var(--cat-space-2) * -1); padding-right: var(--cat-space-2); }
-    .dev {
-      display: flex;
+    /* Channels sit in a grid that wraps. The number is the thing you read first at the robot, so
+       it is the one part of a slot that never moves or shrinks. */
+    .ports { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 6px; }
+    .ports.wide { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+
+    .slot {
+      display: grid;
+      grid-template-columns: 30px minmax(0, 1fr);
       align-items: center;
       gap: var(--cat-space-2);
-      padding: var(--cat-space-1) var(--cat-space-2);
+      min-height: 38px;
+      padding: 4px var(--cat-space-2);
+      border: 1px solid var(--cat-line);
       border-radius: var(--cat-r-inner);
       background: var(--cat-surface-2);
+      font-size: var(--cat-fs-12);
+      text-align: left;
+      color: var(--cat-ink);
+      width: 100%;
+      cursor: pointer;
+    }
+    .slot:hover { border-color: var(--cat-line-strong); background: var(--cat-surface-3); }
+    .slot .n {
+      font-family: var(--cat-mono); font-size: var(--cat-fs-11);
+      color: var(--cat-dim); text-align: center;
+    }
+    .slot .body { min-width: 0; }
+    .slot .nm {
+      display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      color: var(--cat-ink-strong); font-weight: var(--cat-w-semi);
+    }
+    .slot .mt { display: block; color: var(--cat-quiet); font-size: var(--cat-fs-11); font-family: var(--cat-mono); }
+    .slot.empty { border-style: dashed; background: transparent; }
+    .slot.empty .nm { color: var(--cat-faint); font-weight: var(--cat-w-reg); }
+    /* Occupied slots carry a left edge in the wire colour of what they feed — the same four
+       functions as the legend, so a glance down the board reads as power / regulated / signal. */
+    .slot.on { border-left: 3px solid var(--slot, var(--pwr)); }
+    /* Where the held device may go. Not a colour alone: the border also becomes solid and thicker,
+       because "this slot is a candidate" has to survive a printed sheet and a monochrome display. */
+    .slot.target { border-color: var(--cat-signal); border-style: solid; box-shadow: inset 0 0 0 1px var(--cat-signal); }
+    .slot.blocked { opacity: .45; cursor: not-allowed; }
+    .slot:disabled { cursor: default; }
+
+    /* A fixed port that is not a channel you choose — Systemcore's CAN ports, its power inlet.
+       It states what it is and what is on it, and it is not clickable. */
+    .slot.fixed { cursor: default; background: var(--cat-surface-1); }
+    .slot.fixed:hover { border-color: var(--cat-line); background: var(--cat-surface-1); }
+
+    /* ---------------------------------------------------------------- the tray */
+
+    .tray { display: flex; flex-wrap: wrap; gap: 6px; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      min-height: var(--cat-space-6); padding: 0 var(--cat-space-2);
+      border: 1px solid var(--cat-line-strong); border-radius: var(--cat-r-pill);
+      background: var(--cat-surface-2); color: var(--cat-ink);
+      font-size: var(--cat-fs-12); cursor: pointer;
+    }
+    .pill:hover { border-color: var(--cat-signal-line); }
+    .pill[aria-pressed="true"] {
+      border-color: var(--cat-signal); background: var(--cat-signal-tint); color: var(--cat-signal-ink);
+    }
+    .pill .ty { color: var(--cat-quiet); font-family: var(--cat-mono); font-size: var(--cat-fs-11); }
+    .pill[aria-pressed="true"] .ty { color: var(--cat-signal-ink); }
+
+    /* The held device follows you to the panel: a line above the boards saying what you are
+       placing and how to stop. Without it, a highlighted board with no explanation is a puzzle. */
+    .holding {
+      display: flex; align-items: center; flex-wrap: wrap; gap: var(--cat-space-2);
+      padding: var(--cat-space-2) var(--cat-space-3); margin-bottom: var(--cat-space-3);
+      border: 1px solid var(--cat-signal-line); border-radius: var(--cat-r-inner);
+      background: var(--cat-signal-tint); color: var(--cat-signal-ink); font-size: var(--cat-fs-12);
+    }
+    .holding b { font-weight: var(--cat-w-semi); }
+    .holding .spacer { flex: 1; }
+
+    /* ---------------------------------------------------------------- the device list */
+
+    .devs { display: grid; gap: 2px; max-height: 232px; overflow: auto; margin-right: calc(var(--cat-space-2) * -1); padding-right: var(--cat-space-2); }
+    .dev {
+      display: flex; align-items: center; gap: var(--cat-space-2);
+      padding: var(--cat-space-1) var(--cat-space-2);
+      border-radius: var(--cat-r-inner); background: var(--cat-surface-2);
       font-size: var(--cat-fs-12);
     }
     .dev .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--cat-ink); font-weight: var(--cat-w-semi); }
     .dev .ty { color: var(--cat-quiet); white-space: nowrap; }
-    .dev .br { font-family: var(--cat-mono); font-size: var(--cat-fs-11); color: var(--cat-dim); }
+    .dev .at { font-family: var(--cat-mono); font-size: var(--cat-fs-11); color: var(--cat-signal-ink); white-space: nowrap; }
+    .dev .at.none { color: var(--cat-faint); }
     .dev .x { min-height: var(--cat-space-5); padding: 0 6px; border: 0; background: transparent; color: var(--cat-faint); }
     .dev .x:hover { background: var(--cat-bad-tint); color: var(--cat-bad); }
 
     .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--cat-space-2); }
 
-    /* A recommendation is a short key and a paragraph about it. */
+    /* ---------------------------------------------------------------- runs, checks, schematic */
+
+    /* The run list is the sheet you actually wire from, so both endpoints are monospace and the
+       colour swatch sits with the wire rather than in a legend somewhere else. */
+    td.ep { font-family: var(--cat-mono); font-size: var(--cat-fs-11); white-space: nowrap; }
+    td.fn i { display: inline-block; width: 12px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+    td.vd.warn { color: var(--cat-warn); }
+    td.vd.bad { color: var(--cat-bad); font-weight: var(--cat-w-semi); }
+    tr.sysrun td { color: var(--cat-quiet); }
+
+    .chain { font-family: var(--cat-mono); font-size: var(--cat-fs-11); line-height: 1.8; color: var(--cat-quiet); word-break: break-word; }
+    .chain b { color: var(--cat-ink); font-weight: var(--cat-w-semi); }
+    .chain .term { color: var(--cat-warn); }
+
     .recs { display: grid; gap: var(--cat-space-3); }
     .recs .r { display: grid; grid-template-columns: 116px minmax(0, 1fr); gap: var(--cat-space-3); font-size: var(--cat-fs-13); line-height: 1.55; }
     .recs .k { align-self: start; }
@@ -75,186 +172,493 @@
     .chk .t span { color: var(--cat-quiet); }
     .chk .t span b { display: inline; color: var(--cat-ink); }
 
-    /* The two cells in the schedule you can edit in place. */
     input.cell {
-      width: 56px;
-      min-height: var(--cat-space-5);
-      padding: 0 6px;
-      border: 1px solid var(--cat-line-strong);
-      border-radius: var(--cat-r-inner);
-      background: var(--cat-surface-2);
-      color: var(--cat-ink);
-      font-family: var(--cat-mono);
-      font-size: var(--cat-fs-12);
-      text-align: right;
+      width: 56px; min-height: var(--cat-space-5); padding: 0 6px;
+      border: 1px solid var(--cat-line-strong); border-radius: var(--cat-r-inner);
+      background: var(--cat-surface-2); color: var(--cat-ink);
+      font-family: var(--cat-mono); font-size: var(--cat-fs-12); text-align: right;
     }
-    td.vd.warn { color: var(--cat-warn); }
-    td.vd.bad { color: var(--cat-bad); font-weight: var(--cat-w-semi); }
 
-    /* On paper the chrome is noise: the diagram, the checks and the schedule are the sheet. */
+    .diagram { overflow: auto; border-radius: var(--cat-r-inner); background: var(--cat-ground); }
+    .diagram svg { display: block; }
+
+    /* On paper the chrome is noise: the panel, the runs and the checks are the sheet. The panel
+       prints because that is the half a build team carries to the robot. */
     @media print {
       header, aside, .no-print { display: none; }
       main { display: block; padding: 0; }
-      .card { border: 0; background: none; padding: 0 0 var(--cat-space-5); }
+      .card { border: 0; background: none; padding: 0 0 var(--cat-space-5); break-inside: avoid; }
+      .slot { break-inside: avoid; }
+      .devs { max-height: none; }
     }
   </style>
 </head>
 <body>
 <header>
-  <h1>Wiring Diagram Generator</h1>
+  <h1>Wiring Planner</h1>
   <span class="badge">2.0.0-alpha.5</span>
-  <span class="hint">Imports your <a href="../canids/">CAN ID Planner</a> and builds a power tree and CAN bus.</span>
+  <span class="hint">Pick the channel every device sits in, then wire from the run list.</span>
   <a href="../" class="back"></a>
 </header>
 <main>
   <aside>
     <h2>Power distribution</h2>
-    <select id="pdu">
-      <option value="PDH">REV PDH (20× 40 A + 3× low-current)</option>
-      <option value="PDP">CTRE PDP (8× 40 A + 8× 30 A)</option>
+    <select id="pdu" aria-label="Power distribution device">
+      <option value="PDH">REV PDH — 20× 40 A + 4 low-current</option>
+      <option value="PDP">CTRE PDP — 8× 40 A + 8× 30 A</option>
     </select>
+
+    <h2>Breakouts</h2>
+    <p class="hint">A breakout takes one channel of the main board and fans it out. Its own feed
+      channel is picked on the panel like anything else.</p>
+    <div class="pair">
+      <div class="row" style="grid-column:span 2"><label for="bKind">Add</label>
+        <select id="bKind">
+          <option value="MPM">REV MPM — 6 fused outputs</option>
+          <option value="VRM">CTRE VRM — 2× 12 V, 2× 5 V regulated</option>
+          <option value="RPM">REV RPM — radio power, regulated</option>
+          <option value="SERVOHUB">REV Servo Hub — 6 servo channels</option>
+        </select>
+      </div>
+    </div>
+    <button id="addBreakout">Add breakout</button>
+    <div class="devs" id="breakouts"></div>
 
     <h2>Devices</h2>
     <button class="primary" id="import">Import from the CAN ID Planner</button>
     <div class="pair">
       <div class="row" style="grid-column:span 2"><label for="dName">Name</label><input id="dName" placeholder="Front-Left Drive"></div>
-      <div class="row"><label for="dType">Type</label>
-        <select id="dType">
-          <option>Kraken X60</option><option>Kraken X44</option><option>Falcon 500</option>
-          <option>NEO</option><option>NEO Vortex</option><option>NEO 550</option><option>Minion</option>
-          <option>CANcoder</option><option>Pigeon 2</option><option>CANdi</option><option>CANdle</option>
-          <option>PH (Pneumatic Hub)</option><option>PCM</option><option>Other</option>
-        </select>
+      <div class="row" style="grid-column:span 2"><label for="dType">Type</label>
+        <select id="dType"></select>
       </div>
-      <div class="row"><label for="dBus">CAN bus</label><select id="dBus"><option>can_s0</option><option>can_s1</option><option>can_s2</option><option>can_s3</option><option>can_s4</option><option>canivore</option></select></div>
+      <div class="row"><label for="dBus">CAN bus</label><select id="dBus">
+        <option>can_s0</option><option>can_s1</option><option>can_s2</option><option>can_s3</option><option>can_s4</option><option>CANivore</option>
+      </select></div>
+      <div class="row"><label for="dQty">How many</label><input type="number" id="dQty" value="1" min="1" max="24"></div>
     </div>
     <button id="add">Add device</button>
     <div class="devs" id="devs"></div>
     <div class="btn-grid">
+      <button id="autofill">Auto-assign</button>
+      <button class="ghost" id="unassign">Unassign all</button>
       <button id="sample">Sample swerve</button>
       <button class="ghost" id="clear">Clear</button>
       <button id="print">Print</button>
       <button id="dlSvg">Diagram SVG</button>
       <button id="saveJson">Save JSON</button>
       <button id="loadJson">Open JSON</button>
+      <button id="runCsv">Runs CSV</button>
+      <button id="bomCsv">BOM CSV</button>
     </div>
     <input type="file" id="loadFile" accept=".json" hidden>
 
     <h2>Default wire length</h2>
     <div class="row">
-      <label for="defLen">Used when a device's length is blank <span class="v" id="defLenV">6 ft</span></label>
+      <label for="defLen">Used when a run's length is blank <span class="v" id="defLenV">6 ft</span></label>
       <input type="range" id="defLen" min="2" max="20" step="1" value="6">
     </div>
-    <p class="hint">Voltage drop comes from each run's gauge, current and length. Edit the breaker and the length per device in the schedule.</p>
+    <p class="hint">Voltage drop comes from each run's gauge, current and length. Edit the breaker
+      and the length per run in the schedule.</p>
   </aside>
 
   <div class="cards">
+
     <div class="card">
-      <h2 class="no-print">Wiring diagram</h2>
+      <div class="card-head">
+        <h2>The panel</h2>
+        <span class="hint no-print" id="panelHint">Click a device to pick it up, then click a channel.</span>
+      </div>
       <div id="warn"></div>
-      <div class="diagram"><svg id="svg" width="760" height="420" viewBox="0 0 760 420"></svg></div>
-      <div class="legend no-print">
-        <span><i style="background:var(--pwr)"></i>+12 V power</span>
-        <span><i style="background:var(--reg)"></i>regulated / low-current</span>
-        <span><i style="background:var(--can)"></i>CAN bus (CANH/CANL)</span>
-        <span><i style="background:var(--sig)"></i>Ethernet / signal</span>
+      <div id="holding"></div>
+
+      <div class="board no-print" style="margin-bottom:var(--cat-space-4)">
+        <div class="board-head"><b>Not placed yet</b><span class="sub" id="trayCount"></span></div>
+        <div class="tray" id="tray"></div>
+      </div>
+
+      <div id="boards"></div>
+
+      <div class="legend no-print" style="margin-top:var(--cat-space-3)">
+        <span class="lg"><i class="swatch" style="--c:var(--pwr)"></i>+12 V from a breaker</span>
+        <span class="lg"><i class="swatch" style="--c:var(--reg)"></i>regulated / fused low-current</span>
+        <span class="lg"><i class="swatch" style="--c:var(--can)"></i>CAN</span>
+        <span class="lg"><i class="swatch" style="--c:var(--sig)"></i>Ethernet / signal</span>
       </div>
     </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Wire runs</h2><span class="hint">every run, both ends</span></div>
+      <table><thead><tr>
+        <th class="num">#</th><th>From</th><th>To</th><th>Function</th>
+        <th class="num">Brk A</th><th class="num">Typ A</th><th class="num">Len ft</th>
+        <th class="num">V-drop</th><th>Wire</th>
+      </tr></thead><tbody id="runs"></tbody></table>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>CAN chains</h2><span class="hint">daisy-chain order, in order</span></div>
+      <div class="chain" id="chains"></div>
+    </div>
+
     <div class="card">
       <div class="card-head"><h2>Pre-flight checklist</h2><span class="hint">auto-validated</span></div>
       <div id="checks"></div>
     </div>
+
     <div class="card">
-      <h2>Optimal recommendations</h2>
+      <h2 class="no-print">Schematic</h2>
+      <div class="diagram"><svg id="svg" width="760" height="420" viewBox="0 0 760 420"></svg></div>
+    </div>
+
+    <div class="card">
+      <h2>Recommendations</h2>
       <div class="recs" id="recs"></div>
     </div>
+
     <div class="card">
-      <h2>Channel &amp; wire schedule</h2>
-      <table><thead><tr><th>Device</th><th>Type</th><th>Chan</th><th>Breaker</th><th class="num">Typ. A</th><th class="num">Len ft</th><th class="num">V-drop</th><th>Wire</th><th>Bus</th></tr></thead>
-        <tbody id="tbody"></tbody></table>
-    </div>
-    <div class="card">
-      <div class="card-head"><h2>Bill of materials</h2><span class="hint">estimated</span><button id="bomCsv">Export CSV</button></div>
+      <div class="card-head"><h2>Bill of materials</h2><span class="hint">estimated</span></div>
       <table><thead><tr><th class="num">Qty</th><th>Item</th><th>Notes</th></tr></thead><tbody id="bom"></tbody></table>
     </div>
   </div>
 </main>
 <script>
 const $=id=>document.getElementById(id);
-// Electrical spec per device type (FRC best practice).
-// br = recommended breaker (A), g = wire gauge, pwr = needs a power channel,
-// typ = typical running current (A, not stall), pneu = pneumatic hub, sol = solenoid channels.
-const SPEC={
-  'Kraken X60':{br:40,g:'12 AWG',pwr:true,typ:12},'Kraken X44':{br:40,g:'12 AWG',pwr:true,typ:8},
-  'Falcon 500':{br:40,g:'12 AWG',pwr:true,typ:12},'NEO':{br:40,g:'12 AWG',pwr:true,typ:12},
-  'NEO Vortex':{br:40,g:'12 AWG',pwr:true,typ:13},'NEO 550':{br:30,g:'14 AWG',pwr:true,typ:6},
-  'Minion':{br:40,g:'12 AWG',pwr:true,typ:11},
-  'CANcoder':{br:0,g:'CAN',pwr:false,typ:0.1},'Pigeon 2':{br:0,g:'CAN',pwr:false,typ:0.1},'CANdi':{br:0,g:'CAN',pwr:false,typ:0.1},
-  'CANdle':{br:20,g:'18 AWG',pwr:true,typ:2},
-  'PH (Pneumatic Hub)':{br:20,g:'14 AWG',pwr:true,typ:1,pneu:true,sol:16},
-  'PCM':{br:20,g:'14 AWG',pwr:true,typ:1,pneu:true,sol:8},
-  'Other':{br:20,g:'—',pwr:true,typ:5},
-};
-const COMPRESSOR_TYP=11;  // running current of a typical FRC compressor (through the PH/PCM)
-const AWG_R={'12 AWG':1.588,'14 AWG':2.525,'16 AWG':4.016,'18 AWG':6.385}; // copper Ω per 1000 ft
-let defLen=6;             // default one-way wire run length (ft)
-// Voltage drop over a 2-conductor run: V = I · 2·len · (Ω/1000ft)/1000
-function vdrop(gauge,amps,lenFt){const r=AWG_R[gauge];return(!r||!amps)?0:amps*2*lenFt*r/1000;}
-function effBr(d,s){return(d.br!=null&&d.br!=='')?+d.br:s.br;}
-function effLen(d){return(d.len!=null&&d.len!=='')?+d.len:defLen;}
-let devices=[], pdu='PDH';
+function esc(t){return(t+'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 
-// Systemcore has five CAN buses, can_s0 through can_s4, and can_s0 is the documented default.
-// Plans saved by the 2026 tool name the roboRIO's single bus, which no longer exists.
+/* ------------------------------------------------------------------ what a device is
+
+   `feed` is the whole electrical story of a device and the reason the catalogue is a table rather
+   than a list of names:
+     'breaker'  wants its own switched channel on the main board
+     'fused'    happy behind a fuse on a breakout, or a low-current channel
+     'reg'      needs a regulated supply, never battery voltage
+     'can'      draws its power from the CAN connector and needs no channel at all
+     'servo'    a PWM channel on a servo hub or a SmartIO pin
+     null       it is the thing supplying the power
+
+   `typ` is running current, not stall. Stall numbers make every estimate on the page useless:
+   four Krakens stalling together is not a wiring plan, it is a crash. */
+const CAT = {
+  'Motors': {
+    'Kraken X60':        {feed:'breaker', br:40, g:'12 AWG', typ:12, can:true},
+    'Kraken X60 FOC':    {feed:'breaker', br:40, g:'12 AWG', typ:12, can:true},
+    'Kraken X44':        {feed:'breaker', br:40, g:'12 AWG', typ:8,  can:true},
+    'Kraken X44 FOC':    {feed:'breaker', br:40, g:'12 AWG', typ:8,  can:true},
+    'Falcon 500':        {feed:'breaker', br:40, g:'12 AWG', typ:12, can:true},
+    'Minion':            {feed:'breaker', br:40, g:'12 AWG', typ:11, can:true},
+    'NEO':               {feed:'breaker', br:40, g:'12 AWG', typ:12, can:true, ctrl:'SPARK MAX'},
+    'NEO Vortex':        {feed:'breaker', br:40, g:'12 AWG', typ:13, can:true, ctrl:'SPARK Flex'},
+    'NEO 550':           {feed:'breaker', br:30, g:'14 AWG', typ:6,  can:true, ctrl:'SPARK MAX'},
+    'CIM':               {feed:'breaker', br:40, g:'12 AWG', typ:12, can:true, ctrl:'a brushed controller'},
+    'MiniCIM':           {feed:'breaker', br:30, g:'14 AWG', typ:8,  can:true, ctrl:'a brushed controller'},
+    'BAG':               {feed:'breaker', br:30, g:'14 AWG', typ:5,  can:true, ctrl:'a brushed controller'},
+    '775pro':            {feed:'breaker', br:30, g:'14 AWG', typ:8,  can:true, ctrl:'a brushed controller'},
+  },
+  'Motor controllers': {
+    'SPARK MAX':         {feed:'breaker', br:40, g:'12 AWG', typ:0,  can:true, host:true},
+    'SPARK Flex':        {feed:'breaker', br:40, g:'12 AWG', typ:0,  can:true, host:true},
+    'Talon FXS':         {feed:'breaker', br:40, g:'12 AWG', typ:0,  can:true, host:true},
+    'Talon SRX':         {feed:'breaker', br:40, g:'12 AWG', typ:0,  can:true, host:true},
+    'Victor SPX':        {feed:'breaker', br:40, g:'12 AWG', typ:0,  can:true, host:true},
+    'Thrifty Nova':      {feed:'breaker', br:40, g:'12 AWG', typ:0,  can:true, host:true},
+  },
+  'CAN sensors': {
+    'CANcoder':          {feed:'can', br:0, g:'CAN', typ:0.1, can:true},
+    'Pigeon 2':          {feed:'can', br:0, g:'CAN', typ:0.1, can:true},
+    'CANrange':          {feed:'can', br:0, g:'CAN', typ:0.1, can:true},
+    'CANdi':             {feed:'can', br:0, g:'CAN', typ:0.1, can:true},
+    'CANifier':          {feed:'can', br:0, g:'CAN', typ:0.1, can:true},
+  },
+  'Lighting': {
+    'CANdle':            {feed:'fused', br:20, g:'18 AWG', typ:2, can:true},
+    'LED strip (WS2812)':{feed:'servo', br:0,  g:'20 AWG', typ:2, smartio:'ws2812'},
+  },
+  'Pneumatics': {
+    'Pneumatic Hub':     {feed:'fused', br:20, g:'14 AWG', typ:1, can:true, pneu:true, sol:16},
+    'PCM':               {feed:'fused', br:20, g:'14 AWG', typ:1, can:true, pneu:true, sol:8},
+  },
+  'Vision & compute': {
+    'Limelight 4':       {feed:'fused', br:20, g:'18 AWG', typ:3, eth:true},
+    'Limelight 3G':      {feed:'fused', br:20, g:'18 AWG', typ:3, eth:true},
+    'Co-processor':      {feed:'fused', br:20, g:'18 AWG', typ:3, eth:true},
+    'Network switch':    {feed:'reg',   br:0,  g:'18 AWG', typ:1, eth:true},
+  },
+  'Actuators & IO': {
+    'Servo':             {feed:'servo', br:0, g:'20 AWG', typ:1, smartio:'pwm_out'},
+    'Limit switch':      {feed:'servo', br:0, g:'22 AWG', typ:0, smartio:'digital_in'},
+    'Analog sensor':     {feed:'servo', br:0, g:'22 AWG', typ:0, smartio:'analog_in'},
+    'Quadrature encoder':{feed:'servo', br:0, g:'22 AWG', typ:0, smartio:'quadrature'},
+  },
+  'Other': {
+    'Other (12 V)':      {feed:'breaker', br:20, g:'14 AWG', typ:5},
+    'Other (low-current)':{feed:'fused',  br:15, g:'18 AWG', typ:1},
+  },
+};
+/** Flattened, because everything downstream looks a type up by name. */
+const SPEC={}; for(const g in CAT) for(const t in CAT[g]) SPEC[t]={...CAT[g][t], group:g};
+const FALLBACK=SPEC['Other (12 V)'];
+function spec(t){return SPEC[t]||FALLBACK;}
+
+/* ------------------------------------------------------------------ the boards
+
+   Channel numbering is the tool's whole contract with the robot, so each board lists its channels
+   explicitly rather than deriving them from a count. The PDP's ratings are not a run — its 40 A
+   bays sit at both ends with the 30 A ones between — and a loop from 0 to 15 would quietly get
+   that wrong. */
+const PDUS = {
+  PDH: {
+    name:'REV Power Distribution Hub', short:'PDH',
+    chans:[ ...Array.from({length:20},(_,n)=>({n, amps:40, kind:'breaker'})),
+            ...Array.from({length:4}, (_,i)=>({n:20+i, amps:15, kind:'fused'})) ],
+    note:'Channels 0–19 take 40 A snap-action breakers; 20–23 are fused low-current.',
+    canTerminator:true,
+  },
+  PDP: {
+    name:'CTRE Power Distribution Panel', short:'PDP',
+    chans:[ ...[0,1,2,3].map(n=>({n, amps:40, kind:'breaker'})),
+            ...Array.from({length:8},(_,i)=>({n:4+i, amps:30, kind:'breaker'})),
+            ...[12,13,14,15].map(n=>({n, amps:40, kind:'breaker'})) ],
+    note:'Channels 0–3 and 12–15 are the 40 A bays; 4–11 are 30 A.',
+    canTerminator:false,
+  },
+};
+
+/* A breakout occupies one channel of the main board and provides its own.
+   `out` names each output and what may live on it. */
+const BREAKOUTS = {
+  MPM:      {name:'REV Mini Power Module', short:'MPM', feed:'breaker', feedBr:40, accepts:['fused','can'],
+             outs:()=>Array.from({length:6},(_,i)=>({n:i, label:'F'+i, amps:null, kind:'fused'})),
+             note:'Six fused outputs from one main-board channel. Fuse each for its device.'},
+  VRM:      {name:'CTRE Voltage Regulator Module', short:'VRM', feed:'fused', feedBr:20, accepts:['reg'],
+             outs:()=>[{n:0,label:'12 V/2 A',amps:2,kind:'reg'},{n:1,label:'12 V/2 A',amps:2,kind:'reg'},
+                       {n:2,label:'5 V/2 A',amps:2,kind:'reg'},{n:3,label:'5 V/2 A',amps:2,kind:'reg'}],
+             note:'Regulated outputs for devices that must not see battery voltage.'},
+  RPM:      {name:'REV Radio Power Module', short:'RPM', feed:'fused', feedBr:20, accepts:['reg'],
+             outs:()=>[{n:0,label:'Radio',amps:null,kind:'reg'}],
+             note:'A protected, regulated supply for the radio.'},
+  SERVOHUB: {name:'REV Servo Hub', short:'Servo Hub', feed:'breaker', feedBr:20, accepts:['servo'],
+             outs:()=>Array.from({length:6},(_,i)=>({n:i,label:'S'+i,amps:null,kind:'servo'})),
+             note:'Six servo channels over CAN. Systemcore has no servo output of its own.'},
+};
+
+/* ------------------------------------------------------------------ Systemcore
+
+   Read off the board and the library rather than assumed. The five CAN buses are not five
+   independent lanes: they are MCP2518FD controllers on shared SPI hosts, which CatalystCANBus
+   encodes and the Systemcore web UI warns about as a "CAN Bus pair". */
 const CORE_BUSES=['can_s0','can_s1','can_s2','can_s3','can_s4'];
+const SPI_GROUP={can_s0:0,can_s1:0,can_s2:1,can_s3:2,can_s4:2};
+const SPI_NAME ={0:'SPI2',1:'SPI3',2:'SPI1'};
+function busPaired(b){const g=SPI_GROUP[b];return CORE_BUSES.filter(x=>x!==b&&SPI_GROUP[x]===g);}
+
+const COMPRESSOR_TYP=11;   // running current of a typical FRC compressor, through the PH/PCM
+const CORE_TYP=3, RADIO_TYP=1;
+const AWG_R={'6 AWG':0.395,'10 AWG':0.999,'12 AWG':1.588,'14 AWG':2.525,'16 AWG':4.016,'18 AWG':6.385,'20 AWG':10.15,'22 AWG':16.14};
+let defLen=6;
+function vdrop(gauge,amps,lenFt){const r=AWG_R[gauge];return(!r||!amps)?0:amps*2*lenFt*r/1000;}
+
+/* ------------------------------------------------------------------ state */
+
+let devices=[];       // {id,name,type,bus,at,br,len}    at = '<hostId>:<port>' or null
+let breakouts=[];     // {id,kind,at,len}
+let pdu='PDH';
+let held=null;        // the id of the device being placed, or null
+let nextId=1;
+const KEY='catalyst-wiring-v2', OLDKEY='catalyst-wiring-v1', CANKEY='catalyst-canids-v1';
+
+function uid(p){return p+(nextId++);}
+function dev(id){return devices.find(d=>d.id===id)||breakouts.find(b=>b.id===id);}
+function effBr(d){const s=spec(d.type);return(d.br!=null&&d.br!=='')?+d.br:s.br;}
+function effLen(d){return(d.len!=null&&d.len!=='')?+d.len:defLen;}
+
+function save(){try{localStorage.setItem(KEY,JSON.stringify({pdu,devices,breakouts,defLen,nextId}))}catch{}}
+function load(){
+  try{
+    const o=JSON.parse(localStorage.getItem(KEY));
+    if(o){pdu=o.pdu||'PDH';devices=o.devices||[];breakouts=o.breakouts||[];
+      defLen=o.defLen||6;nextId=o.nextId||(devices.length+breakouts.length+1);return;}
+  }catch{}
+  // A plan from the tool that had no ports: keep the devices, leave every one unplaced.
+  try{
+    const o=JSON.parse(localStorage.getItem(OLDKEY));
+    if(o&&o.devices){pdu=o.pdu||'PDH';
+      devices=o.devices.map(d=>({id:uid('d'),name:d.name,type:SPEC[d.type]?d.type:'Other (12 V)',
+        bus:normaliseBus(d.bus),at:null,br:d.br,len:d.len}));}
+  }catch{}
+}
 function normaliseBus(b){ if(!b||b==='rio') return 'can_s0';
-  return CORE_BUSES.includes(b)||b==='canivore' ? b : 'canivore'; }
-const KEY='catalyst-wiring-v1', CANKEY='catalyst-canids-v1';
+  return CORE_BUSES.includes(b) ? b : (/canivore/i.test(b||'') ? 'CANivore' : 'can_s0'); }
 
-function save(){try{localStorage.setItem(KEY,JSON.stringify({pdu,devices}))}catch{}}
-function load(){try{const o=JSON.parse(localStorage.getItem(KEY));if(o){pdu=o.pdu||'PDH';devices=o.devices||[]}}catch{}}
+/* ------------------------------------------------------------------ the port map
 
-$('pdu').onchange=()=>{pdu=$('pdu').value;render()};
-$('add').onclick=()=>{const n=$('dName').value.trim()||$('dType').value;
-  devices.push({name:n,type:$('dType').value,bus:$('dBus').value});$('dName').value='';render()};
-$('clear').onclick=()=>{if(confirm('Clear all devices?')){devices=[];render()}};
-$('import').onclick=()=>{
-  try{const o=JSON.parse(localStorage.getItem(CANKEY));
-    if(!o||!o.length&&!(o.devices)){alert('No CAN ID Planner data found. Open the CAN ID Planner and add devices first.');return;}
-    const list=Array.isArray(o)?o:o.devices||[];
-    devices=list.filter(d=>SPEC[d.type]||d.type==='PDH'? d.type!=='PDH':true)
-                .map(d=>({name:d.name||d.type,type:SPEC[d.type]?d.type:'Other',bus:normaliseBus(d.bus)}));
-    alert('Imported '+devices.length+' device(s) from the CAN ID Planner.');render();
-  }catch{alert('Could not read CAN ID Planner data.')}
+   One function answers "what ports exist and what is in each", and everything — the panel, the
+   runs, the checks — reads it. When a board is added or a device moves, there is one place that
+   has to be right. */
+function hosts(){
+  const P=PDUS[pdu];
+  const list=[{id:'pdu', kind:pdu, name:P.name, short:P.short, note:P.note, at:null,
+               ports:P.chans.map(c=>({key:String(c.n), label:String(c.n), amps:c.amps, kind:c.kind}))}];
+  breakouts.forEach(b=>{const B=BREAKOUTS[b.kind];
+    list.push({id:b.id, kind:b.kind, name:B.name, short:B.short, note:B.note, at:b.at, accepts:B.accepts,
+               ports:B.outs().map(o=>({key:String(o.n), label:o.label, amps:o.amps, kind:o.kind}))});});
+  return list;
+}
+function occupantOf(hostId,key){
+  const a=hostId+':'+key;
+  return devices.find(d=>d.at===a) || breakouts.find(b=>b.at===a) || null;
+}
+/** Can this thing go in that port? A breaker device needs a breaker channel; a fused one fits
+    either; a regulated one only fits a regulated output. */
+function fits(thing,host,port){
+  const s = thing.kind ? {feed:BREAKOUTS[thing.kind].feed} : spec(thing.type);
+  if(s.feed==='can') return false;                       // powered by its CAN connector
+  if(s.feed==='breaker') return port.kind==='breaker';
+  if(s.feed==='fused')   return port.kind==='breaker'||port.kind==='fused';
+  if(s.feed==='reg')     return port.kind==='reg';
+  if(s.feed==='servo')   return port.kind==='servo';
+  return port.kind==='breaker'||port.kind==='fused';
+}
+/** A breakout may not be plugged into itself, nor into anything it feeds. */
+function wouldLoop(thingId,hostId){
+  let h=breakouts.find(b=>b.id===hostId);
+  const seen=new Set();
+  while(h){ if(h.id===thingId) return true; if(seen.has(h.id)) return true; seen.add(h.id);
+    const parent=(h.at||'').split(':')[0]; h=breakouts.find(b=>b.id===parent); }
+  return false;
+}
+function place(thingId,hostId,key){
+  const t=dev(thingId); if(!t) return;
+  const sitting=occupantOf(hostId,key);
+  if(sitting && sitting.id!==thingId) sitting.at=null;   // one thing per port; the old one comes out
+  t.at=hostId+':'+key;
+}
+function portName(at){
+  if(!at) return '—';
+  const [hid,key]=at.split(':');
+  const h=hosts().find(x=>x.id===hid); if(!h) return at;
+  const p=h.ports.find(x=>x.key===key);
+  return h.short+' '+(p?p.label:key);
+}
+
+/* ------------------------------------------------------------------ controls */
+
+function fillTypes(){
+  $('dType').innerHTML=Object.keys(CAT).map(g=>
+    `<optgroup label="${esc(g)}">`+Object.keys(CAT[g]).map(t=>`<option>${esc(t)}</option>`).join('')+'</optgroup>').join('');
+}
+$('pdu').onchange=()=>{
+  // Channel numbers mean different things on the two boards, so nothing stays placed on the main
+  // board across a swap. Breakout contents are untouched — those ports did not change.
+  const moved=devices.filter(d=>(d.at||'').startsWith('pdu:')).length
+             +breakouts.filter(b=>(b.at||'').startsWith('pdu:')).length;
+  if(moved && !confirm(`Switching to ${$('pdu').value} clears ${moved} main-board assignment(s), because the two boards number their channels differently. Continue?`)){
+    $('pdu').value=pdu; return;
+  }
+  devices.forEach(d=>{if((d.at||'').startsWith('pdu:')) d.at=null;});
+  breakouts.forEach(b=>{if((b.at||'').startsWith('pdu:')) b.at=null;});
+  pdu=$('pdu').value; render();
 };
-$('sample').onclick=()=>{
-  devices=[
-    ['FL Drive','Kraken X60'],['FL Steer','Kraken X60'],['FL Encoder','CANcoder'],
-    ['FR Drive','Kraken X60'],['FR Steer','Kraken X60'],['FR Encoder','CANcoder'],
-    ['BL Drive','Kraken X60'],['BL Steer','Kraken X60'],['BL Encoder','CANcoder'],
-    ['BR Drive','Kraken X60'],['BR Steer','Kraken X60'],['BR Encoder','CANcoder'],
-    ['Pigeon','Pigeon 2'],['Intake','Kraken X44'],['Shooter','Kraken X60'],['LEDs','CANdle'],
-  ].map(([name,type])=>({name,type,bus:'can_s0'}));
-  render();
+$('add').onclick=()=>{
+  const type=$('dType').value, base=$('dName').value.trim(), qty=Math.max(1,Math.min(24,+$('dQty').value||1));
+  for(let i=0;i<qty;i++){
+    const name=(base||type)+(qty>1?' '+(i+1):'');
+    devices.push({id:uid('d'),name,type,bus:$('dBus').value,at:null});
+  }
+  $('dName').value=''; $('dQty').value=1; render();
 };
+$('addBreakout').onclick=()=>{breakouts.push({id:uid('b'),kind:$('bKind').value,at:null});render();};
+$('clear').onclick=()=>{if(confirm('Clear all devices and breakouts?')){devices=[];breakouts=[];held=null;render()}};
+$('unassign').onclick=()=>{devices.forEach(d=>d.at=null);breakouts.forEach(b=>b.at=null);held=null;render();};
 $('print').onclick=()=>window.print();
-// remove a device (delegated; survives re-render)
-$('devs').addEventListener('click',e=>{
-  const b=e.target.closest('button[data-del]'); if(!b) return;
-  devices.splice(+b.dataset.del,1); render();
-});
-// edit breaker / wire length inline in the schedule (delegated; survives re-render)
-$('tbody').addEventListener('change',e=>{
-  const inp=e.target.closest('input.cell'); if(!inp) return;
-  const i=+inp.dataset.i, f=inp.dataset.f, v=inp.value.trim();
-  devices[i][f] = v==='' ? undefined : (f==='br' ? Math.max(0,Math.min(120,+v||0)) : Math.max(1,+v||defLen));
-  render();
-});
 $('defLen').oninput=()=>{defLen=+$('defLen').value;$('defLenV').textContent=defLen+' ft';render();};
 
-// Every custom property the schematic paints with. A saved .svg is opened outside this page, where
-// nothing defines them, so the export carries its own copy — otherwise every wire in the file is
-// black on black and the diagram that looked right on screen is a blank sheet on disk.
+/* Auto-assign is the old tool's whole behaviour, kept as one button: it is a good starting point
+   and a bad final answer, because it knows nothing about where anything physically sits. */
+$('autofill').onclick=()=>{
+  const H=hosts();
+  breakouts.filter(b=>!b.at).forEach(b=>{
+    const main=H[0], p=main.ports.find(p=>fits(b,main,p)&&!occupantOf('pdu',p.key));
+    if(p) place(b.id,'pdu',p.key);
+  });
+  // Breakouts before the main board, because that is the whole reason one was added: a device that
+  // fits a fused output does not need a 40 A bay, and filling the bays first leaves the MPM empty
+  // and the board full — the exact problem the breakout was there to solve.
+  devices.filter(d=>!d.at&&spec(d.type).feed!=='can').forEach(d=>{
+    const fed=hosts().filter(h=>h.id!=='pdu'&&h.at);
+    for(const h of [...fed, hosts()[0]]){
+      const p=h.ports.find(p=>fits(d,h,p)&&!occupantOf(h.id,p.key));
+      if(p){place(d.id,h.id,p.key);return;}
+    }
+  });
+  render();
+};
+$('sample').onclick=()=>{
+  devices=[]; breakouts=[]; held=null;
+  [['FL Drive','Kraken X60'],['FL Steer','Kraken X60'],['FL Encoder','CANcoder'],
+   ['FR Drive','Kraken X60'],['FR Steer','Kraken X60'],['FR Encoder','CANcoder'],
+   ['BL Drive','Kraken X60'],['BL Steer','Kraken X60'],['BL Encoder','CANcoder'],
+   ['BR Drive','Kraken X60'],['BR Steer','Kraken X60'],['BR Encoder','CANcoder'],
+   ['Pigeon','Pigeon 2'],['Intake','Kraken X44'],['Shooter','Kraken X60'],['LEDs','CANdle'],
+   ['Limelight','Limelight 4'],
+  ].forEach(([name,type])=>devices.push({id:uid('d'),name,type,bus:'can_s0',at:null}));
+  breakouts.push({id:uid('b'),kind:'MPM',at:null});
+  $('autofill').onclick();
+};
+$('import').onclick=()=>{
+  try{
+    const o=JSON.parse(localStorage.getItem(CANKEY));
+    const list=Array.isArray(o)?o:(o&&o.devices)||[];
+    if(!list.length){alert('No CAN ID Planner data found. Open the CAN ID Planner and add devices first.');return;}
+    const keep=list.filter(d=>!/^(PDH|PDP)$/i.test(d.type||''));
+    devices=keep.map(d=>({id:uid('d'),name:d.name||d.type,
+      type:SPEC[d.type]?d.type:'Other (12 V)',bus:normaliseBus(d.bus),at:null}));
+    alert('Imported '+devices.length+' device(s). Nothing is placed yet — use Auto-assign, or pick channels yourself.');
+    render();
+  }catch{alert('Could not read CAN ID Planner data.')}
+};
+
+/* ------------------------------------------------------------------ pick up and put down */
+
+$('tray').addEventListener('click',e=>{
+  const b=e.target.closest('button[data-hold]'); if(!b) return;
+  held = held===b.dataset.hold ? null : b.dataset.hold; render();
+});
+$('boards').addEventListener('click',e=>{
+  const s=e.target.closest('button[data-port]'); if(!s||s.disabled) return;
+  const [hid,key]=s.dataset.port.split('|');
+  const sitting=occupantOf(hid,key);
+  if(held){ const t=dev(held);
+    const h=hosts().find(x=>x.id===hid), p=h&&h.ports.find(x=>x.key===key);
+    if(t&&h&&p&&fits(t,h,p)&&!wouldLoop(held,hid)){ place(held,hid,key); held=null; }
+  } else if(sitting){ sitting.at=null; held=sitting.id; }   // pick it back up
+  render();
+});
+$('holding').addEventListener('click',e=>{if(e.target.closest('[data-drop]')){held=null;render();}});
+$('devs').addEventListener('click',e=>{
+  const b=e.target.closest('button[data-del]'); if(b){
+    const i=devices.findIndex(d=>d.id===b.dataset.del);
+    if(i>=0){if(held===devices[i].id)held=null;devices.splice(i,1);} render(); return;}
+  const h=e.target.closest('button[data-hold]'); if(h){held=held===h.dataset.hold?null:h.dataset.hold;render();}
+});
+$('breakouts').addEventListener('click',e=>{
+  const b=e.target.closest('button[data-delb]'); if(b){
+    const i=breakouts.findIndex(x=>x.id===b.dataset.delb);
+    if(i>=0){ const id=breakouts[i].id;
+      devices.forEach(d=>{if((d.at||'').startsWith(id+':'))d.at=null;});   // its tenants come out with it
+      breakouts.forEach(x=>{if((x.at||'').startsWith(id+':'))x.at=null;});
+      if(held===id)held=null; breakouts.splice(i,1);} render(); return;}
+  const h=e.target.closest('button[data-hold]'); if(h){held=held===h.dataset.hold?null:h.dataset.hold;render();}
+});
+$('runs').addEventListener('change',e=>{
+  const inp=e.target.closest('input.cell'); if(!inp) return;
+  const t=dev(inp.dataset.id); if(!t) return;
+  const f=inp.dataset.f, v=inp.value.trim();
+  t[f] = v==='' ? undefined : (f==='br' ? Math.max(0,Math.min(120,+v||0)) : Math.max(1,+v||defLen));
+  render();
+});
+
+/* ------------------------------------------------------------------ files */
+
 const SVG_VARS=['--pwr','--reg','--can','--sig','--cat-ground','--cat-surface-1','--cat-surface-2',
   '--cat-line','--cat-line-strong','--cat-signal','--cat-ink-strong','--cat-dim'];
 function svgFile(){
@@ -262,210 +666,430 @@ function svgFile(){
   const decls=SVG_VARS.map(n=>n+':'+cs.getPropertyValue(n).trim()).join(';');
   return $('svg').outerHTML.replace('>','><style>svg{'+decls+'}</style>');
 }
-$('dlSvg').onclick=()=>{const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([svgFile()],{type:'image/svg+xml'}));a.download='catalyst-wiring.svg';a.click();};
-$('saveJson').onclick=()=>{const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([JSON.stringify({catalyst:'wiring',pdu,defLen,devices},null,2)],{type:'application/json'}));a.download='catalyst-wiring.json';a.click();};
+function download(name,type,text){const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();}
+$('dlSvg').onclick=()=>download('catalyst-wiring.svg','image/svg+xml',svgFile());
+$('saveJson').onclick=()=>download('catalyst-wiring.json','application/json',
+  JSON.stringify({catalyst:'wiring',version:2,pdu,defLen,breakouts,devices},null,2));
 $('loadJson').onclick=()=>$('loadFile').click();
 $('loadFile').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();
-  r.onload=()=>{try{const o=JSON.parse(r.result);if(o.devices){devices=o.devices;pdu=o.pdu||pdu;
-    if(o.defLen){defLen=o.defLen;$('defLen').value=defLen;$('defLenV').textContent=defLen+' ft';}render();}}
+  r.onload=()=>{try{const o=JSON.parse(r.result);if(!o.devices)throw 0;
+    pdu=o.pdu||pdu; breakouts=o.breakouts||[]; devices=o.devices;
+    devices.forEach(d=>{if(!d.id)d.id=uid('d');if(d.at===undefined)d.at=null;});
+    breakouts.forEach(b=>{if(!b.id)b.id=uid('b');});
+    nextId=Math.max(nextId,devices.length+breakouts.length+1);
+    if(o.defLen){defLen=o.defLen;$('defLen').value=defLen;$('defLenV').textContent=defLen+' ft';}
+    held=null; render();}
     catch{alert('Invalid wiring JSON.')}};r.readAsText(f);};
+$('runCsv').onclick=()=>{
+  const csv='#,From,To,Function,Breaker A,Typical A,Length ft,V-drop,Wire\n'+runRows().map((r,i)=>
+    [i+1,r.from,r.to,r.fn,r.br==null?'':r.br,+r.amps||'',r.len,r.vd?r.vd.toFixed(2):'',r.g]
+      .map(c=>`"${(''+c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  download('catalyst-wire-runs.csv','text/csv',csv);
+};
+$('bomCsv').onclick=()=>{
+  const csv='Qty,Item,Notes\n'+bomRows.map(r=>r.map(c=>`"${(''+c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  download('catalyst-wiring-bom.csv','text/csv',csv);
+};
 
-function pduChannels(){return pdu==='PDH'?{hi:20,hiA:40,lo:3,loA:15}:{hi:8,hiA:40,lo:8,loA:30};}
+/* ------------------------------------------------------------------ render */
 
 function render(){
   $('pdu').value=pdu; save();
-  // device list
-  $('devs').innerHTML=devices.map((d,i)=>{const s=SPEC[d.type]||SPEC.Other;
-    return `<div class="dev"><span class="nm">${esc(d.name)}</span><span class="ty">${d.type}</span>`
-      +`<span class="br">${s.br?s.br+' A':'CAN'}</span>`
-      +`<button class="x" type="button" data-del="${i}" title="Remove ${esc(d.name)}">✕</button></div>`;}).join('')
-    ||'<p class="empty">No devices. Import from the CAN planner, or add some.</p>';
-  buildSchedule();
+  drawHolding();
+  drawTray();
+  drawDeviceList();
+  drawBreakoutList();
+  drawBoards();
+  drawRuns();
+  drawChains();
+  drawChecks();
+  drawRecs();
+  drawBom();
   drawDiagram();
-  buildRecs();
-  buildBom();
-  buildValidation();
 }
 
-function buildValidation(){
-  const pwr=assigned.filter(a=>a.spec.pwr);
-  const typSum=pwr.reduce((s,a)=>s+(a.spec.typ||0),0)+3+(hasPneu()?COMPRESSOR_TYP:0);
-  const ch=pduChannels(); let hi=0,lo=0;
-  pwr.forEach(a=>{ if(a.br>=40||a.br>ch.loA) hi++; else lo++; });
-  const canivore=devices.some(d=>d.bus==='canivore');
-  const coreBusesUsed=CORE_BUSES.filter(b=>devices.some(d=>d.bus===b));
-  const vds=assigned.filter(a=>a.spec.pwr).map(a=>vdrop(a.spec.g,a.spec.typ,a.len));
-  const bad=vds.filter(v=>v>0.5).length, warn=vds.filter(v=>v>0.3&&v<=0.5).length;
+function drawHolding(){
+  const t=held&&dev(held);
+  $('holding').innerHTML = t
+    ? `<div class="holding"><b>Placing ${esc(t.name||BREAKOUTS[t.kind].name)}</b>`
+      +`<span>— click a highlighted channel. Everything it will not fit is dimmed.</span>`
+      +`<span class="spacer"></span><button class="ghost" data-drop type="button">Put it back</button></div>`
+    : '';
+  $('panelHint').textContent = held ? 'Click a highlighted channel to place it.'
+    : 'Click a device to pick it up, then click a channel.';
+}
+
+function drawTray(){
+  const loose=[...breakouts.filter(b=>!b.at),...devices.filter(d=>!d.at&&spec(d.type).feed!=='can')];
+  const canOnly=devices.filter(d=>spec(d.type).feed==='can').length;
+  $('trayCount').textContent = loose.length
+    ? loose.length+' to place'+(canOnly?' · '+canOnly+' CAN-powered need no channel':'')
+    : (canOnly?canOnly+' CAN-powered device(s) need no channel':'everything is placed');
+  $('tray').innerHTML = loose.length ? loose.map(t=>{
+    const isB=!!t.kind, nm=isB?BREAKOUTS[t.kind].name:t.name;
+    const sub=isB?'breakout':(spec(t.type).br?effBr(t)+' A':'—');
+    return `<button class="pill" type="button" data-hold="${t.id}" aria-pressed="${held===t.id}">`
+      +`${esc(nm)}<span class="ty">${esc(sub)}</span></button>`;
+  }).join('') : '<p class="empty" style="margin:0">Nothing waiting.</p>';
+}
+
+function drawDeviceList(){
+  $('devs').innerHTML = devices.length ? devices.map(d=>{
+    const s=spec(d.type), placed=!!d.at, canOnly=s.feed==='can';
+    return `<div class="dev"><span class="nm">${esc(d.name)}</span><span class="ty">${esc(d.type)}</span>`
+      +`<button class="at ${placed?'':'none'}" type="button" data-hold="${d.id}" title="Pick up to place">`
+      +`${canOnly?'CAN':placed?esc(portName(d.at)):'unplaced'}</button>`
+      +`<button class="x" type="button" data-del="${d.id}" title="Remove ${esc(d.name)}">✕</button></div>`;
+  }).join('') : '<p class="empty">No devices. Import from the CAN planner, or add some.</p>';
+}
+
+function drawBreakoutList(){
+  $('breakouts').innerHTML = breakouts.length ? breakouts.map(b=>
+    `<div class="dev"><span class="nm">${esc(BREAKOUTS[b.kind].name)}</span>`
+    +`<button class="at ${b.at?'':'none'}" type="button" data-hold="${b.id}">${b.at?esc(portName(b.at)):'unplaced'}</button>`
+    +`<button class="x" type="button" data-delb="${b.id}" title="Remove">✕</button></div>`).join('')
+    : '<p class="empty" style="margin:0">None. The main board may be enough.</p>';
+}
+
+function drawBoards(){
+  const heldT=held&&dev(held);
+  let html='';
+  hosts().forEach(h=>{
+    const fedBy = h.id==='pdu' ? 'from the 120 A main' : (h.at?'fed from '+portName(h.at):'NOT FED — place it on the main board first');
+    const used=h.ports.filter(p=>occupantOf(h.id,p.key)).length;
+    html+=`<div class="board"><div class="board-head"><b>${esc(h.name)}</b>`
+      +`<span class="sub">${esc(fedBy)}</span><span class="spacer"></span>`
+      +`<span class="sub">${used} / ${h.ports.length} used</span></div>`;
+    html+=`<div class="ports${h.id==='pdu'?'':' wide'}">`;
+    h.ports.forEach(p=>{
+      const o=occupantOf(h.id,p.key);
+      const canTake = heldT && !o && fits(heldT,h,p) && !wouldLoop(held,h.id) && (h.id==='pdu'||h.at);
+      const blocked = heldT && !canTake && !o;
+      const nm = o ? (o.kind?BREAKOUTS[o.kind].name:o.name) : 'empty';
+      const col = o ? (o.kind?'var(--reg)':wireColour(spec(o.type))) : 'var(--pwr)';
+      const meta = o ? (o.kind?'breakout':`${effBr(o)||'—'} A · ${spec(o.type).g}`)
+                     : (p.amps?p.amps+' A max':p.kind);
+      html+=`<button class="slot ${o?'on':'empty'}${canTake?' target':''}${blocked?' blocked':''}" type="button"`
+        +` data-port="${h.id}|${p.key}" style="--slot:${col}"${blocked?' disabled':''}>`
+        +`<span class="n">${esc(p.label)}</span><span class="body">`
+        +`<span class="nm">${esc(nm)}</span><span class="mt">${esc(meta)}</span></span></button>`;
+    });
+    html+='</div>';
+    if(h.note) html+=`<p class="hint" style="margin-top:var(--cat-space-2)">${h.note}</p>`;
+    html+='</div>';
+  });
+
+  // Systemcore's own ports. Not channels you choose — they are what they are — so they are shown
+  // rather than offered, with the bus pairing said where someone planning a split will read it.
+  html+=`<div class="board"><div class="board-head"><b>Limelight Systemcore</b>`
+    +`<span class="sub">battery voltage direct — not a regulated output</span></div><div class="ports wide">`;
+  CORE_BUSES.forEach(b=>{
+    const n=devices.filter(d=>d.bus===b&&spec(d.type).can).length;
+    const pair=busPaired(b);
+    html+=`<button class="slot fixed ${n?'on':'empty'}" type="button" disabled style="--slot:var(--can)">`
+      +`<span class="n">${CORE_BUSES.indexOf(b)}</span><span class="body"><span class="nm">${b}</span>`
+      +`<span class="mt">${n?n+' device'+(n===1?'':'s'):'unused'} · ${SPI_NAME[SPI_GROUP[b]]}`
+      +`${pair.length?' with '+pair.join('+'):' alone'}</span></span></button>`;
+  });
+  const cvN=devices.filter(d=>d.bus==='CANivore'&&spec(d.type).can).length;
+  if(cvN) html+=`<button class="slot fixed on" type="button" disabled style="--slot:var(--can)">`
+    +`<span class="n">USB</span><span class="body"><span class="nm">CANivore</span>`
+    +`<span class="mt">${cvN} device${cvN===1?'':'s'} · its own bus</span></span></button>`;
+  html+=`<button class="slot fixed on" type="button" disabled style="--slot:var(--pwr)">`
+    +`<span class="n">PWR</span><span class="body"><span class="nm">Power in</span>`
+    +`<span class="mt">battery direct · see note</span></span></button>`;
+  const ethN=devices.filter(d=>spec(d.type).eth).length;
+  html+=`<button class="slot fixed ${ethN?'on':'empty'}" type="button" disabled style="--slot:var(--sig)">`
+    +`<span class="n">ETH</span><span class="body"><span class="nm">Ethernet</span>`
+    +`<span class="mt">radio${ethN?' + '+ethN+' camera/co-processor':''}</span></span></button>`;
+  html+=`<button class="slot fixed on" type="button" disabled style="--slot:var(--sig)">`
+    +`<span class="n">USB</span><span class="body"><span class="nm">USB 0–1</span>`
+    +`<span class="mt">Hailo accelerator</span></span></button>`;
+  const io=devices.filter(d=>spec(d.type).smartio);
+  html+=`<button class="slot fixed ${io.length?'on':'empty'}" type="button" disabled style="--slot:var(--sig)">`
+    +`<span class="n">IO</span><span class="body"><span class="nm">SmartIO header</span>`
+    +`<span class="mt">${io.length?io.length+' pin device(s): '+[...new Set(io.map(d=>spec(d.type).smartio))].join(', '):'3.3 V · unused'}</span></span></button>`;
+  html+=`<button class="slot fixed empty" type="button" disabled style="--slot:var(--sig)">`
+    +`<span class="n">I²C</span><span class="body"><span class="nm">Qwiic port</span>`
+    +`<span class="mt">GPIO 10/11 · SCL/SDA swapped vs roboRIO</span></span></button>`;
+  html+='</div><p class="hint" style="margin-top:var(--cat-space-2)">'
+    +'The CAN ports are numbered left to right on the device, and the five buses are three '
+    +'controllers: can_s0+can_s1 share one SPI host, can_s3+can_s4 share another, and can_s2 is '
+    +'alone — so splitting a heavy load across a <b>pair</b> buys much less than splitting across '
+    +'can_s2 or an unpaired bus. They run CAN 2.0 at 1 Mbit/s in the shipped OS configuration; the '
+    +'CAN FD buses are Motioncore&rsquo;s. Systemcore returns every PWM output to centre when '
+    +'disabled, which is IO-chip firmware with no override: a mechanism that must hold position '
+    +'through a disable cannot hold it on PWM, and its pins are 3.3 V at nowhere near a servo&rsquo;s '
+    +'current — which is why a servo wants a hub.</p></div>';
+
+  $('boards').innerHTML=html;
+
+  const over=hosts().filter(h=>h.id!=='pdu'&&!h.at).length;
+  const unplaced=devices.filter(d=>!d.at&&spec(d.type).feed!=='can').length;
+  $('warn').innerHTML = over
+    ? `<div class="notice warn"><b>${over} breakout(s) are not fed.</b> Place each one on a main-board channel — until then its own outputs cannot be used.</div>`
+    : unplaced ? `<div class="notice"><b>${unplaced} device(s) have no channel yet.</b> Pick channels, or press Auto-assign for a starting point.</div>` : '';
+}
+
+function wireColour(s){
+  if(s.feed==='can') return 'var(--can)';
+  if(s.feed==='reg') return 'var(--reg)';
+  if(s.feed==='servo') return 'var(--sig)';
+  if(s.feed==='fused') return 'var(--reg)';
+  return 'var(--pwr)';
+}
+
+/* Every run on the robot, both ends named. This is the list a build team wires from, so a device
+   with no channel appears in it as "unassigned" rather than silently not appearing: a run missing
+   from the sheet is a run nobody makes. */
+function runRows(){
+  const R=[];
+  const P=PDUS[pdu];
+  R.push({from:'Battery +', to:'Main 120 A breaker', fn:'+12 V', amps:'—', len:1, g:'6 AWG', sys:true});
+  R.push({from:'Main 120 A breaker', to:P.short+' V+', fn:'+12 V', amps:'—', len:1, g:'6 AWG', sys:true});
+  R.push({from:'Battery −', to:P.short+' V−', fn:'ground', amps:'—', len:1, g:'6 AWG', sys:true});
+  R.push({from:P.short+' (see note)', to:'Systemcore Pwr', fn:'+12 V', amps:CORE_TYP, len:3, g:'18 AWG', sys:true});
+  R.push({from:'Systemcore Eth', to:'Radio', fn:'Ethernet', amps:'—', len:3, g:'Cat 6', sys:true});
+
+  breakouts.forEach(b=>{
+    const B=BREAKOUTS[b.kind];
+    // The feed run carries what its tenants actually draw, not what its breaker is rated for.
+    // Sizing the drop off the breaker says a lightly loaded MPM has a 0.76 V problem it does not
+    // have, and a sheet that cries wolf on the easy runs gets ignored on the hard ones.
+    const load=devices.filter(d=>(d.at||'').startsWith(b.id+':'))
+                      .reduce((s,d)=>s+(spec(d.type).typ||0),0);
+    R.push({from:b.at?portName(b.at):'unassigned', to:B.name, fn:'+12 V', br:B.feedBr, amps:load,
+            len:effLen(b), g:'12 AWG', id:b.id, editLen:true, unplaced:!b.at});
+  });
+  devices.forEach(d=>{
+    const s=spec(d.type);
+    if(s.feed==='can') return;                      // no power run of its own
+    const g=s.g, amps=s.typ, len=effLen(d);
+    R.push({from:d.at?portName(d.at):'unassigned', to:d.name, fn:fnLabel(s), br:effBr(d), amps, len, g,
+            id:d.id, editBr:!!s.br, editLen:true, vd:vdrop(g,amps,len), unplaced:!d.at});
+  });
+  if(hasPneu()) R.push({from:'Pneumatic Hub compressor port', to:'Compressor', fn:'+12 V',
+                        amps:COMPRESSOR_TYP, len:8, g:'14 AWG', sys:true});
+  R.forEach(r=>{ if(r.vd===undefined) r.vd=vdrop(r.g,+r.amps||0,r.len); });
+  return R;
+}
+function fnLabel(s){
+  return s.feed==='reg'?'regulated':s.feed==='servo'?'signal':s.feed==='fused'?'fused 12 V':'+12 V';
+}
+function fnColour(fn){
+  return fn==='Ethernet'||fn==='signal'?'var(--sig)':fn==='regulated'?'var(--reg)'
+       : fn==='fused 12 V'?'var(--reg)':fn==='ground'?'var(--cat-dim)':'var(--pwr)';
+}
+
+function drawRuns(){
+  $('runs').innerHTML=runRows().map((r,i)=>{
+    const vc=r.vd>0.5?'bad':r.vd>0.3?'warn':'';
+    const t=r.id?dev(r.id):null;
+    return `<tr class="${r.sys?'sysrun':''}"><td class="num">${i+1}</td>`
+      +`<td class="ep">${esc(r.from)}</td><td class="ep">${esc(r.to)}</td>`
+      +`<td class="fn"><i style="background:${fnColour(r.fn)}"></i>${esc(r.fn)}</td>`
+      +`<td class="num">${r.editBr&&t?`<input class="cell" data-id="${r.id}" data-f="br" value="${effBr(t)}">`:esc(r.br==null?'—':''+r.br)}</td>`
+      +`<td class="num">${r.amps==null||r.amps===''?'—':(+r.amps?(+r.amps).toFixed(1).replace(/\.0$/,''):'—')}</td>`
+      +`<td class="num">${r.editLen&&t?`<input class="cell" data-id="${r.id}" data-f="len" value="${r.len}">`:r.len}</td>`
+      +`<td class="num vd ${vc}">${r.vd?r.vd.toFixed(2)+' V':'—'}</td>`
+      +`<td class="num">${esc(r.g)}</td></tr>`;
+  }).join('');
+}
+
+/* CAN is a daisy chain, not a rail: each device is wired to the next and the last one is
+   terminated. Drawing it as a bus everything taps is the single most common way a diagram
+   misleads someone who has not wired one before. */
+function drawChains(){
+  const buses=[...CORE_BUSES,'CANivore'];
+  const out=buses.map(b=>{
+    const on=devices.filter(d=>d.bus===b&&spec(d.type).can);
+    if(!on.length) return '';
+    const start = b==='CANivore' ? 'CANivore' : 'Systemcore '+b;
+    return `<div><b>${esc(b)}</b> &nbsp;${esc(start)} → `
+      + on.map(d=>esc(d.name)).join(' → ')
+      + ` → <span class="term">120 Ω</span></div>`;
+  }).filter(Boolean).join('');
+  $('chains').innerHTML = out || '<p class="empty" style="margin:0">No CAN devices yet.</p>';
+}
+
+function hasPneu(){return devices.some(d=>spec(d.type).pneu);}
+
+function drawChecks(){
+  const H=hosts(), main=H[0];
+  const powered=devices.filter(d=>spec(d.type).feed!=='can');
+  const unplaced=powered.filter(d=>!d.at);
+  const unfed=H.filter(h=>h.id!=='pdu'&&!h.at);
+  const typSum=powered.reduce((s,d)=>s+(spec(d.type).typ||0),0)+CORE_TYP+RADIO_TYP+(hasPneu()?COMPRESSOR_TYP:0);
+  const mainUsed=main.ports.filter(p=>occupantOf('pdu',p.key)).length;
+  const brkFree=main.ports.filter(p=>p.kind==='breaker'&&!occupantOf('pdu',p.key)).length;
+  const runs=runRows().filter(r=>!r.sys);
+  const bad=runs.filter(r=>r.vd>0.5).length, warn=runs.filter(r=>r.vd>0.3&&r.vd<=0.5).length;
+  const busesUsed=CORE_BUSES.filter(b=>devices.some(d=>d.bus===b&&spec(d.type).can));
+  const cv=devices.some(d=>d.bus==='CANivore'&&spec(d.type).can);
+
+  // Are the buses in use all on one SPI host? That is the split that buys the least.
+  const groups=new Set(busesUsed.map(b=>SPI_GROUP[b]));
+  const pairedOnly = busesUsed.length>1 && groups.size===1;
+
+  // A breakout whose outputs total more than its own feed breaker is the failure this tool exists
+  // to catch: each device is individually fine and the shared channel trips.
+  const overfed=H.filter(h=>h.id!=='pdu').map(h=>{
+    const load=h.ports.map(p=>occupantOf(h.id,p.key)).filter(Boolean)
+      .reduce((s,o)=>s+(o.kind?0:(spec(o.type).typ||0)),0);
+    return {h,load,feed:BREAKOUTS[h.kind].feedBr};
+  }).filter(x=>x.load>x.feed*0.8);
+
   const C=[
-    ['pass','Main breaker & battery','120 A main between battery (+) and the '+pdu+', 6 AWG leads.'],
-    ['warn','Systemcore power','<b>Battery voltage directly</b>, not a regulated output. '
-      + 'Limelight are explicit that a regulator such as the VRM cannot supply it under full load — '
-      + 'this is the opposite of where a roboRIO went. Beta units take power only through the '
-      + 'MicroFit Pwr/Bridge port (MicroFit-to-XT30, or Bridge to Motioncore). Radio on a '
-      + 'low-current channel as before.'],
-    [hi>ch.hi?'bad':'pass', hi+' / '+ch.hi+' high-current (40 A) channels',
-      hi>ch.hi?'Out of 40 A bays — add a second PDU or an MPM breakout.':'Within the '+pdu+'.'],
-    [lo>ch.lo?'warn':'pass', lo+' / '+ch.lo+' low-current channels',
-      lo>ch.lo?'Exceeded — share via fused breakouts.':'OK.'],
-    ['warn','CAN termination','120 Ω at both ends of <b>every</b> bus in use'
-      + (canivore?', the CANivore bus included':'')
-      + '. Whether Systemcore terminates its own end is not stated in any Limelight or WPILib '
-      + 'document we could find, so this is left as something to check against your hardware rather '
-      + 'than assumed the way the roboRIO&rsquo;s built-in terminator could be.'],
-    [coreBusesUsed.length+(canivore?1:0)>1?'pass':'warn','CAN buses',
-      coreBusesUsed.length===0 ? 'No devices placed yet.'
-      : coreBusesUsed.length+(canivore?1:0)===1
-        ? 'Everything is on '+coreBusesUsed[0]+'. Systemcore has five buses; spreading the load costs nothing but wiring.'
-        : 'Using '+coreBusesUsed.join(', ')+(canivore?' + CANivore':'')
-          + '. Keep them physically separate and terminate each. Note can_s0+can_s1 share an SPI '
-          + 'controller and can_s3+can_s4 share another, so a split across a pair buys less than a '
-          + 'split across can_s2 or an unpaired bus.'],
-    [typSum>120?'warn':'pass','Running current','~'+typSum.toFixed(0)+' A est.'+(typSum>120?' — over the 120 A main on paper; the breaker is time-delayed, but watch sustained load & brownouts.':' within the 120 A main.')],
-    [bad?'bad':warn?'warn':'pass','Voltage drop', bad? bad+' run(s) over 0.5 V — shorten or up-gauge.' : warn? warn+' run(s) 0.3–0.5 V — acceptable, tighten if you can.' : 'All runs under 0.3 V.'],
+    ['pass','Main breaker & battery','120 A main between battery (+) and the '+main.short+', 6 AWG leads.'],
+    ['warn','Systemcore power — check this against your hardware',
+      'Plan on <b>battery voltage directly</b> rather than a regulated output, which is the opposite '
+      +'of where a roboRIO went. Said plainly: we could not find that written down in a Limelight or '
+      +'WPILib document, so it is what this tool asks you to confirm, not something it knows — and a '
+      +'controller that browns out mid-match is not a mistake worth inheriting from a diagram. '
+      +'Confirm the connector and the supply against the hardware in front of you. The radio still '
+      +'goes on a low-current or regulated output.'],
+    [unplaced.length?'bad':'pass', unplaced.length?unplaced.length+' device(s) have no channel'
+      :'Every powered device has a channel',
+      unplaced.length?'Unassigned: <b>'+unplaced.slice(0,6).map(d=>esc(d.name)).join(', ')
+        +(unplaced.length>6?' …':'')+'</b>. A run with no channel is a run nobody wires.'
+      :'Nothing is left to place.'],
+    [unfed.length?'bad':'pass', unfed.length?unfed.length+' breakout(s) not fed':'Breakouts fed',
+      unfed.length?'A breakout with no feed channel supplies nothing.':(H.length>1?'Each one sits on a main-board channel.':'None in use.')],
+    [brkFree<0?'bad':brkFree<3?'warn':'pass', mainUsed+' / '+main.ports.length+' channels used on the '+main.short,
+      brkFree<3?'Only '+brkFree+' high-current bay(s) left — an MPM breakout frees several low-current devices off full channels.'
+      :brkFree+' high-current bay(s) free. '+main.note],
+    ...overfed.map(x=>['warn','Breakout load: '+x.h.short,
+      'Its outputs total ~<b>'+x.load.toFixed(0)+' A</b> running behind a <b>'+x.feed+' A</b> feed. '
+      +'Each device is fine on its own; the shared channel is what trips.']),
+    ['warn','CAN termination','120 Ω at both ends of <b>every</b> bus in use'+(cv?', the CANivore bus included':'')
+      +'. Whether Systemcore terminates its own end is not stated in any Limelight or WPILib document '
+      +'we could find, so this is left as something to check against your hardware rather than assumed '
+      +'the way the roboRIO&rsquo;s built-in terminator could be.'
+      +(PDUS[pdu].canTerminator?' The PDH has a termination switch for the far end.':'')],
+    [busesUsed.length===0?'warn':pairedOnly?'warn':busesUsed.length>1?'pass':'warn','CAN buses',
+      busesUsed.length===0 ? 'No CAN devices placed yet.'
+      : busesUsed.length===1 ? 'Everything is on '+busesUsed[0]+'. Systemcore has five buses; spreading the load costs nothing but wiring.'
+      : pairedOnly ? 'Using '+busesUsed.join(', ')+' — but those share one SPI host ('+SPI_NAME[[...groups][0]]
+          +'), so they throttle each other. Move one to can_s2 or an unpaired bus.'
+      : 'Using '+busesUsed.join(', ')+(cv?' + CANivore':'')+' across '+groups.size+' controller(s). Terminate each.'],
+    [typSum>120?'warn':'pass','Running current','~'+typSum.toFixed(0)+' A est.'
+      +(typSum>120?' — over the 120 A main on paper; the breaker is time-delayed, but watch sustained load and brownouts.':' within the 120 A main.')],
+    [bad?'bad':warn?'warn':'pass','Voltage drop', bad? bad+' run(s) over 0.5 V — shorten or up-gauge.'
+      : warn? warn+' run(s) 0.3–0.5 V — acceptable, tighten if you can.' : 'All runs under 0.3 V.'],
   ];
-  $('checks').innerHTML=C.map(([s,t,d])=>`<div class="chk ${s}"><span class="ic">${s==='pass'?'✓':s==='warn'?'▲':'✕'}</span><div class="t"><b>${t}</b><span>${d}</span></div></div>`).join('');
+  $('checks').innerHTML=C.map(([s,t,d])=>
+    `<div class="chk ${s}"><span class="ic">${s==='pass'?'✓':s==='warn'?'▲':'✕'}</span>`
+    +`<div class="t"><b>${t}</b><span>${d}</span></div></div>`).join('');
 }
-function esc(t){return(t+'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
 
-let assigned=[];
-function buildSchedule(){
-  const ch=pduChannels(); let hi=0, lo=0; assigned=[];
-  devices.forEach((d,i)=>{const s=SPEC[d.type]||SPEC.Other; const br=effBr(d,s);
-    let chan='—';
-    if(s.pwr){ if(br>=40||br>ch.loA){ chan='Ch '+(hi); hi++; } else { chan='Ch '+(ch.hi+lo); lo++; } }
-    assigned.push({...d,i,spec:s,br,len:effLen(d),chan});
-  });
-  const t=$('tbody'); t.innerHTML='';
-  t.innerHTML += sysRow('Systemcore','ctrl','battery direct','—',2,3,'18 AWG','—');
-  t.innerHTML += sysRow('Radio','radio','low-current','15 A',1,3,'18 AWG','Eth');
-  assigned.forEach(a=>{
-    const vd=a.spec.pwr?vdrop(a.spec.g,a.spec.typ,a.len):0;
-    const vc=vd>0.5?'bad':vd>0.3?'warn':'';
-    t.innerHTML += `<tr><td>${esc(a.name)}</td><td>${a.type}</td><td class="num">${a.chan}</td>`
-      +`<td class="num">${a.spec.pwr?`<input class="cell" data-i="${a.i}" data-f="br" value="${a.br}">`:'—'}</td>`
-      +`<td class="num">${a.spec.typ}</td>`
-      +`<td class="num">${a.spec.pwr?`<input class="cell" data-i="${a.i}" data-f="len" value="${a.len}">`:'—'}</td>`
-      +`<td class="num vd ${vc}">${a.spec.pwr?vd.toFixed(2)+' V':'—'}</td>`
-      +`<td class="num">${a.spec.g}</td><td class="num">${a.bus}</td></tr>`;
-  });
-  if(hasPneu()) t.innerHTML += sysRow('Compressor','pneu','PH port','—',COMPRESSOR_TYP,8,'14 AWG','—');
-  const overHi=hi>ch.hi, overLo=lo>ch.lo;
-  $('warn').innerHTML=(overHi||overLo)
-    ? `<div class="notice warn"><b>Out of channels</b> · ${overHi?hi+' devices need 40 A channels but '+pdu+' has only '+ch.hi+'. ':''}${overLo?lo+' low-current devices but only '+ch.lo+' channels. ':''}Add a second PDU or an MPM/MXP breakout.</div>` : '';
-}
-function sysRow(n,t,c,b,typ,len,g,bus){const vd=vdrop(g,typ,len);const vc=vd>0.5?'bad':vd>0.3?'warn':'';
-  return `<tr><td>${n}</td><td>${t}</td><td class="num">${c}</td><td class="num">${b}</td><td class="num">${typ}</td><td class="num">${len}</td><td class="num vd ${vc}">${vd?vd.toFixed(2)+' V':'—'}</td><td class="num">${g}</td><td class="num">${bus}</td></tr>`;}
-function hasPneu(){return devices.some(d=>(SPEC[d.type]||{}).pneu);}
-
-function buildRecs(){
-  const pwr=assigned.filter(a=>a.spec.pwr);
-  const totalBr=pwr.reduce((s,a)=>s+a.spec.br,0);
+function drawRecs(){
+  const powered=devices.filter(d=>spec(d.type).feed!=='can');
+  const typSum=powered.reduce((s,d)=>s+(spec(d.type).typ||0),0)+CORE_TYP+RADIO_TYP+(hasPneu()?COMPRESSOR_TYP:0);
+  const totalBr=powered.reduce((s,d)=>s+effBr(d),0);
   const r=[];
-  r.push(['Main breaker','120 A Cooper-Bussmann between battery (+) and the PDU. 6 AWG battery leads.']);
-  r.push(['Breaker sizing','Krakens / Falcons / NEOs → <b>40 A</b>; NEO 550 → <b>30 A</b>; CANdle → <b>20 A</b>. Snap-action breakers in the PDH high-current bays.']);
-  r.push(['Wire gauge','40 A motor runs &rarr; <b>12 AWG</b>; 30 A &rarr; <b>14 AWG</b>; Systemcore / radio / LEDs &rarr; <b>18 AWG</b>. Limelight recommend 18 AWG with white Weidmuller ferrules for Systemcore.']);
-  r.push(['CAN bus','Daisy-chain CANH/CANL through the device(s) on each bus. <b>120 &Omega; termination at BOTH ends of every bus</b>: set the PDH switch (or add a resistor) at one end, and check what Systemcore does at its own end rather than assuming a built-in terminator. Keep a CANivore on its own bus if present.']);
-  const typSum=pwr.reduce((s,a)=>s+(a.spec.typ||0),0)+3+(hasPneu()?COMPRESSOR_TYP:0);
-  const heavy=typSum>110;
-  r.push(['Estimated current','~<b>'+typSum.toFixed(0)+' A</b> typical running draw (motors at active-driving average + Systemcore + radio'+(hasPneu()?' + compressor':'')+'). Peak if every breaker tripped at once would be <b>'+totalBr+' A</b>, but motors never all stall together. '+(heavy?'That running estimate is high — the 120 A main is time-delayed so brief bursts are fine, but watch sustained current and battery sag on the heaviest mechanisms.':'The 120 A main + an 18 Ah battery carry this comfortably.')]);
-  if(hasPneu()) r.push(['Pneumatics','Compressor wires to the Pneumatic Hub compressor port (not the PDU). Add an analog pressure transducer (PH) or pressure switch (PCM); solenoids plug into the hub\'s channels.']);
-  r.push(['Colours','Red = +12 V, black = ground, twisted yellow/green = CAN. Label both ends of every run.']);
+  r.push(['Main breaker','120 A Cooper-Bussmann between battery (+) and the board. 6 AWG battery leads.']);
+  r.push(['Breaker sizing','Krakens / Falcons / NEOs → <b>40 A</b>; NEO 550 and the 30 A bays → <b>30 A</b>; CANdle and hubs → <b>20 A</b>. Snap-action breakers in the high-current bays.']);
+  r.push(['Wire gauge','40 A motor runs → <b>12 AWG</b>; 30 A → <b>14 AWG</b>; Systemcore, radio, LEDs → <b>18 AWG</b>. Ferrule both ends of every stranded run into a lever terminal.']);
+  r.push(['Where these numbers come from','The channel counts, breaker sizes and running currents in this tool are the usual figures for these parts, not values read off a datasheet in front of us. They are a starting point that is right often enough to be useful and wrong often enough to check — confirm anything you are about to cut wire for against the vendor&rsquo;s own spec.']);
+  r.push(['Breakouts','One 40 A channel plus an <b>MPM</b> carries six fused low-current devices — cheaper than six full channels, and the reason to reach for one is running out of bays rather than saving wire. Regulated devices go on a <b>VRM</b>; the radio on an <b>RPM</b>; servos on a <b>Servo Hub</b>, because Systemcore has no servo output and its PWM outputs recentre when disabled.']);
+  r.push(['CAN','Daisy-chain CANH/CANL device to device — it is a chain, not a rail with taps. <b>120 Ω at both ends of every bus</b>. Split heavy buses across <b>different controllers</b>: can_s0+can_s1 are one, can_s3+can_s4 are another, can_s2 is alone.']);
+  r.push(['Estimated current','~<b>'+typSum.toFixed(0)+' A</b> typical running draw. If every breaker tripped at once it would be <b>'+totalBr+' A</b>, but motors never all stall together. '
+    +(typSum>110?'That running estimate is high — the 120 A main is time-delayed so brief bursts are fine, but watch sustained current and battery sag.':'The 120 A main and an 18 Ah battery carry this comfortably.')]);
+  if(hasPneu()) r.push(['Pneumatics','The compressor wires to the hub&rsquo;s compressor port, not to a board channel. Add a pressure transducer (PH) or switch (PCM); solenoids go in the hub&rsquo;s own channels.']);
+  r.push(['Colours &amp; labels','Red = +12 V, black = ground, twisted yellow/green = CAN. Label both ends of every run with the channel it comes from — that label is what makes this sheet worth printing.']);
   $('recs').innerHTML=r.map(([k,v])=>`<div class="r"><span class="k">${k}</span><span>${v}</span></div>`).join('');
 }
 
 let bomRows=[];
-function buildBom(){
-  const pwr=assigned.filter(a=>a.spec.pwr);
-  const brk={}; pwr.forEach(a=>{if(a.spec.br) brk[a.spec.br]=(brk[a.spec.br]||0)+1;});
-  const gauge={}; pwr.forEach(a=>{const g=a.spec.g; if(g&&g!=='—'&&g!=='CAN') gauge[g]=(gauge[g]||0)+1;});
-  const canCount=devices.length;
+function drawBom(){
+  const powered=devices.filter(d=>spec(d.type).feed!=='can');
+  const brk={}; powered.forEach(d=>{const b=effBr(d); if(b) brk[b]=(brk[b]||0)+1;});
+  const gauge={}; powered.forEach(d=>{const g=spec(d.type).g; if(AWG_R[g]) gauge[g]=(gauge[g]||0)+(effLen(d));});
+  const canCount=devices.filter(d=>spec(d.type).can).length;
   const rows=[];
-  rows.push([1, pdu==='PDH'?'REV Power Distribution Hub':'CTRE Power Distribution Panel','CAN-connected; fed from the 120 A main breaker']);
-  rows.push([1,'120 A main breaker','Battery (+) → PDU, with a breaker cover']);
+  rows.push([1, PDUS[pdu].name,'CAN-connected; fed from the 120 A main breaker']);
+  rows.push([1,'120 A main breaker','Battery (+) → board, with a breaker cover']);
   rows.push([2,'12 V 18 Ah SLA battery','One on the robot, one charging']);
   rows.push([2,'Anderson SB-50 connector','Battery + main breaker leads (6 AWG)']);
-  Object.keys(brk).sort((a,b)=>b-a).forEach(sz=>rows.push([brk[sz], sz+' A snap-action breaker','For the '+sz+' A motor channels']));
-  Object.keys(gauge).forEach(g=>{const runs=gauge[g]; rows.push([Math.ceil(runs*12)+' ft', g+' wire (red + black)', runs+' run(s) ≈ 6 ft each, ×2 for +/−']);});
-  rows.push([Math.ceil((canCount+2)*3)+' ft','CAN wire (twisted pair)','Daisy-chain through '+canCount+' device(s) + Systemcore']);
-  rows.push([1,'120 &Omega; CAN terminator','Both ends of each bus in use']);
-  rows.push([Math.ceil((canCount+pwr.length)*2),'Ferrules / Wago connectors','Both ends of every power + CAN run']);
+  const bk={}; breakouts.forEach(b=>bk[b.kind]=(bk[b.kind]||0)+1);
+  Object.keys(bk).forEach(k=>rows.push([bk[k], BREAKOUTS[k].name, BREAKOUTS[k].note]));
+  Object.keys(brk).sort((a,b)=>b-a).forEach(sz=>rows.push([brk[sz], sz+' A snap-action breaker','For the '+sz+' A channels']));
+  Object.keys(gauge).forEach(g=>rows.push([Math.ceil(gauge[g]*2)+' ft', g+' wire (red + black)','Total run length ×2 for +/−']));
+  rows.push([Math.ceil((canCount+2)*3)+' ft','CAN wire (twisted pair)','Daisy-chained through '+canCount+' device(s)']);
+  rows.push([Math.max(1,new Set(devices.filter(d=>spec(d.type).can).map(d=>d.bus)).size),'120 Ω CAN terminator','One per bus in use, at the far end']);
+  rows.push([Math.ceil((canCount+powered.length)*2),'Ferrules / Wago connectors','Both ends of every power and CAN run']);
   if(hasPneu()){
-    const sol=devices.filter(d=>(SPEC[d.type]||{}).pneu).reduce((s,d)=>s+((SPEC[d.type]||{}).sol||0),0);
-    rows.push([1,'Compressor','12 V → PH/PCM compressor port']);
-    rows.push([1,'Pressure transducer / switch','PH analog port (or PCM pressure switch)']);
-    rows.push(['≤'+sol,'Solenoid valves','Hub has '+sol+' channels — populate as needed']);
+    const sol=devices.filter(d=>spec(d.type).pneu).reduce((s,d)=>s+(spec(d.type).sol||0),0);
+    rows.push([1,'Compressor','12 V → hub compressor port']);
+    rows.push([1,'Pressure transducer / switch','PH analog port, or PCM pressure switch']);
+    rows.push(['≤'+sol,'Solenoid valves','The hub has '+sol+' channels — populate as needed']);
     rows.push(['—','Pneumatic tubing + fittings','Compressor → tank → regulator → solenoids']);
   }
   bomRows=rows;
   $('bom').innerHTML=rows.map(([q,i,n])=>`<tr><td class="num">${q}</td><td>${esc(i)}</td><td class="muted">${esc(n)}</td></tr>`).join('');
 }
-$('bomCsv').onclick=()=>{
-  const csv='Qty,Item,Notes\n'+bomRows.map(r=>r.map(c=>`"${(''+c).replace(/"/g,'""')}"`).join(',')).join('\n');
-  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='catalyst-wiring-bom.csv';a.click();
-};
 
+/* The schematic stays, because a one-page picture of what feeds what is still the right thing to
+   hand someone who has never seen the robot. It is no longer the only view, which is the point:
+   it answers "what connects to what" and the panel answers "which channel". */
 function drawDiagram(){
-  const pwr=assigned.filter(a=>a.spec.pwr);
-  const rows=2+pwr.length+(hasPneu()?1:0);   // Systemcore and the radio, then every powered device
-  const rowH=40, top=70, W=760, H=Math.max(420, top+rows*rowH+40);
-  const pduX=250, pduY=top, pduH=rows*rowH+10, devX=470;
-  const canX=W-26, hasCv=devices.some(d=>d.bus==='canivore'), canX2=canX-26;
+  const powered=devices.filter(d=>spec(d.type).feed!=='can');
+  const rows=2+powered.length+(hasPneu()?1:0);
+  const rowH=36, top=70, W=760, H=Math.max(360, top+rows*rowH+50);
+  const pduX=250, pduY=top, pduH=Math.max(60,rows*rowH+10), devX=470;
+  const canX=W-26, hasCv=devices.some(d=>d.bus==='CANivore'), canX2=canX-30;
   const SANS='"Segoe UI Variable Text", "Segoe UI", ui-sans-serif, system-ui, sans-serif';
   const MONO='"Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace';
   let s=`<svg id="svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
   s+=`<rect x="0" y="0" width="${W}" height="${H}" fill="var(--cat-ground)"/>`;
   const box=(x,y,w,h,fill,stroke,label,sub)=>`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="${fill}" stroke="${stroke}" stroke-width="1.5"/>`
-    +`<text x="${x+w/2}" y="${y+(sub?h/2-2:h/2+4)}" text-anchor="middle" font-family='${SANS}' font-size="12" font-weight="600" fill="var(--cat-ink-strong)">${label}</text>`
-    +(sub?`<text x="${x+w/2}" y="${y+h/2+13}" text-anchor="middle" font-family='${MONO}' font-size="10" fill="var(--cat-dim)">${sub}</text>`:'');
+    +`<text x="${x+w/2}" y="${y+(sub?h/2-2:h/2+4)}" text-anchor="middle" font-family='${SANS}' font-size="12" font-weight="600" fill="var(--cat-ink-strong)">${esc(label)}</text>`
+    +(sub?`<text x="${x+w/2}" y="${y+h/2+13}" text-anchor="middle" font-family='${MONO}' font-size="10" fill="var(--cat-dim)">${esc(sub)}</text>`:'');
   const wire=(x1,y1,x2,y2,col,w=2.5)=>`<path d="M${x1},${y1} C${(x1+x2)/2},${y1} ${(x1+x2)/2},${y2} ${x2},${y2}" fill="none" stroke="${col}" stroke-width="${w}"/>`;
-  // battery + main breaker
   s+=box(24,top+10,90,46,'var(--cat-surface-1)','var(--cat-line-strong)','Battery','12 V');
   s+=box(24,top+78,90,42,'var(--cat-surface-1)','var(--cat-line-strong)','Main 120 A','breaker');
   s+=`<text x="24" y="${top+150}" font-family='${MONO}' font-size="10" fill="var(--cat-dim)">6 AWG</text>`;
   s+=wire(114,top+33,pduX,pduY+24,'var(--pwr)',3.5);
   s+=wire(114,top+99,pduX,pduY+24,'var(--pwr)',2);
-  // PDU
-  s+=box(pduX,pduY,150,pduH,'var(--cat-surface-2)','var(--cat-signal)',pdu,pduChannels().hi+'× 40 A bays');
-  // CAN rail(s): the Systemcore bus always, plus a separate CANivore bus if present
+  s+=box(pduX,pduY,150,pduH,'var(--cat-surface-2)','var(--cat-signal)',PDUS[pdu].short,PDUS[pdu].chans.length+' channels');
   const rail=(rx,label)=>{
     s+=`<line x1="${rx}" y1="${top}" x2="${rx}" y2="${H-30}" stroke="var(--can)" stroke-width="2.5"/>`;
     s+=`<text x="${rx-2}" y="${top-8}" text-anchor="end" font-family='${MONO}' font-size="10" fill="var(--can)">${label}</text>`;
     s+=`<circle cx="${rx}" cy="${top}" r="4" fill="var(--can)"/><text x="${rx-8}" y="${top+4}" text-anchor="end" font-family='${MONO}' font-size="9" fill="var(--can)">120Ω</text>`;
     s+=`<circle cx="${rx}" cy="${H-30}" r="4" fill="var(--can)"/><text x="${rx-8}" y="${H-26}" text-anchor="end" font-family='${MONO}' font-size="9" fill="var(--can)">120Ω</text>`;
   };
-  rail(canX, hasCv?'Systemcore CAN':'CAN bus');
+  rail(canX, hasCv?'Systemcore CAN':'CAN');
   if(hasCv) rail(canX2,'CANivore');
-  // rows: system then powered devices
   let y=top;
-  const drawRow=(name,sub,railX,fromPduReg)=>{
+  const drawRow=(name,sub,railX,reg)=>{
     const cy=y+rowH/2;
-    s+=box(devX,y+4,170,rowH-8,'var(--cat-surface-1)','var(--cat-line)',name,sub);
-    s+=wire(pduX+150, cy, devX, cy, fromPduReg?'var(--reg)':'var(--pwr)', fromPduReg?2:2.5);
+    s+=box(devX,y+3,170,rowH-6,'var(--cat-surface-1)','var(--cat-line)',name,sub);
+    s+=wire(pduX+150, cy, devX, cy, reg?'var(--reg)':'var(--pwr)', reg?2:2.5);
     if(railX){ s+=`<line x1="${devX+170}" y1="${cy}" x2="${railX}" y2="${cy}" stroke="var(--can)" stroke-width="2"/>`
               +`<circle cx="${railX}" cy="${cy}" r="3.5" fill="var(--can)"/>`; }
     y+=rowH;
   };
   drawRow('Systemcore','battery · CAN',canX,true);
-  drawRow('Radio','PoE / 12 V',null,true);
-  pwr.forEach(a=>{ drawRow(a.name.slice(0,18),a.br+' A · '+a.spec.g+' · '+a.chan, a.bus==='canivore'?canX2:canX, false); });
-  if(hasPneu()) drawRow('Compressor','via PH port · '+COMPRESSOR_TYP+' A',null,false);
-  // the radio's Ethernet back to Systemcore is the only signal run the sheet draws
+  drawRow('Radio','Eth · 12 V',null,true);
+  powered.forEach(d=>{const s2=spec(d.type);
+    drawRow(d.name.slice(0,18), (d.at?portName(d.at):'unassigned')+' · '+s2.g,
+            s2.can?(d.bus==='CANivore'?canX2:canX):null, s2.feed!=='breaker');});
+  if(hasPneu()) drawRow('Compressor','hub port · '+COMPRESSOR_TYP+' A',null,false);
   s+=`<line x1="${devX+170}" y1="${top+rowH+rowH/2}" x2="${devX+196}" y2="${top+rowH+rowH/2}" stroke="var(--sig)" stroke-width="2"/>`
     +`<line x1="${devX+196}" y1="${top+rowH+rowH/2}" x2="${devX+196}" y2="${top+rowH/2}" stroke="var(--sig)" stroke-width="2"/>`
     +`<line x1="${devX+196}" y1="${top+rowH/2}" x2="${devX+170}" y2="${top+rowH/2}" stroke="var(--sig)" stroke-width="2"/>`
     +`<text x="${devX+202}" y="${top+rowH+4}" font-family='${MONO}' font-size="9" fill="var(--sig)">Eth</text>`;
-  // CAN-only sensors (no power row) — tap onto their bus rail
-  const canOnly=assigned.filter(a=>!a.spec.pwr);
-  if(canOnly.length){ s+=`<text x="${devX}" y="${y+22}" font-family='${SANS}' font-size="11" fill="var(--cat-dim)">CAN-only: ${canOnly.map(a=>esc(a.name)).join(', ').slice(0,56)}</text>`;
+  const canOnly=devices.filter(d=>spec(d.type).feed==='can');
+  if(canOnly.length){
+    s+=`<text x="${devX}" y="${y+22}" font-family='${SANS}' font-size="11" fill="var(--cat-dim)">CAN-only: ${esc(canOnly.map(d=>d.name).join(', ').slice(0,56))}</text>`;
     s+=`<line x1="${devX+250}" y1="${y+18}" x2="${canX}" y2="${y+18}" stroke="var(--can)" stroke-width="2"/>`;
-    if(hasCv&&canOnly.some(a=>a.bus==='canivore')) s+=`<line x1="${devX+250}" y1="${y+18}" x2="${canX2}" y2="${y+18}" stroke="var(--can)" stroke-width="2"/>`; }
+  }
   s+='</svg>';
   $('svg').outerHTML=s;
 }
 
-load();render();
+fillTypes(); load(); render();
 </script>
 </body>
 </html>

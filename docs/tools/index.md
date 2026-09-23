@@ -130,8 +130,8 @@ Thirteen single-file browser tools, hosted right here. Nothing to install.
 
 <a class="tool-card" href="wiring/">
   <div class="icon">⚡</div>
-  <p class="name">Wiring Diagram</p>
-  <p class="desc">Imports your CAN ID Planner and generates a complete, optimal power tree + CAN bus diagram — breaker sizes, wire gauge, channel schedule, and termination. Printable for the build team.</p>
+  <p class="name">Wiring Planner</p>
+  <p class="desc">Pick the channel every device sits in — the board's own numbering, MPM and VRM breakouts included — and get the run list to wire from: both ends of every run, gauge, voltage drop, and the CAN daisy-chain in order. Printable for the build team.</p>
   <span class="tag plan">Planner</span>
 </a>
 
