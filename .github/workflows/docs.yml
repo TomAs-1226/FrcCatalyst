@@ -1,19 +1,20 @@
 name: Deploy Docs
 
-# Publishes two sites from one GitHub Pages deployment.
+# This branch cannot publish the site itself, and should stop trying.
 #
-# A repository gets exactly one Pages deployment, so the stable docs and the 2027/Systemcore beta
-# docs cannot each own one. The build below assembles both into a single artifact: `main` at the
-# root and the `systemcore-alpha6` branch under /beta/, which is the 2.x line that ships: the docs
-# branch it used to build from was folded into it on 2026-09-19, so the site and the releases can no
-# longer drift apart. The beta branch sets its own baseurl to match.
+# GitHub runs the workflow file from the branch that was pushed, and the `github-pages` environment
+# has a branch policy naming `main` alone. So a docs push here built a perfectly good artifact and
+# then failed at the deploy step — the build was green, the site never moved, and the only sign was
+# a red run nobody was watching. Before that it was worse: this file still triggered on `systemcore`,
+# a branch retired on 2026-09-19, so pushes matched nothing at all and failed silently.
 #
-# This file must live on `main`, because that is the branch whose workflow GitHub runs for the Pages
-# environment. Pushing docs to `systemcore` triggers it too, and it rebuilds both.
+# So it asks main's workflow to run instead. That one checks out BOTH branches and builds both sites
+# — main at the root, this branch under /beta/ — so whichever branch set it going, what gets
+# published is the current content of both. There is no version of this that publishes a stale beta.
 
 on:
   push:
-    branches: [ main, master, systemcore-alpha6 ]
+    branches: [ systemcore-alpha6 ]
     paths:
       - 'docs/**'
       - 'README.md'
@@ -21,64 +22,15 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
-
-env:
-  BETA_BRANCH: systemcore-alpha6
+  actions: write
 
 jobs:
-  build:
+  ask-main:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out the stable branch
-        uses: actions/checkout@v4
-        with:
-          ref: main
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-
-      - name: Build the stable site
-        uses: actions/jekyll-build-pages@v1
-        with:
-          source: ./docs
-          destination: ./_site
-
-      # The beta docs are built from their own branch, with their own _config.yml. Nothing is copied
-      # between the two: they are separate sites that happen to share a host.
-      - name: Check out the beta branch
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ env.BETA_BRANCH }}
-          path: beta-src
-
-      - name: Build the beta site
-        uses: actions/jekyll-build-pages@v1
-        with:
-          source: ./beta-src/docs
-          destination: ./_site/beta
-
-      # The tools generate code that is compiled against the library, so a generator that drifts from
-      # CANRegistry would otherwise be found by a team at build time rather than here.
-      - name: Test the beta browser tools
-        run: node --test beta-src/docs/tools/**/*.test.mjs
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Run the Pages build on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run docs.yml --repo "${{ github.repository }}" --ref main
+          echo "Asked main to rebuild both sites; watch it in the Actions tab."
