@@ -179,8 +179,12 @@
       font-family: var(--cat-mono); font-size: var(--cat-fs-12); text-align: right;
     }
 
+    /* The harness is drawn at its natural size and then allowed to shrink to the card. Without the
+       max-width it is simply cut off at the card's edge, which loses the right-hand column — the
+       port each device comes from, and the CAN rails — and those are the half of the drawing worth
+       having. `height: auto` keeps the aspect ratio while it scales. */
     .diagram { overflow: auto; border-radius: var(--cat-r-inner); background: var(--cat-ground); }
-    .diagram svg { display: block; }
+    .diagram svg { display: block; max-width: 100%; height: auto; }
 
     /* On paper the chrome is noise: the panel, the runs and the checks are the sheet. The panel
        prints because that is the half a build team carries to the robot. */
@@ -306,8 +310,15 @@
     </div>
 
     <div class="card">
-      <h2 class="no-print">Schematic</h2>
+      <div class="card-head"><h2>Harness</h2><span class="hint">every run, from its terminal</span></div>
       <div class="diagram"><svg id="svg" width="760" height="420" viewBox="0 0 760 420"></svg></div>
+      <div class="legend no-print" style="margin-top:var(--cat-space-3)">
+        <span class="lg"><i class="swatch" style="--c:var(--pwr)"></i>+12 V from a breaker</span>
+        <span class="lg"><i class="swatch" style="--c:var(--reg)"></i>regulated / fused</span>
+        <span class="lg"><i class="swatch" style="--c:var(--can)"></i>CAN, daisy-chained</span>
+        <span class="lg"><i class="swatch" style="--c:var(--sig)"></i>signal</span>
+        <span class="lg"><i class="swatch" style="--c:var(--cat-faint)"></i>stroke width tracks gauge</span>
+      </div>
     </div>
 
     <div class="card">
@@ -1030,63 +1041,207 @@ function drawBom(){
   $('bom').innerHTML=rows.map(([q,i,n])=>`<tr><td class="num">${q}</td><td>${esc(i)}</td><td class="muted">${esc(n)}</td></tr>`).join('');
 }
 
-/* The schematic stays, because a one-page picture of what feeds what is still the right thing to
-   hand someone who has never seen the robot. It is no longer the only view, which is the point:
-   it answers "what connects to what" and the panel answers "which channel". */
-function drawDiagram(){
-  const powered=devices.filter(d=>spec(d.type).feed!=='can');
-  const rows=2+powered.length+(hasPneu()?1:0);
-  const rowH=36, top=70, W=760, H=Math.max(360, top+rows*rowH+50);
-  const pduX=250, pduY=top, pduH=Math.max(60,rows*rowH+10), devX=470;
-  const canX=W-26, hasCv=devices.some(d=>d.bus==='CANivore'), canX2=canX-30;
-  const SANS='"Segoe UI Variable Text", "Segoe UI", ui-sans-serif, system-ui, sans-serif';
-  const MONO='"Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace';
-  let s=`<svg id="svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
-  s+=`<rect x="0" y="0" width="${W}" height="${H}" fill="var(--cat-ground)"/>`;
-  const box=(x,y,w,h,fill,stroke,label,sub)=>`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="${fill}" stroke="${stroke}" stroke-width="1.5"/>`
-    +`<text x="${x+w/2}" y="${y+(sub?h/2-2:h/2+4)}" text-anchor="middle" font-family='${SANS}' font-size="12" font-weight="600" fill="var(--cat-ink-strong)">${esc(label)}</text>`
-    +(sub?`<text x="${x+w/2}" y="${y+h/2+13}" text-anchor="middle" font-family='${MONO}' font-size="10" fill="var(--cat-dim)">${esc(sub)}</text>`:'');
-  const wire=(x1,y1,x2,y2,col,w=2.5)=>`<path d="M${x1},${y1} C${(x1+x2)/2},${y1} ${(x1+x2)/2},${y2} ${x2},${y2}" fill="none" stroke="${col}" stroke-width="${w}"/>`;
-  s+=box(24,top+10,90,46,'var(--cat-surface-1)','var(--cat-line-strong)','Battery','12 V');
-  s+=box(24,top+78,90,42,'var(--cat-surface-1)','var(--cat-line-strong)','Main 120 A','breaker');
-  s+=`<text x="24" y="${top+150}" font-family='${MONO}' font-size="10" fill="var(--cat-dim)">6 AWG</text>`;
-  s+=wire(114,top+33,pduX,pduY+24,'var(--pwr)',3.5);
-  s+=wire(114,top+99,pduX,pduY+24,'var(--pwr)',2);
-  s+=box(pduX,pduY,150,pduH,'var(--cat-surface-2)','var(--cat-signal)',PDUS[pdu].short,PDUS[pdu].chans.length+' channels');
-  const rail=(rx,label)=>{
-    s+=`<line x1="${rx}" y1="${top}" x2="${rx}" y2="${H-30}" stroke="var(--can)" stroke-width="2.5"/>`;
-    s+=`<text x="${rx-2}" y="${top-8}" text-anchor="end" font-family='${MONO}' font-size="10" fill="var(--can)">${label}</text>`;
-    s+=`<circle cx="${rx}" cy="${top}" r="4" fill="var(--can)"/><text x="${rx-8}" y="${top+4}" text-anchor="end" font-family='${MONO}' font-size="9" fill="var(--can)">120Ω</text>`;
-    s+=`<circle cx="${rx}" cy="${H-30}" r="4" fill="var(--can)"/><text x="${rx-8}" y="${H-26}" text-anchor="end" font-family='${MONO}' font-size="9" fill="var(--can)">120Ω</text>`;
-  };
-  rail(canX, hasCv?'Systemcore CAN':'CAN');
-  if(hasCv) rail(canX2,'CANivore');
-  let y=top;
-  const drawRow=(name,sub,railX,reg)=>{
-    const cy=y+rowH/2;
-    s+=box(devX,y+3,170,rowH-6,'var(--cat-surface-1)','var(--cat-line)',name,sub);
-    s+=wire(pduX+150, cy, devX, cy, reg?'var(--reg)':'var(--pwr)', reg?2:2.5);
-    if(railX){ s+=`<line x1="${devX+170}" y1="${cy}" x2="${railX}" y2="${cy}" stroke="var(--can)" stroke-width="2"/>`
-              +`<circle cx="${railX}" cy="${cy}" r="3.5" fill="var(--can)"/>`; }
-    y+=rowH;
-  };
-  drawRow('Systemcore','battery · CAN',canX,true);
-  drawRow('Radio','Eth · 12 V',null,true);
-  powered.forEach(d=>{const s2=spec(d.type);
-    drawRow(d.name.slice(0,18), (d.at?portName(d.at):'unassigned')+' · '+s2.g,
-            s2.can?(d.bus==='CANivore'?canX2:canX):null, s2.feed!=='breaker');});
-  if(hasPneu()) drawRow('Compressor','hub port · '+COMPRESSOR_TYP+' A',null,false);
-  s+=`<line x1="${devX+170}" y1="${top+rowH+rowH/2}" x2="${devX+196}" y2="${top+rowH+rowH/2}" stroke="var(--sig)" stroke-width="2"/>`
-    +`<line x1="${devX+196}" y1="${top+rowH+rowH/2}" x2="${devX+196}" y2="${top+rowH/2}" stroke="var(--sig)" stroke-width="2"/>`
-    +`<line x1="${devX+196}" y1="${top+rowH/2}" x2="${devX+170}" y2="${top+rowH/2}" stroke="var(--sig)" stroke-width="2"/>`
-    +`<text x="${devX+202}" y="${top+rowH+4}" font-family='${MONO}' font-size="9" fill="var(--sig)">Eth</text>`;
-  const canOnly=devices.filter(d=>spec(d.type).feed==='can');
-  if(canOnly.length){
-    s+=`<text x="${devX}" y="${y+22}" font-family='${SANS}' font-size="11" fill="var(--cat-dim)">CAN-only: ${esc(canOnly.map(d=>d.name).join(', ').slice(0,56))}</text>`;
-    s+=`<line x1="${devX+250}" y1="${y+18}" x2="${canX}" y2="${y+18}" stroke="var(--can)" stroke-width="2"/>`;
+/* The harness.
+
+   The panel says which channel a device sits in. This says what the loom looks like once it is
+   built: every run drawn from its own terminal, in its own vertical lane, at a stroke width that
+   tracks its gauge. The orthogonal routing with rounded corners is not decoration — it is what a
+   loom actually does, and it is the only way twenty runs between the same two columns stay
+   tellable apart. An earlier version drew bezier curves between boxes, which looks like a subway
+   map and reads like nothing.
+
+   Only channels that carry something are drawn. The empty bays are the panel's job; a harness
+   drawing of them is a picture of wire nobody is going to cut.
+
+   Feeds to a breakout leave their terminal to the LEFT and run down the gutter to the board below,
+   because a breakout sits under the board that feeds it. Feeds to a device leave to the right.
+   Which side a wire leaves on is therefore information: left means it powers another board. */
+
+const GAUGE_W = {'6 AWG':5.4,'10 AWG':4.2,'12 AWG':3.3,'14 AWG':2.9,'16 AWG':2.5,
+                 '18 AWG':2.2,'20 AWG':1.9,'22 AWG':1.7,'Cat 6':2.2};
+const gaugeW = g => GAUGE_W[g] || 2.2;
+
+const SANS = '"Segoe UI Variable Text", "Segoe UI", ui-sans-serif, system-ui, sans-serif';
+const MONO = '"Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace';
+
+/** An L-shaped run: out to its own lane, down (or up) it, then in. Corners are radiused so the
+    loom reads as bundled wire rather than as a circuit trace. */
+function loom(x1, y1, x2, y2, laneX, r) {
+  if (Math.abs(y2 - y1) < 0.8) return `M${x1},${y1} H${x2}`;
+  const d = y2 > y1 ? 1 : -1;
+  const rr = Math.min(r, Math.abs(y2 - y1) / 2, Math.abs(laneX - x1), Math.abs(x2 - laneX));
+  return `M${x1},${y1} H${laneX - rr}`
+       + ` Q${laneX},${y1} ${laneX},${y1 + rr * d}`
+       + ` V${y2 - rr * d}`
+       + ` Q${laneX},${y2} ${laneX + rr},${y2}`
+       + ` H${x2}`;
+}
+
+function drawDiagram() {
+  const W = 1040, BOARD_X = 196, BOARD_W = 236, BOARD_R = BOARD_X + BOARD_W;
+  const LANE0 = 452, LANE_W = 7, DEV_X = 628, DEV_W = 268, CAN_X = W - 30;
+  const ROW = 25, HEAD = 40, DEVROW = 34, TOP = 96, GUT = 176;
+
+  // Every run that has somewhere to come from, in board-then-channel order, so the loom fans out
+  // in one direction instead of braiding.
+  const HS = hosts(), runs = [];
+  HS.forEach(h => {
+    if (h.id !== 'pdu' && !h.at) return;
+    h.ports.forEach(p => {
+      const o = occupantOf(h.id, p.key);
+      if (!o) return;
+      runs.push({
+        hostId: h.id, portKey: p.key, thing: o, board: !!o.kind,
+        label: o.kind ? BREAKOUTS[o.kind].short : o.name,
+        gauge: o.kind ? '12 AWG' : spec(o.type).g,
+        colour: o.kind ? 'var(--reg)' : wireColour(spec(o.type)),
+        sub: o.kind ? 'breakout' : `${effBr(o) || '—'} A · ${spec(o.type).g}`,
+      });
+    });
+  });
+
+  // Board stack: each board is only as tall as the channels it actually uses.
+  const boards = [];
+  let by = TOP;
+  HS.forEach(h => {
+    if (h.id !== 'pdu' && !h.at) return;
+    const used = h.ports.filter(p => occupantOf(h.id, p.key));
+    const bh = HEAD + Math.max(1, used.length) * ROW + 10;
+    boards.push({ h, used, y: by, hgt: bh });
+    by += bh + 18;
+  });
+
+  // Device blocks, one per run that feeds a device, in the same order as the runs.
+  const devRuns = runs.filter(r => !r.board);
+  const canRows = devices.filter(d => spec(d.type).feed === 'can'
+    && !devRuns.some(r => r.thing.id === d.id)).length;
+  const H = Math.max(by + 20, TOP + (devRuns.length + canRows) * DEVROW + 46, 340);
+
+  // Where each terminal sits, so a wire can start at one.
+  const termY = {};
+  boards.forEach(b => b.used.forEach((p, i) => { termY[b.h.id + ':' + p.key] = b.y + HEAD + i * ROW + ROW / 2; }));
+
+  const esc2 = t => esc(t);
+  const clip = (t, n) => (t.length > n ? t.slice(0, n - 1) + '…' : t);
+  let s = `<svg id="svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+  s += `<rect x="0" y="0" width="${W}" height="${H}" fill="var(--cat-ground)"/>`;
+
+  // ---- battery and the main breaker, and the 6 AWG into the board
+  const bx = 24, pduTop = boards.length ? boards[0].y : TOP;
+  s += `<rect x="${bx}" y="${TOP}" width="104" height="44" rx="9" fill="var(--cat-surface-1)" stroke="var(--cat-line-strong)" stroke-width="1.4"/>`
+     + `<text x="${bx + 52}" y="${TOP + 21}" text-anchor="middle" font-family='${SANS}' font-size="12" font-weight="600" fill="var(--cat-ink-strong)">Battery</text>`
+     + `<text x="${bx + 52}" y="${TOP + 35}" text-anchor="middle" font-family='${MONO}' font-size="10" fill="var(--cat-dim)">12 V · 18 Ah</text>`;
+  s += `<rect x="${bx}" y="${TOP + 64}" width="104" height="40" rx="9" fill="var(--cat-surface-1)" stroke="var(--cat-line-strong)" stroke-width="1.4"/>`
+     + `<text x="${bx + 52}" y="${TOP + 81}" text-anchor="middle" font-family='${SANS}' font-size="12" font-weight="600" fill="var(--cat-ink-strong)">Main breaker</text>`
+     + `<text x="${bx + 52}" y="${TOP + 95}" text-anchor="middle" font-family='${MONO}' font-size="10" fill="var(--cat-dim)">120 A</text>`;
+  s += `<path d="M${bx + 52},${TOP + 44} V${TOP + 64}" stroke="var(--pwr)" stroke-width="${gaugeW('6 AWG')}" fill="none"/>`;
+  s += `<path d="${loom(bx + 104, TOP + 84, BOARD_X, pduTop + 26, 160, 10)}" stroke="var(--pwr)" stroke-width="${gaugeW('6 AWG')}" fill="none" stroke-linecap="round"/>`;
+  s += `<text x="${bx + 52}" y="${TOP + 156}" text-anchor="middle" font-family='${MONO}' font-size="9" fill="var(--cat-dim)">6 AWG to the board</text>`;
+
+  // ---- the boards
+  boards.forEach(b => {
+    const isMain = b.h.id === 'pdu';
+    s += `<rect x="${BOARD_X}" y="${b.y}" width="${BOARD_W}" height="${b.hgt}" rx="11" fill="var(--cat-surface-2)"`
+       + ` stroke="${isMain ? 'var(--cat-signal)' : 'var(--cat-line-strong)'}" stroke-width="1.5"/>`;
+    s += `<text x="${BOARD_X + 14}" y="${b.y + 22}" font-family='${SANS}' font-size="12" font-weight="600" fill="var(--cat-ink-strong)">${esc2(b.h.short)}</text>`;
+    s += `<text x="${BOARD_R - 14}" y="${b.y + 22}" text-anchor="end" font-family='${MONO}' font-size="9" fill="var(--cat-dim)">${b.used.length} used</text>`;
+    s += `<line x1="${BOARD_X + 12}" y1="${b.y + 31}" x2="${BOARD_R - 12}" y2="${b.y + 31}" stroke="var(--cat-line)" stroke-width="1"/>`;
+    b.used.forEach((p, i) => {
+      const y = b.y + HEAD + i * ROW + ROW / 2;
+      const o = occupantOf(b.h.id, p.key);
+      const col = o.kind ? 'var(--reg)' : wireColour(spec(o.type));
+      // the pad: a terminal, not a table cell
+      s += `<rect x="${BOARD_X + 10}" y="${y - 8}" width="30" height="16" rx="4" fill="var(--cat-surface-3)" stroke="var(--cat-line-strong)" stroke-width="1"/>`
+         + `<text x="${BOARD_X + 25}" y="${y + 4}" text-anchor="middle" font-family='${MONO}' font-size="10" fill="var(--cat-ink)">${esc2(p.label)}</text>`;
+      s += `<text x="${BOARD_X + 48}" y="${y + 4}" font-family='${SANS}' font-size="11" fill="var(--cat-quiet)">${esc2(clip(o.kind ? BREAKOUTS[o.kind].short : o.name, 20))}</text>`;
+      // the lug the wire actually leaves from
+      s += `<circle cx="${BOARD_R}" cy="${y}" r="3.4" fill="${col}"/>`;
+    });
+  });
+
+  // ---- feeds to a breakout leave left and drop down the gutter
+  runs.filter(r => r.board).forEach(r => {
+    const y1 = termY[r.hostId + ':' + r.portKey];
+    const tgt = boards.find(b => b.h.id === r.thing.id);
+    if (!tgt || y1 == null) return;
+    const y2 = tgt.y + 22;
+    s += `<circle cx="${BOARD_X}" cy="${y1}" r="3.4" fill="var(--reg)"/>`;
+    s += `<path d="${loom(BOARD_X, y1, BOARD_X, y2, GUT, 9)}" stroke="var(--reg)" stroke-width="${gaugeW('12 AWG')}" fill="none" stroke-linecap="round"/>`;
+    s += `<text x="${GUT - 6}" y="${(y1 + y2) / 2}" text-anchor="end" font-family='${MONO}' font-size="9" fill="var(--reg)">feed</text>`;
+  });
+
+  // ---- one row per device, powered first, then the ones that live on CAN alone.
+  // Rows are assigned once, globally, because a device belongs to exactly one row no matter how
+  // many chains want to draw a node on it. An earlier cut numbered CAN-only devices per chain,
+  // so the first sensor on can_s0 and the first on can_s2 were handed the same row and drawn on
+  // top of each other, and the last of them fell off the bottom of the canvas.
+  const rowOf = new Map();
+  devRuns.forEach((r, i) => rowOf.set(r.thing.id, i));
+  const canOnly = [];
+  [...CORE_BUSES, 'CANivore'].forEach(b => devices
+    .filter(d => d.bus === b && spec(d.type).feed === 'can')
+    .forEach(d => { if (!rowOf.has(d.id)) { rowOf.set(d.id, devRuns.length + canOnly.length); canOnly.push(d); } }));
+  const rowY = id => TOP + rowOf.get(id) * DEVROW + DEVROW / 2;
+
+  // ---- every powered run: terminal → its own lane → its device block
+  devRuns.forEach((r, i) => {
+    const y1 = termY[r.hostId + ':' + r.portKey];
+    if (y1 == null) return;
+    const y2 = rowY(r.thing.id);
+    const lane = LANE0 + (i % 22) * LANE_W;
+    s += `<path d="${loom(BOARD_R, y1, DEV_X, y2, lane, 9)}" stroke="${r.colour}" stroke-width="${gaugeW(r.gauge)}" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.92"/>`;
+    s += devBlock(y2, r.colour, r.label, portName(r.thing.at), true);
+  });
+
+  // ---- the devices with no power run of their own
+  canOnly.forEach(d => { s += devBlock(rowY(d.id), 'var(--can)', d.name, 'CAN only', false); });
+
+  // ---- the CAN chains, down the right edge, terminated at both ends
+  const chains = [...CORE_BUSES, 'CANivore']
+    .map(b => ({ bus: b, on: devices.filter(d => d.bus === b && spec(d.type).can) }))
+    .filter(c => c.on.length);
+  chains.forEach((c, ci) => {
+    const x = CAN_X - ci * 26;
+    // Each rail ends a little short of the one before it. The rails are 26 px apart and a "120Ω"
+    // label is wider than that, so terminators level with each other print as "120Ω120Ω".
+    const y0 = TOP - 18 - ci * 15, y1 = H - 26 - ci * 15;
+    s += `<line x1="${x}" y1="${y0}" x2="${x}" y2="${y1}" stroke="var(--can)" stroke-width="2.2"/>`;
+    s += `<text x="${x + 5}" y="${y0 - 8}" font-family='${MONO}' font-size="9" fill="var(--can)" transform="rotate(-90 ${x + 5} ${y0 - 8})">${esc2(c.bus)}</text>`;
+    [y0, y1].forEach(yy => {
+      s += `<circle cx="${x}" cy="${yy}" r="4" fill="none" stroke="var(--can)" stroke-width="1.6"/>`
+         + `<text x="${x - 7}" y="${yy + 3}" text-anchor="end" font-family='${MONO}' font-size="8" fill="var(--can)">120Ω</text>`;
+    });
+    c.on.forEach(d => {
+      if (!rowOf.has(d.id)) return;
+      const y = rowY(d.id);
+      s += `<line x1="${DEV_X + DEV_W}" y1="${y}" x2="${x}" y2="${y}" stroke="var(--can)" stroke-width="1.6" opacity="0.7"/>`
+         + `<circle cx="${x}" cy="${y}" r="3" fill="var(--can)"/>`;
+    });
+  });
+
+  // ---- Systemcore, which is on no channel: it sits above the rows, on its own feed
+  s += `<rect x="${DEV_X}" y="${TOP - 62}" width="${DEV_W}" height="38" rx="9" fill="var(--cat-surface-2)" stroke="var(--cat-signal)" stroke-width="1.4"/>`
+     + `<text x="${DEV_X + 12}" y="${TOP - 44}" font-family='${SANS}' font-size="12" font-weight="600" fill="var(--cat-ink-strong)">Limelight Systemcore</text>`
+     + `<text x="${DEV_X + 12}" y="${TOP - 31}" font-family='${MONO}' font-size="9" fill="var(--cat-dim)">battery direct · ${chains.length} bus${chains.length === 1 ? '' : 'es'} · Eth to radio</text>`;
+  if (boards.length) {
+    s += `<path d="${loom(BOARD_R, pduTop + 14, DEV_X, TOP - 43, LANE0 - 18, 9)}" stroke="var(--pwr)" stroke-width="${gaugeW('18 AWG')}" fill="none" stroke-dasharray="5 4" stroke-linecap="round" opacity="0.85"/>`;
   }
-  s+='</svg>';
-  $('svg').outerHTML=s;
+  chains.forEach((c, ci) => {
+    const x = CAN_X - ci * 26;
+    s += `<line x1="${DEV_X + DEV_W}" y1="${TOP - 43}" x2="${x}" y2="${TOP - 43}" stroke="var(--can)" stroke-width="1.8"/>`
+       + `<path d="M${x},${TOP - 43} V${TOP - 18 - ci * 15}" stroke="var(--can)" stroke-width="2.2" fill="none"/>`;
+  });
+
+  s += '</svg>';
+  $('svg').outerHTML = s;
+
+  /** One row in the device column: a card, its function stripe, its name and where it comes from. */
+  function devBlock(y, colour, name, from, strong) {
+    return `<rect x="${DEV_X}" y="${y - 13}" width="${DEV_W}" height="26" rx="7" fill="var(--cat-surface-1)" stroke="var(--cat-line)" stroke-width="1.2"/>`
+      + `<rect x="${DEV_X}" y="${y - 13}" width="3" height="26" rx="1.5" fill="${colour}"/>`
+      + `<text x="${DEV_X + 12}" y="${y + 4}" font-family='${SANS}' font-size="11.5"${strong ? ' font-weight="600"' : ''} fill="${strong ? 'var(--cat-ink-strong)' : 'var(--cat-ink)'}">${esc2(clip(name, 24))}</text>`
+      + `<text x="${DEV_X + DEV_W - 10}" y="${y + 4}" text-anchor="end" font-family='${MONO}' font-size="9" fill="var(--cat-dim)">${esc2(from)}</text>`;
+  }
 }
 
 fillTypes(); load(); render();
