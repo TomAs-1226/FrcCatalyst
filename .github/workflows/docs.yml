@@ -1,42 +1,84 @@
-name: Deploy Docs (beta trigger)
+name: Deploy Docs
 
-# The beta branch cannot publish the site itself.
+# Publishes two sites from one GitHub Pages deployment.
 #
-# A repository gets one GitHub Pages deployment and `main` owns it, so the real build lives in
-# main's copy of this workflow: it checks out both branches and assembles main at the root with this
-# branch under /beta/. Trying to deploy from here fails with
+# A repository gets exactly one Pages deployment, so the stable docs and the 2027/Systemcore beta
+# docs cannot each own one. The build below assembles both into a single artifact: `main` at the
+# root and the `systemcore-alpha6` branch under /beta/, which is the 2.x line that ships: the docs
+# branch it used to build from was folded into it on 2026-09-19, so the site and the releases can no
+# longer drift apart. The beta branch sets its own baseurl to match.
 #
-#   Branch "systemcore" is not allowed to deploy to github-pages due to environment protection rules
-#
-# which is the environment doing its job. So a docs change on this branch asks main's workflow to
-# run instead of duplicating a build that could never be published.
-#
-# The beta site's build steps are edited on `main`, not here.
+# This file must live on `main`, because that is the branch whose workflow GitHub runs for the Pages
+# environment. Pushing docs to `systemcore` triggers it too, and it rebuilds both.
 
 on:
   push:
-    branches: [ systemcore ]
+    branches: [ main, master, systemcore-alpha6 ]
     paths:
       - 'docs/**'
       - 'README.md'
+      - '.github/workflows/docs.yml'
   workflow_dispatch:
 
 permissions:
-  actions: write
   contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+env:
+  BETA_BRANCH: systemcore-alpha6
 
 jobs:
-  ask-main-to-publish:
+  build:
     runs-on: ubuntu-latest
     steps:
-      # Tests run here rather than only in main's build, so a broken generator is attributed to the
-      # commit that broke it instead of to whatever docs change triggered the next publish.
-      - uses: actions/checkout@v4
+      - name: Check out the stable branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
 
-      - name: Test the browser tools
-        run: node --test docs/tools/**/*.test.mjs
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
 
-      - name: Trigger the Pages build on main
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run docs.yml --ref main --repo "$GITHUB_REPOSITORY"
+      - name: Build the stable site
+        uses: actions/jekyll-build-pages@v1
+        with:
+          source: ./docs
+          destination: ./_site
+
+      # The beta docs are built from their own branch, with their own _config.yml. Nothing is copied
+      # between the two: they are separate sites that happen to share a host.
+      - name: Check out the beta branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BETA_BRANCH }}
+          path: beta-src
+
+      - name: Build the beta site
+        uses: actions/jekyll-build-pages@v1
+        with:
+          source: ./beta-src/docs
+          destination: ./_site/beta
+
+      # The tools generate code that is compiled against the library, so a generator that drifts from
+      # CANRegistry would otherwise be found by a team at build time rather than here.
+      - name: Test the beta browser tools
+        run: node --test beta-src/docs/tools/**/*.test.mjs
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
