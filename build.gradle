@@ -160,8 +160,22 @@ dependencies {
     // CTRE Phoenix 6
     api "com.ctre.phoenix6:wpiapi-java:${phoenixVersion}"
 
-    // PathPlanner (commonly used with swerve)
-    api "com.pathplanner.lib:PathplannerLib-java:${pathplannerVersion}"
+    // PathPlanner (commonly used with swerve) - compileOnly, deliberately.
+    //
+    // PathPlanner is stuck at 2027.0.0-alpha-3 and is built against commands v2, so on this line it
+    // resolves but does not link: AutoBuilder.configure() throws NoClassDefFoundError on a v3-only
+    // robot. SwerveSubsystem.configurePathPlanner already catches Throwable for exactly that, and
+    // every PathPlanner entry point degrades loudly rather than crashing.
+    //
+    // As `api` it also leaked into the published pom, which is why every Catalyst robot project has
+    // had to hand-add 3015's maven repository to build.gradle - a dependency no Catalyst robot
+    // actually uses, since Catalyst follows its own paths. compileOnly keeps the integration
+    // compiled and out of every robot's classpath; a team that wants PathPlanner adds its vendordep,
+    // which brings the repository with it.
+    //
+    // testImplementation as well, so the test classpath is unchanged from when this was `api`.
+    compileOnly "com.pathplanner.lib:PathplannerLib-java:${pathplannerVersion}"
+    testImplementation "com.pathplanner.lib:PathplannerLib-java:${pathplannerVersion}"
 
     // LimelightLib 2. Catalyst read Limelight NetworkTables by hand for years specifically to avoid
     // this dependency, and that stopped being viable in 2027: Limelight OS now publishes results as
