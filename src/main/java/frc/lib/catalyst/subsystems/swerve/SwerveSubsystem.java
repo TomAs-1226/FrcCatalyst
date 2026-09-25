@@ -1167,7 +1167,8 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
         if (!hasAppliedOperatorPerspective || RobotState.isDisabled()) {
             RobotState.allianceOpt()
             .ifPresent(AllianceColor -> {
-                drivetrain.setOperatorPerspectiveForward(AllianceColor == Alliance.RED ? Rotation2d.k180deg : Rotation2d.ZERO);
+                // Phoenix 26.70 renamed this from setOperatorPerspectiveForward.
+                drivetrain.setOperatorForwardDirection(AllianceColor == Alliance.RED ? Rotation2d.k180deg : Rotation2d.ZERO);
                 hasAppliedOperatorPerspective = true;
             });
         }

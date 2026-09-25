@@ -2,6 +2,8 @@ package frc.lib.catalyst.hardware;
 
 import com.ctre.phoenix6.CANBus;
 
+import org.wpilib.hardware.bus.CANPort;
+
 import java.util.Objects;
 import java.util.OptionalInt;
 
@@ -22,9 +24,12 @@ import java.util.OptionalInt;
  * {@link #sharesControllerWith(CatalystCANBus)} exposes it so the CAN ID planner and the health
  * dashboard can account for it instead of teams discovering it on the field.
  *
- * <p>Bus naming is verified against the Phoenix 6 jar, not the documentation: the factory is
- * {@code CANBus.systemcore(int)}, lower-case, even though the Systemcore testing notes write it
- * {@code systemCore}.
+ * <p>Bus naming is verified against the jars, not the documentation. Phoenix 26.70 (the alpha-7
+ * build) deleted its own {@code CANBus.systemcore(int)} / {@code CANBus.motioncore(int)} factories:
+ * naming a bus is now WPILib's job, through the {@link CANPort} enum, and Phoenix takes one in its
+ * constructor. The enum's constants are {@code CAN_S0}–{@code CAN_S4} and {@code CAN_D0}–
+ * {@code CAN_D19}, which is where {@link #SYSTEMCORE_BUS_COUNT} and {@link #MOTIONCORE_BUS_COUNT}
+ * come from — they are not a guess.
  *
  * @since 2.0.0
  */
@@ -66,7 +71,7 @@ public final class CatalystCANBus {
      */
     public static CatalystCANBus systemcore(int index) {
         require(index, SYSTEMCORE_BUS_COUNT, "Systemcore");
-        return new CatalystCANBus(Kind.SYSTEMCORE, index, "can_s" + index, CANBus.systemcore(index));
+        return new CatalystCANBus(Kind.SYSTEMCORE, index, "can_s" + index, phoenixBus("CAN_S", index));
     }
 
     /**
@@ -77,7 +82,19 @@ public final class CatalystCANBus {
      */
     public static CatalystCANBus motioncore(int index) {
         require(index, MOTIONCORE_BUS_COUNT, "Motioncore");
-        return new CatalystCANBus(Kind.MOTIONCORE, index, "can_d" + index, CANBus.motioncore(index));
+        return new CatalystCANBus(Kind.MOTIONCORE, index, "can_d" + index, phoenixBus("CAN_D", index));
+    }
+
+    /**
+     * The Phoenix bus for a {@link CANPort} constant, looked up by name.
+     *
+     * <p>{@code CANPort} is an enum with no accessor that maps (kind, index) to a constant, so the
+     * name is rebuilt. Both callers bound-check their index against the counts above first, so the
+     * constant always exists; an {@link IllegalArgumentException} escaping from here would mean
+     * WPILib had renamed its constants, which is worth failing loudly for rather than papering over.
+     */
+    private static CANBus phoenixBus(String prefix, int index) {
+        return new CANBus(CANPort.valueOf(prefix + index));
     }
 
     /**

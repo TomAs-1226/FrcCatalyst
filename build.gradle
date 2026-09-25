@@ -56,7 +56,14 @@ java {
 // ---------------------------------------------------------------------------
 ext {
     wpilibVersion = '2027.0.0-alpha-7'
-    phoenixVersion = '26.50.0-alpha-1'
+    // 26.70.0-alpha-2 (2026-09-18) is the first Phoenix built for WPILib 2027 alpha-7. CTRE's
+    // changelog: "compatible with WPILib 2027 alpha 7 on the Systemcore on the Alpha/Beta 14 image
+    // and does not support the roboRIO. This release requires 26.70.x device firmware."
+    //
+    // That last sentence is the one that costs time: the devices have to be re-flashed to 26.70.x,
+    // so moving a robot to this line is not a git operation. A pom cannot tell you any of this -
+    // Phoenix's poms declare no dependencies at all - only the changelog can.
+    phoenixVersion = '26.70.0-alpha-2'
     pathplannerVersion = '2027.0.0-alpha-3'
     limelightVersion = '2.0.0-beta8-alpha7'
 }

@@ -48,13 +48,21 @@ public final class CANBusHealth {
 
     private CANBusHealth() {}
 
-    /** A single bus's current state. */
+    /**
+     * A single bus's current state.
+     *
+     * <p>The two cumulative counters are {@code long} because Phoenix 26.70 widened them from
+     * {@code int}. Narrowing them back would compile with a cast and then, on a robot left powered
+     * through a long practice day, report a negative bus-off count — the kind of defect that reads
+     * as a dashboard bug rather than as a lost 64th bit. {@code REC} and {@code TEC} stay
+     * {@code int}: they are CAN's own 8-bit error counters and cannot exceed 255.
+     */
     public record BusStatus(
             String bus,
             boolean ok,
             double utilization,
-            int busOffCount,
-            int txFullCount,
+            long busOffCount,
+            long txFullCount,
             int receiveErrorCount,
             int transmitErrorCount) {
 
