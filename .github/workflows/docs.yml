@@ -13,9 +13,13 @@ name: Deploy Docs (beta trigger)
 #
 # The beta site's build steps are edited on `main`, not here.
 
+# The branch name here must be THIS branch's name. GitHub runs the workflow file from the branch
+# that was pushed, so a stale name means a docs push matches nothing, deploys nothing, and shows no
+# red run to notice. `systemcore` was retired in the 2026-09-19 consolidation and this trigger was
+# never updated with it, so every docs push on this branch since then has been a no-op.
 on:
   push:
-    branches: [ systemcore ]
+    branches: [ upgrade/alpha-7 ]
     paths:
       - 'docs/**'
       - 'README.md'
