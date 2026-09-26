@@ -13,7 +13,7 @@ name: Deploy Docs
 
 on:
   push:
-    branches: [ main, master, systemcore-alpha6 ]
+    branches: [ main, master, upgrade/alpha-7 ]
     paths:
       - 'docs/**'
       - 'README.md'
@@ -30,7 +30,15 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  BETA_BRANCH: systemcore-alpha6
+  # The 2.x branch the /beta/ site is built from. `systemcore-alpha6` was merged into
+  # `upgrade/alpha-7` on 2026-09-25 and that is now the single 2.x line and the one 2.0.0 ships from,
+  # so the beta site follows it.
+  #
+  # This name and the trigger below must BOTH be updated when the 2.x branch moves. Getting only one
+  # of them is silent in a way that has now cost time twice: with a stale trigger a docs push matches
+  # nothing at all, and with a stale BETA_BRANCH the build is green and publishes the OLD branch's
+  # content — which reads as "my docs change did not take" with no failure anywhere to explain it.
+  BETA_BRANCH: upgrade/alpha-7
 
 jobs:
   build:
