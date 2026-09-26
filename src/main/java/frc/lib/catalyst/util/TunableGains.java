@@ -57,6 +57,11 @@ public final class TunableGains {
             this.mmAccel  = null;
             this.mmJerk   = null;
         }
+
+        // Describe what was just created, so a dashboard can draw these as grouped, bounded controls
+        // with units instead of a row of anonymous number fields. A TunableNumber carries a key and a
+        // value and nothing else, which is all the robot needs and not enough to draw.
+        TunablesManifest.registerGains(prefix, hasMotionMagic);
     }
 
     /**
