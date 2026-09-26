@@ -392,6 +392,7 @@ driven: the bench list further up is the whole hardware story, and `SwerveSubsys
 | Skew correction | Pose-exponential discretization for swerve |
 | Collision zones | A named condition that should never be true. It **detects, it does not prevent** — the deprecated `SuperstructureCoordinator` logs a warning when one goes active. Staged actuation and interlocks on `Superstructure` are the current answer |
 | `SimDashboard` | Generic browser sim cockpit that adapts to any mechanism via `describe()` / `MechanismView`; sim-only, dependency-free |
+| [`frc.lib.catalyst.fieldlab`](testing/fieldlab.html) | A planned, checkpointed measurement campaign for a real field: wheel radius, slip current, drive feedforward, odometry drift and a shot map, run in order and resumed across battery swaps; `tools/fieldlab.py` fits the log offline |
 
 ### Health and safety
 

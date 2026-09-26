@@ -2,6 +2,7 @@
 layout: default
 title: Testing
 nav_order: 7
+has_children: true
 ---
 
 # Testing
@@ -298,6 +299,15 @@ test {
 # Run all tests including mechanisms (needs WPILib sim)
 ./gradlew testAll
 ```
+
+---
+
+## Field Lab
+
+Planned, checkpointed measurement campaigns for the afternoon a team actually gets a real field —
+wheel radius, slip current, drive feedforward, odometry drift, a shot map, all run in order by the
+robot and analysed offline. See [Field Lab](fieldlab.md) for why it exists, a worked example, and
+how to read `tools/fieldlab.py`'s output.
 
 ---
 

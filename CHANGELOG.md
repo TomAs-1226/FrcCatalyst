@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **`frc.lib.catalyst.fieldlab`: a planned, checkpointed measurement campaign for the afternoon a
+  team actually gets a real field.** Field time is rare enough that most of what only carpet can
+  tell you — odometry drift over twelve metres, a shot from the far side, whether a slip-current
+  guess holds — has always been taken ad hoc, into a notebook, in whatever order the day allowed, or
+  not taken at all. A `TestCampaign` is that afternoon written down and run by the robot instead: it
+  orders `Procedures.wheelRadius`, `slipCurrent`, `driveFeedforward`, `odometryDrift`,
+  `Procedures.sweep` (a shot map, or anything shaped like one) and `thermalSoak`, banks each finished
+  procedure to a `CampaignCheckpoint` so a disable, a brownout or a battery swap costs only the
+  procedure that was in flight, and refuses to go on below a set battery voltage rather than collect
+  characterisation data that is wrong in a direction that looks right — kV comes out high, a
+  flywheel never reaches its setpoint, a slip sweep slips early. A `TestStep.Measure` or `Confirm`
+  waits indefinitely for a person, over the same `/Catalyst/Tuning/FieldLab/` keys the dashboards
+  already write, with the operator's "go on" edge-triggered rather than level-triggered — a level a
+  step forgot to clear would run the whole campaign in one 20 ms loop. It runs as a Driver Station
+  Utility op mode (`FieldLabOpMode`), the same place every other Catalyst diagnostic lives, and fits
+  nothing itself: `tools/fieldlab.py` reads the resulting `.wpilog` afterwards, fits kS/kV/kA by
+  least squares and reports the residual (kA is the weakest of the three, being differentiated
+  twice), summarises drift and a sweep's scores, and refuses to guess a model for anything it does
+  not recognise. Framework-tested only — 939 tests pass with no HAL — and not yet run on a real
+  field.
+
 ### Changed
 
 - **Phoenix 6 26.70.0-alpha-2, so this line can drive a CTRE robot.** Since it was cut, the alpha-7
