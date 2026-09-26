@@ -404,14 +404,19 @@ public final class CampaignRunner {
             }
 
             double began = Timer.getTimestamp();
-            var result = coroutine.await(command.withTimeout(seconds(act.timeoutSeconds())));
+            // The return value is deliberately ignored, and that is a portability decision rather than
+            // laziness: commands v3 on WPILib alpha-6 declares `await` as returning void, and on
+            // alpha-7 it returns a ForkResult. Reading the result would mean two versions of this
+            // file, one per WPILib line, and two versions of a file is exactly how the 2.x line came
+            // to fork in the first place. What the result would have told us is whether the command
+            // failed; the elapsed time below already tells us the more useful thing, which is whether
+            // it ran out of its cap.
+            coroutine.await(command.withTimeout(seconds(act.timeoutSeconds())));
             double took = Timer.getTimestamp() - began;
 
             CatalystLog.log(LOG + sessionId + "/" + procedure.id() + "/" + safe(act.label()) + ".seconds", took);
 
-            if (!result.successful()) {
-                note("'" + act.label() + "' did not complete (" + result.getFailedCommands().size() + " failed)");
-            } else if (took >= act.timeoutSeconds() - 1e-3) {
+            if (took >= act.timeoutSeconds() - 1e-3) {
                 // A step that ran exactly to its cap probably did not finish what it was doing, and a
                 // measurement taken from it should be read with that in mind.
                 note(String.format("'%s' hit its %.0f s cap; treat its data as incomplete",

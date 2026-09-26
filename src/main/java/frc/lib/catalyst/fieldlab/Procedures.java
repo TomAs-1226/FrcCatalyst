@@ -192,11 +192,15 @@ public final class Procedures {
      * configuration rather than a new routine.
      *
      * <pre>{@code
-     * Procedures.sweep("shot-map", "Shot map", drive, hood::setAngle, shooter::setRpm,
-     *         shooter::atSpeed, () -> shooter.fireOnce(),
-     *         List.of(new Setpoint(2.0, 1800, 42), new Setpoint(3.0, 2100, 38), ...),
+     * Procedures.sweep("shot-map", "Shot map",
+     *         hood::setAngle, shooter::setRpm, shooter::atSpeed, shooter::fireOnce,
+     *         List.of(Setpoint.of(2.0, 42, 1800), Setpoint.of(3.0, 38, 2100)),
      *         "did it score? 1 = in, 0.5 = rim, 0 = miss");
      * }</pre>
+     *
+     * <p>Note the order of a {@link Setpoint}: the distance the table is keyed on, then the value for
+     * {@code first}, then the value for {@code second}. Here {@code first} is the hood and
+     * {@code second} the flywheel, because that is the order they were passed in.
      *
      * @param id procedure id
      * @param title what the operator sees
@@ -230,7 +234,12 @@ public final class Procedures {
                                 CatalystLog.log("FieldLab/" + id + "/At", sp.at());
                                 CatalystLog.log("FieldLab/" + id + "/First", sp.first());
                                 CatalystLog.log("FieldLab/" + id + "/Second", sp.second());
-                                co.waitUntil(ready, org.wpilib.units.Units.Seconds.of(6.0));
+                                // No timeout argument here on purpose: alpha-6's commands v3 has only
+                                // the one-argument waitUntil, and keeping this file identical on both
+                                // WPILib lines is worth more than a second guard. The step's own 8 s
+                                // cap below already bounds a setpoint that never settles, so nothing
+                                // hangs — the sweep simply records that row as having hit its cap.
+                                co.waitUntil(ready);
                             })
                             .named("setpoint " + sp.label()),
                     8.0));
