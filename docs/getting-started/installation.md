@@ -27,21 +27,27 @@ Add FrcCatalyst to your WPILib robot project.
 - A **Limelight Systemcore** running the matching OS beta. The library and the OS are versioned
   together — see [Systemcore & WPILib 2027](../advanced/systemcore) before flashing anything.
 - A **GradleRIO robot project** (created via the WPILib project generator).
-- Vendordeps: **CTRE Phoenix 6** and **PathPlanner**, neither of which has a WPILib alpha-7 release
-  yet.
+- Vendordeps: **CTRE Phoenix 6** `26.70.0-alpha-2` or later — the first Phoenix build for WPILib
+  alpha-7, published 2026-09-18. **PathPlanner** is optional and still has no WPILib alpha-7
+  release.
 
   {: .warning }
-  > **A robot with CTRE devices cannot run this release today.** The newest Phoenix 6
-  > (26.50.0-alpha-1) and PathPlannerLib (2027.0.0-alpha-3) are built for WPILib alpha-5/6. CTRE
-  > says its alpha-7 release follows RobotPy's, and that forcing an older vendordep into an alpha-7
-  > project is unsupported on Systemcore. For that robot, use 2.0.0-alpha.4 on OS beta 13: see
+  > **CTRE devices need 26.70.x firmware.** Phoenix 6 `26.70.0-alpha-2` is the first Phoenix build
+  > for WPILib alpha-7, but it **requires 26.70.x device firmware** — every TalonFX, CANcoder and
+  > Pigeon has to be re-flashed before it will talk to this line, which makes moving a robot here
+  > an afternoon's work, not a `git checkout`. See
   > [Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html).
   >
-  > When the alpha-7 releases arrive, add them by hand from the vendors' own 2027 instructions.
-  > Neither publishes a 2027 vendordep JSON at a discoverable URL, so the usual *Install new
-  > libraries (online)* flow fetches a 2026 one; PathPlanner's canonical `PathplannerLib.json`
-  > still reports `frcYear 2026`, and installing it into a 2027 project produces something that
-  > looks configured and fails at build with an error naming none of this.
+  > **PathPlanner still does not link on this line.** It remains at `2027.0.0-alpha-3`, built
+  > against commands v2, so Catalyst depends on it as `compileOnly`: it resolves but does not
+  > reach your robot's classpath, and `SwerveSubsystem.configurePathPlanner` throws loudly rather
+  > than crash-looping if you call it anyway. Add PathPlanner's own vendordep plus
+  > WPILibNewCommands if you want to use it.
+  >
+  > Neither vendor is guaranteed to publish its 2027 vendordep JSON at a discoverable URL, so the
+  > usual *Install new libraries (online)* flow can still fetch a 2026 one; PathPlanner's canonical
+  > `PathplannerLib.json` reports `frcYear 2026`, and installing it into a 2027 project produces
+  > something that looks configured and fails at build with an error naming none of this.
 
   **PhotonVision is not used.** There is no 2027 build, and Catalyst is Limelight-first on
   Systemcore — the pipeline is built into the hardware. If you had it installed for Catalyst 1.x,

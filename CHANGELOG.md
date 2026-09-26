@@ -73,7 +73,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   draw. The run table also split its one ambiguous amps column into the breaker and the typical
   running current, which were being shown and calculated from separately.
 
->>>>>>> systemcore-alpha6
 - **`StateSpaceController.Position.correct(position)` taught the filter a velocity nothing had measured.**
   For a mechanism with no velocity sensor it passed the filter's own velocity estimate back as a
   measurement, at the real sensor's noise. A Kalman covariance update does not look at the value, only

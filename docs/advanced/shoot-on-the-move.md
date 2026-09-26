@@ -13,10 +13,12 @@ A swerve drivetrain that aims itself while the driver drives it: the whole drive
 
 {: .warning }
 > Unreleased: on this line (`upgrade/alpha-7`) after 2.0.0-beta.2, so no release has it yet.
-> **Ported and compiled here, not run.** Phoenix 6 has no WPILib alpha-7 release, so no CTRE
-> drivetrain can run this line yet. What this page says about running on one (the Pigeon's turn
-> rate, the facing request, the wiring example, the checks on the robot) applies to the alpha-6
-> line, where this shipped in 2.0.0-alpha.4: see
+> **Ported and compiled here; not yet driven on a robot.** Phoenix 6 `26.70.0-alpha-2`, published
+> 2026-09-18, is the first Phoenix build for WPILib alpha-7 — it requires **26.70.x device
+> firmware** on every TalonFX, CANcoder and Pigeon — so a CTRE drivetrain can run this line now.
+> What this page says about running on hardware (the Pigeon's turn rate, the facing request, the
+> wiring example, the checks on the robot) was measured on `systemcore-alpha6`'s 2.0.0-alpha.4,
+> now merged into this line; it has not yet been repeated on 26.70.x firmware. See
 > [Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html).
 > Built offline against a model of the Catalyst X1 fitted to its recordings, and **not yet
 > driven**. Every number marked *(sim)* comes from that model.
@@ -497,7 +499,7 @@ and MegaTag2 now read it too.
 - **They are early.** At every turn onset the wheels reported the full rate 100-200 ms before the
   gyro saw it, while the modules fought and slipped.
 - **`SwerveSubsystem` reads the Pigeon 2.** It overrides the method with the Pigeon's
-  `AngularVelocityZWorld`. On this line that is compiled, not run: Phoenix 6 has no alpha-7 release
-  yet.
+  `AngularVelocityZWorld`. On this line that is compiled and, with Phoenix 6 `26.70.0-alpha-2` and
+  26.70.x device firmware, can run — it just has not yet been driven on a robot.
 - **Other sinks keep the wheels.** The default is still `getChassisSpeeds().omega`, so a sink written
   before this keeps working unchanged. Override it if the sink has a gyro.

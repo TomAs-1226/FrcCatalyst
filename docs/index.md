@@ -32,7 +32,7 @@ Pre-built mechanisms, swerve, vision and whole-robot state machines for FRC — 
 <p style="margin-top: -8px">
   <img src="https://img.shields.io/badge/WPILib-2027.0.0--alpha--7-1f6feb?style=flat-square" alt="WPILib 2027.0.0-alpha-7"/>
   <img src="https://img.shields.io/badge/Systemcore%20OS-image%2014-2c2e34?style=flat-square" alt="Systemcore OS image 14"/>
-  <img src="https://img.shields.io/badge/Phoenix%206-26.50.0--alpha--1-e94560?style=flat-square" alt="Phoenix 6 26.50.0-alpha-1"/>
+  <img src="https://img.shields.io/badge/Phoenix%206-26.70.0--alpha--2-e94560?style=flat-square" alt="Phoenix 6 26.70.0-alpha-2, requires 26.70.x device firmware"/>
   <img src="https://img.shields.io/badge/Java-25-orange?style=flat-square&logo=openjdk" alt="Java 25"/>
   <img src="https://img.shields.io/badge/PathPlanner-2027.0.0--alpha--3-7c3aed?style=flat-square" alt="PathPlanner 2027.0.0-alpha-3"/>
   <img src="https://img.shields.io/badge/LimelightLib-2.0.0--beta8--alpha7-22c55e?style=flat-square" alt="LimelightLib 2.0.0-beta8-alpha7"/>
@@ -66,15 +66,18 @@ dependencies {
 ```
 
 The vendordep route is on [Installation](getting-started/installation). Of the vendor libraries
-Catalyst builds on, only LimelightLib has an alpha-7 release. **Phoenix 6 and PathPlannerLib do
-not, so a robot with CTRE devices cannot run this release yet**; for that robot the 2.x to use is
-2.0.0-alpha.4 on OS beta 13. See
+Catalyst builds on, LimelightLib and, as of 2026-09-18, **CTRE Phoenix 6 (`26.70.0-alpha-2`)** have
+an alpha-7 release. **PathPlanner does not** — it stays at `2027.0.0-alpha-3`, built against
+commands v2, so it is a `compileOnly` dependency: it resolves but does not link, and
+`SwerveSubsystem.configurePathPlanner` degrades loudly instead of crashing when it can't find it. A
+robot with CTRE devices can run this release, but **every TalonFX, CANcoder and Pigeon needs
+26.70.x device firmware first** — that makes moving a robot onto this line an afternoon's work, not
+a `git checkout`. See
 [Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html).
 
 {: .warning }
-> **Flash the Systemcore to OS beta 14 first, unless the robot has CTRE devices:** Phoenix 6 has no
-> alpha-7 release, so keep that robot on beta 13 with 2.0.0-alpha.4. The pairing with WPILib
-> `2027.0.0-alpha-7` is hard,
+> **Flash the Systemcore to OS beta 14, and CTRE devices to 26.70.x firmware.** The OS pairing with
+> WPILib `2027.0.0-alpha-7` is hard,
 > not advisory — that OS release is titled "(REQUIRES WPILIB ALPHA 7)", and a mismatch does not
 > degrade, it aborts before any robot code runs. On the mismatch we actually measured, alpha-6
 > against beta 13, the program died with `MRC API version mismatch` and systemd restarted it 22
@@ -538,8 +541,8 @@ robot spec sheet and the eleven browser tools were built. Those releases are doc
 | Component | Version |
 |-----------|---------|
 | WPILib | 2027.0.0-alpha-7 |
-| CTRE Phoenix 6 | 26.50.0-alpha-1, an alpha-5/6 build: **no alpha-7 release yet** |
+| CTRE Phoenix 6 | 26.70.0-alpha-2, published 2026-09-18 for this line: **requires 26.70.x device firmware** |
 | LimelightLib | 2.0.0-beta8-alpha7 |
-| PathPlanner | 2027.0.0-alpha-3, an alpha-5/6 build: **no alpha-7 release yet** |
+| PathPlanner | 2027.0.0-alpha-3, an alpha-5/6 build built against commands v2: **`compileOnly`, resolves but does not link** |
 | Java | 25 |
 | Systemcore OS | beta 14 (`limelightosr-2027.0.0-beta14-210`) |

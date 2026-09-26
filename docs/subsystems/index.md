@@ -187,8 +187,9 @@ included. `Status`, `Volts`, `PeakAmps`, `SlipAmps`, `RecommendedAmps`
 (rounded down to 5 A), `Result` and `Snippet` publish to
 `/Catalyst/Calibration/SlipCurrent/...`.
 
-On this line it is compiled, not run: it drives a CTRE drivetrain, and
-Phoenix 6 has no WPILib alpha-7 release yet.
+On this line it is compiled and, with Phoenix 6 `26.70.0-alpha-2` and
+26.70.x device firmware, can drive a CTRE drivetrain — it just has not
+yet been driven on a robot.
 
 ### SwerveSetpointGenerator (v0.4.0+)
 

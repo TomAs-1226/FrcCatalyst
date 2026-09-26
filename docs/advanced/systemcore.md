@@ -34,13 +34,16 @@ that deploys and then does nothing.
 | Catalyst | 2.0.0-beta.2 |
 | WPILib | 2027.0.0-alpha-7 |
 | Systemcore OS | **beta 14** (`limelightosr-2027.0.0-beta14-210`) |
-| Phoenix 6 | 26.50.0-alpha-1, an alpha-5/6 build: **no alpha-7 release yet** |
-| PathPlannerLib | 2027.0.0-alpha-3, an alpha-5/6 build: **no alpha-7 release yet** |
+| Phoenix 6 | 26.70.0-alpha-2, published 2026-09-18: **requires 26.70.x device firmware** |
+| PathPlannerLib | 2027.0.0-alpha-3, an alpha-5/6 build built against commands v2: **`compileOnly`, resolves but does not link** |
 | LimelightLib | 2.0.0-beta8-alpha7 |
 | Java | 25 |
 
-**Flash the OS to beta 14, unless the robot has CTRE devices.** Phoenix 6 has no alpha-7 release, so
-that robot stays on beta 13 with 2.0.0-alpha.4
+**Flash the OS to beta 14, including a robot with CTRE devices.** That used to be backwards advice:
+Phoenix 6 had no alpha-7 release, so a CTRE robot had to stay on beta 13 with 2.0.0-alpha.4. CTRE
+published Phoenix 6 `26.70.0-alpha-2` for WPILib alpha-7 on 2026-09-18, and this line moved to it —
+so now a CTRE robot belongs on beta 14 too, once every TalonFX, CANcoder and Pigeon is re-flashed to
+**26.70.x device firmware**
 ([Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html)). Beta 14 is
 titled "(REQUIRES WPILIB ALPHA 7)" and the pairing is
 not advice — a build made against alpha-7 will not start on beta 13. It does not degrade: the

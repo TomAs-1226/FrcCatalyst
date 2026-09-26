@@ -42,7 +42,8 @@ directly — but together they do shoot-while-moving.
 > **No turret?** A swerve drivetrain can be the turret: `HeadingTracker` aims the whole robot while
 > the driver drives it, with its own lag and yaw handled. See
 > [Shoot on the Move]({% link advanced/shoot-on-the-move.md %}). On this line that is ported and
-> compiled, not run: it drives a CTRE drivetrain, and Phoenix 6 has no alpha-7 release yet.
+> compiled; Phoenix 6 `26.70.0-alpha-2` lets it run on a CTRE drivetrain now (with 26.70.x device
+> firmware), but it has not yet been driven on a robot.
 
 ---
 

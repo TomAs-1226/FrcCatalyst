@@ -36,8 +36,11 @@ shims, because carrying both would have meant every class in the library branchi
 > and has never run on hardware. It is for an offseason robot you can afford to have not work.
 
 {: .note }
-> **On a Systemcore with CTRE motors today, 2.x means 2.0.0-alpha.4** on WPILib alpha-6 and OS
-> beta 13, not beta.1: Phoenix 6 and PathPlannerLib have no alpha-7 release yet. See
+> **On a Systemcore with CTRE motors today, 2.x means `v2.0.0-beta.2` on `upgrade/alpha-7`.**
+> Phoenix 6 `26.70.0-alpha-2`, published 2026-09-18, is the first Phoenix build for WPILib
+> alpha-7 — it requires **26.70.x device firmware** on every TalonFX, CANcoder and Pigeon.
+> `systemcore-alpha6`, the source-build-only line for Systemcore image 13, is merged into this
+> line now. See
 > [Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html).
 
 ---
@@ -55,8 +58,12 @@ The API is what 2.0.0 will be; the version says what it is standing on.
 
 **Requires Systemcore OS beta 14.** That release is titled "(REQUIRES WPILIB ALPHA 7)" and the
 pairing is not advice — a build made against alpha-7 aborts on beta 13 before any robot code runs.
-**It cannot drive CTRE devices yet.** Neither Phoenix 6 nor PathPlannerLib has an alpha-7 release;
-the 26.50.0-alpha-1 and 2027.0.0-alpha-3 this depends on are alpha-5/6 builds.
+**It could not drive CTRE devices at release.** Neither Phoenix 6 nor PathPlannerLib had an alpha-7
+release at the time; this tag depended on the 26.50.0-alpha-1 and 2027.0.0-alpha-3 alpha-5/6 builds.
+That changed nine days later: CTRE published Phoenix 6 `26.70.0-alpha-2` on 2026-09-18, this line
+moved to it, and a CTRE robot can run it now — with **26.70.x device firmware** on every TalonFX,
+CANcoder and Pigeon. PathPlanner is still stuck on `2027.0.0-alpha-3`; see
+[Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html).
 
 ```gradle
 implementation 'com.github.TomAs-1226:FrcCatalyst:v2.0.0-beta.2'
@@ -198,10 +205,11 @@ Roughly in the order that will save you time.
 4. **Change your bus names.** `""` and `"rio"` no longer mean anything. `can_s0` is the default;
    run `CANBusPlanner.suggest()` before you rewire anything.
 5. **Remove PhotonVision** from your vendordeps.
-6. **Phoenix 6 and PathPlanner.** Neither has a WPILib alpha-7 release yet, so on beta.1 there is
-   nothing to add and a CTRE robot cannot run. On alpha-6 (2.0.0-alpha.4), add them by hand:
-   neither publishes a 2027 vendordep JSON at a discoverable URL, so the usual online install
-   fetches a 2026 one, which installs cleanly and fails at build with an error naming none of this.
+6. **Phoenix 6 and PathPlanner.** Phoenix 6 `26.70.0-alpha-2` has a WPILib alpha-7 release — add it,
+   and re-flash every TalonFX, CANcoder and Pigeon to 26.70.x firmware first. PathPlanner still has
+   no alpha-7 release and stays `compileOnly`, so add it by hand only if you need it: neither vendor
+   publishes a 2027 vendordep JSON at a discoverable URL, so the usual online install fetches a 2026
+   one, which installs cleanly and fails at build with an error naming none of this.
 7. **Check `getChooser()` and `getServo()`** if you used them.
 
 Then read [Systemcore & WPILib 2027](advanced/systemcore) once through. It is the page that explains

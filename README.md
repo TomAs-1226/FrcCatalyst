@@ -62,10 +62,31 @@ checked out beside this repository. It only reads, and needs nothing beyond Pyth
 number in Maven local is whatever `build.gradle` said when that build was published, which is not
 always the tag with the same number; the script says which commit each one really is.
 
+This branch, `upgrade/alpha-7`, is `v2.0.0-beta.2` plus docs. Its documentation is not published
+yet: the beta site is built from `systemcore`.
+
 ---
 
 ## What is FrcCatalyst?
->>>>>>> systemcore-alpha6
+
+**FrcCatalyst** is a plug-and-play Java library for FRC teams using **CTRE Phoenix 6 hardware**. It provides production-ready mechanism building blocks, hardware wrappers, and utilities so your team can focus on strategy and game-specific logic instead of writing boilerplate.
+
+> **One import. One builder call. A fully functional mechanism with telemetry, simulation, safety limits, and command factories.**
+
+### Why FrcCatalyst?
+
+| Feature | Raw WPILib/Phoenix | FrcCatalyst |
+|---------|-------------------|-------------|
+| Elevator with gravity FF | ~150 lines | **8 lines** |
+| Swerve + PathPlanner + Vision | ~400 lines | **15 lines** |
+| Mechanism with sim + telemetry | Build it yourself | **Built-in** |
+| Browser sim cockpit for any mechanism | Hand-write per robot | **Generic `SimDashboard`** |
+| Safe temperature cutoffs | Manual | **Automatic** |
+| Limit switch auto-zeroing | Manual wiring | **One builder call** |
+| Whole-robot state machine | Hand-rolled per season | **Declarative graph + full logging** |
+| A spec sheet the dashboard can read | Hand-typed and out of date by week two | **`RobotIdentity.declare("Ratchet")`** |
+
+---
 
 ## What state this is in
 
@@ -86,37 +107,19 @@ already changed `Mechanism` from an interface to a class and back across three b
 requires **Systemcore OS beta 14** — a build against alpha-7 aborts on beta 13 before your robot
 code runs, so a mismatch looks like a robot that deploys and then does nothing.
 
-**It cannot drive CTRE devices yet.** Phoenix 6 and PathPlannerLib have no WPILib alpha-7 release;
-the builds this compiles against are alpha-5/6 builds. On OS beta 14 a robot with CTRE motors has
-nothing to run them, so for that robot the 2.x to use today is 2.0.0-alpha.4 on alpha-6 and beta
-13: tag `v2.0.0-alpha.4` (commit `9684685`) on branch `systemcore-alpha6`, built from source.
+**It can drive CTRE devices, as of 2026-09-18.** Phoenix 6 `26.70.0-alpha-2` is the first build for
+WPILib alpha-7, and this line moved to it. **It requires 26.70.x device firmware** — every TalonFX,
+CANcoder and Pigeon has to be re-flashed, so moving a robot onto this line is an afternoon of work,
+not a `git checkout`. PathPlanner is a separate story: it is still stuck on `2027.0.0-alpha-3`,
+built against commands v2, so on this line it resolves but does not link. It is now a
+`compileOnly` dependency, so it no longer forces a robot project to hand-add 3015's Maven
+repository, and `SwerveSubsystem.configurePathPlanner` degrades loudly instead of crash-looping
+when it can't find it.
 
 This is the pre-season release. Put it on an offseason robot over the offseason, so the port to
 2027 is behind you rather than ahead of you in January. **If you are competing, use
 [v1.12.0](https://github.com/TomAs-1226/FrcCatalyst/releases/tag/v1.12.0)** — WPILib 2026, roboRIO,
 [stable documentation](https://tomas-1226.github.io/FrcCatalyst/).
-
-## Versions and compatibility
-
-Which Catalyst goes on which robot is kept on one page,
-**[Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html)**. As of
-12 September 2026:
-
-| If you are | Use |
-|---|---|
-| Competing this season on a roboRIO | **1.12.0**: tag `v1.12.0`, WPILib 2026.2.1, on JitPack |
-| Testing on a Systemcore with CTRE motors, today | **2.0.0-alpha.4**: tag `v2.0.0-alpha.4` (commit `9684685`) on branch `systemcore-alpha6`, WPILib 2027.0.0-alpha-6, Systemcore OS image 13. Source build only. |
-| Trying WPILib alpha-7 on Systemcore image 14 | **2.0.0-beta.2**: tag `v2.0.0-beta.2` on branch `upgrade/alpha-7`, on JitPack. Phoenix 6 and PathPlannerLib have no alpha-7 release, so a robot with CTRE motors cannot run it yet. |
-
-This branch, `upgrade/alpha-7`, is `v2.0.0-beta.2` plus docs. Its documentation is not published yet: the beta site is built from `systemcore`.
-
-`python tools/catalyst-versions.py` prints the live map from git and Maven local: every tag and
-branch head with the WPILib and vendor versions it pins, and every local build traced to the commit
-its sources came from. `--online` adds the upstream Systemcore matrix, JitPack's build status and
-the vendordeps the docs site serves; `--apps` adds CatalystApp and CatalystConsole when they are
-checked out beside this repository. It only reads, and needs nothing beyond Python 3.8. A version
-number in Maven local is whatever `build.gradle` said when that build was published, which is not
-always the tag with the same number; the script says which commit each one really is.
 
 ## Four things you would otherwise build yourself
 
@@ -1319,8 +1322,8 @@ Catalyst 2.x — this branch, `v2.0.0-beta.2`:
 | Systemcore OS | beta 14 (`limelightosr-2027.0.0-beta14-210`) |
 | Java | 25 |
 | Gradle | 9.7+ |
-| CTRE Phoenix 6 | 26.50.0-alpha-1, an alpha-5/6 build: **no alpha-7 release yet** |
-| PathPlanner | 2027.0.0-alpha-3, an alpha-5/6 build: **no alpha-7 release yet** |
+| CTRE Phoenix 6 | 26.70.0-alpha-2, published 2026-09-18: **requires 26.70.x device firmware** |
+| PathPlanner | 2027.0.0-alpha-3, an alpha-5/6 build built against commands v2: **`compileOnly`, resolves but does not link** |
 | LimelightLib | 2.0.0-beta8-alpha7 |
 
 The WPILib and OS versions are a pair, not a floor: a build against alpha-7 aborts on Systemcore OS
