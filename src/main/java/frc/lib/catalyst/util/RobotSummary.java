@@ -4,6 +4,7 @@ import frc.lib.catalyst.hardware.CANBusHealth;
 import frc.lib.catalyst.logging.CatalystLog;
 
 import org.wpilib.system.RobotController;
+import org.wpilib.system.Timer;
 
 /**
  * "Is this robot all right?" in one topic, and the match clock in another.
@@ -76,13 +77,26 @@ public final class RobotSummary {
     /** The match clock topic, without the {@code /Catalyst/} root. */
     public static final String MATCH_KEY = "Match/TimeLeft";
 
+    /** The rollup's rate. A headline for a human does not need 50 Hz; see {@link #update()}. */
+    private static final double SUMMARY_PERIOD_S = 0.25;
+
+    private static double lastSummaryAt = Double.NEGATIVE_INFINITY;
+
     /**
      * Publish the rollup and the match clock. Call once per loop.
      *
-     * <p>Reads only things that are already being computed: the controller's battery voltage,
-     * {@link AlertManager}'s counts, {@link CANBusHealth}'s per-bus utilisation and
-     * {@link Preflight}'s readiness if it has run. Nothing here polls hardware that was not already
-     * being polled.
+     * <p><b>The rollup is rate-limited to 4 Hz and the match clock is not.</b> That split is the whole
+     * subtlety of this method, and it is not a micro-optimisation.
+     *
+     * <p>The claim this class shipped with — "nothing here polls hardware that was not already being
+     * polled" — was wrong. {@link CANBusHealth#readAll()} turned out to have no other caller, and each
+     * call asks Phoenix for a status per registered bus. On a Systemcore with five buses, at 50 Hz,
+     * that is 250 CAN status queries a second spent filling one field of a summary that a person reads
+     * a few times a minute. Four times a second is imperceptible on a dashboard and a twelfth of the
+     * traffic.
+     *
+     * <p>The match clock stays at loop rate because it costs a field read from {@link RobotState} and a
+     * countdown that updates four times a second looks like it is stuttering.
      */
     public static void update() {
         double matchTime = RobotState.matchTimeRemaining();
@@ -94,6 +108,11 @@ public final class RobotSummary {
             CatalystLog.log(MATCH_KEY, matchTime);
         }
 
+        double now = Timer.getTimestamp();
+        if (now - lastSummaryAt < SUMMARY_PERIOD_S) {
+            return;
+        }
+        lastSummaryAt = now;
         CatalystLog.log(SUMMARY_KEY, json());
     }
 
