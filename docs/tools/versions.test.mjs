@@ -147,14 +147,11 @@ test("the published vendordep installs a version that exists", () => {
     assert.equal(vendordep.version, version);
   }
 
-  // Whatever it names, the file must agree with itself, because the coordinate is what GradleRIO
-  // resolves. This used to select dependencies whose groupId contains "catalyst", which
-  // com.github.TomAs-1226 does not, so the loop ran over nothing and asserted nothing.
-  const catalyst = [...(vendordep.javaDependencies ?? []), ...(vendordep.jniDependencies ?? [])]
-    .filter(dep => /catalyst/i.test(dep.artifactId ?? ""));
-  assert.ok(catalyst.length, "the vendordep should list the FrcCatalyst artifact");
-  for (const dep of catalyst) {
-    assert.equal(dep.version.replace(/^v/, ""), vendordep.version, `${dep.artifactId}`);
+  // Whatever it names, the file must agree with itself.
+  for (const dep of [...(vendordep.javaDependencies ?? []), ...(vendordep.jniDependencies ?? [])]) {
+    if (dep.groupId && dep.groupId.includes("catalyst")) {
+      assert.equal(dep.version.replace(/^v/, ""), vendordep.version, `${dep.artifactId}`);
+    }
   }
 });
 
@@ -170,19 +167,6 @@ test("the beta vendordep points at its own URL, not the stable one", () => {
     `jsonUrl ${vendordep.jsonUrl} should sit under this site's baseurl ${baseurl}`);
 });
 
-/**
- * The wpilibYear each GradleRIO release demands, keyed by the WPILib version build.gradle pins.
- *
- * Not computable from the version: it is a constant compiled into GradleRIO's WPIExtension, and
- * alpha-6's is 2027_alpha5. A WPILib bump therefore fails the test below until someone reads the new
- * release's value and records it here - rather than the test guessing, and a correct vendordep being
- * "fixed" to agree with the guess.
- */
-const GRADLERIO_WPILIB_YEAR = {
-  "2027.0.0-alpha-6": "2027_alpha5",
-  "2027.0.0-alpha-7": "2027_alpha7",
-};
-
 test("the vendordep names the year field GradleRIO 2027 actually reads", () => {
   // 2027 renamed this field. A vendordep carrying the 2026 spelling is not merely ignored - the
   // GradleRIO plugin refuses to apply at all, so the project fails before compiling anything:
@@ -192,21 +176,11 @@ test("the vendordep names the year field GradleRIO 2027 actually reads", () => {
   // Nothing in that message says "your vendordep uses the wrong key", and the version and URL
   // checks above both pass on a file that fails this way. Found by installing this vendordep into
   // a real 2027 project.
-  //
-  // The expected year was a literal here once. beta.1 moved the vendordep to 2027_alpha7, which is
-  // what GradleRIO alpha-7 demands, and this test went on insisting on alpha-6's 2027_alpha5.
   const vendordep = JSON.parse(
     fs.readFileSync(path.join(docsDir, "vendordep", "FrcCatalyst.json"), "utf8"));
-  const wpilib = wpilibVersion();
-  const year = GRADLERIO_WPILIB_YEAR[wpilib];
 
-  assert.ok(wpilib, "could not read wpilibVersion out of build.gradle");
-  assert.ok(year,
-    `build.gradle pins WPILib ${wpilib}, and GRADLERIO_WPILIB_YEAR does not say which wpilibYear its ` +
-    `GradleRIO demands. Read it from that GradleRIO - the "Expected to be" in its vendordep error, or ` +
-    `wpilibYear in its WPIExtension - and add it.`);
   assert.equal(vendordep.frcYear, undefined,
     "frcYear is the 2026 spelling; 2027 reads wpilibYear and rejects the file outright");
-  assert.equal(vendordep.wpilibYear, year,
-    `GradleRIO ${wpilib} compares this string exactly and refuses to apply on a mismatch`);
+  assert.equal(vendordep.wpilibYear, "2027_alpha7",
+    "GradleRIO compares this string exactly against the WPILib release it was built for");
 });

@@ -4,322 +4,208 @@
   <meta charset="utf-8" />
   <title>Catalyst Builder</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="../tool.css" />
+  <script src="../tool.js" defer></script>
   <style>
-    :root {
-      --bg: #1a1a2e;
-      --panel: #16213e;
-      --panel2: #0f1a30;
-      --accent: #e94560;
-      --accent2: #f0648a;
-      --text: #f4f4f8;
-      --muted: #8a8aa8;
-      --good: #4caf50;
-      --warn: #ffb020;
-      --border: #2a3050;
-    }
-    * { box-sizing: border-box; }
-    html, body {
-      margin: 0; padding: 0;
-      background: var(--bg);
-      color: var(--text);
-      font-family: ui-sans-serif, system-ui, -apple-system, "SF Pro Text", Segoe UI, sans-serif;
-      min-height: 100vh;
-    }
-    header {
-      padding: 18px 28px;
-      background: linear-gradient(180deg, var(--panel) 0%, var(--bg) 100%);
-      border-bottom: 1px solid var(--border);
-      display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
-    }
-    header h1 {
-      margin: 0; font-size: 18px; font-weight: 700; letter-spacing: 0.2px;
-    }
-    header .badge {
-      display: inline-block; padding: 2px 10px; border-radius: 999px;
-      background: var(--accent); color: #fff; font-size: 11px; font-weight: 600;
-    }
-    header .hint { color: var(--muted); font-size: 13px; }
-    main {
-      display: grid;
-      grid-template-columns: 360px 1fr;
-      gap: 0;
-      min-height: calc(100vh - 60px);
-    }
-    aside {
-      background: var(--panel2);
-      border-right: 1px solid var(--border);
-      padding: 18px 14px;
-      overflow-y: auto;
-    }
-    aside h2 {
-      margin: 0 0 10px;
-      font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px;
-      color: var(--muted); font-weight: 700;
-    }
-    .mech-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 18px; }
+    /* This tool's own: the mechanism picker, the preset cards, the field rows and
+       the generated code's colours. Everything else - header, sidebar, cards,
+       fields, buttons, the segmented control, the dialog, the toast - is
+       ../tool.css. */
 
-    /* ---------- Quick-start presets ---------- */
-    .preset-list {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
-      margin-bottom: 18px;
+    /* Three columns inside the chrome's two: pick a mechanism on the left, fill
+       the form in the middle, watch the Java on the right. The preview stays put
+       while the form scrolls, because it is the answer to what you are typing. */
+    .work {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: var(--cat-space-4);
+      align-items: start;
+      min-width: 0;
     }
-    .preset-btn-card {
-      display: flex; flex-direction: column; align-items: flex-start;
-      padding: 8px 10px;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      cursor: pointer; color: var(--text);
-      font-family: inherit;
-      transition: transform 0.12s ease, border-color 0.12s ease,
-                  background 0.12s ease;
+
+    .preview { position: sticky; top: 72px; }
+
+    @media (max-width: 1180px) {
+      .work { grid-template-columns: minmax(0, 1fr); }
+      .preview { position: static; }
+    }
+
+    /* ---------------------------------------------------- the mechanism picker */
+    .mech-list { display: grid; gap: var(--cat-space-1); }
+
+    .mech-btn {
+      display: grid;
+      gap: var(--cat-space-1);
+      justify-items: start;
+      justify-content: start;
+      width: 100%;
+      padding: var(--cat-space-2) var(--cat-space-3);
+      border-color: transparent;
+      background: transparent;
+      color: var(--cat-body);
+      font-weight: var(--cat-w-normal);
       text-align: left;
     }
-    .preset-btn-card:hover {
-      transform: translateY(-1px);
-      border-color: var(--accent);
-      background: rgba(233,69,96,0.06);
+
+    .mech-btn:hover { background: var(--cat-surface-2); color: var(--cat-ink); }
+
+    .mech-btn[aria-pressed="true"] {
+      border-color: var(--cat-signal-line);
+      background: var(--cat-signal-tint);
+      color: var(--cat-signal-ink);
+      font-weight: var(--cat-w-semi);
     }
-    .preset-btn-card .pname {
-      font-weight: 700; font-size: 12px; color: var(--accent2);
-    }
-    .preset-btn-card .pmech {
-      font-size: 10px; color: var(--muted);
-      margin-top: 2px;
-    }
-    .mech-btn {
-      display: block; width: 100%; text-align: left;
-      background: transparent; color: var(--text);
-      border: 1px solid transparent; border-radius: 8px;
-      padding: 9px 12px; cursor: pointer; font-size: 14px;
-      transition: background 0.12s, border-color 0.12s;
-    }
-    .mech-btn:hover { background: rgba(255,255,255,0.04); }
-    .mech-btn.active {
-      background: rgba(233,69,96,0.12);
-      border-color: var(--accent);
-      color: var(--accent2);
-      font-weight: 600;
-    }
+
     .mech-btn .mech-sub {
-      display: block; font-size: 11px; color: var(--muted); margin-top: 2px;
+      font-family: var(--cat-mono);
+      font-size: var(--cat-fs-11);
+      font-weight: var(--cat-w-normal);
+      color: var(--cat-quiet);
     }
-    .form-area {
-      padding: 20px 24px;
-      overflow-y: auto;
-      border-right: 1px solid var(--border);
+
+    .mech-btn[aria-pressed="true"] .mech-sub { color: var(--cat-dim); }
+
+    .preset-list { display: grid; grid-template-columns: 1fr 1fr; gap: var(--cat-space-2); }
+
+    .preset {
+      display: grid;
+      gap: var(--cat-space-1);
+      justify-items: start;
+      padding: var(--cat-space-2) var(--cat-space-3);
+      text-align: left;
+      white-space: normal;
     }
-    .field-group {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 14px 16px;
-      margin-bottom: 14px;
+
+    .preset .pname { font-size: var(--cat-fs-12); font-weight: var(--cat-w-semi); color: var(--cat-ink); }
+    .preset .pmech { font-family: var(--cat-mono); font-size: var(--cat-fs-11); font-weight: var(--cat-w-normal); color: var(--cat-quiet); line-height: 1.35; }
+
+    /* ------------------------------------------------------------- the form */
+    /* A label beside its control, not above it: there are sixty of these and
+       stacking them doubles the height of every card for no gain. */
+    #formArea .row {
+      grid-template-columns: minmax(0, 150px) minmax(0, 1fr);
+      align-items: center;
+      gap: var(--cat-space-3);
     }
-    .field-group h3 {
-      margin: 0 0 12px;
-      font-size: 12px; text-transform: uppercase; letter-spacing: 1px;
-      color: var(--muted); font-weight: 700;
+
+    #formArea .row > label { align-items: center; }
+    #formArea .row > input:not([type="checkbox"]), #formArea .row > select { width: 100%; }
+    #formArea .row .opt { color: var(--cat-faint); font-size: var(--cat-fs-11); font-style: italic; }
+
+    /* Adding a follower rebuilds the form, and a form that re-animates every time
+       you add a row is a form you cannot use. Only a new mechanism arrives. */
+    #formArea.quiet .card { animation: none; }
+
+    .followers { display: grid; gap: var(--cat-space-2); }
+    .follower-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: var(--cat-space-2); align-items: center; }
+    .pos-row { display: grid; grid-template-columns: minmax(0, 1fr) 96px auto; gap: var(--cat-space-2); align-items: center; }
+    .follower-row input, .pos-row input { width: 100%; min-height: 28px; }
+    .follower-row .oppose { gap: var(--cat-space-1); font-size: var(--cat-fs-12); white-space: nowrap; }
+    .row-x { min-height: 28px; padding: 0 var(--cat-space-2); }
+    .add-row { justify-self: start; min-height: 28px; }
+
+    /* The one-line explanation behind a field's name. */
+    .help {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 15px;
+      height: 15px;
+      border: 1px solid var(--cat-line-strong);
+      border-radius: var(--cat-r-pill);
+      color: var(--cat-dim);
+      font-size: var(--cat-fs-11);
+      font-weight: var(--cat-w-bold);
+      cursor: help;
+      user-select: none;
+      transition: color var(--cat-dur-effect) var(--cat-ease-effect),
+                  border-color var(--cat-dur-effect) var(--cat-ease-effect);
     }
-    .row { display: grid; grid-template-columns: 160px 1fr; gap: 12px; align-items: center; margin-bottom: 10px; }
-    .row:last-child { margin-bottom: 0; }
-    .row label { color: var(--muted); font-size: 13px; }
-    .row label .opt { font-style: italic; opacity: 0.6; font-size: 11px; }
-    .row input[type=text], .row input[type=number], .row select {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      color: var(--text);
-      border-radius: 6px;
-      padding: 7px 10px;
-      font-size: 13px;
-      width: 100%;
-      font-family: inherit;
-    }
-    .row input[type=text]:focus, .row input[type=number]:focus, .row select:focus {
-      border-color: var(--accent); outline: none;
-    }
-    .row input[type=checkbox] { transform: scale(1.15); }
-    .row.subrow { grid-template-columns: 160px repeat(3, 1fr); gap: 8px; }
-    .row.subrow input { padding: 6px 8px; font-size: 12px; }
-    .followers { display: flex; flex-direction: column; gap: 6px; }
-    .follower-row { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; }
-    .follower-row input { padding: 5px 8px; font-size: 12px; }
-    .pos-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; align-items: center; }
-    .pos-row input { padding: 5px 8px; font-size: 12px; }
-    .help-badge {
-      display: inline-flex; align-items: center; justify-content: center;
-      width: 15px; height: 15px; margin-left: 6px; border-radius: 50%;
-      border: 1px solid var(--muted); color: var(--muted);
-      font-size: 10px; font-weight: 700; cursor: help; user-select: none; vertical-align: middle;
-    }
-    .help-badge:hover { border-color: var(--accent); color: var(--accent); }
-    .btn {
-      background: var(--accent);
-      color: #fff;
-      border: none; border-radius: 6px;
-      padding: 7px 12px;
-      font-size: 12px; font-weight: 600;
-      cursor: pointer;
-    }
-    .btn:hover { background: var(--accent2); }
-    .btn.ghost {
-      background: transparent; color: var(--text);
-      border: 1px solid var(--border);
-    }
-    .btn.ghost:hover { border-color: var(--accent); color: var(--accent2); }
-    .btn.danger { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
-    .btn.danger:hover { background: var(--accent); color: #fff; }
-    .preview-area {
-      background: var(--panel2);
-      padding: 20px 24px;
-      display: flex; flex-direction: column;
-      overflow: hidden;
-    }
-    .preview-area .preview-head {
-      display: flex; justify-content: space-between; align-items: center;
-      margin-bottom: 12px;
-    }
-    .preview-area .preview-head h2 {
-      margin: 0; font-size: 12px; text-transform: uppercase;
-      letter-spacing: 1.2px; color: var(--muted); font-weight: 700;
-    }
-    .preview-area pre {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 16px 18px;
-      font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-      font-size: 13px;
-      line-height: 1.5;
-      overflow: auto;
-      flex: 1;
-      margin: 0;
-      color: #d9e0f0;
-      white-space: pre;
-    }
-    .preview-area pre .kw { color: #ef798a; }
-    .preview-area pre .lit { color: #f4d35e; }
-    .preview-area pre .str { color: #9ee493; }
-    .preview-area pre .cmt { color: var(--muted); font-style: italic; }
-    .toast {
-      position: fixed; bottom: 20px; right: 20px;
-      background: var(--good); color: #082; padding: 10px 16px;
-      border-radius: 8px; font-weight: 600; opacity: 0;
-      transition: opacity 0.2s; pointer-events: none;
-    }
-    .toast.show { opacity: 1; }
-    .credit {
-      padding: 14px 24px; color: var(--muted); font-size: 12px;
-      border-top: 1px solid var(--border); background: var(--panel2);
-    }
-    .credit a { color: var(--accent2); text-decoration: none; }
-    .credit a:hover { text-decoration: underline; }
-    .mode-toggle {
-      display: inline-flex; align-items: center; gap: 6px;
-      color: var(--muted); font-size: 12px; margin-right: 6px;
-      cursor: pointer; user-select: none;
-    }
-    .mode-toggle input { margin: 0; }
-    .persist-note {
-      margin-top: 8px; font-size: 11px; color: var(--muted);
-    }
-    .persist-note a { color: var(--accent2); text-decoration: none; }
-    .persist-note a:hover { text-decoration: underline; }
-    dialog {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      color: var(--text);
-      padding: 18px 22px;
-      max-width: 640px; width: 90vw;
-    }
-    dialog::backdrop { background: rgba(0,0,0,0.55); }
-    dialog h3 { color: var(--accent2); }
-    dialog textarea {
-      width: 100%; min-height: 240px;
-      background: var(--bg); color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      font-family: ui-monospace, "SF Mono", Menlo, monospace;
-      font-size: 12px; padding: 10px;
-      resize: vertical;
-    }
-    dialog .dialog-row {
-      display: flex; gap: 8px; justify-content: flex-end;
-      margin-top: 14px;
-    }
+
+    .help:hover { color: var(--cat-signal-ink); border-color: var(--cat-signal-line); }
+
+    /* ---------------------------------------------------------- the preview */
+    .preview-head { display: flex; align-items: center; gap: var(--cat-space-3); flex-wrap: wrap; }
+    .preview-head h2 { margin-right: auto; }
+
+    /* Four hues and no more, as the identity allows: a keyword, a literal, a
+       string, a comment. The same four the aiming tool prints code in. */
+    #preview { max-height: 62vh; white-space: pre; }
+    #preview .kw  { color: var(--cat-info); }
+    #preview .lit { color: var(--cat-warn); }
+    #preview .str { color: var(--cat-ok); }
+    #preview .cmt { color: var(--cat-quiet); font-style: italic; }
+
+    #importInput { width: 100%; min-height: 240px; }
+
+    .credit { max-width: 1440px; margin: 0 auto; padding: 0 var(--cat-space-5) var(--cat-space-6); }
   </style>
 </head>
 <body>
 
 <header>
-  <h1>Catalyst Builder</h1>
-  <span class="badge" id="version">v2.0.0-beta.2</span>
-  <span class="hint">Generate ready-to-paste mechanism config code.</span>
+  <h1>Builder</h1>
+  <span class="badge">2.0.0-beta.2</span>
+  <span class="hint">Fill the form, take the Java. Empty fields are left out, so the library's own defaults apply.</span>
+  <a href="../" class="back"></a>
 </header>
 
 <main>
   <aside>
     <h2>Quick start</h2>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:8px">
-      One click fills the form with recommended values for a typical subsystem.
-    </div>
+    <p class="hint">One click fills the form with sane values for a typical subsystem.</p>
     <div class="preset-list" id="presetList"></div>
 
     <h2>Mechanism</h2>
     <div class="mech-list" id="mechList"></div>
 
     <h2>Tips</h2>
-    <div style="font-size:12px;color:var(--muted);line-height:1.55;">
-      Fill the form and the Java updates live. Empty fields are omitted from
-      the builder, so the library's own defaults apply. Hover the <b>?</b> next to
-      a field for what it does. Click <b>Full wrapper class</b> in the preview
-      header to wrap the snippet in a small holder class with a <code>get()</code>
-      accessor (the mechanism is already a subsystem, so it isn't wrapped in a
-      second <code>SubsystemBase</code>).
-    </div>
+    <p class="hint">
+      Hover the <b>?</b> beside a field for what it does. <b>Wrapper class</b> in the preview
+      header wraps the snippet in a small holder with a <code>get()</code> accessor &mdash; the
+      mechanism is already a subsystem, so it is not wrapped in a second
+      <code>SubsystemBase</code>.
+    </p>
   </aside>
 
-  <div class="form-area" id="formArea"></div>
+  <div class="work">
+    <div class="cards" id="formArea"></div>
 
-  <div class="preview-area">
-    <div class="preview-head">
-      <h2>Generated <span id="modeLabel">config</span></h2>
-      <div>
-        <label class="mode-toggle">
-          <input type="checkbox" id="fullClassToggle"> <span>Full wrapper class</span>
-        </label>
-        <button class="btn ghost" id="importBtn" title="Paste an existing config snippet to populate the form">Import</button>
-        <button class="btn ghost" id="downloadBtn" title="Download as .java file">Download</button>
-        <button class="btn ghost" id="resetBtn">Reset</button>
-        <button class="btn" id="copyBtn">Copy</button>
+    <div class="card preview">
+      <div class="preview-head">
+        <h2>Generated</h2>
+        <div class="seg" id="outputMode">
+          <button type="button" data-mode="config" aria-pressed="true">Config</button>
+          <button type="button" data-mode="class" aria-pressed="false">Wrapper class</button>
+        </div>
       </div>
+      <pre id="preview"></pre>
+      <div class="actions">
+        <button class="primary" id="copyBtn">Copy</button>
+        <button id="downloadBtn" title="Download as a .java file">Download</button>
+        <button id="importBtn" title="Paste an existing config snippet to populate the form">Import</button>
+        <button id="resetBtn">Reset</button>
+      </div>
+      <p class="hint">Auto-saved to this browser &middot; <a href="#" id="clearAllBtn">clear all saved data</a></p>
     </div>
-    <pre id="preview"></pre>
-    <div class="persist-note" id="persistNote">Auto-saved to this browser • <a href="#" id="clearAllBtn">clear all saved data</a></div>
   </div>
 </main>
 
-<!-- Import dialog -->
 <dialog id="importDialog">
-  <h3 style="margin-top:0">Import existing config</h3>
-  <p style="color:var(--muted);font-size:13px;margin-top:0">
-    Paste a Catalyst <code>Foo.Config.builder()...build()</code> snippet below.
-    The form on the left will populate from it. Anything that doesn't parse
-    cleanly is skipped.
-  </p>
+  <h2>Import an existing config</h2>
+  <p class="hint">Paste a Catalyst <code>Foo.Config.builder()&hellip;build()</code> snippet. The form populates from it; anything that does not parse cleanly is skipped.</p>
   <textarea id="importInput" placeholder="LinearMechanism.Config.builder()&#10;    .name(&quot;Elevator&quot;)&#10;    .motor(20)..."></textarea>
-  <div class="dialog-row">
-    <button class="btn ghost" id="importCancelBtn">Cancel</button>
-    <button class="btn" id="importApplyBtn">Import</button>
+  <div class="actions">
+    <button id="importCancelBtn">Cancel</button>
+    <button class="primary" id="importApplyBtn">Import</button>
   </div>
 </dialog>
 
-<div class="credit">
-  Inspired by <a href="https://yteam3211.github.io/frc-catalyst-subsystem-generator" target="_blank" rel="noopener">tcrvo / yteam3211's FRC Catalyst Subsystem Generator</a> — thanks!
-</div>
+<p class="credit">
+  Inspired by <a href="https://yteam3211.github.io/frc-catalyst-subsystem-generator" target="_blank" rel="noopener">tcrvo / yteam3211's FRC Catalyst Subsystem Generator</a> &mdash; thanks!
+</p>
 
-<div class="toast" id="toast">Copied</div>
+<div class="toast" id="toast"></div>
 
 <script>
   // ============================================================
@@ -836,8 +722,7 @@
     Object.keys(formState).forEach(k => delete formState[k]);
     Object.keys(FOLLOWER_STATE).forEach(k => delete FOLLOWER_STATE[k]);
     Object.keys(POSITION_STATE).forEach(k => delete POSITION_STATE[k]);
-    fullClassMode = false;
-    document.getElementById("fullClassToggle").checked = false;
+    setMode(false);
     buildForm(); render();
   }
 
@@ -846,7 +731,10 @@
     list.innerHTML = "";
     Object.entries(SCHEMA).forEach(([id, schema]) => {
       const btn = document.createElement("button");
-      btn.className = "mech-btn" + (id === currentMech ? " active" : "");
+      btn.className = "mech-btn";
+      // aria-pressed rather than a class: this is a set of exclusive choices, and
+      // saying so is what makes it one to a screen reader as well as to the eye.
+      btn.setAttribute("aria-pressed", String(id === currentMech));
       btn.innerHTML = `${schema.label}<span class="mech-sub">${schema.sub}</span>`;
       btn.onclick = () => { currentMech = id; buildSidebar(); buildForm(); render(); };
       list.appendChild(btn);
@@ -860,7 +748,7 @@
     list.innerHTML = "";
     Object.entries(PRESETS).forEach(([id, preset]) => {
       const btn = document.createElement("button");
-      btn.className = "preset-btn-card";
+      btn.className = "preset";
       btn.innerHTML =
         `<span class="pname">${preset.label}</span>` +
         `<span class="pmech">${preset.sub}</span>`;
@@ -895,11 +783,17 @@
   function helpBadge(id) {
     const help = FIELD_HELP[id];
     if (!help) return "";
-    return ` <span class="help-badge" title="${help.replace(/"/g, "&quot;")}">?</span>`;
+    return ` <span class="help" title="${help.replace(/"/g, "&quot;")}">?</span>`;
   }
 
-  function buildForm() {
+  /**
+   * @param animate whether the cards should arrive. A different mechanism is a
+   *   new set of panels and should; adding one follower row rebuilds the same
+   *   form and must not, or the whole column flickers on every click.
+   */
+  function buildForm(animate = true) {
     const area = document.getElementById("formArea");
+    area.classList.toggle("quiet", !animate);
     area.innerHTML = "";
     const schema = SCHEMA[currentMech];
     if (!formState[currentMech]) formState[currentMech] = {};
@@ -909,8 +803,8 @@
 
     schema.groups.forEach(group => {
       const wrap = document.createElement("div");
-      wrap.className = "field-group";
-      wrap.innerHTML = `<h3>${group.title}</h3>`;
+      wrap.className = "card";
+      wrap.innerHTML = `<h2>${group.title}</h2>`;
 
       group.fields.forEach(field => {
         if (field.type === "followers") {
@@ -919,7 +813,6 @@
 
           const row = document.createElement("div");
           row.className = "row";
-          row.style.gridTemplateColumns = "160px 1fr";
           row.innerHTML = `<label>${field.label}${helpBadge(field.id)}</label>`;
           const right = document.createElement("div");
           right.className = "followers";
@@ -929,27 +822,26 @@
             fr.className = "follower-row";
             fr.innerHTML = `
               <input type="number" placeholder="CAN ID" value="${f.canId ?? ""}">
-              <label style="font-size:12px;color:var(--muted);"><input type="checkbox" ${f.oppose ? "checked" : ""}> oppose</label>
-              <button class="btn danger">×</button>
+              <label class="oppose"><input type="checkbox" ${f.oppose ? "checked" : ""}> oppose</label>
+              <button class="ghost row-x" title="Remove this follower">×</button>
             `;
             fr.querySelector("input[type=number]").oninput = e => {
               f.canId = e.target.value === "" ? null : parseInt(e.target.value, 10);
               render();
             };
             fr.querySelector("input[type=checkbox]").onchange = e => { f.oppose = e.target.checked; render(); };
-            fr.querySelector(".btn.danger").onclick = () => {
-              followers.splice(i, 1); buildForm(); render();
+            fr.querySelector(".row-x").onclick = () => {
+              followers.splice(i, 1); buildForm(false); render();
             };
             right.appendChild(fr);
           });
 
           const addBtn = document.createElement("button");
-          addBtn.className = "btn ghost";
+          addBtn.className = "add-row";
           addBtn.textContent = "+ Add follower";
-          addBtn.style.alignSelf = "flex-start";
           addBtn.onclick = () => {
             followers.push({ canId: null, oppose: false });
-            buildForm(); render();
+            buildForm(false); render();
           };
           right.appendChild(addBtn);
 
@@ -964,7 +856,6 @@
 
           const row = document.createElement("div");
           row.className = "row";
-          row.style.gridTemplateColumns = "160px 1fr";
           row.innerHTML = `<label>${field.label}${helpBadge(field.id)}</label>`;
           const right = document.createElement("div");
           right.className = "followers";
@@ -975,20 +866,19 @@
             pr.innerHTML = `
               <input type="text" placeholder="NAME (e.g. STOW)" value="${p.name ?? ""}">
               <input type="number" step="any" placeholder="value" value="${p.value ?? ""}">
-              <button class="btn danger">×</button>
+              <button class="ghost row-x" title="Remove this position">×</button>
             `;
             const [nameInput, valInput] = pr.querySelectorAll("input");
             nameInput.oninput = e => { p.name = e.target.value; render(); };
             valInput.oninput = e => { p.value = e.target.value === "" ? null : Number(e.target.value); render(); };
-            pr.querySelector(".btn.danger").onclick = () => { positions.splice(i, 1); buildForm(); render(); };
+            pr.querySelector(".row-x").onclick = () => { positions.splice(i, 1); buildForm(false); render(); };
             right.appendChild(pr);
           });
 
           const addBtn = document.createElement("button");
-          addBtn.className = "btn ghost";
+          addBtn.className = "add-row";
           addBtn.textContent = "+ Add position";
-          addBtn.style.alignSelf = "flex-start";
-          addBtn.onclick = () => { positions.push({ name: "", value: null }); buildForm(); render(); };
+          addBtn.onclick = () => { positions.push({ name: "", value: null }); buildForm(false); render(); };
           right.appendChild(addBtn);
 
           row.appendChild(right);
@@ -1196,8 +1086,14 @@
 
   function render() {
     document.getElementById("preview").innerHTML = highlight(currentCode());
-    document.getElementById("modeLabel").textContent = fullClassMode ? "wrapper class" : "config";
     persist();
+  }
+
+  /** Which of the two things the preview is showing. The segmented control says so. */
+  function setMode(wrapper) {
+    fullClassMode = wrapper;
+    document.querySelectorAll("#outputMode button").forEach(b =>
+      b.setAttribute("aria-pressed", String((b.dataset.mode === "class") === wrapper)));
   }
 
   function downloadFilename() {
@@ -1228,13 +1124,13 @@
     // Detect mechanism
     const m = /(\w+Mechanism)\.Config\.builder\(\)/.exec(text);
     if (!m) {
-      alert("Couldn't find a Foo.Config.builder() call in the pasted snippet.");
+      toast("No Foo.Config.builder() call in that snippet", "bad");
       return false;
     }
     const javaName = m[1];
     const mechId = Object.keys(SCHEMA).find(k => SCHEMA[k].java === javaName);
     if (!mechId) {
-      alert("Unknown mechanism: " + javaName);
+      toast("The Builder has no " + javaName, "bad");
       return false;
     }
 
@@ -1358,14 +1254,23 @@
   // ============================================================
   // UI wiring
   // ============================================================
+  let toastTimer = null;
+  function toast(msg, kind) {
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.className = "toast" + (kind ? " " + kind : "");
+    void t.offsetWidth;                 // restart the transition
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 2400);
+  }
+
   document.getElementById("copyBtn").onclick = async () => {
     try {
       await navigator.clipboard.writeText(currentCode());
-      const t = document.getElementById("toast");
-      t.classList.add("show");
-      setTimeout(() => t.classList.remove("show"), 900);
+      toast("Copied to clipboard", "ok");
     } catch {
-      alert("Copy failed — your browser may block clipboard from file://. Try serving over HTTP.");
+      toast("Clipboard blocked — a file:// page cannot copy. Serve it over HTTP.", "bad");
     }
   };
 
@@ -1380,10 +1285,9 @@
     buildForm(); render();
   };
 
-  document.getElementById("fullClassToggle").onchange = e => {
-    fullClassMode = e.target.checked;
-    render();
-  };
+  document.querySelectorAll("#outputMode button").forEach(b => {
+    b.onclick = () => { setMode(b.dataset.mode === "class"); render(); };
+  });
 
   document.getElementById("clearAllBtn").onclick = e => {
     e.preventDefault();
@@ -1407,7 +1311,7 @@
 
   // Bootstrap
   restore();
-  document.getElementById("fullClassToggle").checked = fullClassMode;
+  setMode(fullClassMode);
   buildSidebar();
   buildForm();
   render();

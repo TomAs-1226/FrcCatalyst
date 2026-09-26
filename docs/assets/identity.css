@@ -1,0 +1,634 @@
+/* ==========================================================================
+   Catalyst identity — the house stylesheet
+   --------------------------------------------------------------------------
+   One file, copied verbatim into CatalystApp, Catalyst Console and the docs.
+   It is the launch material turned into tokens: every colour, size, corner and
+   curve here is taken from docs/assets/banner.svg and release-2.0.svg, or from
+   the Bezel and Detent tools, and nothing is invented at a call site.
+
+   Three rules hold the look together:
+
+   1. Depth comes from the ground, not from shadows. Surfaces step up in tone
+      and separate with a hairline. Only things that float — a dialog, the
+      command palette, a toast — are glass, and glass never sits on glass.
+   2. One signal colour. Crimson marks the primary action, progress and fault,
+      and nothing else. A screen with two accents has none.
+   3. Motion is a spring, by role. Six curves, named for what they do; a
+      transition that is none of them does not belong.
+
+   Deliberate departures from Bezel, so they are choices and not drift:
+   - Type is Segoe UI Variable / Cascadia, not Google Sans Flex / Code. The
+     launch graphics are drawn in it, it ships with Windows, and these apps
+     must render with no network and no webfont.
+   - Corners are squarer than Bezel's shape scale in Console, which is an
+     instrument: it re-points the radius tokens to 2px and changes nothing else.
+   ========================================================================== */
+
+:root {
+  /* --- Ground ---------------------------------------------------------- */
+  /* The banner's diagonal, flattened for UI: the gradient is for the window,
+     the flat tone for anything that has to match a canvas or a video frame. */
+  --cat-ground: #0d0e12;
+  --cat-ground-top: #191a20;
+  --cat-ground-mid: #101116;
+  --cat-ground-bottom: #08090b;
+  --cat-ground-grad: linear-gradient(145deg, var(--cat-ground-top) 0%, var(--cat-ground-mid) 55%, var(--cat-ground-bottom) 100%);
+  /* The crimson key light from the launch canvas, upper right. Decoration
+     only: never put text where it lands without checking the pair. */
+  --cat-key-light: radial-gradient(60% 55% at 76% 40%, rgba(233, 69, 96, .10), rgba(233, 69, 96, .02) 45%, transparent 100%);
+  --cat-rim-light: radial-gradient(52% 52% at 16% 16%, rgba(255, 255, 255, .05), transparent 100%);
+
+  /* --- Surfaces -------------------------------------------------------- */
+  --cat-surface-1: #131418;   /* cards, panels, the editor's ground */
+  --cat-surface-2: #1a1c21;   /* chips, inputs, rows that lift */
+  --cat-surface-3: #22242a;   /* hover and pressed */
+  --cat-line: #23252b;        /* the ordinary border */
+  --cat-line-strong: #2f323a; /* a border that has to be seen: chips, focus */
+  --cat-hair: rgba(255, 255, 255, .06);
+
+  /* --- Ink ------------------------------------------------------------- */
+  /* Checked against #0d0e12 and #131418: ink 11.8:1, dim 6.6:1, quiet 5.8:1.
+     faint is 3.3:1 — decoration and disabled text only, never a word that has
+     to be read. The print material uses #70727a for body copy; UI lifts it. */
+  --cat-ink-strong: #ffffff;  /* headings, and the one value a screen is about */
+  --cat-ink: #e8e9ec;         /* body text, values, anything read closely */
+  --cat-body: #c9cad0;        /* running prose, a shade back from ink */
+  --cat-dim: #9a9ba1;         /* labels, captions, eyebrows: short text beside something */
+  --cat-quiet: #8a8c94;       /* explanatory paragraphs that must not compete with the thing */
+  --cat-faint: #5c5e65;       /* disabled, decoration, a rule's own colour. Never a word to read */
+
+  /* --- Signal ---------------------------------------------------------- */
+  --cat-signal: #e94560;
+  --cat-signal-lt: #ff5d76;
+  --cat-signal-dk: #8e2739;
+  --cat-signal-ink: #ff92a3;                      /* text on a signal tint */
+  --cat-signal-tint: rgba(233, 69, 96, .14);
+  --cat-signal-tint-2: rgba(233, 69, 96, .22);
+  --cat-signal-line: rgba(233, 69, 96, .55);
+  /* White on solid crimson is 3.8:1 — large text and icons only, which is why
+     a filled crimson button carries one short label and nothing else. */
+  --cat-on-signal: #ffffff;
+
+  /* --- Status ---------------------------------------------------------- */
+  /* Fault is the signal itself, at its brightest: an instrument has one red.
+     ok/warn/info are the only other hues on any screen. */
+  --cat-ok: #58c98b;
+  --cat-warn: #ffbf63;
+  --cat-bad: var(--cat-signal-lt);
+  --cat-info: #7fa8c9;
+  --cat-ok-tint: rgba(88, 201, 139, .14);
+  --cat-warn-tint: rgba(255, 191, 99, .14);
+  --cat-bad-tint: rgba(255, 93, 118, .14);
+  --cat-info-tint: rgba(127, 168, 201, .14);
+
+  /* --- Type ------------------------------------------------------------ */
+  --cat-sans: "Segoe UI Variable Display", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --cat-sans-text: "Segoe UI Variable Text", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --cat-mono: "Cascadia Code", "Cascadia Mono", ui-monospace, Consolas, monospace;
+
+  --cat-fs-11: 11px;   /* eyebrow labels */
+  --cat-fs-12: 12px;
+  --cat-fs-13: 13px;   /* body small, mono values */
+  --cat-fs-15: 15px;   /* body */
+  --cat-fs-18: 18px;
+  --cat-fs-22: 22px;   /* section titles */
+  --cat-fs-28: 28px;
+  --cat-fs-40: 40px;   /* one number per screen, at most */
+
+  --cat-w-thin: 200;   /* the wordmark's "Frc" and "2.0", nothing else */
+  --cat-w-normal: 400;
+  --cat-w-medium: 500;
+  --cat-w-semi: 600;
+  --cat-w-bold: 700;
+
+  --cat-track-eyebrow: .16em;  /* 1.6 at 11px, as drawn */
+  --cat-track-tight: -.02em;   /* display sizes only */
+
+  /* --- Shape ----------------------------------------------------------- */
+  /* Concentric: an inner radius is its parent's radius less the padding.
+     Bezel's tile is radius 32 with 24 of padding on a 720-wide panel, and the
+     first cut of this file was far tighter than that — 12 and 16 — which is
+     what made the first screens read as boxes ruled on a page rather than as
+     surfaces. These are Bezel's proportions brought to a desktop window. */
+  --cat-r-window: 20px;
+  --cat-r-card: 16px;
+  --cat-r-chip: 10px;
+  --cat-r-field: 10px;
+  --cat-r-inner: 8px;
+  --cat-r-pill: 999px;
+
+  /* One light, above and to the left: a surface catches it on its top edge.
+     This is the whole of the app's elevation — no drop shadows, because depth
+     here comes from tone, and a shadow on a near-black ground is a smudge. */
+  --cat-lift: inset 0 1px 0 rgba(255, 255, 255, .045);
+  --cat-lift-strong: inset 0 1px 0 rgba(255, 255, 255, .07);
+
+  --cat-space-1: 4px;
+  --cat-space-2: 8px;
+  --cat-space-3: 12px;
+  --cat-space-4: 16px;
+  --cat-space-5: 24px;
+  --cat-space-6: 32px;
+  --cat-space-7: 48px;
+
+  /* --- Motion ---------------------------------------------------------- */
+  /* Detent springs, sampled to CSS. Each is a role, not a taste:
+       hold    a press being held, a value under the pointer
+       release something arriving: a panel, a menu, a toast
+       smooth  something leaving, which never bounces
+       settle  a value travelling to where it was set
+       effect  colour, opacity, glass
+       layer   the state layer under a pointer
+     Durations are the full settle time; the visible part is about half. */
+  --cat-dur-hold: .218s;
+  --cat-ease-hold: linear(0, 0.0057 1.2%, 0.0229 2.5%, 0.0519 3.9%, 0.0949 5.5%, 0.1867 8.3%, 0.41 14.4%, 0.5139 17.4%, 0.6106 20.5%, 0.6946 23.6%, 0.7655 26.7%, 0.8239 29.8%, 0.8735 33.1%, 0.914 36.6%, 0.9462 40.4%, 0.9707 44.6%, 0.9876 49.2%, 0.9985 54.6%, 1.005 66.5%, 1);
+
+  --cat-dur-release: .729s;
+  --cat-ease-release: linear(0, 0.0057 1.2%, 0.023 2.5%, 0.0521 3.9%, 0.0953 5.5%, 0.1362 6.8%, 0.1878 8.3%, 0.4129 14.4%, 0.5178 17.4%, 0.6153 20.5%, 0.7 23.6%, 0.7713 26.7%, 0.8298 29.8%, 0.8794 33.1%, 0.9186 36.5%, 0.9499 40.2%, 0.9738 44.3%, 0.9905 48.9%, 1.0008 54.2%, 1.0063 65.4%, 1);
+
+  --cat-dur-smooth: .761s;
+  --cat-ease-smooth: linear(0, 0.0052 1.1%, 0.0193 2.2%, 0.045 3.5%, 0.0809 4.9%, 0.1585 7.4%, 0.3667 13.4%, 0.4649 16.4%, 0.559 19.6%, 0.6407 22.8%, 0.712 26.1%, 0.7726 29.5%, 0.823 33%, 0.8662 36.8%, 0.904 41.2%, 0.9337 46%, 0.9567 51.4%, 0.9739 57.7%, 0.9851 64.6%, 0.9926 73%, 1);
+
+  --cat-dur-settle: .609s;
+  --cat-ease-settle: var(--cat-ease-smooth);   /* same critically damped shape */
+
+  --cat-dur-effect: .239s;
+  --cat-ease-effect: var(--cat-ease-smooth);
+
+  --cat-dur-layer: .155s;
+  --cat-ease-layer: var(--cat-ease-smooth);
+
+  /* --- Glass ----------------------------------------------------------- */
+  /* Floating layers only: dialogs, the command palette, a toast. A thin edge
+     line, no bevel, no spotlight. Values from Bezel's glass table. */
+  --cat-glass-blur: 10px;
+  --cat-glass-fill: color-mix(in srgb, var(--cat-ground) 78%, transparent);
+  --cat-glass-edge: rgba(255, 255, 255, .14);
+  --cat-glass-shadow: 0 24px 60px rgba(0, 0, 0, .55);
+}
+
+/* ==========================================================================
+   Primitives
+   ========================================================================== */
+
+/* `hidden` has to win. Half the primitives below set `display`, and a rule that sets it beats the
+   attribute's own user-agent style — which turns every `el.hidden = true` in the app into a no-op
+   that is invisible until a panel that should be empty is not. */
+[hidden] { display: none !important; }
+
+.cat-app {
+  background: var(--cat-ground);
+  background-image: var(--cat-key-light), var(--cat-rim-light), var(--cat-ground-grad);
+  color: var(--cat-body);
+  font-family: var(--cat-sans-text);
+  font-size: var(--cat-fs-15);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The eyebrow: a quiet mono label that names a region. Uppercase is in the
+   markup's hands, not text-transform, so screen readers read words. */
+.cat-eyebrow {
+  font-family: var(--cat-mono);
+  font-size: var(--cat-fs-11);
+  font-weight: var(--cat-w-bold);
+  letter-spacing: var(--cat-track-eyebrow);
+  color: var(--cat-dim);
+}
+
+/* The hairline under the wordmark: crimson at the left, gone by the right. */
+.cat-rule {
+  height: 1px;
+  border: 0;
+  background: linear-gradient(90deg, var(--cat-signal-line), transparent);
+}
+
+.cat-rule--plain { background: var(--cat-line); }
+
+.cat-card {
+  background: linear-gradient(180deg, var(--cat-surface-2) 0%, var(--cat-surface-1) 58%);
+  border: 1px solid var(--cat-line);
+  border-radius: var(--cat-r-card);
+  box-shadow: var(--cat-lift);
+  padding: var(--cat-space-5);
+}
+
+.cat-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--cat-space-3);
+  margin-bottom: var(--cat-space-3);
+  padding-bottom: var(--cat-space-3);
+  border-bottom: 1px solid var(--cat-line);
+}
+
+.cat-card__title {
+  font-family: var(--cat-sans);
+  font-size: var(--cat-fs-15);
+  font-weight: var(--cat-w-semi);
+  color: var(--cat-ink-strong);
+}
+
+/* A list whose items are marked by a crimson rail, as in the release card. */
+.cat-rail {
+  display: grid;
+  gap: var(--cat-space-4);
+  padding-left: var(--cat-space-4);
+  border-left: 2px solid transparent;
+}
+
+.cat-rail__item {
+  position: relative;
+  padding-left: var(--cat-space-4);
+}
+
+.cat-rail__item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: .2em;
+  bottom: .2em;
+  width: 2.5px;
+  border-radius: 1.25px;
+  background: var(--cat-signal);
+  opacity: .55;
+}
+
+.cat-rail__title {
+  display: block;
+  font-weight: var(--cat-w-semi);
+  color: var(--cat-ink-strong);
+}
+
+.cat-rail__body { color: var(--cat-dim); }
+
+/* Buttons. Press answers on pointer-down with a state layer, per Bezel. */
+.cat-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--cat-space-2);
+  min-height: 34px;
+  padding: 0 var(--cat-space-4);
+  border: 1px solid var(--cat-line-strong);
+  border-radius: var(--cat-r-pill);
+  background: var(--cat-surface-2);
+  box-shadow: var(--cat-lift);
+  color: var(--cat-ink);
+  font: inherit;
+  font-size: var(--cat-fs-13);
+  font-weight: var(--cat-w-semi);
+  white-space: nowrap;
+  cursor: pointer;
+  overflow: hidden;
+  transition:
+    background-color var(--cat-dur-effect) var(--cat-ease-effect),
+    border-color var(--cat-dur-effect) var(--cat-ease-effect),
+    transform var(--cat-dur-hold) var(--cat-ease-hold);
+}
+
+/* An icon in a button is a glyph beside the label, never a picture that sets the button's height. */
+.cat-btn svg { width: 16px; height: 16px; flex: none; }
+
+.cat-btn:hover { background: var(--cat-surface-3); }
+.cat-btn:active { transform: scale(.98); }
+.cat-btn:disabled { color: var(--cat-faint); cursor: default; transform: none; }
+
+.cat-btn--primary {
+  background: var(--cat-signal-tint);
+  border-color: var(--cat-signal-line);
+  color: var(--cat-signal-ink);
+}
+
+.cat-btn--primary:hover { background: var(--cat-signal-tint-2); }
+
+/* The one loud button on a screen. Its label stays short: white on crimson
+   is 3.8:1, which is enough for a large label and nothing smaller. */
+.cat-btn--loud {
+  background: linear-gradient(180deg, var(--cat-signal-lt) 0%, var(--cat-signal) 70%);
+  border-color: var(--cat-signal);
+  color: var(--cat-on-signal);
+  font-size: var(--cat-fs-15);
+  min-height: 40px;
+  padding: 0 var(--cat-space-5);
+}
+
+.cat-btn--loud:hover { background: var(--cat-signal-lt); border-color: var(--cat-signal-lt); }
+
+.cat-btn--ghost { background: transparent; border-color: transparent; color: var(--cat-dim); }
+.cat-btn--ghost:hover { background: var(--cat-surface-2); color: var(--cat-ink); }
+
+/* The version badge, exactly as drawn: a capsule with a lit dot. */
+.cat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cat-space-2);
+  height: 26px;
+  padding: 0 var(--cat-space-3);
+  border: 1px solid var(--cat-signal-line);
+  border-radius: var(--cat-r-pill);
+  background: var(--cat-signal-tint);
+  font-family: var(--cat-mono);
+  font-size: var(--cat-fs-12);
+  font-weight: var(--cat-w-semi);
+  color: var(--cat-signal-ink);
+}
+
+.cat-pill::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: var(--cat-r-pill);
+  background: var(--cat-signal-lt);
+}
+
+.cat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cat-space-2);
+  height: 28px;
+  padding: 0 var(--cat-space-3);
+  border: 1px solid var(--cat-line-strong);
+  border-radius: var(--cat-r-pill);
+  background: var(--cat-surface-2);
+  font-family: var(--cat-mono);
+  font-size: var(--cat-fs-13);
+  font-weight: var(--cat-w-semi);
+  color: var(--cat-body);
+}
+
+.cat-chip--on { background: var(--cat-signal-tint); border-color: var(--cat-signal-line); color: var(--cat-signal-ink); }
+
+/* A chip carrying a value that disagrees with something else — a vendordep from last season beside
+   a 2027 project. Amber, because it is a state of the thing and not an action on it. */
+.cat-chip--warn { background: var(--cat-warn-tint); border-color: var(--cat-warn); color: var(--cat-warn); }
+
+.cat-field {
+  width: 100%;
+  min-height: 34px;
+  padding: 0 var(--cat-space-3);
+  border: 1px solid var(--cat-line-strong);
+  border-radius: var(--cat-r-field);
+  background: var(--cat-surface-2);
+  color: var(--cat-ink);
+  font: inherit;
+  font-size: var(--cat-fs-13);
+  transition: border-color var(--cat-dur-effect) var(--cat-ease-effect);
+}
+
+.cat-field::placeholder { color: var(--cat-faint); }
+.cat-field:hover { border-color: var(--cat-line-strong); }
+
+/* ---- the controls the browser draws for you, drawn here instead --------------
+   A checkbox, a radio and a select left alone are the three things that give a
+   dark interface away: a blue tick from the system palette, a grey lozenge and
+   a native arrow, none of which know about any of this. They are small, they
+   are everywhere, and they are what "unfinished" looks like. */
+
+input[type="checkbox"],
+input[type="radio"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  flex: none;
+  display: inline-grid;
+  place-content: center;
+  border: 1px solid var(--cat-line-strong);
+  border-radius: var(--cat-r-inner);
+  background: var(--cat-surface-2);
+  box-shadow: var(--cat-lift);
+  cursor: pointer;
+  transition:
+    background-color var(--cat-dur-effect) var(--cat-ease-effect),
+    border-color var(--cat-dur-effect) var(--cat-ease-effect);
+}
+
+input[type="radio"] { border-radius: var(--cat-r-pill); }
+
+input[type="checkbox"]:hover,
+input[type="radio"]:hover { border-color: var(--cat-signal-line); }
+
+/* The mark is drawn with a scale transform rather than by appearing, so it has
+   somewhere to come from: `release`, because it is a thing arriving. */
+input[type="checkbox"]::before,
+input[type="radio"]::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  transform: scale(0);
+  transform-origin: center;
+  transition: transform var(--cat-dur-release) var(--cat-ease-release);
+  background: var(--cat-signal);
+}
+
+input[type="checkbox"]::before {
+  /* A tick, as a clip path: no glyph, no font, nothing to fail to load. */
+  clip-path: polygon(14% 47%, 0 61%, 39% 100%, 100% 22%, 85% 9%, 37% 70%);
+}
+
+input[type="radio"]::before { border-radius: var(--cat-r-pill); width: 8px; height: 8px; }
+
+input[type="checkbox"]:checked,
+input[type="radio"]:checked {
+  background: var(--cat-signal-tint);
+  border-color: var(--cat-signal);
+}
+
+input[type="checkbox"]:checked::before,
+input[type="radio"]:checked::before { transform: scale(1); }
+
+input[type="checkbox"]:disabled,
+input[type="radio"]:disabled { cursor: default; border-color: var(--cat-line); background: var(--cat-surface-1); }
+input[type="checkbox"]:disabled::before,
+input[type="radio"]:disabled::before { background: var(--cat-faint); }
+
+/* A select keeps its own menu — that belongs to the platform — but not its
+   arrow, which is the last piece of system chrome on the page. */
+select.cat-field,
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: var(--cat-space-6);
+  background-image: linear-gradient(45deg, transparent 50%, var(--cat-dim) 50%),
+                    linear-gradient(135deg, var(--cat-dim) 50%, transparent 50%);
+  background-position: right calc(var(--cat-space-4) + 4px) center, right var(--cat-space-4) center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+
+/* The menu itself is the platform's, and on a dark page it has to be told. */
+select option { background: var(--cat-surface-1); color: var(--cat-ink); }
+
+/* A text field that is not wearing `.cat-field` — there is always one — still
+   belongs to the same family. */
+input[type="text"], input[type="number"], input[type="search"],
+input[type="url"], input[type="email"], input:not([type]), textarea {
+  border: 1px solid var(--cat-line-strong);
+  border-radius: var(--cat-r-field);
+  background: var(--cat-surface-2);
+  color: var(--cat-ink);
+  font: inherit;
+  font-size: var(--cat-fs-13);
+  padding: 6px var(--cat-space-3);
+  transition: border-color var(--cat-dur-effect) var(--cat-ease-effect);
+}
+
+textarea { font-family: var(--cat-mono); line-height: 1.55; resize: vertical; }
+input::placeholder, textarea::placeholder { color: var(--cat-faint); }
+input:hover, textarea:hover, select:hover { border-color: var(--cat-line-strong); }
+input:focus, textarea:focus, select:focus { outline: none; border-color: var(--cat-signal-line); }
+
+/* The last two pieces of a field the browser still drew itself: grey spinner arrows inside every
+   number box, and a clear cross inside every search box, both in the platform's own light style on
+   a dark surface. The arrow keys and the wheel still step a number; Escape still clears a search. */
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="search"] { -webkit-appearance: none; appearance: none; }
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; }
+
+/* One focus ring everywhere, in the signal colour, and never removed. */
+:where(.cat-btn, .cat-chip, .cat-field, .cat-tab, [tabindex]):focus-visible {
+  outline: 2px solid var(--cat-signal);
+  outline-offset: 2px;
+}
+
+.cat-tabs {
+  display: flex;
+  gap: var(--cat-space-1);
+  border-bottom: 1px solid var(--cat-line);
+}
+
+.cat-tab {
+  position: relative;
+  padding: var(--cat-space-2) var(--cat-space-3);
+  border: 0;
+  background: transparent;
+  color: var(--cat-dim);
+  font: inherit;
+  font-size: var(--cat-fs-13);
+  font-weight: var(--cat-w-semi);
+  cursor: pointer;
+  transition: color var(--cat-dur-effect) var(--cat-ease-effect);
+}
+
+.cat-tab:hover { color: var(--cat-ink); }
+.cat-tab[aria-selected="true"] { color: var(--cat-ink-strong); }
+
+.cat-tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: var(--cat-space-2);
+  right: var(--cat-space-2);
+  bottom: -1px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--cat-signal);
+}
+
+/* Key and value, the way an instrument prints them: label quiet and left,
+   value mono and right, digits in columns. */
+.cat-kv {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--cat-space-3);
+  padding: var(--cat-space-2) 0;
+  border-bottom: 1px solid var(--cat-line);
+}
+
+.cat-kv__key { color: var(--cat-dim); font-size: var(--cat-fs-13); }
+.cat-kv__value { font-family: var(--cat-mono); font-size: var(--cat-fs-13); color: var(--cat-ink); }
+
+.cat-readout {
+  font-family: var(--cat-mono);
+  font-size: var(--cat-fs-40);
+  font-weight: var(--cat-w-semi);
+  color: var(--cat-ink-strong);
+  letter-spacing: var(--cat-track-tight);
+  line-height: 1;
+}
+
+/* Status. Shape carries the meaning as well as colour, so a screenshot in
+   greyscale, or a colour-blind reader, still tells them apart. */
+.cat-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background: var(--cat-faint);
+  transition: background-color var(--cat-dur-effect) var(--cat-ease-effect);
+}
+
+.cat-dot--ok { background: var(--cat-ok); border-radius: var(--cat-r-pill); }
+.cat-dot--warn { background: var(--cat-warn); border-radius: 1px; transform: rotate(45deg); }
+.cat-dot--bad { background: var(--cat-bad); border-radius: 1px; }
+.cat-dot--info { background: var(--cat-info); border-radius: var(--cat-r-pill); }
+
+/* The wordmark: thin grey prefix, bold white name, thin crimson version. */
+.cat-wordmark {
+  font-family: var(--cat-sans);
+  letter-spacing: var(--cat-track-tight);
+  color: var(--cat-ink-strong);
+  white-space: nowrap;
+}
+
+.cat-wordmark__prefix { font-weight: var(--cat-w-thin); color: var(--cat-dim); }
+.cat-wordmark__name { font-weight: var(--cat-w-bold); color: var(--cat-ink-strong); }
+.cat-wordmark__version { font-weight: var(--cat-w-thin); color: var(--cat-signal-lt); margin-left: .28em; }
+
+/* The oversized figure behind a page. It is never read, so it is never in the
+   accessibility tree either. */
+.cat-watermark {
+  position: absolute;
+  right: var(--cat-space-6);
+  bottom: 0;
+  font-family: var(--cat-sans);
+  font-weight: var(--cat-w-bold);
+  letter-spacing: -.05em;
+  color: #ffffff;
+  opacity: .032;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Glass, for floating layers only. */
+.cat-glass {
+  background: var(--cat-glass-fill);
+  backdrop-filter: blur(var(--cat-glass-blur)) saturate(1.12);
+  -webkit-backdrop-filter: blur(var(--cat-glass-blur)) saturate(1.12);
+  border: 1px solid var(--cat-glass-edge);
+  border-radius: var(--cat-r-card);
+  box-shadow: var(--cat-glass-shadow);
+}
+
+/* Bezel's calm version: solid glass when transparency is turned down, and no
+   overshoot, drift or scaling when motion is. */
+@media (prefers-reduced-transparency: reduce) {
+  .cat-glass {
+    background: var(--cat-surface-1);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --cat-ease-hold: linear;
+    --cat-ease-release: linear;
+    --cat-ease-smooth: linear;
+    --cat-dur-hold: 1ms;
+    --cat-dur-release: 1ms;
+    --cat-dur-smooth: 1ms;
+    --cat-dur-settle: 1ms;
+    --cat-dur-effect: 1ms;
+    --cat-dur-layer: 1ms;
+  }
+
+  .cat-btn:active { transform: none; }
+}

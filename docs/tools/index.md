@@ -20,41 +20,45 @@ Thirteen single-file browser tools, hosted right here. Nothing to install.
 }
 .tool-card {
   display: flex; flex-direction: column;
-  padding: 22px 22px 18px;
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 14px;
+  padding: var(--cat-space-5);
+  border: 1px solid var(--cat-line);
+  border-radius: var(--cat-r-card);
   text-decoration: none !important;
   color: inherit;
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01));
+  background: linear-gradient(180deg, var(--cat-surface-2) 0%, var(--cat-surface-1) 58%);
+  box-shadow: var(--cat-lift);
   position: relative; overflow: hidden;
-  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  transition: transform var(--cat-dur-hold) var(--cat-ease-hold),
+              border-color var(--cat-dur-effect) var(--cat-ease-effect),
+              box-shadow var(--cat-dur-effect) var(--cat-ease-effect);
 }
+/* The key light, in the corner the identity's light comes from. It is the only thing that arrives
+   on hover: a card that lifts, tints and glows at once is three answers to one gesture. */
 .tool-card::before {
   content: ""; position: absolute; inset: 0;
-  background: radial-gradient(400px 200px at 0% 0%, rgba(233,69,96,0.10), transparent 60%);
-  opacity: 0; transition: opacity 0.2s ease;
+  background: var(--cat-key-light);
+  opacity: 0; transition: opacity var(--cat-dur-effect) var(--cat-ease-effect);
   pointer-events: none;
 }
 .tool-card:hover {
   transform: translateY(-3px);
-  border-color: rgba(233,69,96,0.6);
-  box-shadow: 0 16px 36px rgba(0,0,0,0.45);
+  border-color: var(--cat-signal-line);
+  box-shadow: var(--cat-lift-strong);
 }
 .tool-card:hover::before { opacity: 1; }
 .tool-card .icon {
   font-size: 28px;
   width: 48px; height: 48px;
   display: flex; align-items: center; justify-content: center;
-  border-radius: 12px;
-  background: rgba(233,69,96,0.12);
-  border: 1px solid rgba(233,69,96,0.20);
-  margin-bottom: 12px;
+  border-radius: var(--cat-r-chip);
+  background: var(--cat-signal-tint);
+  border: 1px solid var(--cat-signal-line);
+  margin-bottom: var(--cat-space-3);
 }
 .tool-card .name {
-  font-weight: 700; font-size: 17px;
-  margin: 0 0 6px; color: #e94560;
-  letter-spacing: -0.01em;
+  font-weight: var(--cat-w-semi); font-size: var(--cat-fs-18);
+  margin: 0 0 6px; color: var(--cat-ink-strong);
+  letter-spacing: var(--cat-track-tight);
 }
 .tool-card .desc {
   font-size: 13px; line-height: 1.55;
@@ -67,10 +71,10 @@ Thirteen single-file browser tools, hosted right here. Nothing to install.
   text-transform: uppercase; letter-spacing: 1.2px;
   padding: 3px 10px; border-radius: 999px;
 }
-.tag.live { background: rgba(74,222,128,0.16); color: #4ade80; }
-.tag.gen  { background: rgba(233,69,96,0.16); color: #f0648a; }
-.tag.calc { background: rgba(96,165,250,0.16); color: #60a5fa; }
-.tag.plan { background: rgba(251,191,36,0.16); color: #fbbf24; }
+.tag.live { background: var(--cat-ok-tint); color: var(--cat-ok); }
+.tag.gen  { background: var(--cat-signal-tint-2); color: var(--cat-signal-ink); }
+.tag.calc { background: var(--cat-info-tint); color: var(--cat-info); }
+.tag.plan { background: var(--cat-warn-tint); color: var(--cat-warn); }
 </style>
 
 <div class="tool-grid">
@@ -126,8 +130,8 @@ Thirteen single-file browser tools, hosted right here. Nothing to install.
 
 <a class="tool-card" href="wiring/">
   <div class="icon">⚡</div>
-  <p class="name">Wiring Diagram</p>
-  <p class="desc">Imports your CAN ID Planner and generates a complete, optimal power tree + CAN bus diagram — breaker sizes, wire gauge, channel schedule, and termination. Printable for the build team.</p>
+  <p class="name">Wiring Planner</p>
+  <p class="desc">Pick the channel every device sits in — the board's own numbering, MPM and VRM breakouts included — and get the run list to wire from: both ends of every run, gauge, voltage drop, and the CAN daisy-chain in order. Printable for the build team.</p>
   <span class="tag plan">Planner</span>
 </a>
 

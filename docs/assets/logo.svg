@@ -1,37 +1,36 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!-- Catalyst mark, Rev 2.
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="FrcCatalyst">
+  <title>FrcCatalyst</title>
 
-     The same part, redrawn. The bolt geometry is unchanged from Rev 1 - it is the one thing on
-     the sheet that did not need re-cutting - but it is now drawn in the drawing-set language:
-     continuous vermilion geometry on drafting film, inside a sheet border, with corner datum
-     ticks. Continuity is the point. A second generation that arrives as a stranger is a rebrand,
-     not a revision.
+  <!--
+    One idea, because this is rendered at 32px in a browser tab as often as at 512. An earlier draft
+    carried the banner's motion profile behind the mark; at icon sizes it stopped being a profile and
+    became a smudge crossing the bolt. The glow does the same job - depth without a second subject.
+  -->
+  <defs>
+    <linearGradient id="ground" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#191a20"/>
+      <stop offset="55%" stop-color="#101116"/>
+      <stop offset="100%" stop-color="#08090b"/>
+    </linearGradient>
+    <radialGradient id="pool" cx="26%" cy="20%" r="64%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#e94560" stop-opacity="0.30"/>
+      <stop offset="60%" stop-color="#e94560" stop-opacity="0.07"/>
+      <stop offset="100%" stop-color="#e94560" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
 
-     No lettering. just-the-docs renders `logo:` as a background-image inside a 60px-tall
-     .site-title, so a wordmark drawn on a 512 canvas arrives about 7px tall and is a smudge.
-     A mark survives that, and survives a 16px favicon - which is also why the ghosted Rev 1
-     outline is set at a weight that resolves to nothing rather than to mud when it is scaled down.
+  <!-- A squircle rather than a circle: this is an app icon as well as a docs logo, and the rounded
+       square is the shape both platforms already expect. -->
+  <rect width="512" height="512" rx="114" fill="url(#ground)"/>
+  <rect width="512" height="512" rx="114" fill="url(#pool)"/>
+  <circle cx="256" cy="256" r="196" fill="url(#glow)"/>
 
-     Tokens: #E4E7E1 Mylar, #1A1E1B Graphite, #C4CAC3 Underlay, #D6412A Vermilion. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512"
-     role="img" aria-label="Catalyst">
-  <title>Catalyst</title>
-
-  <rect x="0" y="0" width="512" height="512" rx="12" fill="#E4E7E1"/>
-  <rect x="24.5" y="24.5" width="463" height="463" rx="4" fill="none" stroke="#1A1E1B" stroke-width="1"/>
-
-  <!-- corner datum ticks: the sheet's own origin marks -->
-  <g stroke="#5C635E" stroke-width="2" opacity="0.55">
-    <path d="M24 64h28M64 24v28M488 448h-28M448 488v-28"/>
-  </g>
-
-  <!-- Rev 1 ghosted behind, offset by the width of the change -->
-  <g transform="translate(113.9 83.2) scale(13.4)" opacity="0.85">
-    <path d="M13 2L3 14h7v8l10-12h-7V2z" fill="none" stroke="#C4CAC3" stroke-width="0.55"/>
-  </g>
-
-  <!-- Rev 2: continuous geometry, filled -->
-  <g transform="translate(101.9 95.2) scale(13.4)">
-    <path d="M13 2L3 14h7v8l10-12h-7V2z" fill="#D6412A"/>
+  <!-- The mark, the one shape shared across the library, the app and the console. -->
+  <g transform="translate(88 88) scale(14)">
+    <path d="M13.5 2 5 13h5l-1.5 9L19 10h-5.5z" fill="#e94560"/>
   </g>
 </svg>

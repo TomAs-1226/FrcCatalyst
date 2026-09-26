@@ -23,17 +23,19 @@ Pre-built mechanisms, swerve, vision and whole-robot state machines for FRC — 
 
 [Get Started](getting-started/installation){: .btn .btn-primary .fs-5 .mb-4 .mb-md-0 .mr-2 }
 [What changed for Systemcore](advanced/systemcore){: .btn .fs-5 .mb-4 .mb-md-0 .mr-2 }
+[Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html){: .btn .fs-5 .mb-4 .mb-md-0 .mr-2 }
 [Tools](tools/){: .btn .fs-5 .mb-4 .mb-md-0 .mr-2 }
 [GitHub](https://github.com/TomAs-1226/FrcCatalyst){: .btn .fs-5 .mb-4 .mb-md-0 }
 
 {% include hero3d.html %}
 
 <p style="margin-top: -8px">
-  <img src="https://img.shields.io/badge/WPILib-2027.0.0--alpha--7-1f6feb?style=flat-square" alt="WPILib"/>
-  <img src="https://img.shields.io/badge/Phoenix%206-26.50.0--alpha--1-e94560?style=flat-square" alt="Phoenix 6"/>
+  <img src="https://img.shields.io/badge/WPILib-2027.0.0--alpha--7-1f6feb?style=flat-square" alt="WPILib 2027.0.0-alpha-7"/>
+  <img src="https://img.shields.io/badge/Systemcore%20OS-image%2014-2c2e34?style=flat-square" alt="Systemcore OS image 14"/>
+  <img src="https://img.shields.io/badge/Phoenix%206-26.50.0--alpha--1-e94560?style=flat-square" alt="Phoenix 6 26.50.0-alpha-1"/>
   <img src="https://img.shields.io/badge/Java-25-orange?style=flat-square&logo=openjdk" alt="Java 25"/>
-  <img src="https://img.shields.io/badge/PathPlanner-2027.0.0--alpha--3-7c3aed?style=flat-square" alt="PathPlanner"/>
-  <img src="https://img.shields.io/badge/LimelightLib-2.0.0--beta8--alpha7-22c55e?style=flat-square" alt="LimelightLib"/>
+  <img src="https://img.shields.io/badge/PathPlanner-2027.0.0--alpha--3-7c3aed?style=flat-square" alt="PathPlanner 2027.0.0-alpha-3"/>
+  <img src="https://img.shields.io/badge/LimelightLib-2.0.0--beta8--alpha7-22c55e?style=flat-square" alt="LimelightLib 2.0.0-beta8-alpha7"/>
 </p>
 
 ---
@@ -306,6 +308,35 @@ subsystem you wrote yourself are a separate job; the port guide below covers tho
 | Commands need two JVM flags | `--add-opens java.base/jdk.internal.vm=ALL-UNNAMED` and `--add-opens java.base/java.lang=ALL-UNNAMED`. Nothing fails at build time and nothing fails at startup — the first command the scheduler runs throws `ExceptionInInitializerError` from inside WPILib, naming no class of yours. Catalyst checks when it builds a command and throws something legible instead; `CommandRuntime.isAvailable()` asks directly. |
 
 [The full port guide](advanced/systemcore){: .btn .btn-primary .fs-4 }
+
+---
+
+## Why
+
+Every season teams rebuild the same elevator, arm, intake, and swerve scaffolding. Catalyst replaces it with one builder call:
+
+```java
+LinearMechanism elevator = new LinearMechanism(
+    LinearMechanism.Config.builder()
+        .name("Elevator").motor(13).follower(14, true)
+        .motorType(MotorType.KRAKEN_X60)
+        .gearRatio(10.0).drumRadius(0.0254).mass(5.0)
+        .pid(50, 0, 0.5).gravityGain(0.35)
+        .motionMagic(2.0, 4.0, 20.0)
+        .position("STOW", 0.0).position("HIGH", 1.1)
+        .build()
+);
+```
+
+Motion Magic, gravity FF, sim, telemetry, command factories, health monitoring, live tuning — all wired in.
+
+| | Raw WPILib + Phoenix | Catalyst |
+|---|---|---|
+| Elevator with gravity FF | ~150 lines | **8 lines** |
+| Swerve + PathPlanner + Vision | ~400 lines | **15 lines** |
+| Sim + telemetry per mechanism | you write it | included |
+| Temperature cutoff | manual | automatic |
+| Limit-switch auto-zero | manual | one call |
 
 ---
 

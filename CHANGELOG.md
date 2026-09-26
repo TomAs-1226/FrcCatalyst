@@ -7,8 +7,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Phoenix 6 26.70.0-alpha-2, so this line can drive a CTRE robot.** Since it was cut, the alpha-7
+  line has been port-and-compile-only for anything on a CTRE drivetrain: there was no Phoenix built
+  for WPILib 2027 alpha-7. CTRE published one on 2026-09-18 and this line moved to it. **It requires
+  26.70.x device firmware** — every TalonFX, CANcoder and Pigeon has to be re-flashed, so moving a
+  robot between the two 2.x lines is an afternoon, not a `git checkout`. Three API changes came with
+  it, none of them in CTRE's changelog: `CANBus.systemcore(int)`/`motioncore(int)` are gone, because
+  naming a bus is WPILib's job now through `org.wpilib.hardware.bus.CANPort`;
+  `setOperatorPerspectiveForward` is `setOperatorForwardDirection`; and `CANBusStatus.BusOffCount`
+  and `TxFullCount` widened to `long`, which `CANBusHealth.BusStatus` widens with rather than casting
+  — a narrowing cast compiles and then reports a negative bus-off count after a long day.
+- **`systemcore-alpha6` is merged in, and the two 2.x lines are one again.** They forked on
+  2026-09-07 and were kept in step by cherry-picking, which put the docs tooling on one side and the
+  WPILib upgrade on the other; 45 commits existed only on alpha-6 and 33 only here. This line carries
+  both now — including the port-aware wiring tool and the shared tool chrome — and is the line 2.0.0
+  ships from, because it is the only one a team can install: WPILib alpha-6 is on no public Maven.
+  `systemcore-alpha6` stays readable for a robot still on Systemcore image 13; nothing new lands there.
+- **PathPlanner is `compileOnly`.** It is still at 2027.0.0-alpha-3 and built against commands v2, so
+  on this line it resolves but does not link — `AutoBuilder.configure()` throws
+  `NoClassDefFoundError`, which `SwerveSubsystem` has caught as a `Throwable` ever since a Systemcore
+  crash-looped at boot over it. As an `api` dependency it also leaked into the published pom, which is
+  why every Catalyst robot project has had to hand-add 3015's Maven repository for a library Catalyst
+  does not use: Catalyst follows its own paths. A team that wants PathPlanner adds its vendordep,
+  which brings the repository with it, plus WPILibNewCommands.
+
+- **The wiring tool plans ports, not a picture.** It drew a schematic: boxes joined by curves,
+  correct about what connects to what and not much use at the robot, because it never said which
+  channel anything went in — it auto-numbered them and showed you a diagram. It now draws the
+  boards. Every channel of the PDH or PDP appears in the board's own numbering; you pick a device
+  up and put it in one; and what comes out is a run list with **both ends of every run named**
+  (`PDH 7 → BR Steer`, `MPM F0 → LEDs`), its gauge, its length and its voltage drop. The schematic
+  is still there, as one card among several rather than the whole answer.
+- **Breakouts are first-class**, which is what makes the port model worth having: an MPM, VRM, RPM
+  or Servo Hub takes a channel on the main board and provides its own, and a device is placed into
+  one exactly the way it is placed into the board. A device that needs a regulated supply will only
+  go where regulated power exists, and everything else dims while you hold it. Auto-assign fills
+  breakouts before the main board, because filling the bays first leaves the MPM empty and the
+  board full, which is the problem the MPM was bought to solve.
+- **CAN is drawn as a chain.** The old diagram drew a rail with taps; the wiring is a daisy chain,
+  and showing it as a bus is the most common way a diagram misleads someone who has not wired one.
+  Each bus now prints in order, `Systemcore can_s0 → FL Drive → … → 120 Ω`, and the check that used
+  to count buses now knows the SPI pairing: two buses that share a controller read as a split that
+  buys much less than one across `can_s2`.
+- **The device catalogue is about six times larger** — brushed motors and the controllers they
+  need, Talon FXS and SRX, Thrifty Nova, CANrange, CANifier, Limelight cameras, network switches,
+  servos, limit switches, analog and quadrature inputs — and each entry says how it wants to be
+  fed rather than only what breaker it takes.
+- **Systemcore's own ports are on the sheet**: the five CAN buses with their controller groups,
+  the power inlet, Ethernet, the USB ports the Hailo accelerator sits on, the SmartIO header at
+  3.3 V, and the I²C port on GPIO 10/11 with its SCL/SDA swap.
+
 ### Fixed
 
+- **The wiring tool stated several things it had no source for.** It attributed a recommendation
+  about regulators, a connector name and a wire gauge to Limelight, and none of them could be found
+  in any Limelight or WPILib document. The advice is kept, because a controller that browns out
+  mid-match is not a mistake worth inheriting from a diagram — but it now reads as what it is,
+  something to confirm against the hardware, in the same voice the docs already use for CAN
+  termination. The channel counts and running currents say plainly that they are the usual figures
+  and not values read off a datasheet.
+- **A breakout's feed run sized its voltage drop from its breaker rather than its load**, so a
+  lightly loaded MPM reported a 0.76 V problem it did not have. It uses what its tenants actually
+  draw. The run table also split its one ambiguous amps column into the breaker and the typical
+  running current, which were being shown and calculated from separately.
+
+>>>>>>> systemcore-alpha6
 - **`StateSpaceController.Position.correct(position)` taught the filter a velocity nothing had measured.**
   For a mechanism with no velocity sensor it passed the filter's own velocity estimate back as a
   measurement, at the real sensor's noise. A Kalman covariance update does not look at the value, only
@@ -311,7 +376,7 @@ The first increment of the Autonomy 2.0 track. No new concepts and no new packag
 defects the autonomy and power code already had, and making three things that were silently inert
 say so. Everything here is independently useful whatever the rest of the track turns into.
 
-### Fixed
+#### Fixed
 
 - **`Autopilot` ignored `Action.canStart()`**, alone among everything that consumes a precondition.
   An acquire that could not succeed - no piece in view, a camera down - was scheduled anyway and the
@@ -333,7 +398,7 @@ say so. Everything here is independently useful whatever the rest of the track t
   unarmed, `isArmed()` and `Power/Brownout/Armed` report it, and the reflex is honest about being a
   voltmeter until it is given a current source.
 
-### Added
+#### Added
 
 - **`PowerPredictor.breakerBudgetAmps(...)`.** `headroomAmps()` answered a battery question and was
   being reached for as a power budget: at 12.4 V it reports 245 A of room, which is true of the
@@ -343,7 +408,7 @@ say so. Everything here is independently useful whatever the rest of the track t
 - **`RecordingSink`** (test scope) - a `LogSink` that keeps what was written, so telemetry is an
   assertion target with no NT server, no HAL and no robot.
 
-### Changed
+#### Changed
 
 - `behavior/` and `goal/` publish through `CatalystLog` instead of writing straight at
   NetworkTables. The key paths are byte-identical, so no dashboard moves, but their reasoning now

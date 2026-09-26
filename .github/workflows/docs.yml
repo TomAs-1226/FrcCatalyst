@@ -1,46 +1,40 @@
-name: Deploy Docs (beta trigger)
+name: Deploy Docs
 
-# The beta branch cannot publish the site itself.
+# This branch cannot publish the site itself, and should stop trying.
 #
-# A repository gets one GitHub Pages deployment and `main` owns it, so the real build lives in
-# main's copy of this workflow: it checks out both branches and assembles main at the root with this
-# branch under /beta/. Trying to deploy from here fails with
+# GitHub runs the workflow file from the branch that was pushed, and the `github-pages` environment
+# has a branch policy naming `main` alone. So a docs push here built a perfectly good artifact and
+# then failed at the deploy step — the build was green, the site never moved, and the only sign was
+# a red run nobody was watching. Before that it was worse: this file still triggered on `systemcore`,
+# a branch retired on 2026-09-19, so pushes matched nothing at all and failed silently.
 #
-#   Branch "systemcore" is not allowed to deploy to github-pages due to environment protection rules
+# So it asks main's workflow to run instead. That one checks out BOTH branches and builds both sites
+# — main at the root, this branch under /beta/ — so whichever branch set it going, what gets
+# published is the current content of both. There is no version of this that publishes a stale beta.
 #
-# which is the environment doing its job. So a docs change on this branch asks main's workflow to
-# run instead of duplicating a build that could never be published.
-#
-# The beta site's build steps are edited on `main`, not here.
-
-# The branch name here must be THIS branch's name. GitHub runs the workflow file from the branch
-# that was pushed, so a stale name means a docs push matches nothing, deploys nothing, and shows no
-# red run to notice. `systemcore` was retired in the 2026-09-19 consolidation and this trigger was
-# never updated with it, so every docs push on this branch since then has been a no-op.
+# THE BRANCH NAME BELOW MUST BE THIS BRANCH'S OWN NAME. That is the whole trap, and it has now been
+# sprung twice: once when `systemcore` was retired, and again when this file arrived here in a merge
+# from `systemcore-alpha6` still naming that branch. A stale name is silent — it matches nothing,
+# deploys nothing, and leaves no red run to notice. Rename this branch and you must edit this line.
 on:
   push:
     branches: [ upgrade/alpha-7 ]
     paths:
       - 'docs/**'
       - 'README.md'
+      - '.github/workflows/docs.yml'
   workflow_dispatch:
 
 permissions:
   actions: write
-  contents: read
 
 jobs:
-  ask-main-to-publish:
+  ask-main:
     runs-on: ubuntu-latest
     steps:
-      # Tests run here rather than only in main's build, so a broken generator is attributed to the
-      # commit that broke it instead of to whatever docs change triggered the next publish.
-      - uses: actions/checkout@v4
-
-      - name: Test the browser tools
-        run: node --test docs/tools/**/*.test.mjs
-
-      - name: Trigger the Pages build on main
+      - name: Run the Pages build on main
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run docs.yml --ref main --repo "$GITHUB_REPOSITORY"
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run docs.yml --repo "${{ github.repository }}" --ref main
+          echo "Asked main to rebuild both sites; watch it in the Actions tab."

@@ -31,8 +31,19 @@ the live picture. `docs/versions.md` on `main` is the same map written for peopl
 | Line | Branch | Runs on | How it installs |
 |---|---|---|---|
 | 1.x, the competition line | `main` | roboRIO, WPILib 2026, Java 17 | JitPack, through the stable vendordep |
-| 2.0.0-alpha.5 | `systemcore-alpha6`, published from `systemcore` | Systemcore image 13, WPILib 2027 alpha-6, Java 25 | **source build only** |
-| 2.0.0-beta.2 | `upgrade/alpha-7` | Systemcore image 14, WPILib 2027 alpha-7, Java 25 | JitPack; cannot drive a CTRE robot until CTRE ships alpha-7 |
+| 2.0.0-alpha.5 | `systemcore-alpha6` | Systemcore image 13, WPILib 2027 alpha-6, Phoenix 26.50.0-alpha-1 | **source build only**, and folded into the line below |
+| **2.0.0-beta.2, the line that ships** | `upgrade/alpha-7` | Systemcore image 14, WPILib 2027 alpha-7, Phoenix 26.70.0-alpha-2, Java 25 | JitPack |
+
+**The alpha-7 line can drive a CTRE robot as of 2026-09-18.** Every doc in this repo used to say it
+could not, and that was true for eleven days: there was no Phoenix for WPILib alpha-7. CTRE published
+26.70.0-alpha-2 on 2026-09-18 and this branch moved to it. **It requires 26.70.x device firmware** —
+every TalonFX, CANcoder and Pigeon has to be re-flashed, which is why moving a robot between the two
+2.x lines is an afternoon and not a `git checkout`.
+
+`systemcore-alpha6` was merged into `upgrade/alpha-7` on 2026-09-25, so the two 2.x lines are one
+again. The alpha-6 branch stays readable for a robot that is still on image 13, but nothing new lands
+on it: the fork was maintained by cherry-picking for two weeks, which is how the docs tooling ended up
+on one side and the WPILib upgrade on the other.
 
 - **A version names one build.** Never publish a second build under a version that already exists.
   `devtools release FrcCatalyst <version>` does the bump, the CHANGELOG date, the checks, the commit
