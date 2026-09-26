@@ -1096,12 +1096,45 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
     }
 
     /**
-     * Reset heading (zero the gyro). A pure odometry op — requires no
-     * subsystem, so it won't interrupt the default drive command.
+     * "The way the robot is pointing now is forward." A pure odometry op — requires no subsystem, so
+     * it will not interrupt the default drive command.
+     *
+     * <h2>It seeds 180° on Red, and that is the fix</h2>
+     *
+     * <p>This used to seed {@code new Rotation2d()} — field 0° — whatever the alliance was, and that is
+     * wrong on Red in a way that shows up as the robot driving at the driver.
+     *
+     * <p>The drive requests use {@link SwerveRequest.ForwardPerspectiveValue#OperatorPerspective}, and
+     * {@code periodic()} sets that perspective to 180° on Red, because a Red driver stands at the other
+     * end of the field and their "away from me" is field −x. So on Red, driver-forward is field 180°.
+     *
+     * <p>A driver points the robot away from themselves and presses the button meaning "call this
+     * forward". Seeding 0° told the robot it was facing field +x while the driver's forward was field
+     * 180°, so the first push of the stick sent the robot back toward the wall they were standing at.
+     * It was correct on Blue and exactly reversed on Red, which is the worst way for it to be wrong:
+     * it tests fine in a shop, and the Driver Station defaults to Red 1.
+     *
+     * <p>So the seed is the operator's forward direction in field coordinates — 0° on Blue, 180° on
+     * Red — which is what "call this forward" has always meant.
+     *
+     * <p>With no alliance yet (no Driver Station, or before it reports), this seeds 0°: the Blue
+     * behaviour, and the same answer the old code always gave. There is nothing better to do, and a
+     * heading zeroed before the alliance is known is worth redoing once it is.
+     *
+     * <p>If you want the literal old behaviour — "make the current facing field 0° regardless" — call
+     * {@code resetPose(new Pose2d(getPose().getTranslation(), new Rotation2d()))} yourself. This method
+     * is for the driver's button.
      */
     public CatalystCommand resetHeading() {
-        return Commands.runOnce(() ->
-                resetPose(new Pose2d(getPose().getTranslation(), new Rotation2d())))
+        return Commands.runOnce(() -> {
+            Rotation2d operatorForward = MatchState.getAlliance()
+                    // Rotation2d.fromDegrees / new Rotation2d(), not the k-constants: alpha-6 spells zero
+                    // kZero and alpha-7 spells it ZERO, and one source for both lines is worth more than
+                    // the constant. Same reason the Field Lab sticks to the API both alphas share.
+                    .map(a -> a == Alliance.RED ? Rotation2d.fromDegrees(180) : new Rotation2d())
+                    .orElse(new Rotation2d());
+            resetPose(new Pose2d(getPose().getTranslation(), operatorForward));
+        })
                 .ignoringDisable(true)
                 .withName("Swerve.ResetHeading");
     }
