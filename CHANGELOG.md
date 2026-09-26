@@ -5,6 +5,24 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.0.0-rc.1-a6] — 2026-09-25
+
+The 2.0.0 candidate, built for the **WPILib 2027 alpha-6 / Phoenix 26.50** stack.
+
+Content identical to `2.0.0-rc.1` on `upgrade/alpha-7` apart from the WPILib and Phoenix versions
+and one test file that cannot compile here (`HAL.initialize` takes no arguments on alpha-7 and two on
+alpha-6). See that version's entry for what the release contains; the headline is
+`frc.lib.catalyst.fieldlab`, the measurement campaign.
+
+**Why this build exists.** A robot cannot move to the alpha-7 line yet. CTRE published the Phoenix
+26.70.0-alpha-2 jars on 2026-09-18 but no 2027 vendordep JSON, so GradleRIO refuses a project that
+asks for it — and editing a vendordep's declared year to get past that is what its own error message
+warns will break at runtime. So the candidate is built twice, and a robot still on Systemcore image 13
+takes this one.
+
+**Maven local only.** Nothing on this branch is released, and the `-a6` suffix follows the convention
+this repository already used for `2.0.0-alpha.2-a6` and its siblings. 915 tests, 0 failures.
+
 ## [Unreleased]
 
 ### Changed
