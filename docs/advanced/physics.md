@@ -580,18 +580,37 @@ PhysicsConstraints limits = PhysicsConstraints.builder()
 drive.setSpeedMultiplier(limits.speedScale());
 ```
 
-Four limits, each independent, tightest wins: traction and tipping (from the live CoM, so it tightens
-on its own when the elevator goes up), confidence, slip, and electrical headroom.
+The acceleration limit takes the tightest of traction, tipping (from the live CoM, so it tightens on
+its own when the elevator goes up) and electrical headroom. The speed scale takes the tightest of two
+physical limits: wheel slip (engaging above 20%, letting go below 10%) and electrical headroom.
 
-`limits.explain()` names whichever is binding — every slowdown this recommends is attributable to a
-sentence:
+**The speed scale is eased.** A limit on a driver's speed must never be a step: `speedScale()` falls
+toward the limit at no more than 1.0 per second, holds a reduction for 0.5 s after its cause clears,
+and gives the speed back at 0.5 per second (`Builder.easing(...)` changes all three).
+`targetSpeedScale()` is the instantaneous limit, for logging beside it.
 
-```text
-speed scaled to 45%, accel capped at 4.2 m/s^2: confidence LOW (vision stale 4.1 s); wheel slip 34%
+**Localisation confidence is not in the speed scale.** It says how far to trust the pose, not how fast
+the robot can safely go, and a driver steering by eye does not use the pose. Through 2.0.0-rc.1 it was
+folded in as bands (75 / 45 / 25% of top speed), and on Catalyst X1 that stepped the driver's top speed
+down and back up as often as 30 times a minute — whenever a tag had been out of view for 1.8 s, and at
+almost every hard stick push, when the wheels and the IMU disagreed about the acceleration. The robot
+drove like it was shifting gears. Confidence is now `confidenceScale()`, continuous and eased, for
+motion driven *on the pose* to apply if it chooses:
+
+```java
+double autoScale = Math.min(limits.speedScale(), limits.confidenceScale());  // auto-align, paths
 ```
 
-The speed scale never returns zero unless the estimate is genuinely lost; a robot frozen mid-match
-because a camera blinked is worse than one moving cautiously.
+`limits.explain()` names whichever limit is binding — every slowdown this recommends is attributable
+to a sentence — and reports confidence without applying it:
+
+```text
+speed scaled to 72% (limit 66%), accel capped at 8.3 m/s^2: wheel slip 68%; localisation confidence
+MODERATE (vision stale 2.4 s): confidenceScale 78% for pose-driven motion, not applied to the speed scale
+```
+
+Neither scale returns zero unless you set `minimumSpeedScale(0)`; a robot frozen mid-match because a
+camera blinked is worse than one moving cautiously.
 
 ---
 
@@ -737,8 +756,10 @@ arm and confirming `centerOfMassHeightMeters()` goes **up**.
 **5. Start consuming it read-only** — a state-machine guard, a `BehaviorEngine` precondition, a shot
 gate. Still no control authority; you are just letting decisions see the physics.
 
-**6. Only then, `PhysicsConstraints`.** Log `speedScale()` alongside what you are actually commanding
-for a session before you apply it, so you can see when it would have intervened and agree with it.
+**6. Only then, `PhysicsConstraints`.** Log `speedScale()` and `targetSpeedScale()` alongside what you
+are actually commanding for a session before you apply it, so you can see when it would have
+intervened and agree with it. A limit that fires at the start of every hard acceleration is telling
+you about a sensor, not about the carpet: find out which before you let it near the sticks.
 
 **7. Parameter identification is independent of all of the above** and safe to run from day one — it
 cannot change anything. Let it collect over a few matches and compare its recommendations with your

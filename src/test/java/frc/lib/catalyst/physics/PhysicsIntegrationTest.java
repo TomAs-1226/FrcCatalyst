@@ -228,16 +228,18 @@ class PhysicsIntegrationTest {
     }
 
     @Test
-    void aRobotThatHasNotSeenATagInAgesIsSlowedDown() {
+    void aRobotThatHasNotSeenATagInAgesSlowsItsPoseDrivenMotionNotItsDriver() {
         double[] clock = {0.0};
         PhysicsCore physics = core(clock);
         physics.update(driving(0.0, 2.0, Translation2d.kZero));   // never any absolute fix
 
         var limits = constraints(physics, StabilityModel.ofChassisOnly(chassis()));
 
-        assertTrue(limits.speedScale() < 1.0);
+        // Localisation confidence is the pose's, not the drivetrain's: see PhysicsConstraintsEasingTest.
+        assertEquals(1.0, limits.speedScale(), 1e-9);
+        assertFalse(limits.isCautionAdvised());
+        assertTrue(limits.confidenceScale() < 1.0);
         assertTrue(limits.explain().contains("confidence"));
-        assertTrue(limits.isCautionAdvised());
     }
 
     @Test
