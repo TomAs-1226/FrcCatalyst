@@ -107,6 +107,26 @@ public final class Preflight {
     }
 
     /**
+     * The last {@link #run()}'s verdict, or empty if it has never run.
+     *
+     * <p>{@code volatile} because {@link #run()} may be called from a bring-up op mode while something
+     * on the main loop reads it.
+     */
+    private static volatile Boolean lastReady = null;
+
+    /**
+     * Whether the last preflight said the robot could be enabled, or empty if preflight never ran.
+     *
+     * <p>Exists so a per-loop summary can include preflight without re-running it. {@link #run()}
+     * touches storage, the CAN plan and the machine's own status; at 50 Hz that would be both wasteful
+     * and misleading, since a preflight is a point-in-time judgement about a robot on a cart, not a
+     * live signal. Reading the remembered answer is the honest cheap version.
+     */
+    public static java.util.Optional<Boolean> lastReady() {
+        return java.util.Optional.ofNullable(lastReady);
+    }
+
+    /**
      * Run every check.
      *
      * <p>Safe to call before anything else is constructed — each check reports what it can and says
@@ -124,8 +144,9 @@ public final class Preflight {
         // Worst first: someone reading three lines should read the three that matter.
         findings.sort((a, b) -> b.level().compareTo(a.level()));
 
-        CatalystLog.log("Preflight/Ready", findings.stream()
-                .noneMatch(f -> f.level() == Level.BLOCKER));
+        boolean ready = findings.stream().noneMatch(f -> f.level() == Level.BLOCKER);
+        lastReady = ready;
+        CatalystLog.log("Preflight/Ready", ready);
         CatalystLog.log("Preflight/Summary", new Report(findings).summary());
         CatalystLog.log("Preflight/Findings",
                 findings.stream().map(Finding::toString).toArray(String[]::new));

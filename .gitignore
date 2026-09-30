@@ -53,3 +53,4 @@ ctre_sim/
 
 # MotorHistory's file, which the simulated-HAL tests write into the working directory.
 /catalyst/
+logs/
