@@ -53,8 +53,36 @@ this repository already used for `2.0.0-alpha.2-a6` and its siblings. 915 tests,
   the power inlet, Ethernet, the USB ports the Hailo accelerator sits on, the SmartIO header at
   3.3 V, and the I²C port on GPIO 10/11 with its SCL/SDA swap.
 
+### Changed (behaviour a robot will notice)
+
+- **`PhysicsConstraints.speedScale()` no longer includes localisation confidence.** It folded the
+  confidence bands in as steps (75% of top speed at MODERATE, 45% at LOW, 25% at LOST), and a robot
+  that fed it to `setSpeedMultiplier()`, as the docs said to, had its driver's top speed stepped
+  down and back up as often as 30 times a minute when vision went stale or the stick was pushed hard
+  (Catalyst X1, 181 dips in one session: "like shifting gears"). Confidence is now
+  `confidenceScale()`, which is continuous and reported by `explain()` but not applied. The slip and
+  power terms that remain are eased: they fall at most 1/s, hold 0.5 s and recover at 0.5/s, and slip
+  has hysteresis (on above 0.2, off below 0.1). **A robot that multiplied by `speedScale()` gets a
+  different, smoother number from the same call.**
+- **The vendordep no longer adds PathPlanner's Maven repository** to every project. PathPlanner is
+  `compileOnly` and no Catalyst robot uses it; a team that wants it installs its vendordep.
+- **`RobotSummary`'s rollup runs at 4 Hz**, not at loop rate: its CAN-bus health poll was 250 status
+  queries a second on a five-bus Systemcore.
+
+### Added
+
+- **`BatteryMonitor`** publishes `Status/BatteryVolts`: one `update()` a loop, no configuration.
+  Both dashboards read that key first and no library class published it.
+- **`TunablesManifest`** publishes `Tunables/.manifest`, the ranges, groups and units a dashboard
+  needs to draw a tunable as a control rather than a bare number.
+
 ### Fixed
 
+- **`SwerveSubsystem.resetHeading()` was exactly reversed on Red.** It seeded field 0° whatever the
+  alliance, while field-centric forward is the operator's perspective, 180° on Red. The first push
+  after "call this forward" drove the robot back toward the driver. It now seeds 0° on Blue, 180° on
+  Red, and 0° while no alliance is reported (the old answer). The Driver Station defaults to Red 1, so
+  every bench session hit this.
 - **The wiring tool stated several things it had no source for.** It attributed a recommendation
   about regulators, a connector name and a wire gauge to Limelight, and none of them could be found
   in any Limelight or WPILib document. The advice is kept, because a controller that browns out
