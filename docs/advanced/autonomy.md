@@ -234,6 +234,120 @@ whole reason every decision record carries one.
 
 ---
 
+## Autonomy 2.1: shared control
+
+The driver drives. Assists help with the parts a person does badly under pressure — holding a
+heading, lining up on something — without taking the robot away. `SharedControl` takes the driver's
+command and the assists' *proposals* each loop and returns one `Decision`: the velocity to send, who
+owns the heading, with how much authority, and why. Like every core above it **commands nothing**;
+sending the decision is your line of code.
+
+{: .warning }
+> New in 2.0.0-rc.3-a6. Unit-tested and run in simulation, but not yet driven on a robot. Treat the
+> rules below as what the tests prove, not as something a driver has felt.
+
+### The rules it enforces
+
+These are what "not intrusive" means here, and each has a test:
+
+1. **The driver's stick always wins.** While the driver turns, the rotation is theirs, the same
+   loop. A heading assist that waits for rest comes back only after the turn stick has rested
+   `restSeconds` (0.3 s) *and* the robot has stopped rotating (under `settledRadps`, 0.3 rad/s) — so
+   it never undoes the end of the driver's turn.
+2. **An assist never makes the robot faster** than the driver asked, and never sends it against the
+   driver's direction. A translation proposal that would is cut down or dropped.
+3. **No steps.** A heading assist's authority ramps from zero over `rampSeconds` (0.25 s) each time
+   it takes over.
+4. **One owner of the heading at a time**: the first proposal in the list that may act. The order of
+   the list is the priority.
+5. **Bounded.** A heading assist's turn rate is capped by its own proposal.
+
+The thresholds that switch a proposal on and off belong to whoever makes the proposal, and should
+have hysteresis. Smoothing the resulting velocity is `VelocityLimiter`'s job, after this.
+
+### Proposing a heading
+
+A `HeadingProposal` comes in three kinds:
+
+| Factory | Meaning |
+|---|---|
+| `hold(source, kP, maxRateRadps, reason)` | Hold the heading the robot has when the assist takes over. Waits for rest. |
+| `to(source, targetRad, kP, maxRateRadps, reason)` | Turn to a given heading. Waits for rest. |
+| `external(source, reason)` | The robot's own code drives the heading (an aim with its own controller). Does not wait for rest; the decision names it and commands no turn. |
+
+Angles are radians, counter-clockwise positive; velocities are on the field, in m/s.
+
+```java
+SharedControl shared = new SharedControl(new SharedControl.Config());
+
+// In the drive command's loop:
+SharedControl.Driver driver = new SharedControl.Driver(
+        fieldVx, fieldVy,                  // the sticks, already turned into field velocities
+        -rightX * maxTurnRadps,            // the turn asked, used only while turning
+        Math.abs(rightX) > 0.05);          // is the turn stick off its deadband
+
+List<SharedControl.HeadingProposal> proposals = new ArrayList<>();
+if (aiming) {
+    proposals.add(SharedControl.HeadingProposal.external("AIM", "aiming at the hub"));
+}
+proposals.add(SharedControl.HeadingProposal.hold("HOLD", 4.0, 3.0, "holding heading"));
+
+SharedControl.Decision decision = shared.decide(
+        Timer.getTimestamp(),
+        driver,
+        drive.getHeading().getRadians(),
+        drive.getYawRateRadPerSec(),
+        proposals,
+        Optional.empty());                 // no translation assist this loop
+
+double omega = decision.external() ? aimController.omega() : decision.omega();
+drive.driveFieldAbsolute(decision.vx(), decision.vy(), omega);
+log.info(decision.headingOwner() + ": " + decision.reason());
+```
+
+When `decision.external()` is true the owner drives the heading itself and `omega()` is zero, so the
+turn comes from your own controller (`aimController` above is yours). The list order is the
+priority: here the aim beats the hold, and the hold only acts once the driver has stopped turning.
+
+A translation assist is an `Optional<TranslationProposal>`
+(`new TranslationProposal(source, vx, vy, reason)`). Rule 2 applies: it is scaled down to the speed
+the driver asked for, and dropped if it points against their direction or the driver is not moving.
+
+### `VelocityLimiter` — no lurch
+
+A slammed stick asks for the whole top speed in one loop. `VelocityLimiter` hands the drivetrain a
+velocity whose **vector** changes no faster than a limit — the size of the change, not each axis on
+its own. Per-axis limiters, like `enableSlewRateLimiting`'s, let a diagonal push accelerate at 1.4
+times the limit. Here, "slowing down" means the commanded *speed* is falling, whichever way the robot
+points.
+
+```java
+VelocityLimiter limiter = new VelocityLimiter();
+
+// When the drive command starts, from the robot's measured velocity:
+ChassisVelocities now = drive.getFieldRelativeSpeeds();
+limiter.reset(now.vx, now.vy);
+
+// Each loop, after SharedControl:
+double maxAccel = physicsConstraints.maxAccelerationMpsSq();
+double[] v = limiter.limit(0.02, decision.vx(), decision.vy(), maxAccel, maxAccel);
+drive.driveFieldAbsolute(v[0], v[1], omega);
+```
+
+`limit(dt, wantVx, wantVy, maxAccelMpsSq, maxDecelMpsSq)` takes separate acceleration and
+deceleration limits; a limit that is not finite or not positive means no limit. Give it
+`PhysicsConstraints.maxAccelerationMpsSq()` and a slammed stick becomes the hardest launch the carpet
+and the robot's stability allow, and no harder — or less, for a driver who wants a gentler robot.
+
+### Call `reset()`
+
+`SharedControl.reset()` forgets everything held. Call it when the pose's heading is reset, and when
+the drive command starts. A heading held across a reset is a target in a frame that no longer
+exists; the robot would turn back to it. Reset `VelocityLimiter` with the robot's measured velocity
+when the drive command starts, as above.
+
+---
+
 ## What this deliberately is not
 
 - **Not a scheduler.** Nothing here schedules, cancels or requires a command. `TaskArbiter` tells
