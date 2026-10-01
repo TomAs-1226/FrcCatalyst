@@ -19,10 +19,18 @@ import org.wpilib.math.geometry.Rotation2d;
  * if one is within tolerance), a small error is ignored rather than chased, and the correction is
  * clamped to the rate the sticks would allow.
  *
+ * <p>The hold takes its heading only once the robot has stopped turning. Taken at the instant the
+ * driver lets go of the stick, the lock is a heading the robot is still rotating through: it coasts
+ * past, and the loop drives it back, which the driver feels as the robot undoing the end of their
+ * turn. Until the yaw rate is under {@link #SETTLED_RADPS} the rotation is simply left alone.
+ *
  * <p>A static decision so it can be tested without a drivetrain.
  */
 final class HeadingHold {
     private HeadingHold() {}
+
+    /** The yaw rate under which the robot counts as no longer turning, rad/s (about 17 deg/s). */
+    static final double SETTLED_RADPS = 0.3;
 
     /** What to do this loop: the rotation rate to command and the heading now locked (or null). */
     record Decision(double rotRadPerSec, Rotation2d locked, boolean driverRotating) {}
@@ -41,6 +49,18 @@ final class HeadingHold {
     static Decision decide(double rawRot, boolean translating, Rotation2d heading, Rotation2d locked,
                            double[] snapAngles, double snapTolDeg, PIDController pid,
                            double maxRate, double multiplier) {
+        return decide(rawRot, translating, heading, locked, snapAngles, snapTolDeg, pid, maxRate, multiplier, 0.0);
+    }
+
+    /**
+     * As above, with the robot's measured yaw rate: a new lock waits until the robot has stopped
+     * turning.
+     *
+     * @param yawRateRadPerSec the measured yaw rate, rad/s
+     */
+    static Decision decide(double rawRot, boolean translating, Rotation2d heading, Rotation2d locked,
+                           double[] snapAngles, double snapTolDeg, PIDController pid,
+                           double maxRate, double multiplier, double yawRateRadPerSec) {
         double limit = Math.abs(maxRate * multiplier);
         if (Math.abs(rawRot) > 0.0) {
             pid.reset();
@@ -48,6 +68,11 @@ final class HeadingHold {
         }
         if (!translating) {
             // Parked: nothing to hold straight, and possibly nothing that can turn.
+            pid.reset();
+            return new Decision(0.0, null, false);
+        }
+        if (locked == null && Math.abs(yawRateRadPerSec) > SETTLED_RADPS) {
+            // Still coasting out of the driver's turn: no lock yet, and nothing to correct.
             pid.reset();
             return new Decision(0.0, null, false);
         }

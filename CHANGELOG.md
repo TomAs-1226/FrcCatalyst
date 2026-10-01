@@ -5,6 +5,46 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+Autonomy 2.1 (shared control), and two drive fixes a robot on the Red alliance needs. For the **WPILib
+2027 alpha-6 / Phoenix 26.50** stack; Maven local only, like rc.2-a6.
+
+### Fixed
+
+- **`driveToPose` and `driveToPiece` drove away from their target on the Red alliance.** Both compute a
+  velocity from the field pose error - a velocity on the field - and sent it through
+  `driveFieldCentric`, whose request Phoenix turns half a turn for a Red driver. The correction pointed
+  away from the target, the loop ran away at its clamp, and only a timeout stopped it: in simulation on
+  Red, a 1 m move ended 3.9 m the wrong side of its start. On Blue it was correct, so a shop with no
+  Driver Station (which defaults to Red 1) or a test that never sets an alliance never saw it. Both now
+  send a Blue-Alliance-perspective request through the new `driveFieldAbsolute(vx, vy, omega)`, which
+  is also what any code computing a field velocity should call. `driveToPose` additionally stands
+  still on a null target instead of throwing, and stops the robot when it ends.
+- **A heading reset while driving turned the robot.** `advancedDrive`'s heading hold kept its locked
+  heading across `resetPose` / `resetHeading()`. The lock was a number in the old frame, so after the
+  reset the robot was "off" it by the whole change and turned back at up to the full stick rate.
+  `resetPose` now drops the lock; the hold takes a fresh one.
+- **The heading hold undid the end of the driver's turn.** It locked the heading the instant the turn
+  stick came back to rest, while the robot was still rotating; the robot coasted past and the loop drove
+  it back. `advancedDrive` now takes a lock only once the measured yaw rate is under 0.3 rad/s.
+
+### Added
+
+- **Autonomy 2.1: shared control.** `frc.lib.catalyst.autonomy.SharedControl` blends the driver's
+  command with assists' *proposals* and returns one decision - the velocity to send, who owns the
+  heading, with how much authority, and why. Like every Autonomy core it commands nothing. It enforces
+  what "not intrusive" means: the driver's turn stick wins the same loop; a hold comes back only after
+  the stick has rested and the robot has stopped rotating; an assist never makes the robot faster than
+  the driver asked or sends it against their direction; a new heading owner ramps in from nothing; one
+  owner at a time, in the order the proposals are given; every assist's turn rate is capped. A proposal
+  can also name an *external* owner (an aim with its own controller), which the robot's code then drives.
+- **`VelocityLimiter`** limits how fast a commanded field velocity may change, as a vector: the size of
+  the change, not each axis. `enableSlewRateLimiting`'s per-axis limiters let a diagonal accelerate at
+  1.4 times the limit and call speeding up in -x "deceleration"; this does neither. Give it
+  `PhysicsConstraints.maxAccelerationMpsSq()` and a slammed stick becomes the hardest launch the
+  carpet and the robot's stability allow, and no harder.
+
 ## [2.0.0-rc.2-a6] — 2026-09-29
 
 

@@ -80,4 +80,22 @@ class HeadingHoldTest {
         assertNull(d.locked());
         assertTrue(d.driverRotating());
     }
+
+    @Test
+    void theLockWaitsUntilTheRobotHasStoppedTurning() {
+        // Stick just released, the robot still coasting round at 1.5 rad/s: no lock, no correction.
+        HeadingHold.Decision coasting = HeadingHold.decide(0.0, true, Rotation2d.fromDegrees(40), null,
+                null, 0, pid(), 10.0, 1.0, 1.5);
+        assertNull(coasting.locked(), "a heading the robot is still rotating through is not one to hold");
+        assertEquals(0.0, coasting.rotRadPerSec(), 1e-12);
+        // Settled at 52 degrees: that is the heading held, so nothing swings the robot back to 40.
+        HeadingHold.Decision settled = HeadingHold.decide(0.0, true, Rotation2d.fromDegrees(52), null,
+                null, 0, pid(), 10.0, 1.0, 0.1);
+        assertEquals(52.0, settled.locked().getDegrees(), 1e-9);
+        // A lock already held is kept through a knock that spins the robot.
+        HeadingHold.Decision knocked = HeadingHold.decide(0.0, true, Rotation2d.fromDegrees(60),
+                Rotation2d.fromDegrees(52), null, 0, pid(), 10.0, 1.0, 2.0);
+        assertEquals(52.0, knocked.locked().getDegrees(), 1e-9);
+        assertTrue(knocked.rotRadPerSec() < 0, "and it turns back toward it");
+    }
 }

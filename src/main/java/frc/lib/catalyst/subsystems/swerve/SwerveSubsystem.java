@@ -120,6 +120,14 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
     private final SwerveRequest.FieldCentric fieldCentricRequest = new SwerveRequest.FieldCentric()
             .withDriveRequestType(DriveRequestType.OpenLoopVoltage)
             .withForwardPerspective(SwerveRequest.ForwardPerspectiveValue.OperatorPerspective);
+    // A velocity that is already on the field - a pose controller's output, an assist's - must not
+    // be turned for the operator. driveToPose and driveToPiece computed theirs from the field pose
+    // error and sent it through the operator-perspective request above, which Phoenix rotates half a
+    // turn on Red: the correction pointed away from the target and the loop ran away at its clamp.
+    // In simulation on Red, a 1 m move ended 3.9 m the wrong side of its start, at the timeout.
+    private final SwerveRequest.FieldCentric fieldAbsoluteRequest = new SwerveRequest.FieldCentric()
+            .withDriveRequestType(DriveRequestType.OpenLoopVoltage)
+            .withForwardPerspective(SwerveRequest.ForwardPerspectiveValue.BlueAlliance);
     private final SwerveRequest.RobotCentric robotCentricRequest = new SwerveRequest.RobotCentric()
             .withDriveRequestType(DriveRequestType.OpenLoopVoltage);
     private final SwerveRequest.SwerveDriveBrake brakeRequest = new SwerveRequest.SwerveDriveBrake();
@@ -251,6 +259,10 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
 
     public void resetPose(Pose2d pose) {
         drivetrain.resetPose(pose);
+        // A held heading is a number in the old frame. Kept across a reset it is a target the robot
+        // is suddenly far from: a heading reset pressed while driving turned the robot by the whole
+        // difference, at the full rate the stick allows. The hold takes a fresh lock on the next loop.
+        lockedHeading = null;
     }
 
     /** The least rate the Pigeon's yaw rate is sent at, Hz: twice the 50 Hz loop that reads it. */
@@ -470,6 +482,20 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
     public void driveFieldCentric(double xSpeedMPS, double ySpeedMPS, double rotSpeedRadPerSec) {
         drivetrain.setControl(
                 fieldCentricRequest
+                        .withVelocityX(MetersPerSecond.of(xSpeedMPS))
+                        .withVelocityY(MetersPerSecond.of(ySpeedMPS))
+                        .withRotationalRate(RadiansPerSecond.of(rotSpeedRadPerSec)));
+    }
+
+    /**
+     * Drive with a velocity given on the field itself: +x away from the Blue Alliance wall, +y to
+     * its left, whichever alliance the robot is on. For anything computed from the field pose - a
+     * pose controller, an assist that steers toward a field point. {@link #driveFieldCentric} is for
+     * a driver's sticks, and turns its velocity half a turn on Red.
+     */
+    public void driveFieldAbsolute(double xSpeedMPS, double ySpeedMPS, double rotSpeedRadPerSec) {
+        drivetrain.setControl(
+                fieldAbsoluteRequest
                         .withVelocityX(MetersPerSecond.of(xSpeedMPS))
                         .withVelocityY(MetersPerSecond.of(ySpeedMPS))
                         .withRotationalRate(RadiansPerSecond.of(rotSpeedRadPerSec)));
@@ -759,7 +785,8 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
             // rule locked to the nearest cardinal on enable and spun every module on a bench.
             boolean translating = Math.abs(rawX) > 0.0 || Math.abs(rawY) > 0.0;
             HeadingHold.Decision hold = HeadingHold.decide(rawRot, translating, getHeading(), lockedHeading,
-                    snapAngles, snapTolerance, headingPID, maxAngularRate, speedMultiplier);
+                    snapAngles, snapTolerance, headingPID, maxAngularRate, speedMultiplier,
+                    getYawRateRadPerSec());
             lockedHeading = hold.locked();
             double rot = hold.rotRadPerSec();
             if (rotLimiter != null) {
@@ -865,6 +892,11 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
         return run(() -> {
             Pose2d target = targetPose.get();
             Pose2d current = getPose();
+            if (target == null) {
+                // No target this loop: stand still rather than throw inside the drive loop.
+                driveFieldAbsolute(0, 0, 0);
+                return;
+            }
 
             double xSpeed = xController.calculate(current.getX(), target.getX());
             double ySpeed = yController.calculate(current.getY(), target.getY());
@@ -879,14 +911,18 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
             xSpeed = Math.clamp(xSpeed, -maxTranslation, maxTranslation);
             ySpeed = Math.clamp(ySpeed, -maxTranslation, maxTranslation);
 
-            driveFieldCentric(xSpeed, ySpeed, rotSpeed);
+            // The speeds above are on the field (they come from the field pose error), so they go
+            // out on the field: see fieldAbsoluteRequest.
+            driveFieldAbsolute(xSpeed, ySpeed, rotSpeed);
         }).untilTrue(() -> {
             Pose2d current = getPose();
             Pose2d target = targetPose.get();
-            return current.getTranslation().getDistance(target.getTranslation()) < toleranceMeters
+            return target != null
+                    && current.getTranslation().getDistance(target.getTranslation()) < toleranceMeters
                     && Math.abs(normalizeAngle(
                     current.getRotation().getDegrees() - target.getRotation().getDegrees())) < 3.0;
-        }).withName("Swerve.DriveToPose");
+        }).finallyDo(interrupted -> driveFieldAbsolute(0, 0, 0))
+          .withName("Swerve.DriveToPose");
     }
 
     /**
@@ -1046,7 +1082,7 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
                 // command that sits here holds the drivetrain requirement, so the default drive
                 // command stays interrupted and the driver has no sticks until something else is
                 // scheduled.
-                driveFieldCentric(0, 0, 0);
+                driveFieldAbsolute(0, 0, 0);
                 done[0] = true;
                 return;
             }
@@ -1057,13 +1093,14 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
             double maxApproach = maxSpeedMPS * 0.6;
             double vx = Math.clamp(xCtl.calculate(cur.getX(), target.getX()), -maxApproach, maxApproach);
             double vy = Math.clamp(yCtl.calculate(cur.getY(), target.getY()), -maxApproach, maxApproach);
-            driveFieldCentric(vx, vy, 0);
+            // On the field, like driveToPose: the piece's position is a field position.
+            driveFieldAbsolute(vx, vy, 0);
         }).beforeStarting(() -> {
             done[0] = false;
             xCtl.reset();
             yCtl.reset();
         }).untilTrue(() -> done[0])
-          .finallyDo(interrupted -> driveFieldCentric(0, 0, 0))
+          .finallyDo(interrupted -> driveFieldAbsolute(0, 0, 0))
           .withName("Swerve.DriveToPiece");
     }
 
