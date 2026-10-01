@@ -5,7 +5,7 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [2.0.0-rc.3-a6] — 2026-09-30
 
 Autonomy 2.1 (shared control), and two drive fixes a robot on the Red alliance needs. For the **WPILib
 2027 alpha-6 / Phoenix 26.50** stack; Maven local only, like rc.2-a6.
