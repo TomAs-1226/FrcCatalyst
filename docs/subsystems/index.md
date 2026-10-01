@@ -74,6 +74,32 @@ driver.rightBumper().whileTrue(drive.pointAtTarget(
 {: .tip }
 See the [Advanced Features](../advanced/) section for detailed documentation on skew correction, slew rate limiting, snap-to-angle, and auto-align.
 
+### driveFieldCentric or driveFieldAbsolute
+
+Both take a field velocity and a turn rate (`m/s`, `m/s`, `rad/s`). They differ in which field:
+
+| Method | Use it for | Frame |
+|---|---|---|
+| `driveFieldCentric(vx, vy, omega)` | A driver's sticks | The operator's perspective: Phoenix turns the request half a turn on the Red alliance, so "forward" is always away from the driver |
+| `driveFieldAbsolute(vx, vy, omega)` | Anything computed from the field pose | The field itself: +x away from the Blue Alliance wall, +y to its left, whichever alliance the robot is on |
+
+**The rule: a velocity computed from the field pose goes through `driveFieldAbsolute`.** A pose
+controller, or an assist that steers toward a field point, works in field coordinates; sent through
+`driveFieldCentric` its correction points the wrong way on Red.
+
+```java
+// vx, vy from the field pose error (target minus drive.getPose()):
+drive.driveFieldAbsolute(vx, vy, omega);
+
+// vx, vy from the driver's sticks:
+drive.driveFieldCentric(vx, vy, omega);
+```
+
+{: .warning }
+`driveToPose` and `driveToPiece` were wrong on the Red alliance before 2.0.0-rc.3-a6: they sent a
+field-pose velocity through `driveFieldCentric`, so on Red they drove away from the target. Both now
+use `driveFieldAbsolute` and are fixed.
+
 ### PathPlanner support
 
 `SwerveSubsystem` configures PathPlanner's `AutoBuilder` for you when you
