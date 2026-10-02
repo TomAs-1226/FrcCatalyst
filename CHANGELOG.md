@@ -5,6 +5,40 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.0.0-rc.4-a6] — 2026-10-01
+
+Three fixes found while preparing a robot's first drive: one in Physics Core, one in how vision reaches
+Phoenix, one in the Autonomy 2.1 acceleration limiter. For the **WPILib 2027 alpha-6 / Phoenix 26.50**
+stack; Maven local only.
+
+### Fixed
+
+- **Physics Core called every hard launch wheel slip, and every start of one an impact.** The
+  disturbance residual is the IMU's acceleration minus the wheels'. The wheels' was smoothed (it is a
+  derivative) and the IMU's was not, so the two were never compared at the same lag: when a launch
+  ended the wheels still "claimed" acceleration the IMU no longer saw - the signature of slip - and
+  when it began the IMU saw acceleration the wheels had not yet claimed - the signature of an impact.
+  A robot rolling perfectly, with an IMU that agreed with its wheels exactly, read "wheel slip 67%" and
+  lost a quarter of its localisation confidence at the end of a 7 m/s^2 launch. This is what took
+  Catalyst X1's confidence down on 151 hard stick pushes on 2026-09-19; rc.2 stopped that from reaching
+  the driver's speed, and this removes the false reading itself. Both accelerations now pass through
+  the same filter on the same loops (`CleanAccelerationTest`).
+- **Vision measurements reached Phoenix stamped on the wrong clock.** Catalyst's cameras stamp frames
+  on WPILib's clock (`Timer.getTimestamp()`); Phoenix's pose estimator matches a measurement to its
+  odometry history on its own (`Utils.getCurrentTimeSeconds()`) and documents that it requires that
+  epoch. Phoenix's 2027 alpha no longer ships the conversion helper, and
+  `SwerveSubsystem.addVisionMeasurement` passed the timestamp through. Where the two clocks share an
+  epoch that was harmless; where they do not, a fix is matched to the wrong moment or to none.
+  `addVisionMeasurement` now converts, the new `SwerveSubsystem.samplePoseAt(timestamp)` does the same
+  for "where was the robot when this frame was taken", and `Swerve/PhoenixClockOffsetMs` publishes the
+  difference so a log says which case a robot is in. An offset of zero changes nothing.
+- **`VelocityLimiter` braked softer when the driver reversed the stick than when they let go.** Braking
+  meant "the speed asked is lower than the speed now", which a full reversal never is, so it used the
+  launch limit all the way down. Braking is now a change of velocity against the robot's motion: a
+  reversal brakes at the braking limit until the robot has stopped and launches from there, and a change
+  of direction at speed takes a blend of the two limits by how much of it opposes the motion, so the
+  rate never jumps.
+
 ## [2.0.0-rc.3-a6] — 2026-09-30
 
 Autonomy 2.1 (shared control), and two drive fixes a robot on the Red alliance needs. For the **WPILib

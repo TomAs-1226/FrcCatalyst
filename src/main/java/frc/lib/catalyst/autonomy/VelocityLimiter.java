@@ -13,8 +13,15 @@ package frc.lib.catalyst.autonomy;
  * Per-axis limiters, which {@code SwerveSubsystem.enableSlewRateLimiting} uses, let x and y each
  * change at the full rate, so a diagonal push accelerates at 1.4 times the limit and a change of
  * direction bends through a path nobody asked for; and a limiter that calls a falling value
- * "deceleration" treats speeding up in -x as braking. Here slowing down means the commanded
- * <em>speed</em> is falling, whichever way the robot points.
+ * "deceleration" treats speeding up in -x as braking.
+ *
+ * <p>Braking here is what it is on the carpet: a change of velocity <em>against the way the robot is
+ * moving</em>. A change straight against the motion takes the braking limit, one along it or from
+ * rest takes the launch limit, and one across it - a change of direction at speed - takes a blend of
+ * the two by how much of it opposes the motion. So a driver who stops by throwing the stick the other
+ * way brakes exactly as hard as one who lets go, until the robot has stopped; then it launches.
+ * (Through 2.0.0-rc.3 braking meant "the speed asked is lower than the speed now", which a full
+ * reversal never is: it braked at the launch limit, softer than letting go.)
  *
  * <p>Pure: it holds the last velocity it returned and nothing else.
  */
@@ -34,10 +41,10 @@ public final class VelocityLimiter {
      * @param dt the loop period, s
      * @param wantVx the velocity asked, m/s
      * @param wantVy the velocity asked, m/s
-     * @param maxAccelMpsSq the fastest the velocity may change while the speed is not falling,
-     *     m/s^2; not finite or not positive means no limit
-     * @param maxDecelMpsSq the fastest it may change while the speed asked is lower than the speed
-     *     now (the robot is being slowed); not finite or not positive means no limit
+     * @param maxAccelMpsSq the fastest the velocity may change along the robot's motion or from
+     *     rest (a launch), m/s^2; not finite or not positive means no limit
+     * @param maxDecelMpsSq the fastest it may change against the robot's motion (braking), m/s^2;
+     *     not finite or not positive means no limit
      * @return {vx, vy} to send
      */
     public double[] limit(double dt, double wantVx, double wantVy, double maxAccelMpsSq, double maxDecelMpsSq) {
@@ -45,12 +52,24 @@ public final class VelocityLimiter {
             wantVx = 0.0;
             wantVy = 0.0;
         }
-        boolean slowing = Math.hypot(wantVx, wantVy) < Math.hypot(vx, vy);
-        double rate = slowing ? maxDecelMpsSq : maxAccelMpsSq;
         double dvx = wantVx - vx;
         double dvy = wantVy - vy;
         double change = Math.hypot(dvx, dvy);
-        if (Double.isFinite(rate) && rate > 0.0 && dt > 0.0) {
+        double speed = Math.hypot(vx, vy);
+        // How much of the change opposes the motion: 1 straight against it, 0 along it or from rest.
+        double braking = change > 1e-9 && speed > 1e-9
+                ? Math.max(0.0, -(dvx * vx + dvy * vy) / (change * speed))
+                : 0.0;
+        double accel = Double.isFinite(maxAccelMpsSq) && maxAccelMpsSq > 0.0 ? maxAccelMpsSq : Double.POSITIVE_INFINITY;
+        double decel = Double.isFinite(maxDecelMpsSq) && maxDecelMpsSq > 0.0 ? maxDecelMpsSq : Double.POSITIVE_INFINITY;
+        double rate;
+        if (Double.isInfinite(accel) || Double.isInfinite(decel)) {
+            // No blend with "no limit": whichever the change is more of.
+            rate = braking >= 0.5 ? decel : accel;
+        } else {
+            rate = accel + (decel - accel) * braking;
+        }
+        if (Double.isFinite(rate) && dt > 0.0) {
             double step = rate * dt;
             if (change > step) {
                 dvx *= step / change;

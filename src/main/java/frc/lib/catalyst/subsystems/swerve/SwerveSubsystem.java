@@ -520,15 +520,48 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
         drivetrain.setControl(brakeRequest);
     }
 
-    /** Add a vision measurement for pose estimation. */
+    /**
+     * Add a vision measurement for pose estimation.
+     *
+     * @param timestampSeconds when the frame was taken, on WPILib's clock ({@code Timer.getTimestamp()})
+     *     - the clock every Catalyst camera stamps with. It is converted to Phoenix's; see
+     *     {@link #toPhoenixTime(double)}.
+     */
     public void addVisionMeasurement(Pose2d visionPose, double timestampSeconds,
                                      org.wpilib.math.linalg.Matrix<org.wpilib.math.numbers.N3, org.wpilib.math.numbers.N1> stdDevs) {
-        drivetrain.addVisionMeasurement(visionPose, timestampSeconds, stdDevs);
+        drivetrain.addVisionMeasurement(visionPose, toPhoenixTime(timestampSeconds), stdDevs);
     }
 
-    /** Add a vision measurement with default standard deviations. */
+    /** Add a vision measurement with default standard deviations; the timestamp is on WPILib's clock. */
     public void addVisionMeasurement(Pose2d visionPose, double timestampSeconds) {
-        drivetrain.addVisionMeasurement(visionPose, timestampSeconds);
+        drivetrain.addVisionMeasurement(visionPose, toPhoenixTime(timestampSeconds));
+    }
+
+    /**
+     * Where the drivetrain thought the robot was at {@code timestampSeconds}, on WPILib's clock: the
+     * pose a camera frame taken then should be compared with. Empty before the first odometry sample.
+     */
+    public java.util.Optional<Pose2d> samplePoseAt(double timestampSeconds) {
+        return drivetrain.samplePoseAt(toPhoenixTime(timestampSeconds));
+    }
+
+    /**
+     * A time on WPILib's clock ({@code Timer.getTimestamp()}), on Phoenix's
+     * ({@code Utils.getCurrentTimeSeconds()}).
+     *
+     * <p>Phoenix's pose estimator keeps its odometry history on its own clock and matches a vision
+     * measurement to it by timestamp, and its documentation requires that epoch. The two clocks need
+     * not start together, and a measurement stamped on the wrong one is matched against the wrong
+     * moment - or, further out than the history reaches, against nothing: vision that looks fused
+     * and corrects nothing. Where the clocks do agree the offset is zero and this changes nothing.
+     */
+    public static double toPhoenixTime(double wpilibTimestampSeconds) {
+        return wpilibTimestampSeconds + phoenixClockOffsetSeconds();
+    }
+
+    /** Phoenix's clock minus WPILib's, now, in seconds. Published as {@code Swerve/PhoenixClockOffsetMs}. */
+    public static double phoenixClockOffsetSeconds() {
+        return Utils.getCurrentTimeSeconds() - Timer.getTimestamp();
     }
 
     // --- Command Factories ---
@@ -1266,6 +1299,7 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
         CatalystLog.log(SWERVE + "SpeedMPS", speed);
         CatalystLog.log(SWERVE + "OmegaRadPerSec", speeds.omega);
         CatalystLog.log(SWERVE + "SpeedMultiplier", speedMultiplier);
+        CatalystLog.log(SWERVE + "PhoenixClockOffsetMs", phoenixClockOffsetSeconds() * 1000.0);
     }
 
     // ===========================================
