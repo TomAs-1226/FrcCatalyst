@@ -53,6 +53,41 @@ class VelocityLimiterTest {
     }
 
     @Test
+    void stoppingByReversingBrakesAsHardAsLettingGoAndThenLaunches() {
+        VelocityLimiter l = new VelocityLimiter();
+        l.reset(4.0, 0.0);
+        // Full stick the other way. The speed asked is not lower than the speed now, and it is braking.
+        double[] v = l.limit(0.02, -4.0, 0.0, 5.0, 12.0);
+        assertEquals(4.0 - 0.24, v[0], 1e-12, "braking: the braking limit");
+        while (l.velocity()[0] > 0.0) {
+            double before = l.velocity()[0];
+            v = l.limit(0.02, -4.0, 0.0, 5.0, 12.0);
+            assertEquals(0.24, before - v[0], 1e-9, "all the way to a stop");
+        }
+        double before = l.velocity()[0];
+        v = l.limit(0.02, -4.0, 0.0, 5.0, 12.0);
+        assertEquals(0.10, before - v[0], 1e-9, "stopped: the launch limit from here");
+    }
+
+    @Test
+    void aChangeOfDirectionAtSpeedTakesABlendOfTheTwoLimits() {
+        VelocityLimiter l = new VelocityLimiter();
+        l.reset(3.0, 0.0);
+        // Straight ahead to straight left at the same speed: the change is 45 degrees off dead against.
+        double[] v = l.limit(0.02, 0.0, 3.0, 6.0, 12.0);
+        double rate = Math.hypot(v[0] - 3.0, v[1]) / 0.02;
+        assertEquals(6.0 + 6.0 * Math.cos(Math.PI / 4), rate, 1e-9);
+        // And the rate never jumps: a hair either side of "the same speed" is the same rate.
+        VelocityLimiter a = new VelocityLimiter();
+        VelocityLimiter b = new VelocityLimiter();
+        a.reset(3.0, 0.0);
+        b.reset(3.0, 0.0);
+        double[] va = a.limit(0.02, 0.0, 2.99, 6.0, 12.0);
+        double[] vb = b.limit(0.02, 0.0, 3.01, 6.0, 12.0);
+        assertEquals(Math.hypot(va[0] - 3.0, va[1]), Math.hypot(vb[0] - 3.0, vb[1]), 1e-3);
+    }
+
+    @Test
     void noLimitAndBadNumbersAreSafe() {
         VelocityLimiter l = new VelocityLimiter();
         assertEquals(4.0, l.limit(0.02, 4.0, 0.0, Double.POSITIVE_INFINITY, 0.0)[0], 1e-12, "no limit: straight through");

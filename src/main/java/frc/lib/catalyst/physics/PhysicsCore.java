@@ -146,6 +146,15 @@ public final class PhysicsCore implements UncertainRobotStateSource {
             new SignalProcessor.ExponentialMovingAverage(0.25);
     private final SignalProcessor.ExponentialMovingAverage wheelAccelY =
             new SignalProcessor.ExponentialMovingAverage(0.25);
+    /**
+     * The IMU's acceleration through the same filter as the wheels'. The residual is a difference of
+     * the two, and a difference of a smoothed signal and a raw one is not a residual: the smoothed
+     * one lags, so the end of every clean launch read as wheel slip and its start as an impact.
+     */
+    private final SignalProcessor.ExponentialMovingAverage measuredAccelX =
+            new SignalProcessor.ExponentialMovingAverage(0.25);
+    private final SignalProcessor.ExponentialMovingAverage measuredAccelY =
+            new SignalProcessor.ExponentialMovingAverage(0.25);
 
     private PhysicsAnalysis analysis = PhysicsAnalysis.nominal();
     private Translation2d lastKinematicFieldVelocity = Translation2d.ZERO;
@@ -395,6 +404,8 @@ public final class PhysicsCore implements UncertainRobotStateSource {
         if (collisionDetector != null) collisionDetector.reset();
         wheelAccelX.reset();
         wheelAccelY.reset();
+        measuredAccelX.reset();
+        measuredAccelY.reset();
         analysis = PhysicsAnalysis.nominal();
         lastKinematicFieldVelocity = Translation2d.ZERO;
         lastSampleTimestamp = Double.NaN;
@@ -479,20 +490,29 @@ public final class PhysicsCore implements UncertainRobotStateSource {
         Translation2d kinematicVelocity =
                 new Translation2d(kinematicField.vx, kinematicField.vy);
 
+        Translation2d measuredRaw = sample.robotRelativeAcceleration().rotateBy(heading);
         double dt = sample.timestampSeconds() - lastDiagnosticsTimestamp;
         Translation2d wheelAcceleration = Translation2d.ZERO;
+        Translation2d measured = Translation2d.ZERO;
         if (!Double.isNaN(lastDiagnosticsTimestamp) && dt > 0 && dt <= 0.25) {
             Translation2d raw = kinematicVelocity.minus(lastKinematicFieldVelocity).div(dt);
             wheelAcceleration = new Translation2d(
                     wheelAccelX.calculate(raw.getX()), wheelAccelY.calculate(raw.getY()));
+            // The same filter, stepped on the same loops, so the two share one lag and their
+            // difference is what the wheels and the IMU actually disagree about.
+            measured = new Translation2d(
+                    measuredAccelX.calculate(measuredRaw.getX()), measuredAccelY.calculate(measuredRaw.getY()));
         } else {
+            // No wheel acceleration can be formed across a gap, so there is nothing to compare the
+            // IMU with either: both start again, and this loop reports no residual.
             wheelAccelX.reset();
             wheelAccelY.reset();
+            measuredAccelX.reset();
+            measuredAccelY.reset();
         }
         lastKinematicFieldVelocity = kinematicVelocity;
         lastDiagnosticsTimestamp = sample.timestampSeconds();
 
-        Translation2d measured = sample.robotRelativeAcceleration().rotateBy(heading);
         disturbanceEstimator.update(wheelAcceleration, measured);
         return collisionDetector == null
                 ? Optional.empty()
