@@ -90,7 +90,7 @@ public final class GamePieceDetector {
      * pipeline that does not detect objects, rather than throwing.
      */
     public List<Detection> detections() {
-        Limelight.LimelightResults results;
+        com.limelightvision.LimelightResults results;
         try {
             results = camera.getLimelight().getLatestResults();
         } catch (RuntimeException ignored) {
@@ -101,7 +101,7 @@ public final class GamePieceDetector {
         }
 
         List<Detection> out = new ArrayList<>(results.detectorTargets.length);
-        for (Limelight.DetectorTarget t : results.detectorTargets) {
+        for (com.limelightvision.DetectorTarget t : results.detectorTargets) {
             if (t == null || t.confidence < minConfidence) {
                 continue;
             }

@@ -23,12 +23,9 @@ import java.util.Optional;
  * 2027 publishes results as a single {@code results_msgpack} topic and turns the per-key API off by
  * default. That was the right move and it is still the preferred path.
  *
- * <p>It is not, however, a path any shipping camera can take today. Measured on two Limelight 4s:
- * the newest camera image Limelight publishes is <b>2026.1</b>, there is no 2027 image for any
- * camera — LL2, LL3, LL3G, LL3A or LL4 — and a 2026 camera publishes fifty per-key topics and no
- * {@code results_msgpack}. LimelightLib subscribes to exactly that one topic, so against every
- * camera a team can actually buy and flash right now, it reads nothing at all: status
- * {@code NO_DATA}, empty queue, no pose, no error. The 2027 line is Limelight Systemcore's.
+ * <p>A camera that still runs Limelight OS 2026 publishes the per-key topics instead of the
+ * 2027 MessagePack envelope. This compatibility path allows that camera to keep its existing
+ * firmware. Beta 2027 smart-camera images are available; use the modern path after migration.
  *
  * <p>So Catalyst reads whichever API the camera in front of it actually speaks. This class is the
  * older half. {@link LimelightSource} chooses between them and says which it chose.
@@ -141,7 +138,7 @@ final class LegacyLimelightReader {
      */
     private boolean unplaceable;
 
-    LegacyLimelightReader(String name, Transform3d robotToCamera) {
+    LegacyLimelightReader(String name) {
         this.name = name;
         this.table = NetworkTableInstance.getDefault().getTable(name);
         this.megaTag2 = table.getDoubleArrayTopic("botpose_orb_wpiblue")
@@ -153,14 +150,19 @@ final class LegacyLimelightReader {
         this.megaTag2Centre = table.getDoubleArrayTopic("botpose_orb").subscribe(new double[0]);
         this.megaTag1Centre = table.getDoubleArrayTopic("botpose").subscribe(new double[0]);
 
+    }
+
+    /** Convert Catalyst's NWU mount into the pre-2027 right-positive, pitch-up convention. */
+    void setCameraPose(Transform3d robotToCamera) {
         table.getEntry("camerapose_robotspace_set").setDoubleArray(new double[] {
                 robotToCamera.getX(),
-                robotToCamera.getY(),
+                -robotToCamera.getY(),
                 robotToCamera.getZ(),
                 Math.toDegrees(robotToCamera.getRotation().getX()),
-                Math.toDegrees(robotToCamera.getRotation().getY()),
+                -Math.toDegrees(robotToCamera.getRotation().getY()),
                 Math.toDegrees(robotToCamera.getRotation().getZ())
         });
+        NetworkTableInstance.getDefault().flush();
     }
 
     /** Whether this camera is publishing the per-key API at all. */

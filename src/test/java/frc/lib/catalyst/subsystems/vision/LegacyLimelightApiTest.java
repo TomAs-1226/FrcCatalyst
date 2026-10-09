@@ -14,11 +14,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Reading a Limelight that speaks the older per-key API.
  *
- * <p>This is not a legacy nicety, it is the only path that works on hardware today. Measured on two
- * Limelight 4s: the newest camera image Limelight publishes is 2026.1, no 2027 image exists for any
- * camera, and a 2026 camera publishes fifty per-key topics and no {@code results_msgpack} — which is
- * the single topic LimelightLib subscribes to. Against a real camera, the modern path reported
- * {@code NO_DATA} on 1976 frames where the camera was plainly tracking a tag.
+ * <p>This compatibility path supports cameras still running Limelight OS 2026, which publish
+ * classic per-key topics rather than the 2027 MessagePack envelope.
  *
  * <p>The tests publish the same topics a 2026 camera publishes, to the default NetworkTables
  * instance, and read them back through {@link LimelightSource}. That exercises the real parsing:

@@ -8,6 +8,8 @@ import org.wpilib.command3.Trigger;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.function.DoubleSupplier;
 
 /**
  * Bind WPILib {@link Trigger}s to rumble patterns on Xbox-style controllers.
@@ -53,6 +55,7 @@ public final class RumbleEvents {
 
     private final GenericHID driver;
     private final GenericHID operator;
+    private final DoubleSupplier strengthScale;
     private final List<Active> active = new ArrayList<>();
     private double lastTick = -1;
 
@@ -63,8 +66,14 @@ public final class RumbleEvents {
      *                 driver-only)
      */
     public RumbleEvents(GenericHID driver, GenericHID operator) {
+        this(driver, operator, () -> 1.0);
+    }
+
+    /** Preserve live dashboard rumble scaling without subclassing the final alpha-7 GenericHID. */
+    public RumbleEvents(GenericHID driver, GenericHID operator, DoubleSupplier strengthScale) {
         this.driver = driver;
         this.operator = operator;
+        this.strengthScale = Objects.requireNonNull(strengthScale, "strengthScale");
     }
 
     /** Bind a trigger so each rising edge fires the pattern on the given channel. */
@@ -117,9 +126,14 @@ public final class RumbleEvents {
 
     private void setStrength(GenericHID hid, double strength) {
         // 2027 dropped the combined "both" rumble type, so drive the two sides explicitly.
-        double clamped = Math.clamp(strength, 0.0, 1.0);
+        double clamped = scaledStrength(strength, strengthScale.getAsDouble());
         hid.setRumble(RumbleType.LEFT_RUMBLE, clamped);
         hid.setRumble(RumbleType.RIGHT_RUMBLE, clamped);
+    }
+
+    static double scaledStrength(double strength, double scale) {
+        if (!Double.isFinite(strength) || !Double.isFinite(scale)) return 0.0;
+        return Math.clamp(strength, 0.0, 1.0) * Math.clamp(scale, 0.0, 1.0);
     }
 
     private static double now() {

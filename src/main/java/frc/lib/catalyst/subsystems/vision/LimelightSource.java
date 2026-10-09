@@ -79,6 +79,8 @@ public class LimelightSource implements CameraSource {
 
     /** Which API this camera turned out to speak. Null until it has said anything at all. */
     private Boolean usingLegacyApi = null;
+    /** Canonical mount, retained so API discovery can publish the matching coordinate convention. */
+    private final Transform3d robotToCamera;
 
     /** When this camera first looked connected-but-silent. NaN once it has spoken. */
     private double connectedButSilentSince = Double.NaN;
@@ -115,11 +117,13 @@ public class LimelightSource implements CameraSource {
     public LimelightSource(String name, Transform3d robotToCamera, boolean useMegaTag2) {
         this.name = name;
         this.useMegaTag2 = useMegaTag2;
-        this.limelight = new Limelight(name, new Pose3d(
-                robotToCamera.getTranslation(), robotToCamera.getRotation()));
-        this.legacy = new LegacyLimelightReader(name, robotToCamera);
+        this.robotToCamera = robotToCamera;
+        // Both firmware generations use the same override key with different coordinate signs.
+        // Do not write it until the camera announces which API it speaks.
+        this.limelight = new Limelight(name);
+        this.legacy = new LegacyLimelightReader(name);
 
-        // Publish the transform once, at construction, because a wrong one cannot be detected later.
+        // Log the canonical transform at construction; publish after API discovery below.
         //
         // Limelight OS 2027.0 unified every 3D space on NWU right-handed. A transform carried over
         // from 2026 may need its mount side and pitch signs flipped, and the failure mode is not a
@@ -196,9 +200,9 @@ public class LimelightSource implements CameraSource {
         // Seeding wants MegaTag1: a full pose with its own heading. MegaTag2 is only better once
         // there is a trusted heading to give it, which is what the seed provides.
         boolean mt2 = useMegaTag2 && !seeding;
-        Limelight.PoseEstimateType type = mt2
-                ? Limelight.PoseEstimateType.MT2_WPIBLUE
-                : Limelight.PoseEstimateType.MT1_WPIBLUE;
+        com.limelightvision.PoseEstimateType type = mt2
+                ? com.limelightvision.PoseEstimateType.MT2_WPIBLUE
+                : com.limelightvision.PoseEstimateType.MT1_WPIBLUE;
 
         // MegaTag2 without a robot yaw is not a degraded estimate, it is a wrong one.
         //
@@ -246,7 +250,7 @@ public class LimelightSource implements CameraSource {
             // goes through the Driver Station, which is not present in every JVM this runs in.
         }
 
-        Limelight.PoseEstimate[] accepted;
+        com.limelightvision.PoseEstimate[] accepted;
         try {
             accepted = limelight.readAcceptedPoseEstimates(type);
         } catch (RuntimeException ignored) {
@@ -258,7 +262,7 @@ public class LimelightSource implements CameraSource {
 
         // Newest wins. The queue exists so nothing is lost between loops; a pose estimator wants the
         // most recent measurement, and older ones in the same batch are superseded by it.
-        Limelight.PoseEstimate latest = accepted[accepted.length - 1];
+        com.limelightvision.PoseEstimate latest = accepted[accepted.length - 1];
         if (!latest.isValid()) {
             return Optional.empty();
         }
@@ -348,7 +352,7 @@ public class LimelightSource implements CameraSource {
      *
      * <p>This returned an unconditional {@code true}, which was correct for exactly as long as this
      * class only spoke the modern API. Adding the per-key reader silently turned it into a lie, and
-     * the shape of that lie was every estimate from a 2026 camera - which is every camera today -
+     * the shape of that lie was every estimate from a 2026 camera -
      * entering the pose estimator ungated.
      */
     @Override
@@ -394,8 +398,7 @@ public class LimelightSource implements CameraSource {
 
     /** Whether the camera is connected and publishing. */
     public boolean isConnected() {
-        // LimelightLib answers for the 2027 results topic, which no shipping camera publishes, so
-        // on its own it reads false for every camera a team can buy today. The classic API's
+        // LimelightLib answers for the 2027 results topic. A 2026 camera needs the classic API's
         // heartbeat is the second opinion, and it is the one that is usually right.
         try {
             if (limelight.isConnected()) {
@@ -417,71 +420,39 @@ public class LimelightSource implements CameraSource {
      *
      * @return {@code OK}, {@code NO_DATA}, {@code STALE} or {@code DECODE_ERROR}
      */
-    public Limelight.Status cameraStatus() {
+    public com.limelightvision.Status cameraStatus() {
         try {
             return limelight.getStatus();
         } catch (RuntimeException ignored) {
-            return Limelight.Status.NO_DATA;
+            return com.limelightvision.Status.NO_DATA;
         }
     }
 
     /**
-     * Notice a camera that is publishing to NetworkTables but saying nothing Catalyst can read, and
-     * name the cause.
+     * Select the camera API and publish the mount in its coordinate convention.
      *
-     * <p>Measured on a Limelight 4 running <b>Limelight OS 2026.0</b>. The camera connects to the
-     * robot's NetworkTables server as a healthy NT4 client and publishes fifty topics — the whole
-     * classic per-key API, {@code tx}, {@code ty}, {@code ta}, {@code botpose_wpiblue},
-     * {@code rawfiducials}, {@code stddevs} — with live values while it is looking at a tag.
-     * LimelightLib 2 reads none of them, because it reads the single results topic that Limelight OS
-     * <b>2027</b> introduced, and on a 2026 camera that topic does not exist. Its status is
-     * {@code NO_DATA} and {@link #getEstimatedPose()} returns empty forever.
-     *
-     * <p><b>The obvious check does not work, which is the whole reason this method is careful.</b>
-     * The first version of it asked {@code isConnected() && status == NO_DATA}. Measured against
-     * the real camera, {@link Limelight#isConnected()} reports <em>false</em> in exactly this
-     * situation — it is a data-freshness test, not a link test — so that guard could never fire on
-     * the case it was written for. What distinguishes an old camera from an absent one is that an
-     * old one is still publishing the per-key topics, so that is what this looks for.
-     *
-     * <p>Reading {@code tv} through an entry is deliberate rather than incidental: NetworkTables
-     * only makes a remote topic visible once something subscribes to it, and taking the entry is
-     * what subscribes. Asking whether the topic exists without doing that returns false for every
-     * camera, working or not.
-     *
-     * <p>The docs had this risk recorded backwards. They warn that Limelight OS 2027 disables the
-     * classic keys, so <em>old</em> Catalyst code would silently see nothing. True — and the mirror
-     * image is also true and was not written down: <em>new</em> Catalyst code silently sees nothing
-     * on a 2026 camera. Catalyst 2.x requires Limelight OS 2027.
-     */
-    /**
-     * Which of the two Limelight APIs this camera speaks, decided by asking it.
-     *
-     * <p>Preferred is LimelightLib on the {@code results_msgpack} topic: the camera applies its own
-     * rejection rules, reports real standard deviations, and queues estimates between robot loops.
-     * That topic exists from Limelight OS 2027.
-     *
-     * <p>Measured, and the reason this method exists: <b>no shipping camera publishes it.</b> The
-     * newest image Limelight offers for LL2/3/3G/3A/4 is 2026.1, and a 2026 camera publishes the
-     * fifty per-key topics instead. Against every camera a team can flash today, LimelightLib reads
-     * nothing - so a library that only spoke the modern API would have no vision at all on real
-     * hardware, silently.
-     *
-     * <p>Decided once and then kept, because a camera does not change its OS mid-match, and
-     * re-deciding every loop would make a momentary dropout look like a different camera. Until one
-     * of them produces something the answer stays open, so a camera that boots late is picked up
-     * whenever it arrives.
+     * <p>2027 uses the MessagePack protocol and NWU. A 2026 camera uses classic per-key output
+     * and needs the mount side and pitch signs reversed. Classic keys can also be enabled on
+     * 2027, so a protocol announcement wins over them. A delayed announcement can correct an
+     * early classic selection; an ordinary dropout does not switch a known-modern camera back.
      */
     private boolean useLegacyApi() {
+        // 2027 can publish classic keys as well. Its protocol announcement takes precedence even
+        // before the first results frame arrives, and corrects a startup race where tv arrived first.
+        if (limelight.getProtocolVersion() > 0 || cameraStatus() == com.limelightvision.Status.OK) {
+            if (!Boolean.FALSE.equals(usingLegacyApi)) {
+                limelight.setCameraPose_RobotSpaceOverride(new Pose3d(
+                        robotToCamera.getTranslation(), robotToCamera.getRotation()), true);
+                usingLegacyApi = false;
+                CatalystLog.log("Vision/" + name + "/Api", "results_msgpack (Limelight OS 2027+)");
+            }
+            return false;
+        }
         if (usingLegacyApi != null) {
             return usingLegacyApi;
         }
-        if (cameraStatus() == Limelight.Status.OK) {
-            usingLegacyApi = false;
-            CatalystLog.log("Vision/" + name + "/Api", "results_msgpack (Limelight OS 2027+)");
-            return false;
-        }
         if (legacy.isPublishing()) {
+            legacy.setCameraPose(robotToCamera);
             usingLegacyApi = true;
             CatalystLog.log("Vision/" + name + "/Api", "per-key (Limelight OS 2026)");
             return true;
@@ -495,7 +466,7 @@ public class LimelightSource implements CameraSource {
      * <p>Only meaningful on the per-key path, and only possible there since frames gained
      * identities. LimelightLib calls the equivalent state {@code STALE} — a camera holding its
      * NetworkTables connection while its data stops advancing — but that detection routes through
-     * the modern API, which no shipping camera speaks, so on the path every real camera uses it can
+     * the modern API, so on a 2026 camera it can
      * never fire. This is the substitute.
      *
      * <p>Worth watching on a dashboard next to {@code isConnected()}, because those two disagreeing
@@ -535,8 +506,8 @@ public class LimelightSource implements CameraSource {
     /**
      * Whether this camera is being read over the older per-key API.
      *
-     * <p>Worth putting on a pit dashboard. It is not a fault - it is how every camera on a shipping
-     * image is read today - but it means the camera's own rejection gates and standard deviations
+     * <p>Worth putting on a pit dashboard. It is not a fault - it is how a camera still running its 2026
+     * image is read - but it means the camera's own rejection gates and standard deviations
      * are not in play, so a pose estimator wants its own limits.
      */
     public boolean isUsingLegacyApi() {
@@ -544,7 +515,7 @@ public class LimelightSource implements CameraSource {
     }
 
     private void diagnoseSilentCamera() {
-        if (cameraStatus() != Limelight.Status.NO_DATA) {
+        if (cameraStatus() != com.limelightvision.Status.NO_DATA) {
             connectedButSilentSince = Double.NaN;
             return;
         }
@@ -585,7 +556,7 @@ public class LimelightSource implements CameraSource {
      */
     public boolean looksLikeOldLimelightOs() {
         try {
-            return cameraStatus() == Limelight.Status.NO_DATA
+            return cameraStatus() == com.limelightvision.Status.NO_DATA
                     && NetworkTableInstance.getDefault().getTable(name).getEntry("tv").exists();
         } catch (RuntimeException ignored) {
             return false;
