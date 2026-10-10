@@ -406,18 +406,31 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
      *
      * <p>Split by what each side can know. A source that reports
      * {@link CameraSource#isPrefiltered()} has already applied everything decidable from the image —
-     * tag count, ambiguity, tag distance and area, field bounds, frame age — using the raw
+     * tag count, ambiguity, tag distance and area, field bounds — using the raw
      * detections, which it can do better than this can from a finished pose. Those checks are
      * skipped for such a source rather than repeated with a second set of thresholds nobody tuned.
      *
      * <p>What is never skipped is the half the camera cannot do, because it does not know where the
      * robot thinks it is or what it is doing: distance from the current fused pose, angular and
-     * translational velocity, heading divergence. Those run for every source.
+     * translational velocity, heading divergence. Frame time also runs for every source: a valid
+     * camera solve can arrive late after transport or robot-loop delays.
      *
      * @param yawRate the gyro's turn rate this loop, rad/s - see {@link #sinkYawRate()}
      */
     private String filterEstimate(CameraSource.PoseEstimate pe, Pose2d currentPose, double yawRate,
                                   boolean prefiltered, boolean anchored) {
+        // Camera-side geometry filtering does not prove the frame is still in our odometry history.
+        // LimelightLib's accepted queue explicitly leaves timestamp validity to the pose estimator.
+        double latency = Timer.getTimestamp() - pe.timestampSeconds();
+        if (!Double.isFinite(latency)) {
+            return "NonFiniteTime";
+        }
+        if (latency < 0.0) {
+            return "FutureData";
+        }
+        if (latency > config.maxLatencySeconds) {
+            return "StaleData(" + String.format("%.0fms", latency * 1000) + ")";
+        }
         if (!prefiltered) {
             // Reject if no tags seen
             if (pe.tagCount() == 0) return "NoTags";
@@ -449,11 +462,6 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
                 return "OffField";
             }
 
-            // Reject if timestamp is too old (stale data degrades Kalman filter accuracy)
-            double latency = Timer.getTimestamp() - pe.timestampSeconds();
-            if (latency > config.maxLatencySeconds) {
-                return "StaleData(" + String.format("%.0fms", latency * 1000) + ")";
-            }
         }
 
         // Reject during high angular velocity (motion blur) - as the gyro sees it: the wheels report a
