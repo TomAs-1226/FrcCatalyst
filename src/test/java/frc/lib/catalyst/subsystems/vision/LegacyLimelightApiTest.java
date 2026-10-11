@@ -295,6 +295,94 @@ class LegacyLimelightApiTest {
     }
 
     @Test
+    void aConsumedValidMegaTag2DoesNotFallBackToItsAlternateMegaTag1() {
+        String cam = fresh("dual-valid");
+        NetworkTable t = publish(cam, botpose(3.0, 4.0, 0.0, 2, 2.0), 1);
+        t.getEntry("botpose_wpiblue").setDoubleArray(botpose(3.6, 4.4, 12.0, 2, 2.0));
+        LimelightSource src = new LimelightSource(cam, MOUNT, true);
+        src.setRobotOrientation(0, 0, 0, 0);
+
+        assertEquals(3.0, src.getEstimatedPose().orElseThrow().pose().getX(), 1e-9);
+        assertTrue(src.isUsingLegacyApi(), "exercise the hardware compatibility path");
+        assertTrue(src.getEstimatedPose().isEmpty(), "one frame must not become a second MT1 fix");
+        assertTrue(src.getEstimatedPose().isEmpty(), "preferred solve remains consumed");
+
+        publish(cam, botpose(3.1, 4.0, 0.0, 2, 2.0), 1);
+        assertEquals(3.1, src.getEstimatedPose().orElseThrow().pose().getX(), 1e-9,
+                "a genuinely new preferred frame is still accepted");
+    }
+
+    @Test
+    void failedMegaTag2CannotReplayItsPreviouslySupersededMegaTag1() {
+        String cam = fresh("superseded-mt1");
+        NetworkTable t = publish(cam, botpose(3.0, 4.0, 0.0, 2, 2.0), 1);
+        t.getEntry("botpose_wpiblue").setDoubleArray(botpose(3.6, 4.4, 12.0, 2, 2.0));
+        LegacyLimelightReader reader = new LegacyLimelightReader(cam);
+        assertEquals(3.0, reader.read(true).orElseThrow().pose().getX(), 1e-9);
+
+        t.getEntry("botpose_orb_wpiblue").setDoubleArray(new double[11]);
+        assertTrue(reader.read(true).isEmpty(), "old alternate solve was superseded, not new evidence");
+        t.getEntry("botpose_wpiblue").setDoubleArray(botpose(3.8, 4.4, 12.0, 2, 2.0));
+        assertEquals(3.8, reader.read(true).orElseThrow().pose().getX(), 1e-9,
+                "a new MT1 solve remains available while MT2 is genuinely invalid");
+    }
+
+    @Test
+    void fallbackCannotMoveCameraCaptureTimeBackward() {
+        String cam = fresh("capture-order");
+        NetworkTable t = publish(cam, botpose(3.0, 4.0, 0.0, 2, 2.0), 1);
+        LegacyLimelightReader reader = new LegacyLimelightReader(cam);
+        double firstCapture = reader.read(true).orElseThrow().timestampSeconds();
+
+        t.getEntry("botpose_orb_wpiblue").setDoubleArray(new double[11]);
+        t.getEntry("botpose_wpiblue").setDoubleArray(
+                botposeWithLatency(3.8, 4.4, 12.0, 2, 2.0, 60_000.0));
+        assertTrue(reader.read(true).isEmpty(), "a newer publication with an older capture is not new evidence");
+        t.getEntry("botpose_wpiblue").setDoubleArray(botpose(3.9, 4.4, 12.0, 2, 2.0));
+        var next = reader.read(true).orElseThrow();
+        assertEquals(3.9, next.pose().getX(), 1e-9, "a genuinely newer fallback capture recovers");
+        assertTrue(next.timestampSeconds() >= firstCapture);
+    }
+
+    @Test
+    void invalidPreferredSolveDoesNotConsumeSameTimestampFallback() {
+        String cam = fresh("same-time-fallback");
+        NetworkTable t = NetworkTableInstance.getDefault().getTable(cam);
+        t.getEntry("tv").setDouble(1);
+        try (var mt2 = t.getDoubleArrayTopic("botpose_orb_wpiblue").publish();
+             var mt1 = t.getDoubleArrayTopic("botpose_wpiblue").publish()) {
+            long stamp = org.wpilib.networktables.NetworkTablesJNI.now();
+            mt2.set(new double[11], stamp);
+            mt1.set(botpose(3.0, 4.0, 0.0, 2, 2.0), stamp);
+            LegacyLimelightReader reader = new LegacyLimelightReader(cam);
+            assertEquals(3.0, reader.read(true).orElseThrow().pose().getX(), 1e-9,
+                    "rejected MT2 must not mark same-time valid MT1 as already accepted");
+            assertTrue(reader.read(true).isEmpty(), "accepted fallback is handed over once");
+        }
+    }
+
+    @Test
+    void switchingFromOrientationSeedToMegaTag2RequiresANewerCapture() {
+        String cam = fresh("seed-mode-order");
+        NetworkTable t = NetworkTableInstance.getDefault().getTable(cam);
+        t.getEntry("tv").setDouble(1);
+        try (var mt2 = t.getDoubleArrayTopic("botpose_orb_wpiblue").publish();
+             var mt1 = t.getDoubleArrayTopic("botpose_wpiblue").publish()) {
+            long stamp = org.wpilib.networktables.NetworkTablesJNI.now() - 100_000_000;
+            mt1.set(botpose(3.0, 4.0, 90.0, 2, 2.0), stamp);
+            mt2.set(botpose(3.5, 4.0, 90.0, 2, 2.0), stamp);
+            LegacyLimelightReader reader = new LegacyLimelightReader(cam);
+            assertEquals(3.0, reader.read(false).orElseThrow().pose().getX(), 1e-9,
+                    "MT1 still supplies the orientation seed");
+            assertTrue(reader.read(true).isEmpty(), "switching mode cannot replay the same capture");
+            assertTrue(reader.read(false).isEmpty(), "disable or mode changes do not invent fresh evidence");
+            mt2.set(botpose(3.6, 4.0, 90.0, 2, 2.0), stamp + 1_000_000);
+            assertEquals(3.6, reader.read(true).orElseThrow().pose().getX(), 1e-9,
+                    "the next real frame after seeding or reenabling still works");
+        }
+    }
+
+    @Test
     void aNewFrameIsHandedOverAgain() {
         String cam = fresh("newframe");
         publish(cam, botpose(3.0, 4.0, 0.0, 2, 2.0), 1);

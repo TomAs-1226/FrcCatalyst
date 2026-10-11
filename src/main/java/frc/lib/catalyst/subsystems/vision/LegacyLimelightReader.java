@@ -132,6 +132,10 @@ final class LegacyLimelightReader {
      */
     private long lastMegaTag2Nt = NEVER;
     private long lastMegaTag1Nt = NEVER;
+    /** Geometry verdict for the last examined preferred solve, independent of frame consumption. */
+    private boolean lastMegaTag2HadFix;
+    /** Camera-wide capture-time watermark: switching solve modes must not replay older evidence. */
+    private long lastAcceptedCaptureNt = NEVER;
     /**
      * The camera saw a tag and could not place it on the field: not in its map, or no MegaTag fix.
      * Distinct from seeing nothing, and the two look identical from outside without this.
@@ -226,7 +230,15 @@ final class LegacyLimelightReader {
             Optional<CameraSource.PoseEstimate> fix =
                     consider(megaTag2.getAtomic(), megaTag2Centre.get(), true);
             if (fix.isPresent()) {
+                // MT1 already published alongside this accepted MT2 is alternate evidence from
+                // the same camera, not another independent measurement to fuse next loop.
+                lastMegaTag1Nt = Math.max(lastMegaTag1Nt, megaTag1.getAtomic().timestamp);
                 return fix;
+            }
+            if (lastMegaTag2HadFix) {
+                // The preferred solve is valid but already consumed. No new frame is not a
+                // failed solve: falling back here alternates MT2 and MT1 from one camera frame.
+                return Optional.empty();
             }
         }
         return consider(megaTag1.getAtomic(), megaTag1Centre.get(), false);
@@ -242,6 +254,7 @@ final class LegacyLimelightReader {
     private Optional<CameraSource.PoseEstimate> consider(
             TimestampedDoubleArray frame, double[] centre, boolean fromMegaTag2) {
         if (frame == null || frame.value.length < MIN_LENGTH || frame.timestamp == NEVER) {
+            if (fromMegaTag2) lastMegaTag2HadFix = false;
             return Optional.empty();
         }
 
@@ -260,6 +273,7 @@ final class LegacyLimelightReader {
         // new evidence next loop either, and re-examining it forever would be its own bug.
         if (fromMegaTag2) {
             lastMegaTag2Nt = frame.timestamp;
+            lastMegaTag2HadFix = false;
         } else {
             lastMegaTag1Nt = frame.timestamp;
         }
@@ -308,6 +322,13 @@ final class LegacyLimelightReader {
             unplaceable = true;
             return Optional.empty();
         }
+
+        if (fromMegaTag2) lastMegaTag2HadFix = true;
+        long captureNt = frame.timestamp - Math.round(latencyMs * NT_TIME_PER_SECOND / 1000.0);
+        if (captureNt <= lastAcceptedCaptureNt) {
+            return Optional.empty();
+        }
+        lastAcceptedCaptureNt = captureNt;
 
         return Optional.of(new CameraSource.PoseEstimate(
                 new Pose2d(x, y, Rotation2d.fromDegrees(yaw)),
