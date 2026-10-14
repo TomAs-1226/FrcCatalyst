@@ -61,6 +61,10 @@ class GyroSignalRateTest {
                 pigeon.getAngularVelocityZWorld(),
                 pigeon.getAccelerationX(),
                 pigeon.getAccelerationY(),
+                pigeon.getAccelerationZ(),
+                pigeon.getGravityVectorX(),
+                pigeon.getGravityVectorY(),
+                pigeon.getGravityVectorZ(),
         }) {
             assertEquals(50.0, signal.getAppliedUpdateFrequency(), 1e-6,
                     signal.getName() + " did not take the requested rate");
@@ -72,7 +76,7 @@ class GyroSignalRateTest {
         assertTrue(HAL.initialize(), "no HAL, no Phoenix devices");
 
         // The rate call names signals one at a time, so a reading added to CatalystGyro later can
-        // quietly keep the 10 Hz default. Setting an unusual rate and checking all three come back
+        // quietly keep the 10 Hz default. Setting an unusual rate and checking every reading comes back
         // with it is what catches a fourth signal being read but never listed.
         CatalystGyro gyro = new CatalystGyro(25, "can_s0").withSignalRate(37.0);
         var pigeon = gyro.getPigeon();
@@ -85,6 +89,10 @@ class GyroSignalRateTest {
         assertEquals(37.0, pigeon.getAngularVelocityZWorld().getAppliedUpdateFrequency(), tolerance);
         assertEquals(37.0, pigeon.getAccelerationX().getAppliedUpdateFrequency(), tolerance);
         assertEquals(37.0, pigeon.getAccelerationY().getAppliedUpdateFrequency(), tolerance);
+        assertEquals(37.0, pigeon.getAccelerationZ().getAppliedUpdateFrequency(), tolerance);
+        assertEquals(37.0, pigeon.getGravityVectorX().getAppliedUpdateFrequency(), tolerance);
+        assertEquals(37.0, pigeon.getGravityVectorY().getAppliedUpdateFrequency(), tolerance);
+        assertEquals(37.0, pigeon.getGravityVectorZ().getAppliedUpdateFrequency(), tolerance);
     }
 
     @Test

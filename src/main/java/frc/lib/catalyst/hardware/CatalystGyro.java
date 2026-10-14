@@ -1,9 +1,12 @@
 package frc.lib.catalyst.hardware;
 
+import com.ctre.phoenix6.BaseStatusSignal;
+import com.ctre.phoenix6.StatusSignal;
 import com.ctre.phoenix6.configs.Pigeon2Configuration;
 import com.ctre.phoenix6.hardware.Pigeon2;
 
 import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.units.measure.LinearAcceleration;
 
 import static org.wpilib.units.Units.MetersPerSecondPerSecond;
 import org.wpilib.math.geometry.Rotation2d;
@@ -42,14 +45,26 @@ public class CatalystGyro implements CatalystIMU {
      * sensor being a tenth of a second behind the other.
      *
      * <p>100 Hz is twice the loop rate, which is the least that makes a per-loop read meaningful.
-     * It is not free: three signals going from 10 Hz to 100 Hz is 270 extra frames a second, about
-     * 3.6% of a 1 Mbit bus. That is a fair price for a heading rate that is actually current, and
-     * {@link #withSignalRate(double)} is there for anyone who disagrees.
+     * Gravity X/Y/Z are requested at the same rate as acceleration so gravity removal does not
+     * combine current motion with an old tilt estimate. Extra signals consume bus bandwidth;
+     * {@link #withSignalRate(double)} lets a team choose the rate for its bus.
      */
     public static final double DEFAULT_SIGNAL_HZ = 100.0;
 
+    /** Default maximum age of a gravity-removed acceleration reading, seconds. */
+    public static final double DEFAULT_LINEAR_ACCELERATION_MAX_AGE_SECONDS = 0.10;
+    /** Default maximum timestamp spread across acceleration and gravity, seconds. */
+    public static final double DEFAULT_LINEAR_ACCELERATION_MAX_SKEW_SECONDS = 0.02;
+
     private final Pigeon2 pigeon;
     private final int canId;
+    private final StatusSignal<LinearAcceleration> accelerationX;
+    private final StatusSignal<LinearAcceleration> accelerationY;
+    private final StatusSignal<LinearAcceleration> accelerationZ;
+    private final StatusSignal<Double> gravityX;
+    private final StatusSignal<Double> gravityY;
+    private final StatusSignal<Double> gravityZ;
+    private final BaseStatusSignal[] linearAccelerationSignals;
 
     public CatalystGyro(int canId) {
         this(canId, "");
@@ -58,6 +73,14 @@ public class CatalystGyro implements CatalystIMU {
     public CatalystGyro(int canId, String canBus) {
         this.canId = canId;
         this.pigeon = new Pigeon2(canId, CatalystCANBus.of(canBus).phoenix());
+        this.accelerationX = pigeon.getAccelerationX(false);
+        this.accelerationY = pigeon.getAccelerationY(false);
+        this.accelerationZ = pigeon.getAccelerationZ(false);
+        this.gravityX = pigeon.getGravityVectorX(false);
+        this.gravityY = pigeon.getGravityVectorY(false);
+        this.gravityZ = pigeon.getGravityVectorZ(false);
+        this.linearAccelerationSignals = new BaseStatusSignal[] {
+                accelerationX, accelerationY, accelerationZ, gravityX, gravityY, gravityZ };
         claimCanId(canId, canBus);
         applySignalRates(DEFAULT_SIGNAL_HZ);
         // Intentionally do NOT apply a configuration here. Applying a default
@@ -74,6 +97,14 @@ public class CatalystGyro implements CatalystIMU {
     public CatalystGyro(int canId, String canBus, Pigeon2Configuration config) {
         this.canId = canId;
         this.pigeon = new Pigeon2(canId, CatalystCANBus.of(canBus).phoenix());
+        this.accelerationX = pigeon.getAccelerationX(false);
+        this.accelerationY = pigeon.getAccelerationY(false);
+        this.accelerationZ = pigeon.getAccelerationZ(false);
+        this.gravityX = pigeon.getGravityVectorX(false);
+        this.gravityY = pigeon.getGravityVectorY(false);
+        this.gravityZ = pigeon.getGravityVectorZ(false);
+        this.linearAccelerationSignals = new BaseStatusSignal[] {
+                accelerationX, accelerationY, accelerationZ, gravityX, gravityY, gravityZ };
         claimCanId(canId, canBus);
         for (int i = 0; i < 5; i++) {
             var status = pigeon.getConfigurator().apply(config);
@@ -112,8 +143,7 @@ public class CatalystGyro implements CatalystIMU {
     private void applySignalRates(double hz) {
         com.ctre.phoenix6.BaseStatusSignal.setUpdateFrequencyForAll(hz,
                 pigeon.getAngularVelocityZWorld(),
-                pigeon.getAccelerationX(),
-                pigeon.getAccelerationY());
+                accelerationX, accelerationY, accelerationZ, gravityX, gravityY, gravityZ);
     }
 
     /**
@@ -190,6 +220,81 @@ public class CatalystGyro implements CatalystIMU {
         return java.util.Optional.of(new Translation2d(
                 x.getValue().in(MetersPerSecondPerSecond),
                 y.getValue().in(MetersPerSecondPerSecond)));
+    }
+
+    /**
+     * Fresh gravity-removed acceleration in the Pigeon's reported XYZ frame, m/s².
+     * Uses the default age and timestamp-spread limits. No wait for CAN frames is performed.
+     * This is distinct from the raw {@link #getAcceleration()} used by {@link DualIMU}.
+     */
+    public java.util.Optional<Translation2d> getLinearAcceleration() {
+        return getLinearAcceleration(DEFAULT_LINEAR_ACCELERATION_MAX_AGE_SECONDS,
+                DEFAULT_LINEAR_ACCELERATION_MAX_SKEW_SECONDS);
+    }
+
+    /**
+     * Gravity-removed acceleration with explicit freshness limits, seconds.
+     *
+     * <p>Refreshes the cached signals with Phoenix's zero-timeout, non-blocking refresh. Bad status,
+     * absent timestamp, non-finite data, future/old data, or an excessive timestamp spread returns
+     * empty. The timestamp spread covers all four signals, rather than only each axis pair.
+     *
+     * <p>Phoenix acceleration includes gravity; its dimensionless gravity vector represents the
+     * gravity contribution in units of standard g. Subtract that contribution after converting
+     * acceleration to m/s². No robot pitch, mounting offset, or stationary bias is guessed here.
+     *
+     * @param maxAgeSeconds maximum age of every signal; finite and nonnegative
+     * @param maxSkewSeconds maximum timestamp spread; finite and nonnegative
+     */
+    public java.util.Optional<Translation2d> getLinearAcceleration(
+            double maxAgeSeconds, double maxSkewSeconds) {
+        BaseStatusSignal.refreshAll(false, linearAccelerationSignals);
+        double now = com.ctre.phoenix6.Utils.getCurrentTimeSeconds();
+        return LinearAccelerationSample.from(
+                reading(accelerationX, accelerationX.getValue().in(MetersPerSecondPerSecond)),
+                reading(accelerationY, accelerationY.getValue().in(MetersPerSecondPerSecond)),
+                reading(gravityX, gravityX.getValueAsDouble()),
+                reading(gravityY, gravityY.getValueAsDouble()),
+                now, maxAgeSeconds, maxSkewSeconds);
+    }
+
+    /**
+     * Fresh gravity-removed acceleration leveled into the reported yaw frame, m/s².
+     * Uses the default age/spread limits and an externally configured upright mounting frame.
+     */
+    public java.util.Optional<Translation2d> getLevelLinearAcceleration() {
+        return getLevelLinearAcceleration(DEFAULT_LINEAR_ACCELERATION_MAX_AGE_SECONDS,
+                DEFAULT_LINEAR_ACCELERATION_MAX_SKEW_SECONDS);
+    }
+
+    /**
+     * As {@link #getLevelLinearAcceleration()}, with explicit freshness limits in seconds.
+     *
+     * <p>All six signals must be valid, fresh and time-aligned. The gravity vector must have norm
+     * within 10% of one, with |Z|/norm at least 0.5 (no more than 60 degrees from vertical).
+     * The minimal tilt rotation takes gravity to the same-sign Z axis, accepting either reported
+     * polarity and leaving a flat frame unchanged. Near-horizontal frames return empty; polarity
+     * cannot diagnose an inverted mounting. Correct upright mount configuration is the caller's
+     * job. Uses zero-timeout refresh, never waits for a new CAN frame.
+     */
+    public java.util.Optional<Translation2d> getLevelLinearAcceleration(
+            double maxAgeSeconds, double maxSkewSeconds) {
+        BaseStatusSignal.refreshAll(false, linearAccelerationSignals);
+        double now = com.ctre.phoenix6.Utils.getCurrentTimeSeconds();
+        return LinearAccelerationSample.level(
+                reading(accelerationX, accelerationX.getValue().in(MetersPerSecondPerSecond)),
+                reading(accelerationY, accelerationY.getValue().in(MetersPerSecondPerSecond)),
+                reading(accelerationZ, accelerationZ.getValue().in(MetersPerSecondPerSecond)),
+                reading(gravityX, gravityX.getValueAsDouble()),
+                reading(gravityY, gravityY.getValueAsDouble()),
+                reading(gravityZ, gravityZ.getValueAsDouble()),
+                now, maxAgeSeconds, maxSkewSeconds);
+    }
+
+    private static LinearAccelerationSample.Reading reading(BaseStatusSignal signal, double value) {
+        var timestamp = signal.getTimestamp();
+        return new LinearAccelerationSample.Reading(value, timestamp.getTime(),
+                signal.getStatus().isOK() && timestamp.isValid());
     }
 
     public Pigeon2 getPigeon() {

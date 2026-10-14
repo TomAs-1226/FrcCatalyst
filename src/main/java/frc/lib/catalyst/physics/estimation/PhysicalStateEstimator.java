@@ -355,7 +355,10 @@ public final class PhysicalStateEstimator {
      *         estimate to fuse with
      */
     public boolean applyVelocityObservation(Translation2d fieldVelocity, double standardDeviation) {
-        if (!initialized || fieldVelocity == null || !(standardDeviation > 0)) return false;
+        if (!initialized || fieldVelocity == null || !(standardDeviation > 0)
+                || !Double.isFinite(fieldVelocity.getX()) || !Double.isFinite(fieldVelocity.getY())
+                || !Double.isFinite(standardDeviation)
+                || !Double.isFinite(standardDeviation * standardDeviation)) return false;
 
         double estimateVariance = effectiveVelocityVariance();
         double observationVariance = standardDeviation * standardDeviation;

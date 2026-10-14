@@ -123,6 +123,7 @@ public final class PhysicsCore implements UncertainRobotStateSource {
     private final DrivetrainModel drivetrainModel;
     private final PhysicsProfile profile;
     private final PhysicalStateEstimator estimator;
+    private final frc.lib.catalyst.physics.estimation.WheelMotionObserver motionObserver;
     private final StatePredictor predictor;
     private final LaunchStatePredictor launchPredictor;
     private final SlipEstimator slipEstimator;
@@ -191,6 +192,8 @@ public final class PhysicsCore implements UncertainRobotStateSource {
         // custom sampling - supplies acceleration in the sample and never configures a supplier at
         // all. Inferring absence from the builder silently disabled their fusion.
         this.estimator = PhysicalStateEstimator.builder().build();
+        this.motionObserver = builder.motionObserverEnabled
+                ? new frc.lib.catalyst.physics.estimation.WheelMotionObserver() : null;
 
         this.predictor = StatePredictor.withDefaults();
         this.launchPredictor = new LaunchStatePredictor(builder.releaseDelaySeconds);
@@ -245,6 +248,15 @@ public final class PhysicsCore implements UncertainRobotStateSource {
         if (sample.hasModuleVelocities()) sawModuleVelocities = true;
 
         double slipFactor = updateSlip(sample);
+        if (motionObserver != null) {
+            var motion = motionObserver.update(sample, slipFactor);
+            if (motion.reason().startsWith("invalid ") || sample.timestampSeconds() < motion.timestampSeconds()) {
+                // Do not poison the legacy state with a NaN pose/rate/acceleration. Freshness stays
+                // at the last valid measurement; the observer reports the unresolved fault.
+                if (loggingEnabled) publish(state());
+                return state();
+            }
+        }
         // Measured if two IMUs can supply it, derived otherwise. Read here rather than at sample
         // construction so a sensor that drops out mid-match falls back on the next loop instead of
         // being decided once at startup.
@@ -266,12 +278,13 @@ public final class PhysicsCore implements UncertainRobotStateSource {
                 measuredAlpha);
 
         Optional<CollisionEvent> collision = updateDiagnostics(sample, updated);
-        analysis = buildAnalysis(updated, slipFactor, collision);
+        if (motionObserver != null && !motionObserver.state().usable()) slipFactor = Math.max(slipFactor, .5);
+        analysis = buildAnalysis(state(), slipFactor, collision);
 
         lastSampleTimestamp = sample.timestampSeconds();
         if (alertsEnabled) updateAlert();
-        if (loggingEnabled) publish(updated);
-        return updated;
+        if (loggingEnabled) publish(state());
+        return state();
     }
 
     /**
@@ -289,6 +302,9 @@ public final class PhysicsCore implements UncertainRobotStateSource {
     public boolean observe(Observation observation) {
         if (observation == null) return false;
         if (observation instanceof PoseObservation pose) {
+            if (!Double.isFinite(pose.timestampSeconds()) || !Double.isFinite(pose.pose().getX())
+                    || !Double.isFinite(pose.pose().getY())
+                    || !Double.isFinite(pose.pose().getRotation().getRadians())) return false;
             if (estimator.isInitialized()) {
                 double error = pose.pose().getTranslation()
                         .getDistance(estimator.state().pose().getTranslation());
@@ -302,12 +318,22 @@ public final class PhysicsCore implements UncertainRobotStateSource {
                 }
             }
             estimator.recordAbsoluteFix(observation.timestampSeconds());
+            if (motionObserver != null) motionObserver.acceptAbsoluteFix(pose.pose(), pose.timestampSeconds());
             return true;
         }
         if (observation instanceof VelocityObservation velocity) {
             // Unlike a pose, this one really is fused. It is the only measurement that can settle a
             // wheels-versus-IMU disagreement, because it is the only one that sees the robot's actual
             // motion without going through either.
+            if (!Double.isFinite(velocity.fieldVelocity().getX())
+                    || !Double.isFinite(velocity.fieldVelocity().getY())
+                    || !Double.isFinite(velocity.timestampSeconds())
+                    || !Double.isFinite(velocity.standardDeviation())
+                    || !Double.isFinite(velocity.standardDeviation() * velocity.standardDeviation())) return false;
+            // For the opt-in observer, stale/future/duplicate evidence must not mutate even the
+            // legacy confidence estimate. A vague observation cannot repair guarded motion.
+            if (motionObserver != null && !motionObserver.acceptVelocity(velocity.fieldVelocity(),
+                    velocity.timestampSeconds(), velocity.standardDeviation())) return false;
             boolean applied = estimator.applyVelocityObservation(
                     velocity.fieldVelocity(), velocity.standardDeviation());
             if (loggingEnabled) {
@@ -334,7 +360,19 @@ public final class PhysicsCore implements UncertainRobotStateSource {
 
     /** The latest fused state. {@link PhysicalRobotState#unknown()} before the first update. */
     public PhysicalRobotState state() {
-        return estimator.state();
+        PhysicalRobotState nativeState = estimator.state();
+        if (motionObserver == null || motionObserver.state().usable()) return nativeState;
+        var motion = motionObserver.state();
+        var q = nativeState.quality();
+        // The legacy estimator's slip budget may restore wheel trust. Opt-in users instead get
+        // a bounded inertial velocity and explicitly unusable quality until independent repair.
+        var guardedQuality = new LocalizationQuality(Math.min(q.confidence(), .10),
+                Double.POSITIVE_INFINITY, q.rotationStdDevRadians(), Double.POSITIVE_INFINITY,
+                q.secondsSinceAbsoluteFix(), motion.reason());
+        return new PhysicalRobotState(nativeState.timestampSeconds(), nativeState.pose(),
+                new ChassisVelocities(motion.fieldVelocity().getX(), motion.fieldVelocity().getY(),
+                        nativeState.fieldVelocity().omega), Translation2d.ZERO,
+                nativeState.angularAccelerationRadPerSecSq(), guardedQuality);
     }
 
     /**
@@ -396,9 +434,49 @@ public final class PhysicsCore implements UncertainRobotStateSource {
         return rejectedObservations;
     }
 
+    /** Opt-in bounded shadow motion; legacy state().pose() remains the native pose. */
+    public frc.lib.catalyst.physics.estimation.WheelMotionObserver.State motion() {
+        return motionObserver == null
+                ? frc.lib.catalyst.physics.estimation.WheelMotionObserver.State.unknown()
+                : motionObserver.state();
+    }
+
+    /** Call when native data are stale/invalid; this never alters drivetrain control or DS enable. */
+    public void invalidateMotion(double timestampSeconds, String reason) {
+        if (motionObserver != null) motionObserver.invalidate(timestampSeconds, reason);
+    }
+
+    /** Called only after the caller deliberately validates and resets its native pose. */
+    public void resetMotion() {
+        if (motionObserver != null) motionObserver.reset();
+    }
+
+    /** Rebase position after validated native repair, preserving any unresolved motion fault. */
+    public void resetMotion(Pose2d validatedPose) {
+        if (motionObserver != null) {
+            boolean headingChanged = Math.abs(validatedPose.getRotation()
+                    .minus(motionObserver.state().pose().getRotation()).getRadians()) > 1e-6;
+            // The reset happens now, not when the last native sample was captured. A cached
+            // frame in between those epochs must not overwrite the repaired position.
+            motionObserver.resetTo(validatedPose, clock.getAsDouble());
+            if (headingChanged) {
+                // A deliberate field-coordinate reset is not a physical impact or wheel launch.
+                wheelAccelX.reset(); wheelAccelY.reset();
+                measuredAccelX.reset(); measuredAccelY.reset();
+                lastDiagnosticsTimestamp = Double.NaN;
+            }
+        }
+    }
+
+    /** Seed a deliberately verified stationary auto start; not for an automatic camera reset. */
+    public void seedMotionAtRest(Pose2d validatedPose) {
+        if (motionObserver != null) motionObserver.seedAtRest(validatedPose, clock.getAsDouble());
+    }
+
     /** Clear every estimate and start over. */
     public void reset() {
         estimator.reset();
+        resetMotion();
         if (slipEstimator != null) slipEstimator.reset();
         if (disturbanceEstimator != null) disturbanceEstimator.reset();
         if (collisionDetector != null) collisionDetector.reset();
@@ -597,6 +675,16 @@ public final class PhysicsCore implements UncertainRobotStateSource {
         CatalystLog.log(LOG_ROOT + "Disturbance/Degrees", analysis.disturbanceDirection().getDegrees());
         CatalystLog.log(LOG_ROOT + "SensorDisagreement", estimator.sensorDisagreementMps());
         CatalystLog.log(LOG_ROOT + "Status", analysis.describe());
+        if (motionObserver != null) {
+            var motion = motionObserver.state();
+            CatalystLog.log(LOG_ROOT + "Motion/Pose", Pose2d.struct, motion.pose());
+            CatalystLog.log(LOG_ROOT + "Motion/Mode", motion.mode().name());
+            CatalystLog.log(LOG_ROOT + "Motion/Usable", motion.usable());
+            CatalystLog.log(LOG_ROOT + "Motion/NeedsAbsoluteFix", motion.requiresAbsoluteFix());
+            CatalystLog.log(LOG_ROOT + "Motion/DisagreementMps", motion.disagreementMps());
+            CatalystLog.log(LOG_ROOT + "Motion/RejectedWheelTravelM", motion.rejectedWheelTravelMeters());
+            CatalystLog.log(LOG_ROOT + "Motion/Why", motion.reason());
+        }
         analysis.lastCollision().ifPresent(event -> {
             CatalystLog.log(LOG_ROOT + "Collision/Timestamp", event.timestampSeconds());
             CatalystLog.log(LOG_ROOT + "Collision/MpsSq", event.magnitudeMpsSq());
@@ -624,6 +712,7 @@ public final class PhysicsCore implements UncertainRobotStateSource {
         private DoubleSupplier clock = Timer::getTimestamp;
         private double releaseDelaySeconds = 0.0;
         private double poseOutlierGateMeters = 1.0;
+        private boolean motionObserverEnabled;
         private boolean loggingEnabled = true;
         private boolean alertsEnabled = true;
 
@@ -742,6 +831,12 @@ public Builder dualIMU(DualIMU dual) {
         /** Source of the current time in seconds. Defaults to the FPGA clock; tests pass their own. */
         public Builder clock(DoubleSupplier clock) {
             this.clock = clock;
+            return this;
+        }
+
+        /** Enable the bounded wheel/IMU shadow observer; never resets native odometry. */
+        public Builder withMotionObserver(boolean enabled) {
+            motionObserverEnabled = enabled;
             return this;
         }
 

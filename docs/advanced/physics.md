@@ -768,3 +768,53 @@ constants file.
 > **The rule that governs all of it:** if a Physics Core signal does not measurably outperform the
 > simple check you already had, keep the simple check. That applies to everything in this package, and
 > it is why the roadmap carries explicit kill criteria.
+
+
+## Opt-in bounded motion integrity (alpha-7 source candidate)
+
+Enable `.withMotionObserver(true)` to expose `physics.motion()` alongside the legacy native pose.
+This API is in the alpha-7 source branch; it does not imply a newly published Maven release.
+`physics.state().pose()` still passes through native drivetrain pose. `motion().pose()` is a separate
+guarded translation estimate, and neither API writes native odometry.
+
+Supply one coherent `PhysicsSample`: native pose, native wheel/chassis velocities, gravity-removed
+horizontal acceleration in the robot's yaw frame, and gyro rate. Measurements must be finite, fresh,
+and describe the same interval. `CatalystGyro.getLevelLinearAcceleration(maxAgeSeconds,
+maxSkewSeconds)` subtracts gravity XYZ and levels tilt using nonblocking cached readings. The caller
+must also align timestamps to the native motion frame, verify/transform the reported yaw axes to
+the robot frame, and account for the accelerometer's lever arm from chassis center. Tilt leveling
+does not infer mounting yaw; the current API documentation does not establish whether every raw
+XYZ signal includes the configured mount transform. Raw `getAcceleration()` retains its previous
+gravity-inclusive contract.
+
+The observer follows native pose during consistent rolling, including real constant-speed travel
+with zero acceleration. Accumulated wheel/IMU disagreement starts a short inertial bridge; confirmed
+disagreement persists through steady wheelspin. After 0.60 seconds the bridge expires, translation
+holds, and `motion().usable()` remains false until independent repair. Its thresholds are engineering
+defaults requiring hardware validation, not calibrated probabilities. Legacy clients remain opt-out.
+
+When opted in, uncertain state velocity/quality also remain guarded instead of inheriting the
+legacy estimator's eventual return to wheel trust. A caller can use `motion().usable()` to inhibit
+pose-dependent arrival/feeding; manual control and enable remain the caller's separate policies.
+
+`physics.invalidateMotion(timestamp, reason)` rejects stale native input. Call
+`physics.resetMotion(validatedPose)` after an externally validated native position repair; it
+preserves a motion fault and does not certify untrusted wheel velocity. Use
+`physics.seedMotionAtRest(validatedPose)` only for a deliberately verified stationary starting pose.
+
+An independent `VelocityObservation` can renew the inertial reference when capture time, freshness,
+finite uncertainty and monotonicity checks pass. Velocity evidence alone never repairs the position
+anchor. A recent post-fault `PoseObservation` must agree with guarded/native position and current
+wheel velocity before restoring usable motion. After the inertial bridge expires, its placeholder
+zero velocity cannot establish standstill; fresh independent velocity evidence or a deliberately
+verified stationary seed is required. A large position repair belongs to the existing
+validated native reanchor path. Never label wheel-derived velocity as independent on a real robot.
+
+Constant common-mode wheelspin can be indistinguishable from real travel if no independent sensor
+saw its onset. This observer does not solve that observability limit. Independent ground velocity
+(qualified optical flow or non-driven odometry wheels) is the useful next input for sustained
+camera-independent motion. Additional tag cameras improve view coverage and repair opportunities.
+
+Telemetry is under `Catalyst/Physics/Motion/`: `Pose`, `Mode`, `Usable`, `NeedsAbsoluteFix`,
+`DisagreementMps`, `RejectedWheelTravelM`, and `Why`. Field-check clean reversals, tilted standstill,
+blocked wheelspin, sensor dropouts, and continuing spin during camera reanchor before control use.

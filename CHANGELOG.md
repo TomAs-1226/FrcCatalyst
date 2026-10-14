@@ -11,6 +11,12 @@ Autonomy 2.1 (shared control), and two drive fixes a robot on the Red alliance n
 
 ### Fixed
 
+- Added an opt-in bounded wheel/IMU motion observer for the alpha-7 source line. Persistent
+  disagreement no longer regains trust merely because wheelspin becomes constant; position-only
+  resets preserve motion faults, and independent velocity observations have freshness/finite guards.
+  Native pose remains read-only. CatalystGyro now offers fresh gravity-removed and tilt-leveled
+  acceleration without changing its raw acceleration interface. Hardware thresholds remain unverified.
+
 - **Physics Core called every hard launch wheel slip, and every start of one an impact.** The
   disturbance residual is the IMU's acceleration minus the wheels'. The wheels' was smoothed (it is a
   derivative) and the IMU's was not, so the two were never compared at the same lag: when a launch
