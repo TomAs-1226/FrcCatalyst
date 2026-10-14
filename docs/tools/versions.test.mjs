@@ -1,4 +1,4 @@
-// Every version string on the docs site agrees with the library it documents.
+// Code-generation tools describe the source candidate; public assets describe the retained release.
 //
 // Run with:  node --test docs/tools/
 //
@@ -22,13 +22,34 @@ const toolsDir = path.dirname(fileURLToPath(import.meta.url));
 const docsDir = path.dirname(toolsDir);
 const repoRoot = path.dirname(docsDir);
 
-/** The one source of truth: whatever build.gradle publishes. */
+/** Version of the source candidate whose APIs the code-generation tools describe. */
 function libraryVersion() {
   const gradle = fs.readFileSync(path.join(repoRoot, "build.gradle"), "utf8");
   const m = gradle.match(/^version\s*=\s*['"]([^'"]+)['"]/m);
   assert.ok(m, "could not read the version out of build.gradle");
   return m[1];
 }
+
+/** Public release metadata follows the retained vendordep, independently of an unreleased branch. */
+function publishedVersion() {
+  return JSON.parse(fs.readFileSync(path.join(docsDir, "vendordep", "FrcCatalyst.json"), "utf8")).version;
+}
+
+function checkCatalystCoordinates(vendordep) {
+  for (const dep of [...(vendordep.javaDependencies ?? []), ...(vendordep.jniDependencies ?? [])]) {
+    if (dep.artifactId === "FrcCatalyst" || dep.groupId && dep.groupId.includes("catalyst")) {
+      assert.equal(dep.version.replace(/^v/, ""), vendordep.version, `${dep.artifactId}`);
+    }
+  }
+}
+
+test("the actual JitPack Catalyst coordinate must match the public version", () => {
+  const dependency = (version) => ({ groupId: "com.github.TomAs-1226", artifactId: "FrcCatalyst", version });
+  assert.doesNotThrow(() => checkCatalystCoordinates({ version: "2.0.0-beta.2",
+    javaDependencies: [dependency("v2.0.0-beta.2")] }));
+  assert.throws(() => checkCatalystCoordinates({ version: "2.0.0-beta.2",
+    javaDependencies: [dependency("v2.0.0-rc.1")] }), /FrcCatalyst/);
+});
 
 function toolPages() {
   return fs.readdirSync(toolsDir)
@@ -54,8 +75,8 @@ test("every tool's badge names the version of the library it generates code for"
   assert.deepEqual(wrong, [], `expected v${version}`);
 });
 
-test("the home page hero names the same version", () => {
-  const version = libraryVersion();
+test("the public home page hero names the retained published version", () => {
+  const version = publishedVersion();
   const hero = fs.readFileSync(path.join(docsDir, "_includes", "hero3d.html"), "utf8");
   const m = hero.match(/class="tag">\s*v([^\s<]+)/);
 
@@ -63,10 +84,10 @@ test("the home page hero names the same version", () => {
   assert.equal(m[1], version);
 });
 
-test("the hero does not call a beta build stable", () => {
+test("the public hero does not call a beta release stable", () => {
   // The specific mistake that was live: a "stable" tag sitting above the banner that explains this
   // documents an alpha WPILib on a beta OS.
-  const version = libraryVersion();
+  const version = publishedVersion();
   const hero = fs.readFileSync(path.join(docsDir, "_includes", "hero3d.html"), "utf8");
   const tag = hero.match(/class="tag">([^<]*)</)[1];
 
@@ -75,10 +96,10 @@ test("the hero does not call a beta build stable", () => {
   }
 });
 
-test("the README banner names the current version", () => {
+test("the public README banner names the retained published version", () => {
   // It had drifted to v1.9.2 while the library was on 1.12.0 - the first thing anyone sees on the
   // repository page, and two releases out of date. Nothing reads it, so nothing caught it.
-  const version = libraryVersion();
+  const version = publishedVersion();
   const svg = fs.readFileSync(path.join(docsDir, "assets", "banner.svg"), "utf8");
   // Match a version-shaped string with or without the leading v: the banners write it both ways,
   // and requiring one spelling would fail a banner that is perfectly correct.
@@ -100,10 +121,10 @@ test("the banner does not advertise the wrong season", () => {
   }
 });
 
-test("the AdvantageScope bundles name the version whose topics they match", () => {
+test("the public AdvantageScope bundles name the retained release whose topics they match", () => {
   // Not cosmetic. 2.x renamed the swerve topics, so a bundle still claiming 1.7.0 tells the reader
   // its layout predates that rename - which would mean the layout resolves nothing.
-  const version = libraryVersion();
+  const version = publishedVersion();
   const dir = path.join(toolsDir, "advantagescope");
   const wrong = [];
 
@@ -125,10 +146,45 @@ function wpilibVersion() {
   return gradle.match(/wpilibVersion\s*=\s*['"]([^'"]+)['"]/)?.[1] ?? "";
 }
 
-test("the published vendordep installs a version that exists", () => {
+/** A retained release must be documented explicitly, not inferred from incidental version mentions. */
+function sourceReleaseLagIsDocumented(installation, sourceVersion, publishedVersion) {
+  const statements = [...installation.matchAll(
+    /^\*\*Source candidate:\*\* `([^`\s]+)`; \*\*retained published vendordep:\*\* `([^`\s]+)`\.$/gm)];
+  return statements.length === 1
+    && statements[0][1] === sourceVersion && statements[0][2] === publishedVersion;
+}
+
+test("documented source-release lag requires the exact source and published pair", () => {
+  const install = "**Source candidate:** `2.0.0-rc.1`; **retained published vendordep:** `2.0.0-beta.2`.";
+  assert.equal(sourceReleaseLagIsDocumented(install, "2.0.0-rc.1", "2.0.0-beta.2"), true);
+  assert.equal(sourceReleaseLagIsDocumented(install, "2.0.0-rc.2", "2.0.0-beta.2"), false);
+  assert.equal(sourceReleaseLagIsDocumented(install, "2.0.0-rc.1", "2.0.0-beta.1"), false);
+});
+
+test("incidental version mentions and reversed declarations cannot authorize release lag", () => {
+  assert.equal(sourceReleaseLagIsDocumented("Source uses 2.0.0-rc.1; install 2.0.0-beta.2.",
+    "2.0.0-rc.1", "2.0.0-beta.2"), false);
+  assert.equal(sourceReleaseLagIsDocumented(
+    "**Source candidate:** `2.0.0-beta.2`; **retained published vendordep:** `2.0.0-rc.1`.",
+    "2.0.0-rc.1", "2.0.0-beta.2"), false);
+});
+
+test("duplicate or contradictory source-release declarations fail closed", () => {
+  const install = "**Source candidate:** `2.0.0-rc.1`; **retained published vendordep:** `2.0.0-beta.2`.";
+  assert.equal(sourceReleaseLagIsDocumented(install + "\n" + install,
+    "2.0.0-rc.1", "2.0.0-beta.2"), false);
+  assert.equal(sourceReleaseLagIsDocumented(install + "\n"
+    + "**Source candidate:** `2.0.0-rc.2`; **retained published vendordep:** `2.0.0-beta.2`.",
+    "2.0.0-rc.1", "2.0.0-beta.2"), false);
+});
+
+test("the published vendordep agrees with the documented release and its coordinates", () => {
   // The file teams actually install, so it must name something installable.
   //
-  // On most lines that means the library version. On a source-build-only line it means the opposite:
+  // On released lines that means the library version. An unreleased source candidate may keep the
+  // published release only when the installation guide explicitly names the exact pair. This is
+  // an offline consistency check, not a Maven-availability probe.
+  // On a source-build-only line it means the opposite:
   // JitPack cannot build the library at all there, so the vendordep deliberately stays at the newest
   // tag it could build, and matching the library version would install a jar that does not exist -
   // the very failure this test exists to prevent, inverted. When it lags, the install page has to say
@@ -143,16 +199,16 @@ test("the published vendordep installs a version that exists", () => {
     assert.ok(install.includes(vendordep.version),
       `the vendordep installs ${vendordep.version} while the library is ${version}; ` +
       `installation.md must name ${vendordep.version} and explain why`);
-  } else {
-    assert.equal(vendordep.version, version);
+  } else if (vendordep.version !== version) {
+    const install = fs.readFileSync(
+      path.join(docsDir, "getting-started", "installation.md"), "utf8");
+    assert.ok(sourceReleaseLagIsDocumented(install, version, vendordep.version),
+      `installation.md must explicitly declare source candidate ${version} and retained published `
+      + `vendordep ${vendordep.version}; do not change published coordinates to an unreleased build`);
   }
 
   // Whatever it names, the file must agree with itself.
-  for (const dep of [...(vendordep.javaDependencies ?? []), ...(vendordep.jniDependencies ?? [])]) {
-    if (dep.groupId && dep.groupId.includes("catalyst")) {
-      assert.equal(dep.version.replace(/^v/, ""), vendordep.version, `${dep.artifactId}`);
-    }
-  }
+  checkCatalystCoordinates(vendordep);
 });
 
 test("the beta vendordep points at its own URL, not the stable one", () => {

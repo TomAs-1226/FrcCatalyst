@@ -53,6 +53,18 @@ Add FrcCatalyst to your WPILib robot project.
   Systemcore — the pipeline is built into the hardware. If you had it installed for Catalyst 1.x,
   remove it.
 
+## Source candidate and published dependency
+
+**Source candidate:** `2.0.0-rc.1`; **retained published vendordep:** `2.0.0-beta.2`.
+
+The current alpha-7 source branch declares `2.0.0-rc.1`. The retained vendordep and JitPack example
+below select `2.0.0-beta.2`; they do not install the candidate's newer source changes. Public hero/banner
+badges and AdvantageScope bundles describe that retained release; code-generation tool badges
+describe the source candidate. The candidate
+has not been published by this work, and this declaration does not independently verify Maven
+availability. A robot using the candidate must build that source, for example with an included
+Gradle build. Keep the published vendordep unchanged until a separate release is authorized.
+
 ## Option 1: Vendordep (Recommended)
 
 The easiest install. In WPILib VS Code, open the command palette and run
@@ -96,6 +108,11 @@ cd FrcCatalyst
 # Publish to local Maven
 ./gradlew publishToMavenLocal
 ```
+
+The local Maven example below names the retained release. When building the current source
+candidate, use the version declared by that checkout's `build.gradle` (`2.0.0-rc.1`) instead;
+publishing to local Maven does not publish a release remotely. An included Gradle build can avoid
+local Maven publication entirely.
 
 Then in your robot project's `build.gradle`:
 
