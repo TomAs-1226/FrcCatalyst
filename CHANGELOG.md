@@ -11,6 +11,12 @@ Autonomy 2.1 (shared control), and two drive fixes a robot on the Red alliance n
 
 ### Fixed
 
+- Added diagnostic-by-default gyro-constrained cumulative-wheel shadow odometry with unique three-module consensus,
+  SE(2) integration and bounded capture-time weighted translation corrections. Corrected position
+  persists through wheel recovery. Native pose and legacy clients retain their contracts; common
+  wheelspin still requires the separate IMU guard, and correction noise requires hardware validation.
+  Control needs a separate explicit opt-in; changing-steering/native timing qualification remains open.
+
 - Added an opt-in bounded wheel/IMU motion observer for the alpha-7 source line. Persistent
   disagreement no longer regains trust merely because wheelspin becomes constant; position-only
   resets preserve motion faults, and independent velocity observations have freshness/finite guards.

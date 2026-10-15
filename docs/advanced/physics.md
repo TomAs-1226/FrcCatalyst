@@ -818,3 +818,52 @@ camera-independent motion. Additional tag cameras improve view coverage and repa
 Telemetry is under `Catalyst/Physics/Motion/`: `Pose`, `Mode`, `Usable`, `NeedsAbsoluteFix`,
 `DisagreementMps`, `RejectedWheelTravelM`, and `Why`. Field-check clean reversals, tilted standstill,
 blocked wheelspin, sensor dropouts, and continuing spin during camera reanchor before control use.
+
+
+## Optional gyro-constrained wheel-position shadow pose (alpha-7 source candidate)
+
+Build with `.withMotionObserver(true).withGyroWheelOdometry(moduleLocations)` for a diagnostic trial.
+Control defaults off. Only after sensor-timing/changing-steering qualification, explicitly add
+`.withGyroWheelOdometryControl(true)`. Then update with
+`physics.update(sample, rawGyroHeading, modulePositions)` on every coherent new frame. The overload
+uses the sample timestamp. Supply cumulative encoder distances, raw independent gyro heading and
+geometry in the same robot frame/order; wheel-derived yaw is not independent gyro evidence.
+Enabling the option without a motion observer is rejected. Missing positions hold motion unknown.
+
+Each encoder displacement subtracts the rigid-body rotation `deltaYaw * (-moduleY, moduleX)`.
+A unique mutually agreeing set of at least three modules determines center translation; one bad
+wheel can be excluded on a four-module drive. SE(2) integration retains the curved interval travel.
+The shadow position persists across wheel recovery rather than inheriting native accumulated drift.
+No drivetrain pose is written; `state().pose()` retains its legacy native-pose contract.
+
+`gyroWheelEstimate()` exposes validity, initialized velocity, inliers, rejected module and residual.
+Validity means wheel/gyro agreement only. Common wheelspin still requires independent acceleration
+checks; no consensus result is submitted as a ground-velocity observation. Raw slip diagnostics
+remain visible and conservative. The first baseline has no initialized interval velocity; its
+placeholder zero cannot certify standstill. Rejected intervals never replay unchecked distance.
+
+Accepted `PoseObservation` translation fixes use capture-time innovation from a 0.5-second history.
+The correction gain is `sigmaOdometry/(sigmaOdometry+sigmaVision)`, initially assuming 0.10 m
+odometry uncertainty, not calibrated covariance. Positive finite vision uncertainty must be at most
+0.50 m, innovation at most 1.0 m; captures must be strictly increasing and within retained history.
+Heading stays gyro-derived. Observations never clear persistent motion faults by themselves.
+Position reset preserves faults; a verified stationary seed is separate. Module ending angles
+approximate each interval; mounting yaw, IMU lever arm, contact and sustained inertial drift remain
+physical validation requirements. This is source-branch functionality, not a new Maven release.
+
+
+`lastAcceptedShadowPoseFix()` exposes timestamped pre-correction capture innovation. Use it as
+evidence only if that SAME `observe()` call returned true and the timestamp matches; rejected
+observations leave older metadata unchanged. Reset clears it. Dashboard/control freshness should
+compare both native and shadow capture residuals, not use native agreement to certify another pose.
+The encoder interval-mean velocity is diagnostic only: IMU residuals and shot lead retain the
+coherent instantaneous chassis velocity and gyro rate supplied in `PhysicsSample`.
+
+
+Diagnostic mode preserves the native/IMU control pose, existing slip handling and native camera
+certification. Trial rejection cannot stop a path or grant a fresh aiming fix. Numbers keeps this
+mode because constant-angle native checks passed but changing-steering full autos rejected clean
+intervals. Ending-angle quadrature and per-signal timing require further qualification; do not
+widen rejection thresholds merely to pass those scenarios. `gyroWheelOdometryControlsMotion()`
+exposes the actual policy. Explicit control integration is covered by deterministic fault tests,
+not a claim of native/physical changing-steering qualification.

@@ -124,6 +124,9 @@ public final class PhysicsCore implements UncertainRobotStateSource {
     private final PhysicsProfile profile;
     private final PhysicalStateEstimator estimator;
     private final frc.lib.catalyst.physics.estimation.WheelMotionObserver motionObserver;
+    private final frc.lib.catalyst.physics.estimation.GyroWheelOdometry gyroWheelOdometry;
+    private final boolean gyroWheelOdometryControlsMotion;
+    private frc.lib.catalyst.physics.estimation.GyroWheelOdometry.Estimate lastGyroWheelEstimate;
     private final StatePredictor predictor;
     private final LaunchStatePredictor launchPredictor;
     private final SlipEstimator slipEstimator;
@@ -195,6 +198,15 @@ public final class PhysicsCore implements UncertainRobotStateSource {
         this.motionObserver = builder.motionObserverEnabled
                 ? new frc.lib.catalyst.physics.estimation.WheelMotionObserver() : null;
 
+        if (builder.gyroWheelLocations != null && motionObserver == null)
+            throw new IllegalArgumentException("gyro wheel odometry requires withMotionObserver(true)");
+        this.gyroWheelOdometry = builder.gyroWheelLocations == null ? null
+                : new frc.lib.catalyst.physics.estimation.GyroWheelOdometry(builder.gyroWheelLocations);
+
+        if (builder.gyroWheelOdometryControlsMotion && gyroWheelOdometry == null)
+            throw new IllegalArgumentException("gyro wheel control requires module geometry");
+        this.gyroWheelOdometryControlsMotion = builder.gyroWheelOdometryControlsMotion;
+
         this.predictor = StatePredictor.withDefaults();
         this.launchPredictor = new LaunchStatePredictor(builder.releaseDelaySeconds);
 
@@ -244,12 +256,65 @@ public final class PhysicsCore implements UncertainRobotStateSource {
      * @return the updated state
      */
     public PhysicalRobotState update(PhysicsSample sample) {
+        return updateInternal(sample, null);
+    }
+
+    /**
+     * Update with coherent cumulative wheel positions and the independent raw gyro heading.
+     * The optional gyro-wheel model owns only the shadow pose; the native pose remains read-only.
+     * All arguments must describe the same capture time. Wheel-derived omega is not a gyro.
+     */
+    public PhysicalRobotState update(PhysicsSample sample,
+            org.wpilib.math.geometry.Rotation2d rawGyroHeading,
+            org.wpilib.math.kinematics.SwerveModulePosition[] positions) {
+        var wheels = gyroWheelOdometry == null ? null : gyroWheelOdometry.update(
+                sample.timestampSeconds(), sample.pose(), rawGyroHeading, positions);
+        return updateInternal(sample, wheels);
+    }
+
+    private PhysicalRobotState updateInternal(PhysicsSample sample,
+            frc.lib.catalyst.physics.estimation.GyroWheelOdometry.Estimate wheels) {
+        // A copied frame captured before an explicit reanchor cannot undo the newer anchor.
+        if (gyroWheelOdometryControlsMotion && wheels != null
+                && sample.timestampSeconds() < wheels.timestamp()) return state();
         if (sample.hasAcceleration()) sawAcceleration = true;
         if (sample.hasModuleVelocities()) sawModuleVelocities = true;
 
+        if (gyroWheelOdometryControlsMotion && !finiteSample(sample)) {
+            motionObserver.invalidate(sample.timestampSeconds(), "invalid motion sample");
+            if (loggingEnabled) publish(state());
+            return state();
+        }
         double slipFactor = updateSlip(sample);
+        PhysicsSample motionSample = sample;
+        boolean wheelConsensus = wheels != null && wheels.valid();
+        if (gyroWheelOdometryControlsMotion && wheelConsensus) {
+            // Encoder displacement/dt is an interval mean, not the endpoint speed needed by
+            // the acceleration residual or shooting lead. Preserve the coherent instantaneous
+            // velocity/rate while replacing only the wheel-derived position anchor.
+            motionSample = new PhysicsSample(sample.timestampSeconds(), wheels.pose(),
+                    sample.robotRelativeSpeeds(), sample.moduleStates(),
+                    sample.robotRelativeAcceleration(), sample.yawRateRadPerSec());
+        }
+        lastGyroWheelEstimate = wheels;
         if (motionObserver != null) {
-            var motion = motionObserver.update(sample, slipFactor);
+            // Three agreeing gyro-constrained wheel intervals can locate one bad module. They
+            // still cannot certify uniform spin: the independent IMU residual remains active.
+            if (gyroWheelOdometryControlsMotion && !wheelConsensus && wheels != null
+                    && Double.isFinite(lastSampleTimestamp)
+                    && sample.timestampSeconds() - lastSampleTimestamp > .10) {
+                // Establish the missing interval's original boundary and current wheel metadata,
+                // without importing its unchecked wheel-derived distance. Fresh genuinely
+                // independent end-of-interval evidence may repair it through the normal seams.
+                motionObserver.update(new PhysicsSample(sample.timestampSeconds(),
+                        motionObserver.state().pose(), sample.robotRelativeSpeeds(),
+                        sample.moduleStates(), sample.robotRelativeAcceleration(),
+                        sample.yawRateRadPerSec()), slipFactor);
+            }
+            var motion = gyroWheelOdometryControlsMotion && !wheelConsensus
+                    ? motionObserver.invalidate(sample.timestampSeconds(), wheels == null
+                            ? "missing gyro/wheel position sample" : wheels.reason())
+                    : motionObserver.update(motionSample, gyroWheelOdometryControlsMotion && wheelConsensus ? 0 : slipFactor);
             if (motion.reason().startsWith("invalid ") || sample.timestampSeconds() < motion.timestampSeconds()) {
                 // Do not poison the legacy state with a NaN pose/rate/acceleration. Freshness stays
                 // at the last valid measurement; the observer reports the unresolved fault.
@@ -271,13 +336,16 @@ public final class PhysicsCore implements UncertainRobotStateSource {
         PhysicalRobotState updated = estimator.update(
                 sample.timestampSeconds(),
                 sample.pose(),
-                sample.robotRelativeSpeeds(),
+                motionSample.robotRelativeSpeeds(),
                 sample.robotRelativeAcceleration(),
-                sample.yawRateRadPerSec(),
+                motionSample.yawRateRadPerSec(),
                 wheelDistrust(slipFactor),
                 measuredAlpha);
 
-        Optional<CollisionEvent> collision = updateDiagnostics(sample, updated);
+        PhysicsSample diagnosticSample = new PhysicsSample(sample.timestampSeconds(), sample.pose(),
+                motionSample.robotRelativeSpeeds(), sample.moduleStates(),
+                sample.robotRelativeAcceleration(), motionSample.yawRateRadPerSec());
+        Optional<CollisionEvent> collision = updateDiagnostics(diagnosticSample, updated);
         if (motionObserver != null && !motionObserver.state().usable()) slipFactor = Math.max(slipFactor, .5);
         analysis = buildAnalysis(state(), slipFactor, collision);
 
@@ -285,6 +353,19 @@ public final class PhysicsCore implements UncertainRobotStateSource {
         if (alertsEnabled) updateAlert();
         if (loggingEnabled) publish(state());
         return state();
+    }
+
+    private static boolean finiteSample(PhysicsSample sample) {
+        Pose2d pose = sample.pose();
+        ChassisVelocities speed = sample.robotRelativeSpeeds();
+        Translation2d acceleration = sample.robotRelativeAcceleration();
+        return pose.getTranslation() != null && pose.getRotation() != null
+                && Double.isFinite(sample.timestampSeconds()) && Double.isFinite(pose.getX())
+                && Double.isFinite(pose.getY()) && Double.isFinite(pose.getRotation().getRadians())
+                && Double.isFinite(speed.vx) && Double.isFinite(speed.vy)
+                && Double.isFinite(speed.omega) && Double.isFinite(sample.yawRateRadPerSec())
+                && (acceleration == null || Double.isFinite(acceleration.getX())
+                        && Double.isFinite(acceleration.getY()));
     }
 
     /**
@@ -305,16 +386,25 @@ public final class PhysicsCore implements UncertainRobotStateSource {
             if (!Double.isFinite(pose.timestampSeconds()) || !Double.isFinite(pose.pose().getX())
                     || !Double.isFinite(pose.pose().getY())
                     || !Double.isFinite(pose.pose().getRotation().getRadians())) return false;
-            if (estimator.isInitialized()) {
-                double error = pose.pose().getTranslation()
-                        .getDistance(estimator.state().pose().getTranslation());
-                if (error > poseOutlierGateMeters) {
+            if (gyroWheelOdometryControlsMotion) {
+                if (!gyroWheelOdometry.observe(pose)) {
                     rejectedObservations++;
-                    if (loggingEnabled) {
-                        CatalystLog.log(LOG_ROOT + "RejectedObservations", rejectedObservations);
-                        CatalystLog.log(LOG_ROOT + "LastRejectionMeters", error);
-                    }
                     return false;
+                }
+            } else {
+                // Diagnostic trials cannot grant or revoke evidence for the actual native aim pose.
+                if (gyroWheelOdometry != null) gyroWheelOdometry.observe(pose);
+                if (estimator.isInitialized()) {
+                    double error = pose.pose().getTranslation()
+                            .getDistance(estimator.state().pose().getTranslation());
+                    if (error > poseOutlierGateMeters) {
+                        rejectedObservations++;
+                        if (loggingEnabled) {
+                            CatalystLog.log(LOG_ROOT + "RejectedObservations", rejectedObservations);
+                            CatalystLog.log(LOG_ROOT + "LastRejectionMeters", error);
+                        }
+                        return false;
+                    }
                 }
             }
             estimator.recordAbsoluteFix(observation.timestampSeconds());
@@ -406,6 +496,20 @@ public final class PhysicsCore implements UncertainRobotStateSource {
         return launchPredictor.predict(state(), additionalDelaySeconds);
     }
 
+    /** False by default: diagnostic gyro-wheel trials have no control/certification authority. */
+    public boolean gyroWheelOdometryControlsMotion() { return gyroWheelOdometryControlsMotion; }
+
+    /** Latest optional robust wheel estimate; never independent ground-motion certification. */
+    public Optional<frc.lib.catalyst.physics.estimation.GyroWheelOdometry.Estimate> gyroWheelEstimate() {
+        return Optional.ofNullable(lastGyroWheelEstimate);
+    }
+
+    /** Capture-time shadow innovation, valid for certification only after that same observe call accepts. */
+    public Optional<frc.lib.catalyst.physics.estimation.GyroWheelOdometry.AcceptedPoseFix>
+            lastAcceptedShadowPoseFix() {
+        return gyroWheelOdometry == null ? Optional.empty() : gyroWheelOdometry.lastAcceptedPoseFix();
+    }
+
     /** What is physically happening to the robot: slip, traction, tipping margin, disturbance, impacts. */
     public PhysicsAnalysis analyze() {
         return analysis;
@@ -448,11 +552,15 @@ public final class PhysicsCore implements UncertainRobotStateSource {
 
     /** Called only after the caller deliberately validates and resets its native pose. */
     public void resetMotion() {
+        if (gyroWheelOdometry != null) gyroWheelOdometry.reset();
+        lastGyroWheelEstimate = null;
         if (motionObserver != null) motionObserver.reset();
     }
 
     /** Rebase position after validated native repair, preserving any unresolved motion fault. */
     public void resetMotion(Pose2d validatedPose) {
+        if (gyroWheelOdometry != null) gyroWheelOdometry.resetTo(validatedPose, clock.getAsDouble());
+        lastGyroWheelEstimate = null;
         if (motionObserver != null) {
             boolean headingChanged = Math.abs(validatedPose.getRotation()
                     .minus(motionObserver.state().pose().getRotation()).getRadians()) > 1e-6;
@@ -470,6 +578,8 @@ public final class PhysicsCore implements UncertainRobotStateSource {
 
     /** Seed a deliberately verified stationary auto start; not for an automatic camera reset. */
     public void seedMotionAtRest(Pose2d validatedPose) {
+        if (gyroWheelOdometry != null) gyroWheelOdometry.resetTo(validatedPose, clock.getAsDouble());
+        lastGyroWheelEstimate = null;
         if (motionObserver != null) motionObserver.seedAtRest(validatedPose, clock.getAsDouble());
     }
 
@@ -713,6 +823,8 @@ public final class PhysicsCore implements UncertainRobotStateSource {
         private double releaseDelaySeconds = 0.0;
         private double poseOutlierGateMeters = 1.0;
         private boolean motionObserverEnabled;
+        private Translation2d[] gyroWheelLocations;
+        private boolean gyroWheelOdometryControlsMotion;
         private boolean loggingEnabled = true;
         private boolean alertsEnabled = true;
 
@@ -741,6 +853,27 @@ public final class PhysicsCore implements UncertainRobotStateSource {
         /** Four-module convenience for {@link #kinematics(SwerveDriveKinematics, int)}. */
         public Builder kinematics(SwerveDriveKinematics kinematics) {
             return kinematics(kinematics, 4);
+        }
+
+        /**
+         * Opt-in robust encoder/gyro shadow odometry. Requires withMotionObserver(true) and the
+         * coherent update(sample, rawGyroHeading, modulePositions) overload on every new frame.
+         * Geometry must use the exact module order and metres from the odometry origin.
+         * Diagnostic-only by default; control requires separate explicit qualification/opt-in.
+         */
+        public Builder withGyroWheelOdometry(Translation2d... moduleLocations) {
+            if (moduleLocations == null) throw new IllegalArgumentException("module locations required");
+            this.gyroWheelLocations = moduleLocations.clone();
+            return this;
+        }
+
+        /**
+         * Explicitly qualify gyro-wheel shadow pose for control. Default false keeps its results
+         * diagnostic-only; verify native signal timing and changing-steering integration first.
+         */
+        public Builder withGyroWheelOdometryControl(boolean enabled) {
+            this.gyroWheelOdometryControlsMotion = enabled;
+            return this;
         }
 
         /** Where the pose comes from, e.g. {@code drive::getPose}. Required for {@link #update()}. */
