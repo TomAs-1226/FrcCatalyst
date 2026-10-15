@@ -87,6 +87,7 @@ public class FlywheelMechanism extends CatalystMechanism {
                 .currentLimit(config.currentLimit)
                 .statorCurrentLimit(config.statorCurrentLimit)
                 .gearRatio(config.gearRatio)
+                .useFocControl(config.useFoc)
                 .pid(config.kP, config.kI, config.kD)
                 .feedforward(config.kS, config.kV, config.kA)
                 .torqueCurrentLimits(config.peakForwardTorqueCurrent, config.peakReverseTorqueCurrent);
@@ -108,7 +109,8 @@ public class FlywheelMechanism extends CatalystMechanism {
                     .gearRatio(config.gearRatio)
                     .pid(config.kP, config.kI, config.kD)
                     .feedforward(config.kS, config.kV, config.kA)
-                    .torqueCurrentLimits(config.peakForwardTorqueCurrent, config.peakReverseTorqueCurrent);
+                    .torqueCurrentLimits(config.peakForwardTorqueCurrent, config.peakReverseTorqueCurrent)
+                    .useFocControl(config.useFoc);
             for (FollowerSpec spec : config.secondaryFollowers) {
                 secondaryBuilder.withFollower(spec.canId(), spec.oppose());
             }
@@ -462,6 +464,7 @@ public class FlywheelMechanism extends CatalystMechanism {
         final boolean secondaryInverted;
         final MotorType motorType;
         final double gearRatio;
+        final boolean useFoc;
         final double moi;
         final double currentLimit;
         final double statorCurrentLimit;
@@ -483,6 +486,7 @@ public class FlywheelMechanism extends CatalystMechanism {
             this.secondaryInverted = b.secondaryInverted;
             this.motorType = b.motorType;
             this.gearRatio = b.gearRatio;
+            this.useFoc = b.useFoc;
             this.moi = b.moi;
             this.currentLimit = b.currentLimit;
             this.statorCurrentLimit = b.statorCurrentLimit;
@@ -509,6 +513,7 @@ public class FlywheelMechanism extends CatalystMechanism {
             private boolean secondaryInverted = false;
             private MotorType motorType = MotorType.KRAKEN_X60;
             private double gearRatio = 1.0;
+            private boolean useFoc = true;
             private double moi = 0.01; // kg*m^2
             private double currentLimit = 60;
             private double statorCurrentLimit = 120;
@@ -567,6 +572,7 @@ public class FlywheelMechanism extends CatalystMechanism {
             /** Set the motor type for accurate simulation (default: Kraken X60). */
             public Builder motorType(MotorType type) { this.motorType = type; return this; }
             public Builder gearRatio(double ratio) { this.gearRatio = ratio; return this; }
+            public Builder useFoc(boolean useFoc) { this.useFoc = useFoc; return this; }
 
             /** Moment of inertia in kg*m^2 (for simulation). */
             public Builder moi(double kgm2) { this.moi = kgm2; return this; }
