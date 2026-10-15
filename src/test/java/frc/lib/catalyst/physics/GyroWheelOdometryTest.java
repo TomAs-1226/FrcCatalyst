@@ -33,6 +33,19 @@ class GyroWheelOdometryTest {
         Estimate baseline() {
             return odometry.update(timestamp, nativePose, new Rotation2d(rawHeading), modules);
         }
+        Estimate baselineForTwist(double dx, double dy, double dtheta) {
+            for (int i = 0; i < 4; i++) {
+                double x = dx - dtheta * LOCATIONS[i].getY();
+                double y = dy + dtheta * LOCATIONS[i].getX();
+                modules[i] = new SwerveModulePosition(distances[i], new Rotation2d(x, y));
+            }
+            return baseline();
+        }
+        /** Steers physically while stopped, before a later interval at a new constant body twist. */
+        Estimate steerForTwist(double dx, double dy, double dtheta) {
+            timestamp += .02;
+            return baselineForTwist(dx, dy, dtheta);
+        }
         Estimate step(double dt, double dx, double dy, double dtheta, double... errors) {
             for (int i = 0; i < 4; i++) {
                 double x = dx - dtheta * LOCATIONS[i].getY();
@@ -69,7 +82,7 @@ class GyroWheelOdometryTest {
 
     @Test void coherentTranslationAndRotationUseSe2RatherThanFieldEulerIntegration() {
         var rig = new Rig();
-        rig.baseline();
+        rig.baselineForTwist(.04, .01, .025);
         Pose2d expected = Pose2d.ZERO;
         for (int i = 0; i < 30; i++) {
             Estimate result = rig.step(.02, .04, .01, .025);
@@ -150,7 +163,7 @@ class GyroWheelOdometryTest {
     @Test void wrappedRawGyroUsesTheShortMatchedHeadingInterval() {
         var rig = new Rig();
         rig.rawHeading = Math.PI - .01;
-        rig.baseline();
+        rig.baselineForTwist(.02, 0, .02);
         rig.step(.02, .02, 0, .02);
         // Feed the identical captured angle using the other +/-pi representation.
         rig.rawHeading -= 2 * Math.PI;
@@ -229,6 +242,7 @@ class GyroWheelOdometryTest {
         assertTrue(baseline.valid());
         assertFalse(baseline.initializedVelocity());
         poseEquals(reset, baseline.pose());
+        rig.steerForTwist(.02, 0, .01);
         Estimate moved = rig.step(.02, .02, 0, .01);
         assertTrue(moved.initializedVelocity());
         poseEquals(reset.plus(new Twist2d(.02, 0, .01).exp()), moved.pose());
@@ -244,6 +258,7 @@ class GyroWheelOdometryTest {
         poseEquals(new Pose2d(.02, 0, Rotation2d.ZERO), gap.pose());
         assertFalse(rig.odometry.observe(new PoseObservation(
                 new Pose2d(.1, 0, Rotation2d.ZERO), .1, .1, "camera")));
+        rig.steerForTwist(.02, 0, .01);
         Estimate next = rig.step(.02, .02, 0, .01);
         assertTrue(next.valid());
         poseEquals(new Pose2d(.02, 0, Rotation2d.ZERO).plus(new Twist2d(.02, 0, .01).exp()), next.pose());
@@ -283,7 +298,7 @@ class GyroWheelOdometryTest {
         var odometry = new GyroWheelOdometry(locations);
         locations[0] = new Translation2d(100, 100);
         var rig = new Rig(odometry);
-        rig.baseline();
+        rig.baselineForTwist(.02, 0, .02);
         Estimate result = rig.step(.02, .02, 0, .02);
         assertTrue(result.valid());
         assertEquals(4, result.inliers());
@@ -330,6 +345,7 @@ class GyroWheelOdometryTest {
         assertTrue(baseline.valid());
         assertFalse(baseline.initializedVelocity());
         assertFalse(rig.odometry.observe(new PoseObservation(Pose2d.ZERO, .02, .1, "camera")));
+        rig.steerForTwist(.02, 0, .01);
         Estimate next = rig.step(.02, .02, 0, .01);
         poseEquals(new Pose2d(7, 3, new Rotation2d(.4)).plus(new Twist2d(.02, 0, .01).exp()), next.pose());
         assertTrue(next.initializedVelocity());

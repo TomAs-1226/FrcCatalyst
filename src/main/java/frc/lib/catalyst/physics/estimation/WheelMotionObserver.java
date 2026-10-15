@@ -46,6 +46,7 @@ public final class WheelMotionObserver {
     private double referenceTime = Double.NaN;
     private double lastVelocityFix = Double.NEGATIVE_INFINITY;
     private double anchorTimestamp = Double.NaN;
+    private double lastValidNativeTimestamp = Double.NaN;
 
     public State state() { return state; }
 
@@ -62,6 +63,7 @@ public final class WheelMotionObserver {
         if (a != null && !available) return invalidate(t, "invalid accelerometer sample");
         if (state.mode() == Mode.UNINITIALIZED || lastNativePose == null) {
             lastNativePose = nativePose;
+            lastValidNativeTimestamp = t;
             lastWheels = wheels;
             inertialReferenceVelocity = wheels;
             referenceTime = t;
@@ -76,6 +78,7 @@ public final class WheelMotionObserver {
         double dt = t - state.timestampSeconds();
         // Repeated frames do not integrate twice or manufacture a fresh measurement.
         if (dt == 0) return state;
+        if (dt > 0) lastValidNativeTimestamp = t;
         if (!(dt > 0 && dt <= MAX_GAP_S + 1e-9)) {
             if (dt > 0) {
                 // Fresh measurements after a gap remain measurements, not a velocity anchor.
@@ -160,6 +163,7 @@ public final class WheelMotionObserver {
     }
 
     private State invalidateFrom(double timestamp, String reason, double uncertainSince) {
+        lastValidNativeTimestamp = Double.NaN;
         double t = Double.isFinite(timestamp) ? Math.max(timestamp, state.timestampSeconds())
                 : state.timestampSeconds();
         if (!Double.isFinite(t)) t = Double.isFinite(timestamp) ? timestamp : 0;
@@ -197,6 +201,38 @@ public final class WheelMotionObserver {
         candidateSince = severeSince = Double.NaN;
         inertialReferenceVelocity = lastWheels;
         referenceTime = state.timestampSeconds();
+        return true;
+    }
+
+    /**
+     * Transactional automatic repair from a held-out, post-fault camera trajectory. Native pose
+     * must already agree through its existing fusion; this never resets it or adopts camera yaw.
+     * Wheel velocity is a consistency check, not an independent second absolute measurement.
+     */
+    public boolean tryRecoverFromVision(VisionPoseRecovery.Evidence evidence) {
+        if (evidence == null || !state.requiresAbsoluteFix() || lastNativePose == null
+                || !Double.isFinite(lastValidNativeTimestamp)
+                || lastValidNativeTimestamp != state.timestampSeconds()
+                || evidence.timestampSeconds() != lastValidNativeTimestamp
+                || evidence.faultEpoch() != state.faultTimestampSeconds()
+                || evidence.validAfterTimestampSeconds() < state.faultTimestampSeconds()
+                || evidence.firstCaptureTimestampSeconds() <= evidence.validAfterTimestampSeconds()
+                || evidence.captureTimestampSeconds() > lastValidNativeTimestamp
+                || lastValidNativeTimestamp - evidence.captureTimestampSeconds() > .12) return false;
+        double positionSigma = evidence.positionStdDevMeters();
+        double velocitySigma = evidence.velocityStdDevMps();
+        if (!finite(positionSigma, velocitySigma) || positionSigma <= 0 || velocitySigma <= 0
+                || evidence.pose().getTranslation().getDistance(lastNativePose.getTranslation())
+                        + 2 * positionSigma > FIX_AGREEMENT_M
+                || evidence.fieldVelocity().minus(lastWheels).getNorm()
+                        + 2 * velocitySigma > CANDIDATE_ERROR_MPS) return false;
+        // All gates passed before mutating either the inertial reference or the anchor.
+        inertialReferenceVelocity = evidence.fieldVelocity();
+        referenceTime = lastVelocityFix = lastValidNativeTimestamp;
+        candidateSince = severeSince = Double.NaN;
+        state = new State(lastNativePose, lastWheels, Mode.ROLLING, false,
+                state.accelerationAvailable(), lastValidNativeTimestamp, Double.NaN, 0,
+                state.rejectedWheelTravelMeters(), "post-fault camera trajectory and current native motion agree");
         return true;
     }
 
@@ -242,6 +278,7 @@ public final class WheelMotionObserver {
         boolean acceleration = state.accelerationAvailable();
         Mode oldMode = state.mode();
         lastNativePose = pose;
+        lastValidNativeTimestamp = Double.NaN;
         inertialReferenceVelocity = velocity;
         referenceTime = anchorTimestamp = timestamp;
         if (!faulted) candidateSince = severeSince = Double.NaN;
@@ -265,7 +302,7 @@ public final class WheelMotionObserver {
         lastWheels = inertialReferenceVelocity = Translation2d.ZERO;
         referenceTime = Double.NaN;
         lastVelocityFix = Double.NEGATIVE_INFINITY;
-        anchorTimestamp = Double.NaN;
+        anchorTimestamp = lastValidNativeTimestamp = Double.NaN;
     }
 
     private static boolean finite(double... values) {

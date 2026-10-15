@@ -11,6 +11,13 @@ Autonomy 2.1 (shared control), and two drive fixes a robot on the Red alliance n
 
 ### Fixed
 
+- Added default-off camera-trajectory recovery for latched native/IMU motion faults. Held-out
+  endpoint-velocity evidence, fresh native consistency and persistent event cutoffs prevent
+  wheelspin, stale frames or position-only fixes from automatically clearing uncertainty.
+- Corrected diagnostic gyro-wheel integration during steering changes with signed finite arc
+  chords and exact rotational displacement. Consensus gates remain unchanged; timing/reversal
+  aliases and physical mounting still require qualification before control opt-in.
+
 - Added diagnostic-by-default gyro-constrained cumulative-wheel shadow odometry with unique three-module consensus,
   SE(2) integration and bounded capture-time weighted translation corrections. Corrected position
   persists through wheel recovery. Native pose and legacy clients retain their contracts; common

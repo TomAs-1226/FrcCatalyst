@@ -6,6 +6,7 @@ import java.util.Optional;
 import org.wpilib.math.geometry.Pose2d;
 import org.wpilib.math.geometry.Rotation2d;
 import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.geometry.Transform2d;
 import org.wpilib.math.geometry.Twist2d;
 import org.wpilib.math.kinematics.ChassisVelocities;
 import org.wpilib.math.kinematics.SwerveModulePosition;
@@ -14,15 +15,23 @@ import frc.lib.catalyst.physics.observation.PoseObservation;
 /**
  * Opt-in shadow odometry using matched cumulative wheel-distance and raw-gyro intervals.
  * Never writes the native drivetrain pose. A unique, mutually consistent set of at least three
- * modules determines the center twist; this tolerates one disagreeing module on a four-module
+ * modules determines the finite center displacement; this tolerates one disagreeing module on a four-module
  * chassis. Wheel agreement is NOT independent ground-motion evidence: common wheelspin remains
  * indistinguishable from travel here and requires the separate motion-integrity observer.
  *
  * <p>Module locations and angles must share the configured robot frame, with gyro CCW positive.
  * Distances, steering angles and raw heading must belong to the same captured sensor frame.
- * Like standard incremental swerve odometry, each distance increment uses its ending steering
- * angle; steering motion within an interval is not reconstructed. No mounting or friction model
- * is inferred. Calls must be serialized by the owner.
+ * Signed wheel travel is integrated over the shortest start-to-end wheel direction in the starting
+ * robot frame, including the gyro rotation. This assumes constant signed wheel speed and linearly
+ * changing total wheel heading within each small interval; higher-rate acquisition is necessary
+ * when those assumptions change. A drive-speed reversal during changing steer, a full unseen turn,
+ * or arbitrary within-interval acceleration cannot be reconstructed from endpoints alone. An exact
+ * half-turn is rejected because its direction is ambiguous. Use measured physical azimuths, never
+ * optimized target angles. No mounting or friction model is inferred. Calls must be serialized.
+ *
+ * <p>This pure class cannot verify per-signal acquisition latency from a packet timestamp. The owner
+ * must align measured capture times/status before calling, retain high-rate intervals instead of
+ * downsampling them, and report queue loss/gaps. It performs no extrapolation or latency guessing.
  */
 public final class GyroWheelOdometry {
     /** Capture-time disagreement before weighting; acceptance alone does not certify shot accuracy. */
@@ -32,7 +41,8 @@ public final class GyroWheelOdometry {
      * Immutable result. Valid means a usable wheel/gyro interval, not independent traction truth.
      * The initial/reset baseline is valid but has initializedVelocity=false; its zero velocity is
      * unavailable, not a stationary measurement. rejectedModule is -1 unless exactly one is excluded.
-     * residualMeters is the largest inlier distance from the fitted center displacement.
+     * residualMeters is the largest inlier distance from the fitted finite center displacement.
+     * robotRelativeVelocity is log(finiteTransform)/dt: an interval mean, not endpoint shooting lead.
      */
     public record Estimate(Pose2d pose, ChassisVelocities robotRelativeVelocity,
             double timestamp, int inliers, int rejectedModule, double residualMeters,
@@ -57,6 +67,7 @@ public final class GyroWheelOdometry {
     private final List<Frame> history = new ArrayList<>();
     private Pose2d pose = Pose2d.ZERO;
     private double[] previousDistances;
+    private Rotation2d[] previousAngles;
     private Rotation2d previousHeading;
     private double previousTimestamp;
     private double resetTimestamp = Double.NEGATIVE_INFINITY;
@@ -149,13 +160,33 @@ public final class GyroWheelOdometry {
         }
         double headingDelta = Math.IEEEremainder(
                 rawGyroHeading.getRadians() - previousHeading.getRadians(), 2 * Math.PI);
+        if (ambiguousHalfTurn(headingDelta)) {
+            capture(timestamp, rawGyroHeading, modulePositions);
+            history.clear();
+            append(timestamp);
+            return held(timestamp, "ambiguous half-turn gyro interval");
+        }
+        Rotation2d gyroRotation = new Rotation2d(headingDelta);
         Translation2d[] centers = new Translation2d[locations.length];
         for (int i = 0; i < locations.length; i++) {
             double distance = modulePositions[i].distance - previousDistances[i];
-            double x = distance * modulePositions[i].angle.getCos()
-                    + headingDelta * locations[i].getY();
-            double y = distance * modulePositions[i].angle.getSin()
-                    - headingDelta * locations[i].getX();
+            double steerDelta = Math.IEEEremainder(modulePositions[i].angle.getRadians()
+                    - previousAngles[i].getRadians(), 2 * Math.PI);
+            if (ambiguousHalfTurn(steerDelta)) {
+                capture(timestamp, rawGyroHeading, modulePositions);
+                history.clear();
+                append(timestamp);
+                return held(timestamp, "ambiguous half-turn steering interval");
+            }
+            // Integrate signed wheel travel in the START robot frame. Under the stated interval
+            // model, integral u(alpha0 + (deltaSteer+deltaGyro)*t/dt) ds is a finite arc chord.
+            double halfSweep = (steerDelta + headingDelta) / 2;
+            double chord = distance * sinc(halfSweep);
+            double direction = previousAngles[i].getRadians() + halfSweep;
+            // A module's own finite circular displacement is (R(deltaGyro)-I)*r, not deltaGyro*J*r.
+            Translation2d rotationTravel = locations[i].rotateBy(gyroRotation).minus(locations[i]);
+            double x = chord * Math.cos(direction) - rotationTravel.getX();
+            double y = chord * Math.sin(direction) - rotationTravel.getY();
             if (!finite(x, y)) {
                 capture(timestamp, rawGyroHeading, modulePositions);
                 history.clear();
@@ -181,8 +212,13 @@ public final class GyroWheelOdometry {
         Translation2d center = new Translation2d(dx, dy);
         double residual = 0;
         for (int i : consensus.best) residual = Math.max(residual, centers[i].getDistance(center));
-        Pose2d integrated = pose.plus(new Twist2d(dx, dy, headingDelta).exp());
-        ChassisVelocities velocity = new ChassisVelocities(dx / dt, dy / dt, headingDelta / dt);
+        // dx/dy is already a finite displacement, not a body twist: exponentiating it again would
+        // rotate/shorten the translation twice. Compose the actual SE(2) transform directly.
+        Transform2d transform = new Transform2d(center, gyroRotation);
+        Pose2d integrated = pose.plus(transform);
+        Twist2d intervalTwist = transform.log();
+        ChassisVelocities velocity = new ChassisVelocities(
+                intervalTwist.dx / dt, intervalTwist.dy / dt, headingDelta / dt);
         if (!validPose(integrated) || !finite(velocity.vx, velocity.vy, velocity.omega)) {
             history.clear();
             append(timestamp);
@@ -263,6 +299,7 @@ public final class GyroWheelOdometry {
         anchored = true;
         resetTimestamp = now;
         previousDistances = null;
+        previousAngles = null;
         initialBaseline = true;
         history.clear();
         lastObservationTimestamp = Double.NEGATIVE_INFINITY;
@@ -279,6 +316,7 @@ public final class GyroWheelOdometry {
     public void reset() {
         pose = Pose2d.ZERO;
         previousDistances = null;
+        previousAngles = null;
         previousHeading = null;
         previousTimestamp = Double.NaN;
         resetTimestamp = Double.NEGATIVE_INFINITY;
@@ -301,7 +339,11 @@ public final class GyroWheelOdometry {
         previousTimestamp = timestamp;
         previousHeading = heading;
         previousDistances = new double[modules.length];
-        for (int i = 0; i < modules.length; i++) previousDistances[i] = modules[i].distance;
+        previousAngles = new Rotation2d[modules.length];
+        for (int i = 0; i < modules.length; i++) {
+            previousDistances[i] = modules[i].distance;
+            previousAngles[i] = modules[i].angle;
+        }
     }
 
     private boolean validModules(SwerveModulePosition[] modules) {
@@ -351,6 +393,19 @@ public final class GyroWheelOdometry {
     private static boolean finite(double... values) {
         for (double value : values) if (!Double.isFinite(value)) return false;
         return true;
+    }
+
+    private static boolean ambiguousHalfTurn(double angle) {
+        return Double.isFinite(angle) && Math.abs(angle) >= Math.PI - 1e-9;
+    }
+
+    /** Stable sin(x)/x, including near-zero steering/gyro sweeps. */
+    private static double sinc(double value) {
+        if (Math.abs(value) < 1e-4) {
+            double squared = value * value;
+            return 1 - squared / 6 + squared * squared / 120;
+        }
+        return Math.sin(value) / value;
     }
 
     private static ChassisVelocities copy(ChassisVelocities value) {

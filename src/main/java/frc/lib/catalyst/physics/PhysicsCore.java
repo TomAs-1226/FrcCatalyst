@@ -126,6 +126,9 @@ public final class PhysicsCore implements UncertainRobotStateSource {
     private final frc.lib.catalyst.physics.estimation.WheelMotionObserver motionObserver;
     private final frc.lib.catalyst.physics.estimation.GyroWheelOdometry gyroWheelOdometry;
     private final boolean gyroWheelOdometryControlsMotion;
+    private final frc.lib.catalyst.physics.estimation.VisionPoseRecovery visionRecovery;
+    private long visionRecoveryCount;
+    private String recoveryWhy = "disabled";
     private frc.lib.catalyst.physics.estimation.GyroWheelOdometry.Estimate lastGyroWheelEstimate;
     private final StatePredictor predictor;
     private final LaunchStatePredictor launchPredictor;
@@ -206,6 +209,10 @@ public final class PhysicsCore implements UncertainRobotStateSource {
         if (builder.gyroWheelOdometryControlsMotion && gyroWheelOdometry == null)
             throw new IllegalArgumentException("gyro wheel control requires module geometry");
         this.gyroWheelOdometryControlsMotion = builder.gyroWheelOdometryControlsMotion;
+        if (builder.visionRecoveryEnabled && (motionObserver == null || gyroWheelOdometryControlsMotion))
+            throw new IllegalArgumentException("vision recovery requires native motion observer control");
+        this.visionRecovery = builder.visionRecoveryEnabled
+                ? new frc.lib.catalyst.physics.estimation.VisionPoseRecovery(builder.recoveryMaxSpeedMps) : null;
 
         this.predictor = StatePredictor.withDefaults();
         this.launchPredictor = new LaunchStatePredictor(builder.releaseDelaySeconds);
@@ -281,7 +288,7 @@ public final class PhysicsCore implements UncertainRobotStateSource {
         if (sample.hasModuleVelocities()) sawModuleVelocities = true;
 
         if (gyroWheelOdometryControlsMotion && !finiteSample(sample)) {
-            motionObserver.invalidate(sample.timestampSeconds(), "invalid motion sample");
+            invalidateMotion(sample.timestampSeconds(), "invalid motion sample");
             if (loggingEnabled) publish(state());
             return state();
         }
@@ -315,6 +322,11 @@ public final class PhysicsCore implements UncertainRobotStateSource {
                     ? motionObserver.invalidate(sample.timestampSeconds(), wheels == null
                             ? "missing gyro/wheel position sample" : wheels.reason())
                     : motionObserver.update(motionSample, gyroWheelOdometryControlsMotion && wheelConsensus ? 0 : slipFactor);
+            if (visionRecovery != null && (motion.reason().startsWith("invalid ")
+                    || motion.reason().equals("motion sampling gap"))) {
+                visionRecovery.invalidateBefore(Double.isFinite(sample.timestampSeconds())
+                        ? sample.timestampSeconds() : clock.getAsDouble());
+            }
             if (motion.reason().startsWith("invalid ") || sample.timestampSeconds() < motion.timestampSeconds()) {
                 // Do not poison the legacy state with a NaN pose/rate/acceleration. Freshness stays
                 // at the last valid measurement; the observer reports the unresolved fault.
@@ -346,6 +358,23 @@ public final class PhysicsCore implements UncertainRobotStateSource {
                 motionSample.robotRelativeSpeeds(), sample.moduleStates(),
                 sample.robotRelativeAcceleration(), motionSample.yawRateRadPerSec());
         Optional<CollisionEvent> collision = updateDiagnostics(diagnosticSample, updated);
+        if (visionRecovery != null) {
+            // A new impact invalidates even an already-faulted window. Delayed pre-impact
+            // captures cannot refill it through the older fault epoch.
+            collision.ifPresent(event -> visionRecovery.invalidateBefore(event.timestampSeconds()));
+            var evidence = visionRecovery.evidenceAt(sample.timestampSeconds(), motionObserver.state().faultTimestampSeconds());
+            recoveryWhy = visionRecovery.reason();
+            double nativeAge = clock.getAsDouble() - sample.timestampSeconds();
+            boolean freshNative = Double.isFinite(nativeAge) && nativeAge >= 0 && nativeAge <= .035;
+            if (evidence.isPresent() && freshNative) {
+                if (motionObserver.tryRecoverFromVision(evidence.get())) {
+                    visionRecoveryCount++;
+                    estimator.recordAbsoluteFix(evidence.get().captureTimestampSeconds());
+                    visionRecovery.invalidateBefore(sample.timestampSeconds());
+                    recoveryWhy = "recovered from qualified camera trajectory";
+                } else recoveryWhy = "camera trajectory ready; current native pose/velocity do not agree";
+            }
+        }
         if (motionObserver != null && !motionObserver.state().usable()) slipFactor = Math.max(slipFactor, .5);
         analysis = buildAnalysis(state(), slipFactor, collision);
 
@@ -443,6 +472,24 @@ public final class PhysicsCore implements UncertainRobotStateSource {
         }
         return true;
     }
+
+    /**
+     * Qualified real-camera recovery input, separate from ordinary confidence observations and
+     * simulation adapters. Call only after camera/field/spin checks AND normal native fusion.
+     * A sequence can repair a fault only in a later fresh native update, never in this call.
+     */
+    public boolean observeRecoveryPose(PoseObservation observation) {
+        if (visionRecovery == null || !motionObserver.state().requiresAbsoluteFix()) return false;
+        boolean accepted = visionRecovery.observe(observation, clock.getAsDouble(),
+                motionObserver.state().faultTimestampSeconds());
+        recoveryWhy = visionRecovery.reason();
+        return accepted;
+    }
+
+    public boolean visionRecoveryEnabled() { return visionRecovery != null; }
+    public long visionRecoveryCount() { return visionRecoveryCount; }
+    public int visionRecoverySamples() { return visionRecovery == null ? 0 : visionRecovery.sampleCount(); }
+    public String visionRecoveryReason() { return recoveryWhy; }
 
     // ===========================================
     //                  OUTPUTS
@@ -548,10 +595,13 @@ public final class PhysicsCore implements UncertainRobotStateSource {
     /** Call when native data are stale/invalid; this never alters drivetrain control or DS enable. */
     public void invalidateMotion(double timestampSeconds, String reason) {
         if (motionObserver != null) motionObserver.invalidate(timestampSeconds, reason);
+        if (visionRecovery != null) visionRecovery.invalidateBefore(Double.isFinite(timestampSeconds)
+                ? timestampSeconds : clock.getAsDouble());
     }
 
     /** Called only after the caller deliberately validates and resets its native pose. */
     public void resetMotion() {
+        if (visionRecovery != null) visionRecovery.invalidateBefore(clock.getAsDouble());
         if (gyroWheelOdometry != null) gyroWheelOdometry.reset();
         lastGyroWheelEstimate = null;
         if (motionObserver != null) motionObserver.reset();
@@ -559,6 +609,7 @@ public final class PhysicsCore implements UncertainRobotStateSource {
 
     /** Rebase position after validated native repair, preserving any unresolved motion fault. */
     public void resetMotion(Pose2d validatedPose) {
+        if (visionRecovery != null) visionRecovery.invalidateBefore(clock.getAsDouble());
         if (gyroWheelOdometry != null) gyroWheelOdometry.resetTo(validatedPose, clock.getAsDouble());
         lastGyroWheelEstimate = null;
         if (motionObserver != null) {
@@ -578,6 +629,7 @@ public final class PhysicsCore implements UncertainRobotStateSource {
 
     /** Seed a deliberately verified stationary auto start; not for an automatic camera reset. */
     public void seedMotionAtRest(Pose2d validatedPose) {
+        if (visionRecovery != null) visionRecovery.invalidateBefore(clock.getAsDouble());
         if (gyroWheelOdometry != null) gyroWheelOdometry.resetTo(validatedPose, clock.getAsDouble());
         lastGyroWheelEstimate = null;
         if (motionObserver != null) motionObserver.seedAtRest(validatedPose, clock.getAsDouble());
@@ -823,6 +875,8 @@ public final class PhysicsCore implements UncertainRobotStateSource {
         private double releaseDelaySeconds = 0.0;
         private double poseOutlierGateMeters = 1.0;
         private boolean motionObserverEnabled;
+        private boolean visionRecoveryEnabled;
+        private double recoveryMaxSpeedMps = 8;
         private Translation2d[] gyroWheelLocations;
         private boolean gyroWheelOdometryControlsMotion;
         private boolean loggingEnabled = true;
@@ -864,6 +918,19 @@ public final class PhysicsCore implements UncertainRobotStateSource {
         public Builder withGyroWheelOdometry(Translation2d... moduleLocations) {
             if (moduleLocations == null) throw new IllegalArgumentException("module locations required");
             this.gyroWheelLocations = moduleLocations.clone();
+            return this;
+        }
+
+        /** Optional camera-sequence recovery. Off by default; never alters native pose or DS enable. */
+        public Builder withVisionRecovery(boolean enabled) {
+            this.visionRecoveryEnabled = enabled;
+            return this;
+        }
+
+        /** Physical endpoint-speed envelope for recovery modelling, in metres per second. */
+        public Builder recoveryMaxSpeedMps(double speed) {
+            if (!Double.isFinite(speed) || speed <= 0) throw new IllegalArgumentException("positive speed required");
+            this.recoveryMaxSpeedMps = speed;
             return this;
         }
 

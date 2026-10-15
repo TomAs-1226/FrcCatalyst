@@ -867,3 +867,45 @@ intervals. Ending-angle quadrature and per-signal timing require further qualifi
 widen rejection thresholds merely to pass those scenarios. `gyroWheelOdometryControlsMotion()`
 exposes the actual policy. Explicit control integration is covered by deterministic fault tests,
 not a claim of native/physical changing-steering qualification.
+
+
+## Optional camera-trajectory motion recovery (alpha-7 source candidate)
+
+Use `.withMotionObserver(true).withVisionRecovery(true)` to opt in; default is off. Supply only
+qualified real-camera captures through `observeRecoveryPose(PoseObservation)` after normal native
+fusion and camera/field/spin checks. Ordinary `observe()` calls do not populate recovery evidence.
+This option requires native motion control, and cannot be combined with experimental gyro-wheel
+control. `recoveryMaxSpeedMps(value)` sets the physical endpoint-speed envelope (default8m/s).
+
+The bounded two-second/48-capture trajectory uses normalized-time quadratic fitting and a newest
+held-out frame. It estimates endpoint velocity with model covariance, an uncertainty floor and an
+effective-sample cap. It checks source/epoch, freshness, fit residuals and model limits; weak data
+can remain insufficient indefinitely. The model is not calibrated statistical accuracy. Capture
+identity must represent a physical source; a generic shared label does not isolate future cameras.
+
+Recovery happens only in a fresh native update, after current camera position/velocity agree with
+native translation/current wheel velocity including uncertainty margins. It retains native gyro
+heading and never writes drivetrain pose. Motion may recover while actually moving; no stationary
+state is invented. Continued wheelspin or large native disagreement stays blocked. Native fused
+pose shares camera evidence and is a consistency check, not another independent absolute sensor.
+
+Invalid native/acceleration intervals, sampling gaps, impacts and explicit resets invalidate older
+captures even when the original fault epoch persists. Owner-clock age must also be <=35ms: mutually
+stale native/camera timestamps cannot appear fresh merely because they match one another. Model
+position, endpoint velocity and uncertainty are projected to the same native capture epoch.
+
+Read `visionRecoveryEnabled()`, `visionRecoveryCount()`, `visionRecoverySamples()` and
+`visionRecoveryReason()`. Recovery does not alter driver control, DS enable, caller auto deadlines,
+path clearance or shot protections. A single pose reset still cannot certify velocity. Camera loss
+still bounds absolute observability; independent ground sensing is needed for sustained slip-aware
+motion without camera fixes. Mount yaw, lever arm and contact behavior require hardware checks.
+
+### Finite changing-steering intervals
+
+The diagnostic gyro-wheel model now integrates signed travel through measured steering plus gyro
+sweep using a finite arc chord, subtracts `(R(deltaYaw)-I)*moduleLocation`, and composes that finite
+transform directly. It retains the original three-module consensus thresholds. Interval mean
+velocity remains diagnostic; current instantaneous native velocity supplies control/shot lead.
+This supersedes the ending-angle approximation described earlier. Exact half-turn aliases reject;
+within-interval speed reversals and unknown per-signal timing remain qualification limits. The
+implementation and physically integrated regressions are original; no foreign source was copied.
