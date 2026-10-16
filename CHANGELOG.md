@@ -5,7 +5,20 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [2.0.0-rc.1] - 2026-10-16 - Alpha-7 release candidate 1
+
+This prerelease targets Java 25, WPILib `2027.0.0-alpha-7`, Phoenix
+`26.70.0-alpha-2` (26.70.x device firmware), LimelightLib `2.0.0-beta9-alpha7`,
+and Systemcore OS beta 14. Optional PathPlanner support targets
+`2027.0.0-alpha-4.1`. It is not a WPILib 2026/roboRIO drop-in.
+The launch poster spells the label `2.0.0-rc-1`; the source version is
+`2.0.0-rc.1` and the dependency tag is `v2.0.0-rc.1`.
+
+ARES 1.1 remains incremental multicamera work. The deferred ARES 2.0 localization
+prototype is excluded. Experimental physics and odometry paths are advisory or
+default-off and require hardware qualification. SoCal Showdown tested the team's
+prior competition build; it did not validate every new RC1 feature. Desktop tests
+do not establish physical shot accuracy, sensor mounting, or autonomous readiness.
 
 Autonomy 2.1 (shared control), and two drive fixes a robot on the Red alliance needs.
 
@@ -97,7 +110,7 @@ Autonomy 2.1 (shared control), and two drive fixes a robot on the Red alliance n
   `PhysicsConstraints.maxAccelerationMpsSq()` and a slammed stick becomes the hardest launch the
   carpet and the robot's stability allow, and no harder.
 
-## [2.0.0-rc.1] — 2026-09-25
+### Earlier RC1 preparation
 
 ### Added
 
