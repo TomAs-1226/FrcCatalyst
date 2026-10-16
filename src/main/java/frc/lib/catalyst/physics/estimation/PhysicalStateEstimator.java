@@ -195,6 +195,8 @@ public final class PhysicalStateEstimator {
             fusedAccel = Translation2d.ZERO;
             fusedAngularAccel = 0.0;
             lastDisagreement = 0.0;
+            // A rebased wheel velocity is a new estimate. Old external precision cannot certify it.
+            observedVelocityVariance = Double.NaN;
             accelX.reset();
             accelY.reset();
             angularAccel.reset();

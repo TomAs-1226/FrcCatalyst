@@ -95,12 +95,10 @@ public final class Autopilot {
         Command step = Commands.defer(() -> {
             double now = Timer.getTimestamp();
             int desired = safeSelect();
-            Action wanted = phases.get(Math.floorMod(desired, phases.size()));
-
-            // The precondition is evaluated here, guarded, and handed to CycleCore as a plain
-            // boolean - so the decision stays a pure function and a team's lambda that throws
-            // cannot take the co-pilot down with it.
-            CycleCore.Decision decision = cycle.decide(now, desired, safeCanStart(wanted));
+            // Dwell can retain a different phase from the desired one. Check the action actually
+            // adopted, before constructing its command, so an ineligible old phase stalls too.
+            CycleCore.Decision decision = cycle.decide(now, desired,
+                    phase -> safeCanStart(phases.get(phase)));
             Action chosen = phases.get(decision.phase());
 
             switch (decision.act()) {

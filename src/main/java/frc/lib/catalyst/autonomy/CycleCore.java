@@ -1,5 +1,7 @@
 package frc.lib.catalyst.autonomy;
 
+import java.util.function.IntPredicate;
+
 /**
  * Which phase of a repeating cycle a co-pilot should be in, and whether it may run it.
  *
@@ -70,11 +72,31 @@ public final class CycleCore {
     /**
      * Decide this loop.
      *
+     * <p>This compatibility overload knows only the desired phase's eligibility and assumes the
+     * retained phase remains eligible during dwell. Call {@link #decide(double, int, IntPredicate)}
+     * when the retained phase also has a prerequisite that can become false.
+     *
      * @param nowSeconds       monotonic seconds
      * @param desired          the phase the caller's own logic wants, e.g. "score, we are holding"
      * @param desiredCanStart  whether that phase's action can start, already evaluated and guarded
      */
     public Decision decide(double nowSeconds, int desired, boolean desiredCanStart) {
+        int want = Math.floorMod(desired, phaseCount);
+        return decide(nowSeconds, desired, adopted -> adopted != want || desiredCanStart);
+    }
+
+    /**
+     * Decide this loop using the eligibility of the phase actually adopted after dwell.
+     *
+     * <p>The predicate is evaluated once, after selecting the phase. The caller must guard any
+     * fallible team code inside it. A retained phase cannot bypass its prerequisite during dwell;
+     * its stall and handback clocks behave exactly as they do outside a phase transition.
+     *
+     * @param nowSeconds monotonic seconds
+     * @param desired the phase the caller's own logic wants
+     * @param canStart whether the supplied phase index can start
+     */
+    public Decision decide(double nowSeconds, int desired, IntPredicate canStart) {
         int want = Math.floorMod(desired, phaseCount);
 
         // Dwell. A change has to be asked for continuously; anything else resets the timer, so a
@@ -95,10 +117,8 @@ public final class CycleCore {
             pendingSince = Double.NaN;
         }
 
-        // Whether the phase we settled on can actually run. Note this is the *adopted* phase, which
-        // during a dwell is still the old one - and the caller evaluated canStart for the desired
-        // phase. They agree except in the dwell window, where holding the old phase is right anyway.
-        boolean canRun = phase == want ? desiredCanStart : true;
+        // Dwell retains the old phase, but does not grant it permission to bypass its prerequisite.
+        boolean canRun = canStart.test(phase);
 
         if (canRun) {
             stalledSince = Double.NaN;

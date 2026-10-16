@@ -70,21 +70,21 @@ public final class SystemCoreIMU implements CatalystIMU {
     /**
      * Use the IMU with a mount orientation and an explicit sensor-to-robot rotation.
      *
-     * <p>Supplying the rotation is what makes acceleration available on a board that is not mounted
-     * FLAT. Without it, {@link #getAcceleration()} returns empty for any other orientation rather
+     * <p>The optional rotation aligns a FLAT board with robot-forward within the horizontal XY
+     * plane. For vertical mounts, {@link #getAcceleration()} remains empty rather
      * than handing back a vector in the wrong frame — because that vector still contains gravity,
      * and {@link DualIMU} differences accelerations expecting gravity to cancel. It does not cancel,
      * and the leftover becomes a large constant angular acceleration that is not happening. On a
      * bench with a stationary robot that was measured at -1.89 rad/s².
      *
      * <p>Pass {@link Rotation2d#kZero} to say "the sensor frame is the robot frame" — which is what
-     * a FLAT board aligned with robot-forward means, and is also the way to keep readings flowing
-     * while deliberately tilting the hardware to test something.
+     * a FLAT board aligned with robot-forward means. LANDSCAPE/PORTRAIT need a measured full 3D
+     * transform, which this planar API does not represent; a yaw rotation cannot certify their raw axes.
      *
      * @param orientation   how the Systemcore is physically mounted; must match the Systemcore web
      *                      UI's setting
      * @param sensorToRobot rotation from the sensor's frame into the robot's, or null to have
-     *                      acceleration reported only when the mount is FLAT
+     *                      the unrotated horizontal frame; raw vectors are available only for FLAT
      */
     public SystemCoreIMU(OnboardIMU.MountOrientation orientation, Rotation2d sensorToRobot) {
         this.imu = new OnboardIMU(orientation);
@@ -120,9 +120,9 @@ public final class SystemCoreIMU implements CatalystIMU {
     /**
      * {@inheritDoc}
      *
-     * <p>Read off the sensor's Z axis, which is the robot's yaw axis only when the board is FLAT or
-     * a sensor-to-robot rotation has been given. On any other mount with no rotation supplied this
-     * is a pitch or roll rate wearing a yaw label, so it reports zero instead: this returns a
+     * <p>Read off the sensor's Z axis, which is the robot's yaw axis only when the board is FLAT.
+     * A supplied planar sensor-to-robot rotation does not change that axis. On a vertical mount,
+     * raw Z is a pitch or roll rate wearing a yaw label, so this reports zero instead: it returns a
      * primitive and has no way to say "unknown", and a plausible wrong rate is worse than a still
      * one. {@link #isYawRateTrustworthy()} says which of the two is being returned.
      */
@@ -134,9 +134,10 @@ public final class SystemCoreIMU implements CatalystIMU {
     /**
      * Whether {@link #getYawRate()} is measuring the robot's yaw axis.
      *
-     * <p>False when the board is mounted other than FLAT and nobody has said how it sits relative to
-     * the robot. {@link DualIMU} consults this before weighting this sensor's rate.
+     * <p>False for a vertical mount or a nonfinite planar rotation. {@link DualIMU} consults this
+     * before weighting this sensor's rate; supplying a yaw angle cannot remap vertical raw axes.
      */
+    @Override
     public boolean isYawRateTrustworthy() {
         return isFrameKnown();
     }
@@ -174,8 +175,9 @@ public final class SystemCoreIMU implements CatalystIMU {
     /**
      * Acceleration in the robot's XY plane, straight off the onboard accelerometer.
      *
-     * <p>Always present: the sensor is on the board and there is nothing to be absent. Reported in
-     * m/s² with gravity still in it, per the interface.
+     * <p>Available for a FLAT mount with a finite optional planar rotation. Vertical raw axes cannot
+     * be expressed through this planar adapter and return empty. Reported in m/s² with gravity
+     * still in it, per the interface.
      */
     // CONFIRMED ON HARDWARE, 2026-08-26. The system server publishes yaw and Euler angles once per
     // mount orientation - /imu/yaw_flat, /imu/yaw_landscape, /imu/yaw_portrait, and the three
@@ -205,11 +207,14 @@ public final class SystemCoreIMU implements CatalystIMU {
     /**
      * Whether the readings below can be put in the robot's frame at all.
      *
-     * <p>True when the board is FLAT — sensor and robot frames agree — or when a caller has supplied
-     * the rotation between them.
+     * <p>True only for a FLAT board and a finite optional in-plane rotation. Vertical raw vectors
+     * require a measured 3D transform and are unavailable through this planar adapter.
      */
     private boolean isFrameKnown() {
-        return sensorToRobot != null || orientation == OnboardIMU.MountOrientation.FLAT;
+        // Rotation2d only rotates a horizontal XY plane; it cannot remap a vertical sensor's XYZ.
+        // No vertical axis mapping is inferred from a yaw angle.
+        return orientation == OnboardIMU.MountOrientation.FLAT
+                && (sensorToRobot == null || Double.isFinite(sensorToRobot.getRadians()));
     }
 
     /** The underlying WPILib IMU, for acceleration and per-axis rates. */

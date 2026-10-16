@@ -110,6 +110,10 @@ public final class TaskArbiter {
                 skipped.add(new Skipped(c.name(), "cannot start"));
                 continue;
             }
+            if (Double.isNaN(c.score())) {
+                skipped.add(new Skipped(c.name(), "invalid score"));
+                continue;
+            }
             if (c.score() < minScore) {
                 skipped.add(new Skipped(c.name(),
                         String.format("scored %.2f, below the %.2f floor", c.score(), minScore)));

@@ -304,7 +304,7 @@ public class CatalystMotor {
 
     /** Set closed-loop position target in mechanism units. */
     public void setPosition(double position) {
-        motor.setControl(positionRequest.withPosition(position));
+        setPosition(position, 0.0);
     }
 
     /** Set closed-loop position target with arbitrary feedforward voltage. */
@@ -314,7 +314,7 @@ public class CatalystMotor {
 
     /** Set Motion Magic position target in mechanism units. */
     public void setMotionMagicPosition(double position) {
-        motor.setControl(motionMagicRequest.withPosition(position));
+        setMotionMagicPosition(position, 0.0);
     }
 
     /** Set Motion Magic position target with arbitrary feedforward voltage. */

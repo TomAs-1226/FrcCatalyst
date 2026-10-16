@@ -85,14 +85,20 @@ public final class FeedforwardIdentifier {
      * @param appliedVolts    voltage the motor actually applied, from the controller
      * @param velocity        mechanism velocity, in whatever units the gains are expressed in
      * @param acceleration    mechanism acceleration, in the matching units
-     * @return true if the sample was used; false if it was below the velocity deadband
+     * @return true if the sample was used; false if below the velocity deadband, non-finite,
+     *         or rejected by the fit because its update would be numerically unsafe
      */
     public boolean addSample(double appliedVolts, double velocity, double acceleration) {
         if (Math.abs(velocity) < velocityDeadband) {
             rejectedSamples++;
             return false;
         }
+        long before = fit.sampleCount();
         fit.add(regressors(velocity, acceleration), appliedVolts);
+        if (fit.sampleCount() == before) {
+            rejectedSamples++;
+            return false;
+        }
         return true;
     }
 
@@ -126,7 +132,7 @@ public final class FeedforwardIdentifier {
         return fit.sampleCount();
     }
 
-    /** How many samples were dropped for being below the velocity deadband. */
+    /** How many samples were dropped by the velocity deadband or invalid/unsafe fit input. */
     public long rejectedSampleCount() {
         return rejectedSamples;
     }

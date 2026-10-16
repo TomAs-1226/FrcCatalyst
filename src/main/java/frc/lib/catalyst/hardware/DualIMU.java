@@ -131,9 +131,10 @@ public final class DualIMU implements CatalystIMU {
      */
     @Override
     public double getYawRate() {
-        if (primaryRateWeight >= 1.0) {
+        if (primaryRateWeight >= 1.0 || !secondary.isYawRateTrustworthy()) {
             return primary.getYawRate();
         }
+        if (primaryRateWeight <= 0.0 || !primary.isYawRateTrustworthy()) return secondary.getYawRate();
         return primaryRateWeight * primary.getYawRate()
                 + (1.0 - primaryRateWeight) * secondary.getYawRate();
     }
@@ -160,22 +161,35 @@ public final class DualIMU implements CatalystIMU {
      *
      * @param primaryNoiseDegPerSec   standard deviation of the primary at rest
      * @param secondaryNoiseDegPerSec standard deviation of the secondary at rest
-     * @throws IllegalArgumentException if either figure is not positive — a noiseless sensor does not
+     * @throws IllegalArgumentException if either figure is nonfinite or not positive — a noiseless sensor does not
      *                                  exist, and treating one as noiseless silently discards the other
      */
     public DualIMU withYawRateNoise(double primaryNoiseDegPerSec, double secondaryNoiseDegPerSec) {
-        if (!(primaryNoiseDegPerSec > 0) || !(secondaryNoiseDegPerSec > 0)) {
+        if (!(primaryNoiseDegPerSec > 0) || !(secondaryNoiseDegPerSec > 0)
+                || !Double.isFinite(primaryNoiseDegPerSec) || !Double.isFinite(secondaryNoiseDegPerSec)) {
             throw new IllegalArgumentException(
                     "noise must be positive, got " + primaryNoiseDegPerSec
                             + " and " + secondaryNoiseDegPerSec);
         }
-        double p = 1.0 / (primaryNoiseDegPerSec * primaryNoiseDegPerSec);
-        double q = 1.0 / (secondaryNoiseDegPerSec * secondaryNoiseDegPerSec);
-        this.primaryRateWeight = p / (p + q);
+        // Compute using a ratio <= 1: raw squares overflow/underflow for valid finite sigmas.
+        if (primaryNoiseDegPerSec <= secondaryNoiseDegPerSec) {
+            double ratio = primaryNoiseDegPerSec / secondaryNoiseDegPerSec;
+            this.primaryRateWeight = 1.0 / (1.0 + ratio * ratio);
+        } else {
+            double ratio = secondaryNoiseDegPerSec / primaryNoiseDegPerSec;
+            this.primaryRateWeight = ratio * ratio / (1.0 + ratio * ratio);
+        }
         return this;
     }
 
-    /** How much of the yaw rate is coming from the primary, 0–1. One unless you changed it. */
+    @Override
+    public boolean isYawRateTrustworthy() {
+        if (primaryRateWeight >= 1.0 || !secondary.isYawRateTrustworthy())
+            return primary.isYawRateTrustworthy();
+        return primary.isYawRateTrustworthy() || secondary.isYawRateTrustworthy();
+    }
+
+    /** Configured primary weight, 0–1. An unavailable secondary is excluded at read time. */
     public double primaryYawRateWeight() {
         return primaryRateWeight;
     }

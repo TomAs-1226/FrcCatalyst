@@ -71,27 +71,27 @@ public final class TunableGains {
      * comparisons.
      */
     public void checkAndApply(CatalystMotor motor) {
+        checkAndApply(new CatalystMotor[] {motor});
+    }
+
+    /** Re-apply one snapshot of changed gains to all independently controlled motors. */
+    public void checkAndApply(CatalystMotor... motors) {
+        if (motors.length == 0) return;
+        // hasChanged consumes its watermark. Poll once, then fan out; polling separately per motor
+        // consumed the edit on the primary and silently left a dual flywheel's secondary unchanged.
         boolean slotChanged = kP.hasChanged() | kI.hasChanged() | kD.hasChanged()
                 | kS.hasChanged() | kV.hasChanged() | kA.hasChanged() | kG.hasChanged();
         if (slotChanged) {
-            motor.updateSlot0(kP.get(), kI.get(), kD.get(),
-                              kS.get(), kV.get(), kA.get(), kG.get());
+            double p = kP.get(), i = kI.get(), d = kD.get();
+            double s = kS.get(), v = kV.get(), a = kA.get(), g = kG.get();
+            for (CatalystMotor motor : motors) motor.updateSlot0(p, i, d, s, v, a, g);
         }
         if (hasMotionMagic) {
             boolean mmChanged = mmCruise.hasChanged() | mmAccel.hasChanged() | mmJerk.hasChanged();
             if (mmChanged) {
-                motor.updateMotionMagic(mmCruise.get(), mmAccel.get(), mmJerk.get());
+                double cruise = mmCruise.get(), acceleration = mmAccel.get(), jerk = mmJerk.get();
+                for (CatalystMotor motor : motors) motor.updateMotionMagic(cruise, acceleration, jerk);
             }
-        }
-    }
-
-    /**
-     * Re-apply gains to multiple motors that share the same Slot 0 / Motion
-     * Magic config (e.g., the left + right motors of a differential wrist).
-     */
-    public void checkAndApply(CatalystMotor... motors) {
-        for (CatalystMotor m : motors) {
-            checkAndApply(m);
         }
     }
 }

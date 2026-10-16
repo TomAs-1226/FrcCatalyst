@@ -11,6 +11,15 @@ Autonomy 2.1 (shared control), and two drive fixes a robot on the Red alliance n
 
 ### Fixed
 
+- RC1 preparation carries the October 15 current-library regression repairs: reused motor requests
+  clear obsolete additive feedforward; shared live gains reach every motor; adopted actions keep
+  their prerequisites during dwell; finite acceleration limits hold on invalid loop periods; and
+  NaN task scores cannot acquire resources. IMU fusion excludes unavailable yaw-rate sources,
+  rejects nonfinite noise and computes stable weights; vertical Systemcore raw vectors remain
+  unavailable without a measured 3D mapping. Velocity uncertainty resets across observation gaps,
+  and identification rejects invalid samples and seeds without partially changing the fit.
+  These are ARES 1.1/current-library fixes, not integration of the ARES 2.0 prototype.
+
 - Added default-off camera-trajectory recovery for latched native/IMU motion faults. Held-out
   endpoint-velocity evidence, fresh native consistency and persistent event cutoffs prevent
   wheelspin, stale frames or position-only fixes from automatically clearing uncertainty.

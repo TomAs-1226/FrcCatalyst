@@ -41,6 +41,9 @@ public final class RecursiveLeastSquares {
     private final double convergenceThreshold;
     private final double[] theta;
     private final double[][] covariance;
+    // Fixed scratch storage permits a whole update to be checked before publishing any of it.
+    private final double[] candidateTheta;
+    private final double[][] candidateCovariance;
     private final double initialCovariance;
 
     private long sampleCount = 0;
@@ -73,6 +76,8 @@ public final class RecursiveLeastSquares {
         this.convergenceThreshold = convergenceThreshold;
         this.theta = new double[parameterCount];
         this.covariance = new double[parameterCount][parameterCount];
+        this.candidateTheta = new double[parameterCount];
+        this.candidateCovariance = new double[parameterCount][parameterCount];
         resetCovariance();
     }
 
@@ -89,12 +94,14 @@ public final class RecursiveLeastSquares {
     /**
      * Fold in one observation.
      *
-     * <p>A sample whose denominator would be non-positive — which only happens if the covariance has
-     * been driven numerically negative — is skipped rather than allowed to corrupt the fit.
+     * <p>Non-finite telemetry, an unusable denominator, or arithmetic overflow is skipped without
+     * changing coefficients, covariance, sample count, or the last residual. Candidate coefficients
+     * and covariance are checked together before either is committed.
      *
      * @param regressors the {@code x} vector; length must equal the parameter count
      * @param measured   the observed {@code y}
-     * @return the prediction error before this update, in the units of {@code y}
+     * @return the prediction error before an accepted update, in the units of {@code y}; the last
+     *         accepted residual when rejected. Compare sampleCount before/after to detect rejection.
      */
     public double add(double[] regressors, double measured) {
         if (regressors == null || regressors.length != parameterCount) {
@@ -102,32 +109,45 @@ public final class RecursiveLeastSquares {
                     + (regressors == null ? "null" : regressors.length));
         }
 
+        if (!Double.isFinite(measured)) return lastResidual;
+        for (double regressor : regressors) {
+            if (!Double.isFinite(regressor)) return lastResidual;
+        }
+
         double[] covarianceTimesX = new double[parameterCount];
         for (int i = 0; i < parameterCount; i++) {
             double sum = 0.0;
             for (int j = 0; j < parameterCount; j++) sum += covariance[i][j] * regressors[j];
+            if (!Double.isFinite(sum)) return lastResidual;
             covarianceTimesX[i] = sum;
         }
 
         double denominator = forgettingFactor;
         for (int i = 0; i < parameterCount; i++) denominator += regressors[i] * covarianceTimesX[i];
-        if (!(denominator > 1e-12)) return lastResidual;
+        if (!Double.isFinite(denominator) || !(denominator > 1e-12)) return lastResidual;
 
         double predicted = predict(regressors);
         double residual = measured - predicted;
-        lastResidual = residual;
-
+        if (!Double.isFinite(predicted) || !Double.isFinite(residual)) return lastResidual;
         for (int i = 0; i < parameterCount; i++) {
-            theta[i] += covarianceTimesX[i] / denominator * residual;
+            candidateTheta[i] = theta[i] + covarianceTimesX[i] / denominator * residual;
+            if (!Double.isFinite(candidateTheta[i])) return lastResidual;
         }
 
         // P = (P - (P·x)(P·x)ᵀ / denominator) / λ, symmetric by construction.
+        // Do not mutate the live fit if even one covariance entry overflows.
         for (int i = 0; i < parameterCount; i++) {
             for (int j = 0; j < parameterCount; j++) {
-                covariance[i][j] = (covariance[i][j]
+                candidateCovariance[i][j] = (covariance[i][j]
                         - covarianceTimesX[i] * covarianceTimesX[j] / denominator) / forgettingFactor;
+                if (!Double.isFinite(candidateCovariance[i][j])) return lastResidual;
             }
         }
+        System.arraycopy(candidateTheta, 0, theta, 0, parameterCount);
+        for (int i = 0; i < parameterCount; i++) {
+            System.arraycopy(candidateCovariance[i], 0, covariance[i], 0, parameterCount);
+        }
+        lastResidual = residual;
         sampleCount++;
         return residual;
     }
@@ -219,6 +239,11 @@ public final class RecursiveLeastSquares {
         if (initial.length != parameterCount) {
             throw new IllegalArgumentException("expected " + parameterCount + " initial values, got "
                     + initial.length);
+        }
+        for (double value : initial) {
+            if (!Double.isFinite(value)) {
+                throw new IllegalArgumentException("seed coefficients must be finite");
+            }
         }
         System.arraycopy(initial, 0, theta, 0, parameterCount);
     }

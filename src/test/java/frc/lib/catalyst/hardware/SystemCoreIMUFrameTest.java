@@ -159,16 +159,19 @@ class SystemCoreIMUFrameTest {
     }
 
     @Test
-    void supplyingTheRotationBringsATiltedBoardBack() {
+    void planarRotationDoesNotCertifyAVerticalBoardButStillSupportsFlatYawRotation() {
         assertTrue(HAL.initialize(), "no HAL, no IMU");
 
-        // The opt-in half of the design: a caller who knows how the board sits gets its readings.
+        // A yaw-only rotation cannot map the vertical board's raw Z/XY axes into robot yaw/XY.
         SystemCoreIMU told = new SystemCoreIMU(OnboardIMU.MountOrientation.LANDSCAPE,
                 Rotation2d.fromDegrees(90));
 
-        assertTrue(told.getAcceleration().isPresent(),
-                "the frame is known now, so there is nothing to withhold");
-        assertTrue(told.isYawRateTrustworthy());
+        assertTrue(told.getAcceleration().isEmpty());
+        assertFalse(told.isYawRateTrustworthy());
+        SystemCoreIMU flatRotated = new SystemCoreIMU(OnboardIMU.MountOrientation.FLAT,
+                Rotation2d.fromDegrees(90));
+        assertTrue(flatRotated.getAcceleration().isPresent());
+        assertTrue(flatRotated.isYawRateTrustworthy());
     }
 
     // --- rest calibration ---------------------------------------------------

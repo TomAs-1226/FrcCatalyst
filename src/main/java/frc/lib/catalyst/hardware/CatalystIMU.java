@@ -39,6 +39,9 @@ public interface CatalystIMU {
     /** Yaw rate in degrees per second, CCW positive. */
     double getYawRate();
 
+    /** Whether the rate is expressed about the robot yaw axis; legacy heading sources default true. */
+    default boolean isYawRateTrustworthy() { return true; }
+
     /** Set the current heading to zero. */
     void zeroYaw();
 

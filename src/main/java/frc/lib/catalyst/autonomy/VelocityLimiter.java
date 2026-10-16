@@ -38,7 +38,7 @@ public final class VelocityLimiter {
     /**
      * One loop.
      *
-     * @param dt the loop period, s
+     * @param dt the loop period, s; nonpositive/nonfinite periods hold the last finite-rate output
      * @param wantVx the velocity asked, m/s
      * @param wantVy the velocity asked, m/s
      * @param maxAccelMpsSq the fastest the velocity may change along the robot's motion or from
@@ -69,7 +69,10 @@ public final class VelocityLimiter {
         } else {
             rate = accel + (decel - accel) * braking;
         }
-        if (Double.isFinite(rate) && dt > 0.0) {
+        // Without a trusted elapsed interval a finite acceleration budget grants no change.
+        // Keep explicitly unlimited rates unlimited, as documented by the rate arguments.
+        if (Double.isFinite(rate) && (!Double.isFinite(dt) || dt <= 0)) return velocity();
+        if (Double.isFinite(rate)) {
             double step = rate * dt;
             if (change > step) {
                 dvx *= step / change;
