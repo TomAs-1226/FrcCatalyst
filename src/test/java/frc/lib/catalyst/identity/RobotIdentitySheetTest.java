@@ -9,17 +9,27 @@ import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.wpilib.hardware.hal.HAL;
 
 /**
  * What the sheet says, and — mostly — what it declines to say.
  *
- * <p>These run on a bare JVM with no HAL, no roboRIO and no deployed PathPlanner settings, which is
+ * <p>These run with the desktop HAL, no robot controller and no deployed PathPlanner settings, which is
  * the harshest version of the case that matters: almost nothing is knowable, so almost nothing may
  * be published. Every key that shows up here has a real source behind it.
  */
 class RobotIdentitySheetTest {
+
+    @BeforeAll
+    static void initializeDesktopHal() {
+        // Derivation reads RobotController.getTeamNumber(). With natives present but HAL not
+        // initialized, alpha-7 crashes in HALUtil.getTeamNumber() instead of throwing Java code.
+        // This fixture must own its setup rather than inherit initialization from another class.
+        assertTrue(HAL.initialize(), "the desktop HAL must initialize before native identity reads");
+    }
 
     @BeforeEach
     @AfterEach
