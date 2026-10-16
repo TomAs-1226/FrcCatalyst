@@ -32,11 +32,14 @@ shims, because carrying both would have meant every class in the library branchi
 | Docs | [stable](https://tomas-1226.github.io/FrcCatalyst/) | you are reading them |
 
 {: .warning }
-> **If your robot is competing, use 1.x.** 2.x targets an alpha WPILib on a beta operating system
-> and has never run on hardware. It is for an offseason robot you can afford to have not work.
+> **Match the release to your supported controller and season.** This 2.x source targets WPILib
+> 2027 alpha-7 and Systemcore OS beta 14, not roboRIO/WPILib 2026. The maintainer reports Catalyst
+> was competition-tested at SoCal Showdown and performed well. That historical deployment does
+> not qualify the newly recovered RC1 changes or the separate ARES 2.0 prototype.
 
 {: .note }
-> **On a Systemcore with CTRE motors today, 2.x means `v2.0.0-beta.2` on `upgrade/alpha-7`.**
+> **Published vendordep: `v2.0.0-beta.2`; source candidate: `2.0.0-rc.1`.**
+> The RC1 preparation branch remains separate pending its validation and publication gates.
 > Phoenix 6 `26.70.0-alpha-2`, published 2026-09-18, is the first Phoenix build for WPILib
 > alpha-7 — it requires **26.70.x device firmware** on every TalonFX, CANcoder and Pigeon.
 > `systemcore-alpha6`, the source-build-only line for Systemcore image 13, is merged into this
@@ -53,7 +56,7 @@ The 2027 port, on the WPILib and Systemcore OS pair that actually run together.
 
 **Beta rather than 2.0.0, deliberately.** It is pinned to WPILib `2027.0.0-alpha-7`, and an alpha is
 not a foundation you can call stable — that one has already changed `Mechanism` from an interface to
-a class and back across three builds. Nothing here has been driven on a competition robot either.
+a class and back across three builds. At that release date, competition qualification had not been recorded.
 The API is what 2.0.0 will be; the version says what it is standing on.
 
 **Requires Systemcore OS beta 14.** That release is titled "(REQUIRES WPILIB ALPHA 7)" and the
@@ -62,7 +65,8 @@ pairing is not advice — a build made against alpha-7 aborts on beta 13 before 
 release at the time; this tag depended on the 26.50.0-alpha-1 and 2027.0.0-alpha-3 alpha-5/6 builds.
 That changed nine days later: CTRE published Phoenix 6 `26.70.0-alpha-2` on 2026-09-18, this line
 moved to it, and a CTRE robot can run it now — with **26.70.x device firmware** on every TalonFX,
-CANcoder and Pigeon. PathPlanner is still stuck on `2027.0.0-alpha-3`; see
+CANcoder and Pigeon. This historical tag used PathPlanner `2027.0.0-alpha-3`; current RC1 source
+pins `2027.0.0-alpha-4.1` and includes the Commands v2 bridge. See
 [Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html).
 
 ```gradle

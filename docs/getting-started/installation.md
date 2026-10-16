@@ -28,8 +28,8 @@ Add FrcCatalyst to your WPILib robot project.
   together — see [Systemcore & WPILib 2027](../advanced/systemcore) before flashing anything.
 - A **GradleRIO robot project** (created via the WPILib project generator).
 - Vendordeps: **CTRE Phoenix 6** `26.70.0-alpha-2` or later — the first Phoenix build for WPILib
-  alpha-7, published 2026-09-18. **PathPlanner** is optional and still has no WPILib alpha-7
-  release.
+  alpha-7, published 2026-09-18. RC1 source pins **PathPlanner** `2027.0.0-alpha-4.1` as an
+  optional compile-time dependency and LimelightLib `2.0.0-beta9-alpha7`.
 
   {: .warning }
   > **CTRE devices need 26.70.x firmware.** Phoenix 6 `26.70.0-alpha-2` is the first Phoenix build
@@ -38,16 +38,11 @@ Add FrcCatalyst to your WPILib robot project.
   > an afternoon's work, not a `git checkout`. See
   > [Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html).
   >
-  > **PathPlanner still does not link on this line.** It remains at `2027.0.0-alpha-3`, built
-  > against commands v2, so Catalyst depends on it as `compileOnly`: it resolves but does not
-  > reach your robot's classpath, and `SwerveSubsystem.configurePathPlanner` throws loudly rather
-  > than crash-looping if you call it anyway. Add PathPlanner's own vendordep plus
-  > WPILibNewCommands if you want to use it.
-  >
-  > Neither vendor is guaranteed to publish its 2027 vendordep JSON at a discoverable URL, so the
-  > usual *Install new libraries (online)* flow can still fetch a 2026 one; PathPlanner's canonical
-  > `PathplannerLib.json` reports `frcYear 2026`, and installing it into a 2027 project produces
-  > something that looks configured and fails at build with an error naming none of this.
+  > **PathPlanner is optional.** RC1 source includes the WPILib Commands v2 bridge needed by
+  > PathPlanner while Catalyst uses Commands v3. PathPlanner itself remains `compileOnly`, so a
+  > consumer that uses it must supply its matching vendordep/repository. This is a source dependency
+  > statement, not a claim that autonomous behavior has been qualified on hardware.
+  > Verify downloaded vendor JSON targets the intended 2027 version before building.
 
   **PhotonVision is not used.** There is no 2027 build, and Catalyst is Limelight-first on
   Systemcore — the pipeline is built into the hardware. If you had it installed for Catalyst 1.x,
@@ -76,8 +71,9 @@ https://tomas-1226.github.io/FrcCatalyst/beta/vendordep/FrcCatalyst.json
 ```
 
 That adds FrcCatalyst to your project and lets WPILib check for updates.
-Catalyst depends on the Phoenix 6, PathPlanner and LimelightLib vendordeps. On alpha-7 only
-LimelightLib has a release yet; see above. PhotonVision is **not** one of them.
+Match Phoenix 6 and LimelightLib to the chosen Catalyst build; PathPlanner is optional.
+Do not assume this retained beta.2 vendordep has the RC1 source pins listed above. PhotonVision
+is **not** part of the RC1 source build.
 
 ## Option 2: JitPack (build.gradle)
 
@@ -104,15 +100,16 @@ If you prefer to build from source or need to modify the library:
 # Clone FrcCatalyst
 git clone https://github.com/TomAs-1226/FrcCatalyst.git
 cd FrcCatalyst
+git checkout upgrade/rc1-prep-20261016
+# Record and review the exact commit before building.
+git rev-parse HEAD
 
-# Publish to local Maven
-./gradlew publishToMavenLocal
+# Test the library/example before publishing only to this machine.
+./gradlew build publishToMavenLocal
 ```
 
-The local Maven example below names the retained release. When building the current source
-candidate, use the version declared by that checkout's `build.gradle` (`2.0.0-rc.1`) instead;
-publishing to local Maven does not publish a release remotely. An included Gradle build can avoid
-local Maven publication entirely.
+The local Maven example below names the source candidate. Publishing to local Maven does not
+publish a release remotely. An included Gradle build can avoid local Maven publication entirely.
 
 Then in your robot project's `build.gradle`:
 
@@ -122,7 +119,7 @@ repositories {
 }
 
 dependencies {
-    implementation "com.frccatalyst:FrcCatalyst:2.0.0-beta.2"
+    implementation "com.frccatalyst:FrcCatalyst:2.0.0-rc.1"
 }
 ```
 
@@ -182,3 +179,16 @@ If it compiles and prints the values, you're good to go!
 ## Next Steps
 
 Head to the [Quick Start](quickstart) guide to build your first mechanism in under 5 minutes.
+
+## RC1 release gates
+
+This preparation is for Systemcore OS beta 14 / WPILib alpha-7 / Java 25, not a roboRIO 2026
+drop-in. Preserve the two runtime `--add-opens` flags documented in the
+[Systemcore guide](../advanced/systemcore). Device firmware must match the documented 26.70.x line.
+
+Before announcing RC1 as installable, require a clean full build for its exact commit, passing
+regressions, an example/consumer install check against the final artifact, and a verified Maven POM.
+The Numbers shooting simulation remains an unresolved downstream check; desktop passes do not
+replace hardware qualification. Keep optional control/observer features at their documented defaults.
+ARES 1.1 denotes the current multicamera scope; the ARES 2.0 ROS 2-style prototype is deferred.
+No tag, public release, deployed robot package or firmware change follows from this source guide.

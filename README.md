@@ -95,12 +95,13 @@ unticked box was not.
 
 | | | |
 |:--|:--|:--|
-| **&#9632;** | **Tested** | 867 tests, 0 failures, across 93 test classes |
-| **&#9744;** | **Run on a Systemcore** | not this build: the bench runs (deploy, OpMode enable, a Pigeon on `can_s0`, the onboard IMU, the board's own status topics) were the alpha-6 builds before it, on OS beta 13 |
-| **&#9744;** | **Driven on a robot** | not yet — swerve, mechanisms, autos and vision have not been driven by hardware |
+| **&#9744;** | **RC1 source validation** | See the exact candidate commit’s CI; a passing older build is not qualification of this candidate |
+| **&#9744;** | **Current candidate hardware qualification** | The newly recovered RC1 changes need their own validation |
+| **&#9632;** | **Historical competition use** | The maintainer reports Catalyst was competition-tested at SoCal Showdown and performed well |
 
-867 passing tests is a fact about the code, not a fact about a robot. One box ticked and two not
-is the entire claim being made here; nothing below widens it.
+The RC1 preparation branch carries regression fixes from the October 15 current-library audit.
+Desktop tests do not establish robot qualification. The candidate remains unqualified for deployment
+until its release gates are closed; historical release notes below describe their named builds.
 
 It is a beta because of what it stands on. It is pinned to WPILib `2027.0.0-alpha-7`, which has
 already changed `Mechanism` from an interface to a class and back across three builds, and it
@@ -110,11 +111,10 @@ code runs, so a mismatch looks like a robot that deploys and then does nothing.
 **It can drive CTRE devices, as of 2026-09-18.** Phoenix 6 `26.70.0-alpha-2` is the first build for
 WPILib alpha-7, and this line moved to it. **It requires 26.70.x device firmware** — every TalonFX,
 CANcoder and Pigeon has to be re-flashed, so moving a robot onto this line is an afternoon of work,
-not a `git checkout`. PathPlanner is a separate story: it is still stuck on `2027.0.0-alpha-3`,
-built against commands v2, so on this line it resolves but does not link. It is now a
-`compileOnly` dependency, so it no longer forces a robot project to hand-add 3015's Maven
-repository, and `SwerveSubsystem.configurePathPlanner` degrades loudly instead of crash-looping
-when it can't find it.
+not a `git checkout`. The RC1 source pins optional PathPlanner `2027.0.0-alpha-4.1` and includes
+WPILib's Commands v2 bridge while Catalyst uses Commands v3. PathPlanner remains `compileOnly`:
+a robot that uses it needs its matching vendordep and Maven repository. Source compilation is not
+hardware or autonomous-path qualification.
 
 This is the pre-season release. Put it on an offseason robot over the offseason, so the port to
 2027 is behind you rather than ahead of you in January. **If you are competing, use
@@ -185,21 +185,21 @@ https://tomas-1226.github.io/FrcCatalyst/beta/vendordep/FrcCatalyst.json
 Install the **Phoenix 6** vendordep too, at 26.70.0-alpha-2 or later — Catalyst builds on it, and
 anything older was built for WPILib alpha-6 and will not link here.
 
-**PathPlanner is optional and no longer comes along.** It is `compileOnly`, because PathPlanner is
-still at 2027.0.0-alpha-3 and built against commands v2, so on this line it resolves but will not
-link. Catalyst follows its own paths and does not need it; every PathPlanner entry point degrades
-loudly instead of crashing. If you want it, add its vendordep and WPILibNewCommands alongside.
+**PathPlanner is optional.** The RC1 source compiles against `2027.0.0-alpha-4.1` and includes
+the Commands v2 bridge. PathPlanner itself remains `compileOnly`; add the matching vendor dependency
+if your robot uses it. Missing or incompatible configuration is reported rather than silently enabled.
 
 PhotonVision has no 2027 build, so `PhotonSource` is excluded from the source set — use
 `LimelightSource`.
 
-> **That URL installs `v2.0.0-alpha.1`, which does not start on Systemcore OS image 13**: it was
-> built on a WPILib development snapshot. For image 13, build this branch's tag,
-> `v2.0.0-alpha.3` (commit `14e2080`, 11 Sep 2026, branch `systemcore-alpha6`), from source: run
-> `git checkout v2.0.0-alpha.3` then `./gradlew publishToMavenLocal`. See
-> [Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html).
+> **That URL retains `v2.0.0-beta.2`; it does not install RC1.** Build the reviewed candidate
+> source explicitly until a separately authorized RC1 artifact is verified. See the
+> [source/install boundary](docs/getting-started/installation.md#source-candidate-and-published-dependency).
 
-<details><summary>A source build, in <code>build.gradle</code></summary>
+<details><summary>A candidate source build, in <code>build.gradle</code></summary>
+
+First check out the intended candidate commit and run `./gradlew build publishToMavenLocal`.
+The local publication declared by this source is:
 
 ```gradle
 repositories {
@@ -207,7 +207,7 @@ repositories {
 }
 
 dependencies {
-    implementation "com.github.TomAs-1226:FrcCatalyst:v2.0.0-beta.2"
+    implementation "com.frccatalyst:FrcCatalyst:2.0.0-rc.1"
 }
 ```
 </details>
@@ -295,7 +295,7 @@ rename with it: `setDefaultOption` → `addDefault`, `addOption` → `add`. The 
 is 3.3 V and nowhere near the current. Everything else kept its name. PhotonVision and ChoreoLib
 have no 2027 build.
 
-867 tests pass on Windows and Linux. It has **not** been driven on a robot, and the documentation
+At the time of this historical beta.2 entry, 867 tests passed on Windows and Linux; the documentation
 carries a list of the facts that could not be verified rather than guessing at them.
 
 ---
@@ -1281,32 +1281,16 @@ double maxSpeed = config.estimateMaxSpeed();      // ~1.9 m/s
 
 ## Testing
 
-Catalyst 2.x ships **867 JUnit tests** across 93 test classes in `src/test`, run with
-`./gradlew test`. They pass with 0 failures — a fact about the code, not about a robot. Nothing in
-the suite touches hardware.
+Run `./gradlew build` with Java 25 to compile the library and example and execute the JUnit suite.
+Run `node --test "docs/tools/**/*.test.mjs"` for browser-tool and release-metadata checks, and
+`python -B -m unittest discover -s agent -p 'test_*.py'` for service packaging/parser tests.
+CI preserves full-build test reports, including failures. Use results for the exact candidate commit;
+older counts and results do not qualify a changed tree.
 
-- **352 physics tests** — the state estimator, contact and collision, slip and stability,
-  parameter identification, prediction, and the ground-truth validation suite.
-- **80 subsystem tests** — swerve and vision.
-- **72 utility tests** — the Shoot-On-The-Fly solver closed-loop proof (`AimingSolverTest`), the
-  vector-adding solver (`AimingSolverVectorTest`), alliance flipping (`AllianceFlipUtilTest`), the
-  auto selector, loop monitoring and pre-flight checks.
-- **66 autonomy tests** — the Autonomy 2.0 decision cores, each a pure function of a `Situation`.
-- **62 hardware tests** — the CAN bus planner and registry, and the dual-IMU path
-  (`DualIMUTest`, `SystemCoreIMUFrameTest`).
-- **52 state machine tests** — graph validation and refused transitions (`StateMachineGraphTest`),
-  transition sequencing, staging and deadlines (`StateMachineTransitionTest`), the proven-arrival
-  invariant (`StateMachineTruthTest`), the logging schema (`StateMachineTelemetryTest`), and
-  robustness against throwing guards and post-timeout recovery (`StateMachineRobustnessTest`).
-- **42 Systemcore tests** — CAN utilisation decoding, board status publishing, and what the library
-  does when the board is not there.
-- **41 identity tests** — what the spec sheet records, what it refuses to record, and the geometry
-  it derives (`SpecSheetTest`, `RobotIdentitySheetTest`, `RobotIdentityGeometryTest`).
-- **32 Commands v3 tests** — the command facade, composite requirements, and the `withTimeout`
-  overloads.
-- **68 more** across OpModes, the Driver Station, mechanism config, behaviour, goals, logging, and
-  one boot integration test.
-
+Coverage includes physics/estimation, swerve/vision, utilities, autonomy, hardware wrappers, state
+machines, Systemcore availability, robot identity, Commands v3 and mechanisms. Desktop simulation
+does not prove hardware behavior. The separate Numbers shooting simulation remains an unresolved
+downstream gate, and ARES 2.0 prototype integration is deferred.
 A separate end-to-end project at [FrcCatalystTest](https://github.com/TomAs-1226/FrcCatalystTest)
 exercises the library in simulation across every mechanism type.
 
@@ -1314,7 +1298,7 @@ exercises the library in simulation across every mechanism type.
 
 ## Requirements
 
-Catalyst 2.x — this branch, `v2.0.0-beta.2`:
+Catalyst 2.x RC1 source candidate (the published vendordep remains `v2.0.0-beta.2`):
 
 | Dependency | Version |
 |-----------|---------|
@@ -1323,8 +1307,8 @@ Catalyst 2.x — this branch, `v2.0.0-beta.2`:
 | Java | 25 |
 | Gradle | 9.7+ |
 | CTRE Phoenix 6 | 26.70.0-alpha-2, published 2026-09-18: **requires 26.70.x device firmware** |
-| PathPlanner | 2027.0.0-alpha-3, an alpha-5/6 build built against commands v2: **`compileOnly`, resolves but does not link** |
-| LimelightLib | 2.0.0-beta8-alpha7 |
+| PathPlanner | 2027.0.0-alpha-4.1; optional `compileOnly`, Commands v2 bridge included |
+| LimelightLib | 2.0.0-beta9-alpha7 |
 
 The WPILib and OS versions are a pair, not a floor: a build against alpha-7 aborts on Systemcore OS
 beta 13 before robot code runs. PhotonVision and ChoreoLib have no 2027 build, so `PhotonSource` is
