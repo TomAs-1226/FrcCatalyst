@@ -17,9 +17,28 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class CatalystMotorCurrentLimitTest {
 
+    private CatalystMotor motor;
+
     @AfterEach
     void clear() {
+        // The registry owns names, not native devices. Release every native handle even when an
+        // assertion fails, so this fixture does not leave followers running in later test classes.
+        RuntimeException failure = null;
+        if (motor != null) {
+            java.util.List<TalonFX> devices = new java.util.ArrayList<>(motor.getFollowerTalonFXs());
+            devices.add(motor.getTalonFX());
+            for (TalonFX device : devices) {
+                try {
+                    device.close();
+                } catch (RuntimeException error) {
+                    if (failure == null) failure = error;
+                    else failure.addSuppressed(error);
+                }
+            }
+        }
+        motor = null;
         CANRegistry.clear();
+        if (failure != null) throw failure;
     }
 
     /** Phoenix's own default for a config read is 50 ms, which a loaded build machine misses; a second is plenty. */
@@ -35,7 +54,7 @@ class CatalystMotorCurrentLimitTest {
     @Test
     void aRuntimeSupplyLimitReachesEveryFollowerAndKeepsTheStatorLimit() {
         assertTrue(HAL.initialize(), "no HAL, no Phoenix devices");
-        CatalystMotor motor = CatalystMotor.builder(41).name("Pair").canBus("can_s0")
+        motor = CatalystMotor.builder(41).name("Pair").canBus("can_s0")
                 .withFollower(42, true).withFollower(43, false)
                 .currentLimit(20).statorCurrentLimit(60).build();
 
@@ -54,7 +73,7 @@ class CatalystMotorCurrentLimitTest {
     @Test
     void aRuntimeStatorLimitReachesEveryFollowerAndKeepsTheSupplyLimit() {
         assertTrue(HAL.initialize(), "no HAL, no Phoenix devices");
-        CatalystMotor motor = CatalystMotor.builder(44).name("Pair2").canBus("can_s0")
+        motor = CatalystMotor.builder(44).name("Pair2").canBus("can_s0")
                 .withFollower(45, false)
                 .currentLimit(20).statorCurrentLimit(60).build();
 
