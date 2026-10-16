@@ -18,6 +18,6 @@ hardware control, and distinct from the deployable Numbers auto package.
 
 These ARES feature names do not change the FrcCatalyst Maven version or create a release tag.
 The saved auto package remains Numbers `1eba289` with library `6b4180b` until a separately reviewed
-integration is authorized. The RC1 preparation branch is source for review and CI, not a release
-tag or an installed robot package. Deployment, actuation, firmware and machine/network/security
-changes remain outside this preparation.
+integration is authorized. The RC1 library prerelease is tagged `v2.0.0-rc.1`; publishing it does not deploy or qualify
+the Numbers robot package. Deployment, actuation, firmware and machine/network/security
+changes remain outside this release.

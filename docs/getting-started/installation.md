@@ -50,15 +50,13 @@ Add FrcCatalyst to your WPILib robot project.
 
 ## Source candidate and published dependency
 
-**Source candidate:** `2.0.0-rc.1`; **retained published vendordep:** `2.0.0-beta.2`.
+**Published prerelease:** `2.0.0-rc.1` (tag `v2.0.0-rc.1`).
 
-The current alpha-7 source branch declares `2.0.0-rc.1`. The retained vendordep and JitPack example
-below select `2.0.0-beta.2`; they do not install the candidate's newer source changes. Public hero/banner
-badges and AdvantageScope bundles describe that retained release; code-generation tool badges
-describe the source candidate. The candidate
-has not been published by this work, and this declaration does not independently verify Maven
-availability. A robot using the candidate must build that source, for example with an included
-Gradle build. Keep the published vendordep unchanged until a separate release is authorized.
+The RC1 JitPack POM, binary jar, sources and Javadoc were verified before the published
+vendordep moved from beta.2. Install the release below or build the exact tag from source.
+The [GitHub prerelease](https://github.com/TomAs-1226/FrcCatalyst/releases/tag/v2.0.0-rc.1)
+contains downloadable artifacts and checksums. This is a Java 25/WPILib 2027 alpha-7
+Systemcore prerelease, with hardware qualification still required.
 
 ## Option 1: Vendordep (Recommended)
 
@@ -72,8 +70,8 @@ https://tomas-1226.github.io/FrcCatalyst/beta/vendordep/FrcCatalyst.json
 
 That adds FrcCatalyst to your project and lets WPILib check for updates.
 Match Phoenix 6 and LimelightLib to the chosen Catalyst build; PathPlanner is optional.
-Do not assume this retained beta.2 vendordep has the RC1 source pins listed above. PhotonVision
-is **not** part of the RC1 source build.
+The RC1 dependency uses the compatibility pins listed above. PhotonVision is **not** part
+of this build. Optional PathPlanner users must add its matching vendor dependency.
 
 ## Option 2: JitPack (build.gradle)
 
@@ -88,7 +86,7 @@ repositories {
 
 dependencies {
     // ... your existing dependencies ...
-    implementation "com.github.TomAs-1226:FrcCatalyst:v2.0.0-beta.2"
+    implementation "com.github.TomAs-1226:FrcCatalyst:v2.0.0-rc.1"
 }
 ```
 
@@ -100,7 +98,7 @@ If you prefer to build from source or need to modify the library:
 # Clone FrcCatalyst
 git clone https://github.com/TomAs-1226/FrcCatalyst.git
 cd FrcCatalyst
-git checkout upgrade/rc1-prep-20261016
+git checkout v2.0.0-rc.1
 # Record and review the exact commit before building.
 git rev-parse HEAD
 

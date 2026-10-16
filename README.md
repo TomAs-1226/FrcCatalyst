@@ -29,7 +29,7 @@ migration notes. That is what a second generation is supposed to cost you, and i
 hold this release to.
 
 ```gradle
-implementation 'com.github.TomAs-1226:FrcCatalyst:v2.0.0-beta.2'
+implementation 'com.github.TomAs-1226:FrcCatalyst:v2.0.0-rc.1'
 ```
 
 <p align="center">
@@ -40,12 +40,12 @@ implementation 'com.github.TomAs-1226:FrcCatalyst:v2.0.0-beta.2'
 
 Which Catalyst goes on which robot is kept on one page,
 **[Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html)**. As of
-25 September 2026:
+16 October 2026:
 
 | If you are | Use |
 |---|---|
 | Competing this season on a roboRIO | **1.12.0**: tag `v1.12.0`, WPILib 2026.2.1, on JitPack |
-| On a Systemcore with CTRE motors | **2.0.0-beta.2** on `upgrade/alpha-7`, on JitPack: WPILib 2027.0.0-alpha-7, Systemcore OS image 14, Phoenix 6 **26.70.0-alpha-2**. Your devices need 26.70.x firmware. |
+| On a Systemcore with CTRE motors | **2.0.0-rc.1** on `upgrade/alpha-7`, on JitPack: WPILib 2027.0.0-alpha-7, Systemcore OS image 14, Phoenix 6 **26.70.0-alpha-2**. Your devices need 26.70.x firmware. |
 | Still on Systemcore image 13 | **2.0.0-alpha.5** on `systemcore-alpha6`, WPILib 2027.0.0-alpha-6, Phoenix 26.50.0-alpha-1. Source build only — WPILib alpha-6 is on no public Maven. Nothing new lands here. |
 
 **The alpha-7 line could not drive a CTRE robot until 2026-09-18**, because no Phoenix was built for
@@ -62,8 +62,8 @@ checked out beside this repository. It only reads, and needs nothing beyond Pyth
 number in Maven local is whatever `build.gradle` said when that build was published, which is not
 always the tag with the same number; the script says which commit each one really is.
 
-This branch, `upgrade/alpha-7`, is `v2.0.0-beta.2` plus docs. Its documentation is not published
-yet: the beta site is built from `systemcore`.
+The alpha-7 line publishes RC1 from tag `v2.0.0-rc.1`. The beta documentation follows
+`upgrade/alpha-7`; RC1 remains a prerelease with the qualification limits below.
 
 ---
 
@@ -95,7 +95,7 @@ unticked box was not.
 
 | | | |
 |:--|:--|:--|
-| **&#9744;** | **RC1 source validation** | See the exact candidate commit’s CI; a passing older build is not qualification of this candidate |
+| **&#9745;** | **RC1 source validation** | The tagged release passed the full library/example CI; see the release for exact evidence and known limitations |
 | **&#9744;** | **Current candidate hardware qualification** | The newly recovered RC1 changes need their own validation |
 | **&#9632;** | **Historical competition use** | The maintainer reports Catalyst was competition-tested at SoCal Showdown and performed well |
 
@@ -192,9 +192,8 @@ if your robot uses it. Missing or incompatible configuration is reported rather 
 PhotonVision has no 2027 build, so `PhotonSource` is excluded from the source set — use
 `LimelightSource`.
 
-> **That URL retains `v2.0.0-beta.2`; it does not install RC1.** Build the reviewed candidate
-> source explicitly until a separately authorized RC1 artifact is verified. See the
-> [source/install boundary](docs/getting-started/installation.md#source-candidate-and-published-dependency).
+> **That URL installs the RC1 prerelease.** Its JitPack POM and jars were verified before
+> updating the vendordep. See [installation and compatibility](docs/getting-started/installation.md#source-candidate-and-published-dependency).
 
 <details><summary>A candidate source build, in <code>build.gradle</code></summary>
 
@@ -1298,7 +1297,7 @@ exercises the library in simulation across every mechanism type.
 
 ## Requirements
 
-Catalyst 2.x RC1 source candidate (the published vendordep remains `v2.0.0-beta.2`):
+Catalyst 2.x RC1 prerelease (`v2.0.0-rc.1`):
 
 | Dependency | Version |
 |-----------|---------|

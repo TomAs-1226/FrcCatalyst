@@ -32,7 +32,7 @@ the live picture. `docs/versions.md` on `main` is the same map written for peopl
 |---|---|---|---|
 | 1.x, the competition line | `main` | roboRIO, WPILib 2026, Java 17 | JitPack, through the stable vendordep |
 | 2.0.0-alpha.5 | `systemcore-alpha6` | Systemcore image 13, WPILib 2027 alpha-6, Phoenix 26.50.0-alpha-1 | **source build only**, and folded into the line below |
-| **2.0.0-beta.2, the line that ships** | `upgrade/alpha-7` | Systemcore image 14, WPILib 2027 alpha-7, Phoenix 26.70.0-alpha-2, Java 25 | JitPack |
+| **2.0.0-rc.1, the published prerelease** | `upgrade/alpha-7` | Systemcore image 14, WPILib 2027 alpha-7, Phoenix 26.70.0-alpha-2, Java 25 | JitPack |
 
 **The alpha-7 line can drive a CTRE robot as of 2026-09-18.** Every doc in this repo used to say it
 could not, and that was true for eleven days: there was no Phoenix for WPILib alpha-7. CTRE published

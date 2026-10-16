@@ -28,7 +28,7 @@ shims, because carrying both would have meant every class in the library branchi
 | Gradle | 8.x | **9.7+** |
 | Commands | v2 | **v3** |
 | CAN buses | 1 | **5** |
-| Latest | `v1.12.0` | `v2.0.0-beta.2` |
+| Latest | `v1.12.0` | `v2.0.0-rc.1` |
 | Docs | [stable](https://tomas-1226.github.io/FrcCatalyst/) | you are reading them |
 
 {: .warning }
@@ -38,8 +38,8 @@ shims, because carrying both would have meant every class in the library branchi
 > not qualify the newly recovered RC1 changes or the separate ARES 2.0 prototype.
 
 {: .note }
-> **Published vendordep: `v2.0.0-beta.2`; source candidate: `2.0.0-rc.1`.**
-> The RC1 preparation branch remains separate pending its validation and publication gates.
+> **Published prerelease and vendordep: `v2.0.0-rc.1`.**
+> The JitPack artifacts and a separate consumer build were verified before the vendordep moved.
 > Phoenix 6 `26.70.0-alpha-2`, published 2026-09-18, is the first Phoenix build for WPILib
 > alpha-7 — it requires **26.70.x device firmware** on every TalonFX, CANcoder and Pigeon.
 > `systemcore-alpha6`, the source-build-only line for Systemcore image 13, is merged into this
@@ -47,6 +47,17 @@ shims, because carrying both would have meant every class in the library branchi
 > [Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html).
 
 ---
+
+## v2.0.0-rc.1
+
+*16 October 2026* - [prerelease and artifacts](https://github.com/TomAs-1226/FrcCatalyst/releases/tag/v2.0.0-rc.1)
+
+RC1 carries reviewed current-library repairs, ARES 1.1 multicamera work, shared control,
+and guarded physics/odometry experiments. The ARES 2.0 prototype remains separate.
+Full library and example builds passed; the release records the exact CI and installation evidence.
+Native test classes run in separate JVMs after shared HAL/Phoenix lifecycle failures were observed.
+The intermittent team-specific Numbers shooting simulation remains unresolved, and the experimental
+paths still require hardware qualification. SoCal Showdown tested the team's prior competition build.
 
 ## v2.0.0-beta.2
 
