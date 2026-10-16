@@ -62,6 +62,33 @@ jobs:
         if: steps.line.outputs.buildable == 'true'
         run: ./gradlew build
 
+      - name: Preserve full-build test evidence
+        if: always() && steps.line.outputs.buildable == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-build-test-evidence
+          path: |
+            build/test-results/
+            build/reports/tests/
+            example/build/test-results/
+          if-no-files-found: warn
+
+      # Diagnostic only: the original full-build failure remains a release blocker.
+      # Preserve its reports above before rerunning these fixtures in a fresh test JVM.
+      - name: Diagnose native configuration reads after failure
+        if: failure() && steps.line.outputs.buildable == 'true'
+        run: ./gradlew test --tests '*CatalystMotorCurrentLimitTest' --tests '*TunableGainsFanoutTest' --rerun-tasks
+
+      - name: Preserve native diagnostic evidence
+        if: failure() && steps.line.outputs.buildable == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-configuration-diagnostic-evidence
+          path: |
+            build/test-results/
+            build/reports/tests/
+          if-no-files-found: warn
+
       - name: Upload build artifacts
         if: success() && steps.line.outputs.buildable == 'true'
         uses: actions/upload-artifact@v4
