@@ -20,6 +20,13 @@ default-off and require hardware qualification. SoCal Showdown tested the team's
 prior competition build; it did not validate every new RC1 feature. Desktop tests
 do not establish physical shot accuracy, sensor mounting, or autonomous readiness.
 
+Known validation limits remain: stale native CAN configuration-read flakes were observed
+during preparation and have not been proven eliminated. The team-specific
+`NumbersShootingSimTest` has intermittently failed its unchanged translation-release
+assertion on both the earlier competition-source library and this candidate. Its root
+cause remains unresolved; an isolated pass does not establish robot control readiness.
+These limitations remain visible while RC1 is a prerelease.
+
 Autonomy 2.1 (shared control), and two drive fixes a robot on the Red alliance needs.
 
 ### Fixed
