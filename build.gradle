@@ -322,6 +322,14 @@ tasks.register('extractNativeLibs', Copy) {
 test {
     useJUnitPlatform()
 
+    // HAL/Phoenix and Commands v3 own process-global native state. RobotBootIntegrationTest
+    // shuts HAL down after creating Phoenix devices; restarting HAL in that same JVM left later
+    // configuration reads intermittently stale in the full suite, while fresh-JVM diagnostics
+    // passed. Give every class its own native lifecycle, as the Numbers integration suite does.
+    // This is isolation, not a retry: every original assertion still runs once and can fail CI.
+    forkEvery = 1
+    maxParallelForks = 1
+
     // Commands v3 is built on JDK continuations, which live in jdk.internal.vm and are reached by
     // reflection. Without this the Scheduler class fails to initialise - not at first use, but on
     // static init, so the failure surfaces as ExceptionInInitializerError somewhere unrelated.
