@@ -13,6 +13,7 @@ A Java library of pre-built mechanism building blocks for FRC robots on Phoenix 
 
 [Get Started](getting-started/installation){: .btn .btn-primary .fs-5 .mb-4 .mb-md-0 .mr-2 }
 [Versions and compatibility](versions){: .btn .fs-5 .mb-4 .mb-md-0 .mr-2 }
+[Downloads](downloads.html){: .btn .fs-5 .mb-4 .mb-md-0 .mr-2 }
 [Tools](tools/){: .btn .fs-5 .mb-4 .mb-md-0 .mr-2 }
 [GitHub](https://github.com/TomAs-1226/FrcCatalyst){: .btn .fs-5 .mb-4 .mb-md-0 }
 
@@ -26,7 +27,17 @@ A Java library of pre-built mechanism building blocks for FRC robots on Phoenix 
   <img src="https://img.shields.io/badge/PhotonVision-v2026.3.1-22c55e?style=flat-square" alt="PhotonVision"/>
 </p>
 
-## Latest release
+## Current library lines and suite downloads
+
+**Systemcore / WPILib 2027 alpha-7:** [Catalyst 2.0.0-rc.1](https://github.com/TomAs-1226/FrcCatalyst/releases/tag/v2.0.0-rc.1)
+is published as a prerelease, with installable artifacts and the [2.x docs](https://tomas-1226.github.io/FrcCatalyst/beta/).
+It uses Java 25 and Phoenix 26.70.0-alpha-2. **roboRIO / WPILib 2026:** this site's stable
+library remains **1.12.0**.
+
+The [download hub](downloads.html) links Catalyst App, Console, Pit, Setup and the shared tools.
+See [Versions and compatibility](versions.html) before choosing a robot stack.
+
+## Stable release
 
 This site documents **Catalyst 1.12.0**, the roboRIO line for WPILib 2026. Catalyst 2.x for
 Limelight Systemcore is a separate line with its own
@@ -64,7 +75,7 @@ no transition, so every existing API works exactly as before. Even the new limit
 speed and acceleration caps — applying one is a line of your code. 214 HAL-free tests, telemetry under
 `Catalyst/Physics/…`. The validator marks the estimator against the RFC's acceptance criteria — and building it found three real defects that 300 unit tests had missed, taking the fused-velocity result from 0.08% to **48%** better than raw encoders.
 
-It follows v1.4.0's **optional** [Catalyst desktop app](https://github.com/TomAs-1226/FrcCatalyst/releases/latest)
+It follows v1.4.0's **optional** [Catalyst desktop app](https://github.com/TomAs-1226/CatalystApp/releases/latest)
 (every tool in one native window, one-click vendordep install, offline auto-update, an AI-agent
 connector) and the v1.3.x line, which made the state machine understandable and debuggable: a
 plain-language `explain()` dump of what you built and why it's stuck, a `ServoMechanism`, live sim

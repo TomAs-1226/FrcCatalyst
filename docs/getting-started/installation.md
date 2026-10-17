@@ -8,7 +8,9 @@ parent: Getting Started
 # Installation
 {: .no_toc }
 
-Add FrcCatalyst to your WPILib robot project.
+Add FrcCatalyst 1.12.0 to a WPILib 2026 roboRIO project. For Systemcore / WPILib 2027,
+use the [RC1 installation guide](https://tomas-1226.github.io/FrcCatalyst/beta/getting-started/installation.html)
+and [compatibility table](../versions.html).
 {: .fs-6 .fw-300 }
 
 ## Table of contents

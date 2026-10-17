@@ -31,8 +31,8 @@ the live picture. `docs/versions.md` on `main` is the same map written for peopl
 | Line | Branch | Runs on | How it installs |
 |---|---|---|---|
 | 1.x, the competition line | `main` | roboRIO, WPILib 2026, Java 17 | JitPack, through the stable vendordep |
-| 2.0.0-alpha.3 | `systemcore-alpha6`, published from `systemcore` | Systemcore image 13, WPILib 2027 alpha-6, Java 25 | **source build only** |
-| 2.0.0-beta.1 | `upgrade/alpha-7` | Systemcore image 14, WPILib 2027 alpha-7, Java 25 | JitPack; cannot drive a CTRE robot until CTRE ships alpha-7 |
+| Historical alpha-6 | `systemcore-alpha6` | Systemcore image 13, WPILib 2027 alpha-6, Java 25 | source only; superseded by the alpha-7 line |
+| 2.0.0-rc.1 | `upgrade/alpha-7` | Systemcore, WPILib 2027 alpha-7, Phoenix 26.70.0-alpha-2, Java 25 | JitPack prerelease; match controller/device firmware |
 
 - **A version names one build.** Never publish a second build under a version that already exists.
   `devtools release FrcCatalyst <version>` does the bump, the CHANGELOG date, the checks, the commit
@@ -60,9 +60,9 @@ README section "Catalyst 2.x needs two JVM flags".
 Jekyll, with the just-the-docs remote theme. `docs/` is the site root.
 
 - **Publishing.** `.github/workflows/docs.yml` on `main` builds one GitHub Pages deployment: `main`'s
-  `docs/` at the root and `systemcore`'s under `/beta/`. On 2.x branches that workflow only asks
-  `main` to rebuild. Docs on `systemcore-alpha6` or `upgrade/alpha-7` are not published until they
-  reach one of those two branches.
+  `docs/` at the root and `upgrade/alpha-7`'s under `/beta/`. The main workflow assembles both
+  with their own configurations. After a 2.x docs update, verify the Pages deployment rebuilt
+  from the active alpha-7 head.
 - **Nav and titles** come from front matter (`title`, `nav_order`, `parent`, `has_children`). Every
   page needs a `title`: CatalystApp bundles all `.md` under `docs/` into its MCP server by it.
 - **Links.** `{% link %}` resolves against `docs/`: `{% link advanced/foo.md %}`, never

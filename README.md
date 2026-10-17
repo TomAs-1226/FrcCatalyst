@@ -22,14 +22,17 @@
 ## Versions and compatibility
 
 Which Catalyst goes on which robot is kept on one page,
-**[Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html)**. As of
-12 September 2026:
+**[Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html)**. Checked
+17 October 2026:
 
 | If you are | Use |
 |---|---|
-| Competing this season on a roboRIO | **1.12.0**: tag `v1.12.0`, WPILib 2026.2.1, on JitPack |
-| Testing on a Systemcore with CTRE motors, today | **2.0.0-alpha.3**: tag `v2.0.0-alpha.3` (commit `14e2080`) on branch `systemcore-alpha6`, WPILib 2027.0.0-alpha-6, Systemcore OS image 13. Source build only. |
-| Trying WPILib alpha-7 on Systemcore image 14 | **2.0.0-beta.1**: tag `v2.0.0-beta.1` on branch `upgrade/alpha-7`, on JitPack. Phoenix 6 and PathPlannerLib have no alpha-7 release, so a robot with CTRE motors cannot run it yet. |
+| Competing on a roboRIO / WPILib 2026 | **1.12.0 stable**, tag `v1.12.0`, Java 17 |
+| Developing on Systemcore / WPILib 2027 alpha-7 | **2.0.0-rc.1 prerelease**, tag `v2.0.0-rc.1`, Java 25, Phoenix 26.70.0-alpha-2; match the controller image and 26.70.x device firmware |
+| Maintaining an old alpha-6 robot | Keep its matching historical source stack until a deliberate migration |
+
+The RC1 JitPack artifacts and beta vendordep are published. Desktop apps and installers have
+separate versions; use the [suite downloads](https://tomas-1226.github.io/FrcCatalyst/downloads.html).
 
 This branch, `main`, is 1.12.0 and builds the stable docs site.
 
