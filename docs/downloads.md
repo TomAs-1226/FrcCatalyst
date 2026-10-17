@@ -36,7 +36,7 @@ contents and validation limits; version numbers differ because the products ship
 | Detent | [0.1.0](https://github.com/TomAs-1226/Detent/releases/tag/v0.1.0) | Source, npm-format archive, and standalone motion lab; no npm registry publication |
 | Bezel web specimen | [0.1.0](https://github.com/TomAs-1226/Bezel/releases/tag/v0.1.0) | Complete static page source, separate from firmware |
 | Catalyst Tab / Link | [Tab preview 1](https://github.com/TomAs-1226/Bezel/releases/tag/v0.1.0-tab5-preview.1) | ESP32-P4 firmware, Link 1.0.0 Windows installer and Python wheel; hardware qualification pending |
-| Catalyst devtools | [2026.10.17](https://github.com/TomAs-1226/devtools/releases/tag/v2026.10.17) | Portable commands, shared hooks and setup guidance; toolchain binaries installed separately |
+| Catalyst devtools | [2026.10.17](https://github.com/TomAs-1226/devtools/releases/tag/v2026.10.17) | Portable commands, shared hooks and setup guidance; private repository access required; toolchain binaries installed separately |
 | Systemcore agent | [2.0.3 package](https://github.com/TomAs-1226/FrcCatalyst/releases/tag/v2.0.0-rc.1) | IPK plus checksum under the existing library RC1 release |
 
 The offline Setup bundle intentionally omits Sim and Link. Download Link separately from its
