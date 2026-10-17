@@ -56,8 +56,12 @@ RC1 carries reviewed current-library repairs, ARES 1.1 multicamera work, shared 
 and guarded physics/odometry experiments. The ARES 2.0 prototype remains separate.
 Full library and example builds passed; the release records the exact CI and installation evidence.
 Native test classes run in separate JVMs after shared HAL/Phoenix lifecycle failures were observed.
-The intermittent team-specific Numbers shooting simulation remains unresolved, and the experimental
-paths still require hardware qualification. SoCal Showdown tested the team's prior competition build.
+A 17 October follow-up diagnosed the downstream Numbers simulation failure and repaired its
+isolated fixture and desktop drive model: 623 full-build tests and a fresh 4-test repeat passed,
+with the original shooting assertions unchanged. See the
+[validation evidence]({% link advanced/shooting-simulation-validation.md %}) for scope and limits.
+The RC1 binary is unchanged. Experimental paths still require hardware qualification;
+SoCal Showdown tested the team's prior competition build.
 
 ## v2.0.0-beta.2
 

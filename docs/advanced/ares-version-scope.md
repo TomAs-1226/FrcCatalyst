@@ -7,7 +7,7 @@ parent: Advanced
 
 ARES 1.1 is an incremental upgrade of the current multicamera implementation on the existing
 FRC/WPILib/Phoenix stack. The October 15 library audit was based on library `6b4180b`;
-its reviewed fixes are carried into the isolated `upgrade/rc1-prep-20261016` candidate. They repair
+its reviewed fixes are included in the published `v2.0.0-rc.1` prerelease. They repair
 demonstrated existing defects; they do not
 activate new cameras, change measured robot constants, or add a new localization architecture.
 

@@ -32,7 +32,7 @@ read-only: the robot program owns the file.
 
 ```bash
 cd agent
-./build.sh                  # produces catalyst-agent_2.0.0.ipk
+./build.sh                  # produces catalyst-agent_2.0.3.ipk (agent/control/control)
 ./build.sh --check          # verify a package without rebuilding it
 ```
 
@@ -91,8 +91,7 @@ a missing payload, a lost executable bit, a CRLF shebang, files owned by the bui
 the wrong order. Every one of those installs without complaint and then does not work, which is why
 none of them can be checked by building a good package and looking at it.
 
-`test_agent.py` is fifteen tests over the parsing, which is the part that has to be checked somewhere other than a
-robot. They cover the Linux text formats that are easy to parse *almost* correctly: a command name
+`test_agent.py` checks the parsing and read-only endpoint contract without a robot. They cover the Linux text formats that are easy to parse *almost* correctly: a command name
 containing spaces in `/proc/stat`, which shifts every field after it; `/proc/meminfo` in kibibytes;
 and `MemFree` versus `MemAvailable`, where using the first reports every healthy Linux machine as
 nearly out of memory. Each of those produces a plausible wrong number rather than an error.

@@ -186,7 +186,10 @@ drop-in. Preserve the two runtime `--add-opens` flags documented in the
 
 Before announcing RC1 as installable, require a clean full build for its exact commit, passing
 regressions, an example/consumer install check against the final artifact, and a verified Maven POM.
-The Numbers shooting simulation remains an unresolved downstream check; desktop passes do not
-replace hardware qualification. Keep optional control/observer features at their documented defaults.
+The downstream Numbers shooting simulation failure was diagnosed and repaired in an isolated
+team-repository fixture and simulation model; see the
+[17 October validation evidence]({% link advanced/shooting-simulation-validation.md %}).
+That patch does not change the published RC1 binary or qualify hardware. Keep optional
+control/observer features at their documented defaults.
 ARES 1.1 denotes the current multicamera scope; the ARES 2.0 ROS 2-style prototype is deferred.
 No tag, public release, deployed robot package or firmware change follows from this source guide.
