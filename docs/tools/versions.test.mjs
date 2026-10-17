@@ -57,6 +57,18 @@ function toolPages() {
     .filter(p => fs.existsSync(p));
 }
 
+function badgeVersion(html) {
+  return html.match(/class="badge"[^>]*>\s*v?([^<\s]+)/)?.[1] ?? null;
+}
+
+test("badge validation sees both rendered and v-prefixed versions", () => {
+  assert.equal(badgeVersion('<span class="badge">2.0.0-rc.1</span>'), '2.0.0-rc.1');
+  assert.equal(badgeVersion('<span class="badge">v2.0.0-rc.1</span>'), '2.0.0-rc.1');
+  assert.equal(badgeVersion('<span class="badge">2.0.0-beta.2</span>'), '2.0.0-beta.2');
+  assert.notEqual(badgeVersion('<span class="badge">2.0.0-beta.2</span>'), '2.0.0-rc.1');
+  assert.equal(badgeVersion('<header>No version</header>'), null);
+});
+
 test("every tool's badge names the version of the library it generates code for", () => {
   const version = libraryVersion();
   const wrong = [];
@@ -65,10 +77,10 @@ test("every tool's badge names the version of the library it generates code for"
     // Read as bytes: one of these pages trips git's binary heuristic, and decoding it as UTF-8
     // would fail on a check that has nothing to do with encoding.
     const html = fs.readFileSync(page).toString("latin1");
-    const m = html.match(/class="badge"[^>]*>\s*v([^<\s]+)/);
-    if (!m) continue;               // a tool without a badge is fine; a wrong one is not
-    if (m[1] !== version) {
-      wrong.push(`${path.relative(repoRoot, page)}: v${m[1]}`);
+    const actual = badgeVersion(html);
+    if (actual == null) continue;   // a tool without a badge is fine; a wrong one is not
+    if (actual !== version) {
+      wrong.push(`${path.relative(repoRoot, page)}: v${actual}`);
     }
   }
 
