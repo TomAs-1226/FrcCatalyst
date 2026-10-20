@@ -147,8 +147,9 @@ class VisionPoseRecoveryTest {
         var uncertain = constantMotion();
         assertFalse(uncertain.observe(new PoseObservation(new Pose2d(1.8, 2.6, Rotation2d.ZERO),
                 2.05, .09, "rear"), 2.05, 0));
-        assertEquals(0, uncertain.sampleCount());
-        assertTrue(uncertain.evidenceAt(2.05, 0).isEmpty());
+        assertTrue(uncertain.sampleCount() > 6, "qualified training survives an uncertain frame");
+        assertTrue(uncertain.evidenceAt(2.05, 0).isEmpty(), "uncertain input invalidates pending holdout");
+        assertTrue(uncertain.evidenceAt(2.20, 0).isEmpty(), "uncertain frames cannot renew evidence");
     }
 
     @Test void largeAbsoluteClockRetainsFiniteAccurateEndpointEstimate() {

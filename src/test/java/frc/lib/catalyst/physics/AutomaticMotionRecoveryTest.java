@@ -48,6 +48,30 @@ class AutomaticMotionRecoveryTest {
         assertEquals(1,core.visionRecoveryCount());
         assertEquals(0,core.motion().fieldVelocity().getNorm(),1e-8);
     }
+    @Test void intermittentUncertainFramesDoNotEraseQualifiedRecoveryTrajectory() {
+        var core=core(true);lose(core);
+        for(int i=0;i<160;i++) {
+            double t=1.62+i*.02;frame(core,t,0,0);
+            if(i%3==0) core.observeRecoveryPose(camera(t,0));
+            else core.observeRecoveryPose(new PoseObservation(new Pose2d(2,2,Rotation2d.ZERO),
+                    t,.25,"real-qualified-camera"));
+        }
+        assertTrue(core.motion().usable(),core.visionRecoveryReason());
+        assertEquals(1,core.visionRecoveryCount());
+        assertEquals(0,core.motion().fieldVelocity().getNorm(),1e-8);
+    }
+    @Test void uncertainFramesAloneCannotRecoverOrBridgeAQualifiedCaptureGap() {
+        var core=core(true);lose(core);
+        for(int i=0;i<160;i++) {
+            double t=1.62+i*.02;frame(core,t,0,0);
+            core.observeRecoveryPose(new PoseObservation(Pose2d.ZERO,t,.25,"real-qualified-camera"));
+        }
+        assertFalse(core.motion().usable());
+        assertEquals(0,core.visionRecoveryCount());
+        assertEquals(0,core.visionRecoverySamples());
+        double t=clock[0]+.02;frame(core,t,0,0);core.observeRecoveryPose(camera(t,0));
+        assertFalse(core.motion().usable(),"one qualified frame cannot repair a long uncertain interval");
+    }
     @Test void movingRobotRecoversToMeasuredVelocityInsteadOfAnInventedStandstill() {
         var core=core(true);lose(core);
         captures(core,1.62,0,1,1,true);

@@ -335,10 +335,16 @@ final class LegacyLimelightReader {
                 captureTime(frame.timestamp, latencyMs),
                 tagCount,
                 Double.isFinite(avgDist) ? avgDist : 0.0,
-                // This API exposes no per-estimate ambiguity, and unlike the modern path there is no
-                // camera-side gate that has already applied one. Zero here means "not reported",
-                // not "checked and fine" - which is exactly why the modern path is preferred.
-                0.0));
+                singleTagAmbiguity(botpose, tagCount, fromMegaTag2)));
+    }
+
+    /** Newer legacy arrays append raw fiducials to this same timestamped pose frame. */
+    static double singleTagAmbiguity(double[] pose, int tagCount, boolean megaTag2) {
+        // MT2 resolves planar ambiguity with the supplied gyro. A multi-tag MT1 solve is
+        // likewise not the ambiguous single-tag solve described by the embedded raw value.
+        if (megaTag2 || tagCount != 1 || pose.length < 18) return 0.0;
+        double ambiguity = pose[17]; // 11 pose fields, then id/tx/ty/area/cameraDist/robotDist/ambiguity.
+        return Double.isFinite(ambiguity) && ambiguity >= 0 ? ambiguity : 1.0;
     }
 
     /**

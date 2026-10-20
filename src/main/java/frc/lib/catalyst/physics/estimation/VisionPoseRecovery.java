@@ -103,8 +103,15 @@ public final class VisionPoseRecovery {
         }
         if (observation==null || !validPose(observation.pose())
                 || !finite(observation.timestampSeconds(),observation.standardDeviation())
-                || observation.standardDeviation()<=0 || observation.standardDeviation()>MAX_INPUT_STD) {
-            samples.clear(); pending=null; reason="invalid or uncertain camera capture"; return false;
+                || observation.standardDeviation()<=0) {
+            samples.clear(); pending=null; reason="invalid camera capture"; return false;
+        }
+        if (observation.standardDeviation()>MAX_INPUT_STD) {
+            // A lower-quality intervening frame is not motion evidence and cannot authorize
+            // recovery. Keep only the previously qualified training captures; discard the
+            // pending holdout so another qualified, fresh capture is required. Normal gap,
+            // epoch, source, age and fit checks still apply when that capture arrives.
+            pending=null; reason="uncertain capture; waiting for qualified holdout"; return false;
         }
         double t=observation.timestampSeconds();
         if (t<=cutoff || t<=lastSeenCapture || t>now || now-t>MAX_AGE) {
