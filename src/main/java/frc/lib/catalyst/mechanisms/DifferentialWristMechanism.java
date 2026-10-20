@@ -159,6 +159,7 @@ public class DifferentialWristMechanism extends CatalystMechanism {
         diffMMRequest.AverageSlot = 0;
         diffMMRequest.DifferentialSlot = 1;
 
+        diffMMRequest.EnableFOC = config.useFoc;
         // Live tuning wiring.
         this.tunableGains = new TunableGains(
                 config.name,
@@ -435,6 +436,7 @@ public class DifferentialWristMechanism extends CatalystMechanism {
         final String canBus;
         final boolean leftInverted;
         final boolean rightInverted;
+        final boolean useFoc;
         final double gearRatio;
         final double minPitch, maxPitch;
         final double minRoll, maxRoll;
@@ -458,6 +460,7 @@ public class DifferentialWristMechanism extends CatalystMechanism {
             this.canBus = b.canBus;
             this.leftInverted = b.leftInverted;
             this.rightInverted = b.rightInverted;
+            this.useFoc = b.useFoc;
             this.gearRatio = b.gearRatio;
             this.minPitch = b.minPitch; this.maxPitch = b.maxPitch;
             this.minRoll = b.minRoll; this.maxRoll = b.maxRoll;
@@ -491,6 +494,7 @@ public class DifferentialWristMechanism extends CatalystMechanism {
             private String canBus = "";
             private boolean leftInverted = false;
             private boolean rightInverted = false;
+            private boolean useFoc = true;
             private double gearRatio = 1.0;
             private double minPitch = -180, maxPitch = 180;
             private double minRoll = -180, maxRoll = 180;
@@ -520,7 +524,7 @@ public class DifferentialWristMechanism extends CatalystMechanism {
             public Builder canBus(String canBus) { this.canBus = canBus; return this; }
             public Builder leftInverted(boolean inverted) { this.leftInverted = inverted; return this; }
             public Builder rightInverted(boolean inverted) { this.rightInverted = inverted; return this; }
-
+            public Builder useFoc(boolean useFoc) { this.useFoc = useFoc; return this; }
             /** Motor-to-mechanism gear ratio (motor rotations per mechanism rotation). */
             public Builder gearRatio(double ratio) { this.gearRatio = ratio; return this; }
 

@@ -252,6 +252,11 @@ public class CatalystMotor {
                 f.optimizeBusUtilization();
             }
         }
+        dutyCycleRequest.EnableFOC = builder.useFocControl;
+        voltageRequest.EnableFOC = builder.useFocControl;
+        positionRequest.EnableFOC = builder.useFocControl;
+        velocityRequest.EnableFOC = builder.useFocControl;
+        motionMagicRequest.EnableFOC = builder.useFocControl;
     }
 
     // --- Control Methods ---
@@ -585,6 +590,7 @@ public class CatalystMotor {
         private boolean brakeMode = true;
         private boolean optimizeCanBus = false;
         private double canUpdateHz = 50.0;
+        private boolean useFocControl = true;
         private double currentLimit = 40;
         private double statorCurrentLimit = 80;
         // Phoenix's own defaults (+/-800 A are the config maximums; Phoenix ships narrower).
@@ -638,6 +644,7 @@ public class CatalystMotor {
 
         /** Optimize CAN bus utilization at the default 50 Hz. */
         public Builder optimizeCanBus() { return optimizeCanBus(50.0); }
+        public Builder useFocControl(boolean useFoc) { this.useFocControl = useFoc; return this;}
         public Builder currentLimit(double amps) { this.currentLimit = amps; return this; }
         public Builder statorCurrentLimit(double amps) { this.statorCurrentLimit = amps; return this; }
 

@@ -94,6 +94,7 @@ public class TurretMechanism extends CatalystMechanism {
                 .currentLimit(config.currentLimit)
                 .statorCurrentLimit(config.statorCurrentLimit)
                 .gearRatio(config.gearRatio)
+                .useFocControl(config.useFOC)
                 .pid(config.kP, config.kI, config.kD)
                 .feedforward(config.kS, config.kV, config.kA)
                 .motionMagic(config.motionMagicCruiseVelocity,
@@ -546,6 +547,7 @@ public class TurretMechanism extends CatalystMechanism {
         final double cancoderRotorToSensorRatio;
         final MotorType motorType;
         final double simMOI;
+        final boolean useFOC;
 
         private Config(Builder b) {
             this.name = b.name;
@@ -554,6 +556,7 @@ public class TurretMechanism extends CatalystMechanism {
             this.inverted = b.inverted;
             this.brakeMode = b.brakeMode;
             this.gearRatio = b.gearRatio;
+            this.useFOC = b.useFOC;
             this.minAngle = b.minAngle;
             this.maxAngle = b.maxAngle;
             this.currentLimit = b.currentLimit;
@@ -582,6 +585,7 @@ public class TurretMechanism extends CatalystMechanism {
             private boolean inverted = false;
             private boolean brakeMode = true;   // hold aim on disable
             private double gearRatio = 1.0;
+            private boolean useFOC = true;
             private double minAngle = -180;
             private double maxAngle = 180;
             private double currentLimit = 30;
@@ -608,6 +612,7 @@ public class TurretMechanism extends CatalystMechanism {
 
             /** Motor rotations per turret rotation. */
             public Builder gearRatio(double ratio) { this.gearRatio = ratio; return this; }
+            public Builder useFOC(boolean useFOC) { this.useFOC = useFOC; return this; }
 
             /** Mechanical travel limits, in robot-relative degrees. Make this wider than ±180 for a turret with overlap. */
             public Builder range(double minDegrees, double maxDegrees) {
