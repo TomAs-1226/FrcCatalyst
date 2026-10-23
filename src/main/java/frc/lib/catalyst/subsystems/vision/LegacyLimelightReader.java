@@ -104,8 +104,10 @@ final class LegacyLimelightReader {
     private final DoubleArraySubscriber megaTag1;
 
     /**
-     * {@code hb} counts frames and {@code hw} is {@code [fps, cpu temperature C, ram %, temp]}, both
-     * published by every Limelight OS since 2024. The heartbeat is the liveness signal: a camera
+     * {@code hb} counts frames and {@code hw} is
+     * {@code [cpu_temp_celsius, cpu_usage, ram_usage_percent, fps]}, per the
+     * <a href="https://docs.limelightvision.io/docs/docs-limelight/apis/complete-networktables-api">
+     * Limelight NetworkTables API</a>. The heartbeat is the liveness signal: a camera
      * whose session is up but whose pipeline has died stops advancing it, and a camera that is
      * unplugged leaves its last value in the table forever. Either way its publish time stops moving,
      * which is what {@link #secondsSinceHeartbeat()} measures.
@@ -407,12 +409,12 @@ final class LegacyLimelightReader {
 
     /** The camera's reported frame rate, or empty if it has not published {@code hw}. */
     java.util.OptionalDouble fps() {
-        return hardwareField(0);
+        return hardwareField(3);
     }
 
     /** The camera's reported CPU temperature in C, or empty. Limelight 4s throttle from ~85 C. */
     java.util.OptionalDouble cpuTemperatureC() {
-        return hardwareField(1);
+        return hardwareField(0);
     }
 
     private java.util.OptionalDouble hardwareField(int index) {
