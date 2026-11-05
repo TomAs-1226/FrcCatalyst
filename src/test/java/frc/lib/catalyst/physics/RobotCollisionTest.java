@@ -4,11 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
-import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.kinematics.ChassisVelocities;
+import org.wpilib.math.kinematics.SwerveDriveKinematics;
 import frc.lib.catalyst.physics.contact.CollisionField;
 import frc.lib.catalyst.physics.contact.ContactMaterial;
 import frc.lib.catalyst.physics.contact.FieldHeightmap;
@@ -33,7 +33,7 @@ class RobotCollisionTest {
     private static SimulatedRobot robotIn(CollisionField field) {
         return SimulatedRobot.builder()
                 .robotModel(chassis()).kinematics(KINEMATICS).loopPeriod(0.02)
-                .startingPose(new Pose2d(8.0, 4.0, Rotation2d.kZero))
+                .startingPose(new Pose2d(8.0, 4.0, Rotation2d.ZERO))
                 .collisionField(field).build();
     }
 
@@ -42,13 +42,13 @@ class RobotCollisionTest {
     @Test
     void aRobotInOpenFieldTouchesNothing() {
         CollisionField field = CollisionField.rebuilt().build();
-        assertTrue(field.contact(new Pose2d(8.0, 4.0, Rotation2d.kZero), 0.43, 0.43).isEmpty());
+        assertTrue(field.contact(new Pose2d(8.0, 4.0, Rotation2d.ZERO), 0.43, 0.43).isEmpty());
     }
 
     @Test
     void aRobotOverlappingTheWallIsDetected() {
         CollisionField field = CollisionField.rebuilt().build();
-        var hit = field.contact(new Pose2d(0.2, 4.0, Rotation2d.kZero), 0.43, 0.43);
+        var hit = field.contact(new Pose2d(0.2, 4.0, Rotation2d.ZERO), 0.43, 0.43);
         assertTrue(hit.isPresent());
         assertEquals(1.0, hit.get().normal().getX(), 1e-9, "it should be pushed back into the field");
         assertEquals(0.23, hit.get().penetration(), 1e-6);
@@ -57,7 +57,7 @@ class RobotCollisionTest {
     @Test
     void aDiagonalRobotNeedsMoreRoomThanASquareOne() {
         CollisionField field = CollisionField.rebuilt().build();
-        Pose2d square = new Pose2d(0.45, 4.0, Rotation2d.kZero);
+        Pose2d square = new Pose2d(0.45, 4.0, Rotation2d.ZERO);
         Pose2d turned = new Pose2d(0.45, 4.0, Rotation2d.fromDegrees(45));
 
         assertTrue(field.contact(square, 0.43, 0.43).isEmpty(),
@@ -73,7 +73,7 @@ class RobotCollisionTest {
                 .build();
 
         // Approaching from -x, overlapping slightly.
-        var hit = field.contact(new Pose2d(7.0, 4.0, Rotation2d.kZero), 0.43, 0.43);
+        var hit = field.contact(new Pose2d(7.0, 4.0, Rotation2d.ZERO), 0.43, 0.43);
         assertTrue(hit.isPresent());
         assertEquals("hub", hit.get().what());
         assertTrue(hit.get().normal().getX() < 0, "the way out is back the way it came");
@@ -84,7 +84,7 @@ class RobotCollisionTest {
         CollisionField field = CollisionField.rebuilt()
                 .addObstacle("hub", new Translation2d(8.0, 4.0), 0.6, 0.6, ContactMaterial.ALUMINIUM)
                 .build();
-        assertTrue(field.contact(new Pose2d(6.0, 4.0, Rotation2d.kZero), 0.43, 0.43).isEmpty());
+        assertTrue(field.contact(new Pose2d(6.0, 4.0, Rotation2d.ZERO), 0.43, 0.43).isEmpty());
     }
 
     // ------------------------------------------------------------------ response
@@ -94,7 +94,7 @@ class RobotCollisionTest {
         // The historical behaviour, and what every simulation written before this expects.
         SimulatedRobot sim = SimulatedRobot.builder()
                 .robotModel(chassis()).kinematics(KINEMATICS).loopPeriod(0.02).build();
-        sim.command(new ChassisSpeeds(-4.0, 0, 0));
+        sim.command(new ChassisVelocities(-4.0, 0, 0));
         sim.step(150);
         assertTrue(sim.truePose().getX() < -1.0, "no field configured means nothing to hit");
         assertEquals(0, sim.collisionCount());
@@ -103,7 +103,7 @@ class RobotCollisionTest {
     @Test
     void theWallStopsARobotDrivingIntoIt() {
         SimulatedRobot sim = robotIn(CollisionField.rebuilt().build());
-        sim.command(new ChassisSpeeds(-4.0, 0, 0));   // from mid-field, straight at the x- wall
+        sim.command(new ChassisVelocities(-4.0, 0, 0));   // from mid-field, straight at the x- wall
 
         for (int i = 0; i < 400; i++) sim.step();
 
@@ -116,7 +116,7 @@ class RobotCollisionTest {
     void theRobotNeverEndsUpOutsideTheField() {
         SimulatedRobot sim = robotIn(CollisionField.rebuilt().build());
         // Drive hard into a corner, diagonally, while spinning — the case that breaks naive push-out.
-        sim.command(new ChassisSpeeds(-4.0, -4.0, 2.0));
+        sim.command(new ChassisVelocities(-4.0, -4.0, 2.0));
         for (int i = 0; i < 400; i++) {
             sim.step();
             Pose2d at = sim.truePose();
@@ -131,7 +131,7 @@ class RobotCollisionTest {
                 .addObstacle("pillar", new Translation2d(11.0, 4.0), 0.5, 0.5, ContactMaterial.ALUMINIUM)
                 .build();
         SimulatedRobot sim = robotIn(field);
-        sim.command(new ChassisSpeeds(3.0, 0, 0));
+        sim.command(new ChassisVelocities(3.0, 0, 0));
         for (int i = 0; i < 300; i++) sim.step();
 
         assertTrue(sim.collisionCount() > 0);
@@ -151,7 +151,7 @@ class RobotCollisionTest {
 
     private static double reboundSpeed(ContactMaterial wall) {
         SimulatedRobot sim = robotIn(CollisionField.rebuilt().wallMaterial(wall).build());
-        sim.command(new ChassisSpeeds(-4.0, 0, 0));
+        sim.command(new ChassisVelocities(-4.0, 0, 0));
         while (sim.collisionCount() == 0 && sim.timestamp() < 5.0) sim.step();
         return sim.trueVelocityVector().getX();   // positive means it came back off the wall
     }
@@ -160,7 +160,7 @@ class RobotCollisionTest {
     void anImpactShowsUpAsAccelerationTheWheelsCannotExplain() {
         // This is the point of simulating collisions at all: the disturbance has to be visible.
         SimulatedRobot sim = robotIn(CollisionField.rebuilt().build());
-        sim.command(new ChassisSpeeds(-4.0, 0, 0));
+        sim.command(new ChassisVelocities(-4.0, 0, 0));
         while (sim.collisionCount() == 0 && sim.timestamp() < 5.0) sim.step();
 
         Translation2d body = sim.trueAcceleration();
@@ -173,7 +173,7 @@ class RobotCollisionTest {
     @Test
     void aRobotThatIsNotDrivingAtAnythingNeverCollides() {
         SimulatedRobot sim = robotIn(CollisionField.rebuilt().build());
-        sim.command(new ChassisSpeeds(0.5, 0, 0));
+        sim.command(new ChassisVelocities(0.5, 0, 0));
         sim.step(100);
         assertEquals(0, sim.collisionCount());
         assertFalse(sim.isTouchingField());
@@ -182,7 +182,7 @@ class RobotCollisionTest {
     @Test
     void resetClearsTheCollisionRecord() {
         SimulatedRobot sim = robotIn(CollisionField.rebuilt().build());
-        sim.command(new ChassisSpeeds(-4.0, 0, 0));
+        sim.command(new ChassisVelocities(-4.0, 0, 0));
         sim.step(200);
         assertTrue(sim.collisionCount() > 0);
         sim.reset();
@@ -222,7 +222,7 @@ class RobotCollisionTest {
     private static SimulatedRobot robotOn(FieldHeightmap map, double x, double y) {
         return SimulatedRobot.builder()
                 .robotModel(chassis()).kinematics(KINEMATICS).loopPeriod(0.02)
-                .startingPose(new Pose2d(x, y, Rotation2d.kZero))
+                .startingPose(new Pose2d(x, y, Rotation2d.ZERO))
                 .heightmap(map, 0.85, 0.0).build();
     }
 
@@ -234,7 +234,7 @@ class RobotCollisionTest {
     @Test
     void aRobotHeldAgainstAWallComesToRest() {
         SimulatedRobot sim = robotOn(walledBox(), 2.0, 5.0);
-        sim.command(new ChassisSpeeds(4.0, 0, 0));   // and never let go of the stick
+        sim.command(new ChassisVelocities(4.0, 0, 0));   // and never let go of the stick
         sim.step(400);
 
         // Everything below is measured after the impact has had eight seconds to settle. The old
@@ -269,7 +269,7 @@ class RobotCollisionTest {
         // when step() returns is overlap somebody watches. It used to take seven steps — 140 ms, eight
         // rendered frames — to climb out of a 20 cm overlap, one fixed push at a time.
         SimulatedRobot sim = robotOn(walledBox(), 2.0, 5.0);
-        sim.command(new ChassisSpeeds(4.0, 0, 0));
+        sim.command(new ChassisVelocities(4.0, 0, 0));
 
         double deepest = 0;
         for (int i = 0; i < 400; i++) {
@@ -287,7 +287,7 @@ class RobotCollisionTest {
         // this guards against is the normal picking up a component along the wall, which turns every
         // contact into a brake and, at 45 degrees out, into a shove in the wrong direction entirely.
         SimulatedRobot sim = robotOn(walledBox(), 2.0, 1.0);
-        sim.command(new ChassisSpeeds(4.0, 4.0, 0));   // diagonally into the +x wall
+        sim.command(new ChassisVelocities(4.0, 4.0, 0));   // diagonally into the +x wall
         sim.step(60);                                  // reach it and settle into the slide
 
         double startY = sim.truePose().getY();

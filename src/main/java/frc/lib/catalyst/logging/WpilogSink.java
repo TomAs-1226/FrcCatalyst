@@ -1,18 +1,18 @@
 package frc.lib.catalyst.logging;
 
-import edu.wpi.first.util.datalog.BooleanArrayLogEntry;
-import edu.wpi.first.util.datalog.BooleanLogEntry;
-import edu.wpi.first.util.datalog.DataLog;
-import edu.wpi.first.util.datalog.DoubleArrayLogEntry;
-import edu.wpi.first.util.datalog.DoubleLogEntry;
-import edu.wpi.first.util.datalog.IntegerArrayLogEntry;
-import edu.wpi.first.util.datalog.IntegerLogEntry;
-import edu.wpi.first.util.datalog.StringArrayLogEntry;
-import edu.wpi.first.util.datalog.StringLogEntry;
-import edu.wpi.first.util.datalog.StructArrayLogEntry;
-import edu.wpi.first.util.datalog.StructLogEntry;
-import edu.wpi.first.util.struct.Struct;
-import edu.wpi.first.wpilibj.DataLogManager;
+import org.wpilib.datalog.BooleanArrayLogEntry;
+import org.wpilib.datalog.BooleanLogEntry;
+import org.wpilib.datalog.DataLog;
+import org.wpilib.datalog.DoubleArrayLogEntry;
+import org.wpilib.datalog.DoubleLogEntry;
+import org.wpilib.datalog.IntegerArrayLogEntry;
+import org.wpilib.datalog.IntegerLogEntry;
+import org.wpilib.datalog.StringArrayLogEntry;
+import org.wpilib.datalog.StringLogEntry;
+import org.wpilib.datalog.StructArrayLogEntry;
+import org.wpilib.datalog.StructLogEntry;
+import org.wpilib.util.struct.Struct;
+import org.wpilib.system.DataLogManager;
 
 import java.util.HashMap;
 import java.util.Map;

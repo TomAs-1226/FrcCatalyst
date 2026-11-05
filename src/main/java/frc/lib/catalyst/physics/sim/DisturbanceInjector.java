@@ -3,9 +3,9 @@ package frc.lib.catalyst.physics.sim;
 import java.util.ArrayList;
 import java.util.List;
 
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
-import edu.wpi.first.math.kinematics.SwerveModuleState;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.kinematics.ChassisVelocities;
+import org.wpilib.math.kinematics.SwerveModuleVelocity;
 
 import frc.lib.catalyst.physics.PhysicsSample;
 
@@ -60,7 +60,7 @@ public final class DisturbanceInjector {
     public PhysicsSample apply(PhysicsSample sample) {
         if (!enabled) return sample;
 
-        SwerveModuleState[] states = sample.moduleStates();
+        SwerveModuleVelocity[] states = sample.moduleStates();
         if (states != null && (!moduleSlips.isEmpty() || wheelSpeedBias != 0.0)) {
             states = states.clone();
             for (int i = 0; i < states.length; i++) {
@@ -69,18 +69,18 @@ public final class DisturbanceInjector {
                     if (slip.index == i) extra += slip.extraSpeedMps;
                 }
                 if (extra != 0.0) {
-                    states[i] = new SwerveModuleState(
-                            states[i].speedMetersPerSecond + extra, states[i].angle);
+                    states[i] = new SwerveModuleVelocity(
+                            states[i].velocity + extra, states[i].angle);
                 }
             }
         }
 
         // A real slip also inflates the forward-kinematic chassis speed, because that is derived from
         // the same wheels. Injecting only the module states would produce a fault no real robot has.
-        ChassisSpeeds speeds = sample.robotRelativeSpeeds();
+        ChassisVelocities speeds = sample.robotRelativeSpeeds();
         if (wheelSpeedBias != 0.0) {
-            speeds = new ChassisSpeeds(speeds.vxMetersPerSecond + wheelSpeedBias,
-                    speeds.vyMetersPerSecond, speeds.omegaRadiansPerSecond);
+            speeds = new ChassisVelocities(speeds.vx + wheelSpeedBias,
+                    speeds.vy, speeds.omega);
         }
 
         Translation2d acceleration = sample.robotRelativeAcceleration();

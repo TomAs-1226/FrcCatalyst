@@ -1,15 +1,16 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.math.Nat;
-import edu.wpi.first.math.VecBuilder;
-import edu.wpi.first.math.controller.LinearQuadraticRegulator;
-import edu.wpi.first.math.estimator.KalmanFilter;
-import edu.wpi.first.math.numbers.N1;
-import edu.wpi.first.math.numbers.N2;
-import edu.wpi.first.math.system.LinearSystem;
-import edu.wpi.first.math.system.LinearSystemLoop;
-import edu.wpi.first.math.system.plant.DCMotor;
-import edu.wpi.first.math.system.plant.LinearSystemId;
+import org.wpilib.math.util.Nat;
+import org.wpilib.math.linalg.MatBuilder;
+import org.wpilib.math.linalg.VecBuilder;
+import org.wpilib.math.controller.LinearQuadraticRegulator;
+import org.wpilib.math.estimator.KalmanFilter;
+import org.wpilib.math.numbers.N1;
+import org.wpilib.math.numbers.N2;
+import org.wpilib.math.system.LinearSystem;
+import org.wpilib.math.system.LinearSystemLoop;
+import org.wpilib.math.system.DCMotor;
+import org.wpilib.math.system.Models;
 
 /**
  * State-space controller wrapper for FRC mechanisms using LQR + Kalman filter.
@@ -132,8 +133,16 @@ public final class StateSpaceController {
      * createElevatorSystem and createSingleJointedArmSystem factory methods.
      */
     public static class Position {
+        /**
+         * The velocity noise to claim when there is no velocity sensor, m/s (or rad/s). Large enough that the
+         * filter takes nothing from that channel: the correction it computes scales with the measurement's
+         * weight, and at this variance that weight is about a millionth of the position channel's.
+         */
+        private static final double NO_VELOCITY_SENSOR_STD_DEV = 1e3;
+
         private final LinearSystemLoop<N2, N1, N2> loop;
         private final LinearSystem<N2, N1, N2> plant;
+        private final double encoderPosStdDev;
 
         public Position(LinearSystem<N2, N1, N2> plant,
                           double posModelStdDev, double velModelStdDev,
@@ -141,6 +150,7 @@ public final class StateSpaceController {
                           double maxPosError, double maxVelError, double maxVoltage,
                           double dtSeconds) {
             this.plant = plant;
+            this.encoderPosStdDev = encoderPosStdDev;
 
             KalmanFilter<N2, N1, N2> observer = new KalmanFilter<>(
                     Nat.N2(), Nat.N2(), plant,
@@ -173,11 +183,23 @@ public final class StateSpaceController {
         }
 
         /**
-         * Correct the state estimate with position only.
-         * Uses the Kalman filter's current velocity estimate for the velocity measurement.
+         * Correct the state estimate from a position measurement alone, for the mechanisms that have no velocity
+         * sensor.
+         *
+         * <p>It passes the filter's own velocity estimate through the velocity channel, with the noise of a
+         * sensor that does not exist, so the filter takes nothing from it. Handing back the estimate at the real
+         * sensor's noise instead - which this did until 2.0.0-alpha.5 - shrinks the filter's uncertainty every
+         * loop as though a fresh, precise reading had arrived: the covariance update does not look at the value,
+         * only at the noise it is claimed to have. The filter ends up certain of a velocity nothing measured, and
+         * under-weights the next real disturbance.
          */
         public void correct(double measuredPosition) {
-            correct(measuredPosition, getEstimatedVelocity());
+            loop.getObserver().correct(
+                    loop.getU(),
+                    VecBuilder.fill(measuredPosition, getEstimatedVelocity()),
+                    MatBuilder.fill(Nat.N2(), Nat.N2(),
+                            encoderPosStdDev * encoderPosStdDev, 0.0,
+                            0.0, NO_VELOCITY_SENSOR_STD_DEV * NO_VELOCITY_SENSOR_STD_DEV));
         }
 
         /** Predict the next state (call after correct). */
@@ -227,7 +249,7 @@ public final class StateSpaceController {
     public static Velocity createFlywheel(DCMotor motor, double moiKgM2, double gearing,
                                            double modelStdDev, double encoderStdDev,
                                            double maxVelocityError, double maxVoltage) {
-        LinearSystem<N1, N1, N1> plant = LinearSystemId.createFlywheelSystem(motor, moiKgM2, gearing);
+        LinearSystem<N1, N1, N1> plant = Models.flywheelFromPhysicalConstants(motor, moiKgM2, gearing);
         return new Velocity(plant, modelStdDev, encoderStdDev, maxVelocityError, maxVoltage, 0.020);
     }
 
@@ -240,7 +262,7 @@ public final class StateSpaceController {
     public static Velocity createFlywheelFromGains(double kV, double kA,
                                                      double modelStdDev, double encoderStdDev,
                                                      double maxVelocityError, double maxVoltage) {
-        LinearSystem<N1, N1, N1> plant = LinearSystemId.identifyVelocitySystem(kV, kA);
+        LinearSystem<N1, N1, N1> plant = Models.flywheelFromSysId(kV, kA);
         return new Velocity(plant, modelStdDev, encoderStdDev, maxVelocityError, maxVoltage, 0.020);
     }
 
@@ -265,7 +287,7 @@ public final class StateSpaceController {
                                            double encoderPosStdDev, double encoderVelStdDev,
                                            double maxPosError, double maxVelError,
                                            double maxVoltage) {
-        LinearSystem<N2, N1, N2> plant = LinearSystemId.createElevatorSystem(
+        LinearSystem<N2, N1, N2> plant = Models.elevatorFromPhysicalConstants(
                 motor, massKg, drumRadiusMeters, gearing);
         return new Position(plant, posModelStdDev, velModelStdDev, encoderPosStdDev, encoderVelStdDev,
                 maxPosError, maxVelError, maxVoltage, 0.020);
@@ -290,7 +312,7 @@ public final class StateSpaceController {
                                       double encoderPosStdDev, double encoderVelStdDev,
                                       double maxPosError, double maxVelError,
                                       double maxVoltage) {
-        LinearSystem<N2, N1, N2> plant = LinearSystemId.createSingleJointedArmSystem(
+        LinearSystem<N2, N1, N2> plant = Models.singleJointedArmFromPhysicalConstants(
                 motor, moiKgM2, gearing);
         return new Position(plant, posModelStdDev, velModelStdDev, encoderPosStdDev, encoderVelStdDev,
                 maxPosError, maxVelError, maxVoltage, 0.020);
@@ -307,7 +329,7 @@ public final class StateSpaceController {
                                                      double encoderPosStdDev, double encoderVelStdDev,
                                                      double maxPosError, double maxVelError,
                                                      double maxVoltage) {
-        LinearSystem<N2, N1, N2> plant = LinearSystemId.identifyPositionSystem(kV, kA);
+        LinearSystem<N2, N1, N2> plant = Models.elevatorFromSysId(kV, kA);
         return new Position(plant, posModelStdDev, velModelStdDev, encoderPosStdDev, encoderVelStdDev,
                 maxPosError, maxVelError, maxVoltage, 0.020);
     }

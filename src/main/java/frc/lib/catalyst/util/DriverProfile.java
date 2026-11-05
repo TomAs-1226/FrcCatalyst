@@ -1,6 +1,6 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.math.MathUtil;
+import org.wpilib.math.util.MathUtil;
 
 import java.util.function.DoubleSupplier;
 

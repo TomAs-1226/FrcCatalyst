@@ -1,8 +1,9 @@
 package frc.lib.catalyst.statemachine.mech;
 
-import edu.wpi.first.math.MathUtil;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Subsystem;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.math.util.MathUtil;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Mechanism;
 import frc.lib.catalyst.mechanisms.WinchMechanism;
 import frc.lib.catalyst.statemachine.goals.WinchGoal;
 import frc.lib.catalyst.statemachine.robot.Actuator;
@@ -74,7 +75,7 @@ public final class WinchBinding implements Actuator<WinchGoal> {
 
     private final WinchMechanism mechanism;
     private final String key;
-    private final Set<Subsystem> requirements;
+    private final Set<Mechanism> requirements;
 
     /**
      * True when the wrapped mechanism runs in rotation mode ({@code spoolRadius <= 0}), which
@@ -198,7 +199,7 @@ public final class WinchBinding implements Actuator<WinchGoal> {
      * binding does not understand what it was asked for.
      */
     @Override
-    public Command pursueCommand(WinchGoal goal) {
+    public CatalystCommand pursueCommand(WinchGoal goal) {
         if (goal instanceof WinchGoal.Extend) {
             return mechanism.extend();
         }
@@ -226,7 +227,7 @@ public final class WinchBinding implements Actuator<WinchGoal> {
      * would only churn the scheduler.
      */
     @Override
-    public Command holdCommand(WinchGoal goal) {
+    public CatalystCommand holdCommand(WinchGoal goal) {
         if (goal instanceof WinchGoal.Extend
                 || goal instanceof WinchGoal.Retract
                 || goal instanceof WinchGoal.Speed) {
@@ -432,7 +433,7 @@ public final class WinchBinding implements Actuator<WinchGoal> {
      * <p>Exactly the one winch subsystem, allocated once at construction.
      */
     @Override
-    public Set<Subsystem> requirements() {
+    public Set<Mechanism> requirements() {
         return requirements;
     }
 
@@ -536,6 +537,6 @@ public final class WinchBinding implements Actuator<WinchGoal> {
         if (!Double.isFinite(dutyCycle)) {
             return 0.0;
         }
-        return MathUtil.clamp(dutyCycle, -1.0, 1.0);
+        return Math.clamp(dutyCycle, -1.0, 1.0);
     }
 }

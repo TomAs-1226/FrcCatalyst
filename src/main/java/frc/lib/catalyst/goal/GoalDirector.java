@@ -1,10 +1,10 @@
 package frc.lib.catalyst.goal;
 
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
+import frc.lib.catalyst.command.CatalystCommand;
+import frc.lib.catalyst.logging.CatalystLog;
+import org.wpilib.command3.Command;
+import frc.lib.catalyst.command.Commands;
+import org.wpilib.command3.Trigger;
 import frc.lib.catalyst.mechanisms.SuperstructureCoordinator;
 import frc.lib.catalyst.statemachine.robot.SuperstructureLike;
 import frc.lib.catalyst.identity.CatalystFeatures;
@@ -22,7 +22,7 @@ import frc.lib.catalyst.identity.CatalystFeatures;
  * — skip this package entirely and every other part of Catalyst is unchanged.
  *
  * <h2>Driver override is free</h2>
- * A pursued goal {@linkplain Command#getRequirements() requires} the same
+ * A pursued goal {@linkplain Command#requirements() requires} the same
  * subsystems its transition and setup touch (via the coordinator and your
  * setup command). So the instant the driver triggers anything that needs
  * those subsystems — including their default commands — WPILib interrupts the
@@ -61,16 +61,28 @@ public class GoalDirector {
 
     private final SuperstructureLike coordinator;          // nullable
     private final Goal defaultGoal;                          // nullable
-    private final NetworkTable table;
+    /**
+     * Key prefix under CatalystLog's root. {@code Goal/} by default, which is byte-identical to the
+     * table this used to write to directly; {@code Goal/<name>/} when the director is named. Two
+     * directors on one robot - a scoring one and a climbing one, say - both wrote {@code Goal/Active}
+     * and each overwrote the other every loop, so the dashboard showed whichever ran last.
+     */
+    private final String key;
+
+    // Last published values. Every one of these is stable for seconds at a time, and this runs in
+    // the pursue command's monitor at loop rate, so the unchanged writes were pure cost.
+    private String lastActive;
+    private String lastTargetState;
+    private Boolean lastReady;
+    private String lastWhy;
 
     private volatile Goal activeGoal;        // the goal currently being pursued (nullable)
     private volatile boolean activeReady;    // cached readiness of the active goal
 
-    private GoalDirector(SuperstructureLike coordinator, Goal defaultGoal) {
+    private GoalDirector(SuperstructureLike coordinator, Goal defaultGoal, String name) {
         this.coordinator = coordinator;
         this.defaultGoal = defaultGoal;
-        this.table = NetworkTableInstance.getDefault()
-                .getTable("Catalyst").getSubTable("Goal");
+        this.key = name == null || name.isBlank() ? "Goal/" : "Goal/" + name + "/";
         this.activeGoal = defaultGoal;
         publishIdle();
     }
@@ -81,7 +93,7 @@ public class GoalDirector {
      * continuously publishes readiness. The command holds until interrupted,
      * so bind it with {@code whileTrue} (hold) or {@code onTrue} (latch).
      */
-    public Command pursue(Goal goal) {
+    public CatalystCommand pursue(Goal goal) {
         Command transition = (coordinator != null && goal.hasSuperstructureState())
                 ? coordinator.transitionTo(goal.superstructureState())
                 : Commands.none();
@@ -96,7 +108,7 @@ public class GoalDirector {
         // and publishes live readiness / why-not telemetry every loop.
         Command monitor = Commands.run(() -> updateReadiness(goal));
 
-        return transition.alongWith(setup, monitor)
+        return CatalystCommand.of(transition).together(setup, monitor)
                 .beforeStarting(() -> onPursueStart(goal))
                 .finallyDo(interrupted -> onPursueEnd(goal))
                 .withName("Goal.Pursue(" + goal.name() + ")");
@@ -106,7 +118,7 @@ public class GoalDirector {
      * Pursue the configured default goal (the safe fallback). No-op command if
      * no default was configured.
      */
-    public Command pursueDefault() {
+    public CatalystCommand pursueDefault() {
         return defaultGoal == null
                 ? Commands.none().withName("Goal.NoDefault")
                 : pursue(defaultGoal);
@@ -141,11 +153,10 @@ public class GoalDirector {
     private void onPursueStart(Goal goal) {
         activeGoal = goal;
         activeReady = false;
-        table.getEntry("Active").setString(goal.name());
-        table.getEntry("TargetState").setString(
-                goal.hasSuperstructureState() ? goal.superstructureState() : "—");
-        table.getEntry("Ready").setBoolean(false);
-        table.getEntry("WhyNotReady").setString("starting");
+        publishActive(goal.name());
+        publishTargetState(goal.hasSuperstructureState() ? goal.superstructureState() : "—");
+        publishReady(false);
+        publishWhy("starting");
     }
 
     private void onPursueEnd(Goal goal) {
@@ -158,33 +169,80 @@ public class GoalDirector {
         }
     }
 
-    private void updateReadiness(Goal goal) {
+    /**
+     * Package-private, like {@link Goal#readyNow()} and for the same reason: the guard below is the
+     * whole point of this method and a test must be able to reach it without a scheduler.
+     */
+    void updateReadiness(Goal goal) {
         boolean ready;
         String why;
+        // Both branches below call code the team wrote - a readiness lambda, and a coordinator whose
+        // state table the team populated. This runs inside the pursue command's monitor, so a throw
+        // from either used to propagate into the scheduler and take the command down. A goal that
+        // cannot tell you whether it is ready is simply not ready, and says so.
         if (goal.hasReadinessTest()) {
-            ready = goal.readyNow();
-            why = ready ? "" : "setup not complete";
+            try {
+                ready = goal.readyNow();
+                why = ready ? "" : "setup not complete";
+            } catch (Throwable t) {
+                ready = false;
+                why = "readiness test failed: " + t;
+            }
         } else if (coordinator != null && goal.hasSuperstructureState()) {
             // No explicit test: ready when the superstructure has arrived.
-            ready = coordinator.isAtState(goal.superstructureState());
-            why = ready ? "" : "in transition";
+            try {
+                ready = coordinator.isAtState(goal.superstructureState());
+                why = ready ? "" : "in transition";
+            } catch (Throwable t) {
+                ready = false;
+                why = "coordinator failed: " + t;
+            }
         } else {
             // Nothing to wait on — ready as soon as it's running.
             ready = true;
             why = "";
         }
         activeReady = ready;
-        table.getEntry("Ready").setBoolean(ready);
-        table.getEntry("WhyNotReady").setString(why);
+        publishReady(ready);
+        publishWhy(why);
     }
 
     private void publishIdle() {
         Goal g = defaultGoal;
-        table.getEntry("Active").setString(g == null ? "None" : g.name());
-        table.getEntry("TargetState").setString(
-                (g != null && g.hasSuperstructureState()) ? g.superstructureState() : "—");
-        table.getEntry("Ready").setBoolean(false);
-        table.getEntry("WhyNotReady").setString("idle");
+        publishActive(g == null ? "None" : g.name());
+        publishTargetState((g != null && g.hasSuperstructureState()) ? g.superstructureState() : "—");
+        publishReady(false);
+        publishWhy("idle");
+    }
+
+    // --- telemetry, published only when it changes ---
+
+    private void publishActive(String value) {
+        if (!value.equals(lastActive)) {
+            lastActive = value;
+            CatalystLog.log(key + "Active", value);
+        }
+    }
+
+    private void publishTargetState(String value) {
+        if (!value.equals(lastTargetState)) {
+            lastTargetState = value;
+            CatalystLog.log(key + "TargetState", value);
+        }
+    }
+
+    private void publishReady(boolean value) {
+        if (lastReady == null || lastReady != value) {
+            lastReady = value;
+            CatalystLog.log(key + "Ready", value);
+        }
+    }
+
+    private void publishWhy(String value) {
+        if (!value.equals(lastWhy)) {
+            lastWhy = value;
+            CatalystLog.log(key + "WhyNotReady", value);
+        }
     }
 
     /** Start building a director. */
@@ -194,6 +252,7 @@ public class GoalDirector {
 
     /** Fluent builder for {@link GoalDirector}. */
     public static final class Builder {
+        private String name;
         private SuperstructureLike coordinator;
         private Goal defaultGoal;
 
@@ -232,6 +291,16 @@ public class GoalDirector {
          * requested (usually STOW). Used by {@link #pursueDefault()} and shown
          * as the idle {@code Active} goal. Optional.
          */
+        /**
+         * Namespace this director's telemetry as {@code /Catalyst/Goal/<name>/...}. Leave it unset
+         * and the keys are exactly what they have always been. Set it on every director as soon as
+         * a robot has more than one, or they overwrite each other.
+         */
+        public Builder name(String name) {
+            this.name = name;
+            return this;
+        }
+
         public Builder defaultGoal(Goal defaultGoal) {
             this.defaultGoal = defaultGoal;
             return this;
@@ -244,7 +313,7 @@ public class GoalDirector {
              * only thing at build time that says which. */
             CatalystFeatures.record(CatalystFeatures.GOAL_DIRECTOR,
                     defaultGoal == null ? null : defaultGoal.name());
-            return new GoalDirector(coordinator, defaultGoal);
+            return new GoalDirector(coordinator, defaultGoal, name);
         }
     }
 }

@@ -1,9 +1,14 @@
 package frc.lib.catalyst.subsystems.swerve;
 
-import edu.wpi.first.math.MathUtil;
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.wpilibj2.command.Command;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.math.util.MathUtil;
+import org.wpilib.networktables.NetworkTable;
+import org.wpilib.networktables.NetworkTableInstance;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Mechanism;
+import org.wpilib.command3.Coroutine;
+import org.wpilib.driverstation.DriverStationErrors;
+import org.wpilib.system.Timer;
 
 /**
  * Measures the <b>actual</b> swerve wheel radius by spinning the robot in
@@ -68,12 +73,30 @@ public final class WheelRadiusCalibration {
         /** Spin rate in rad/s. Keep it slow for accuracy. Default 0.6. */
         public Builder omega(double radPerSec) { this.omega = radPerSec; return this; }
 
-        public Command build() {
-            return new CalCommand(drive, currentWheelRadius, driveBaseRadius, rotations, omega);
+        public CatalystCommand build() {
+            return CatalystCommand.of(
+                    new CalCommand(drive, currentWheelRadius, driveBaseRadius, rotations, omega));
         }
     }
 
-    private static final class CalCommand extends Command {
+    private static final class CalCommand implements Command {
+
+        private final java.util.Set<Mechanism> required;
+
+        @Override
+        public String name() {
+            return "WheelRadiusCalibration";
+        }
+
+        @Override
+        public java.util.Set<Mechanism> requirements() {
+            return required;
+        }
+
+        /** Progress smaller than this over {@link #NO_PROGRESS_SECONDS} means it is not turning. */
+        private static final double NO_PROGRESS_RAD = Math.toRadians(2.0);
+        private static final double NO_PROGRESS_SECONDS = 3.0;
+
         private final SwerveSubsystem drive;
         private final double currentRadius;
         private final double driveBaseRadius;
@@ -84,6 +107,22 @@ public final class WheelRadiusCalibration {
         private double[] startDistances;
         private double accumHeadingRad;
         private double lastHeadingRad;
+        /** Why the run ended, for {@link #finish}. */
+        private String stopReason;
+
+        /**
+         * How long the turn may take before this gives up, from the rate it was asked to turn at
+         * plus a wide margin for a drivetrain that turns slower than it was told to.
+         *
+         * <p>The loop used to wait on the gyro alone. A robot on blocks never rotates however long
+         * its wheels spin, so the gyro never accumulated, the command never finished, and the
+         * drivetrain kept turning until somebody disabled it - and a pit test bench is exactly
+         * where this mode gets run.
+         */
+        private double timeoutSeconds() {
+            double rate = Math.abs(omega);
+            return rate < 1e-6 ? 30.0 : Math.min(120.0, (targetRad / rate) * 4.0 + 5.0);
+        }
 
         CalCommand(SwerveSubsystem drive, double currentRadius, double driveBaseRadius,
                    double rotations, double omega) {
@@ -94,20 +133,58 @@ public final class WheelRadiusCalibration {
             this.omega = omega;
             this.nt = NetworkTableInstance.getDefault()
                     .getTable("Catalyst").getSubTable("Calibration").getSubTable("WheelRadius");
-            addRequirements(drive);
-            setName("WheelRadiusCalibration");
+            this.required = java.util.Set.of(drive);
         }
 
+        /** v3 collapses initialize/execute/isFinished/end into a single coroutine body. */
         @Override
-        public void initialize() {
+        public void run(Coroutine coroutine) {
             startDistances = drive.getModuleDistances();
             accumHeadingRad = 0;
             lastHeadingRad = drive.getHeading().getRadians();
             nt.getEntry("Status").setString("running");
+
+            double started = Timer.getTimestamp();
+            double deadline = started + timeoutSeconds();
+            // Two ways out besides success: the clock, and a robot that is plainly not turning.
+            // Either one stops the drivetrain and says so rather than publishing a wheel radius
+            // computed from an arc that never happened.
+            double lastProgressAt = started;
+            double lastProgress = 0;
+            stopReason = null;
+            while (Math.abs(accumHeadingRad) < targetRad) {
+                step();
+                double now = Timer.getTimestamp();
+                if (Math.abs(accumHeadingRad) - lastProgress > NO_PROGRESS_RAD) {
+                    lastProgress = Math.abs(accumHeadingRad);
+                    lastProgressAt = now;
+                } else if (now - lastProgressAt > NO_PROGRESS_SECONDS) {
+                    stopReason = String.format(
+                            "the robot is not turning - %.0f deg in %.0f s. Is it on blocks, or is the gyro dead?",
+                            Math.toDegrees(Math.abs(accumHeadingRad)), now - started);
+                    break;
+                }
+                if (now > deadline) {
+                    stopReason = String.format(
+                            "timed out after %.0f s with %.0f of %.0f deg turned",
+                            now - started, Math.toDegrees(Math.abs(accumHeadingRad)), Math.toDegrees(targetRad));
+                    break;
+                }
+                coroutine.yield();
+            }
+            finish(false);
         }
 
         @Override
-        public void execute() {
+        public void onCancel() {
+            // true, not false. Passing "not interrupted" sent a cancelled run down the success
+            // path: the dashboard showed done, a corrected radius, and a ready-to-paste snippet -
+            // all computed from a partial arc measured against a full-rotation gyro reading. A team
+            // pastes that into their constants and every odometry distance is wrong for the event.
+            finish(true);
+        }
+
+        private void step() {
             drive.driveFieldCentric(0, 0, omega);
             double h = drive.getHeading().getRadians();
             accumHeadingRad += MathUtil.angleModulus(h - lastHeadingRad);
@@ -115,13 +192,8 @@ public final class WheelRadiusCalibration {
             nt.getEntry("AccumRotations").setDouble(Math.abs(accumHeadingRad) / (2 * Math.PI));
         }
 
-        @Override
-        public boolean isFinished() {
-            return Math.abs(accumHeadingRad) >= targetRad;
-        }
-
-        @Override
-        public void end(boolean interrupted) {
+        /** Runs on natural completion; {@link #onCancel()} routes an interrupted run here too. */
+        private void finish(boolean interrupted) {
             drive.driveFieldCentric(0, 0, 0);
 
             double[] now = drive.getModuleDistances();
@@ -134,8 +206,19 @@ public final class WheelRadiusCalibration {
 
             double gyroArc = Math.abs(accumHeadingRad) * driveBaseRadius;
 
-            if (measuredArc < 1e-6 || interrupted) {
-                nt.getEntry("Status").setString(interrupted ? "interrupted" : "no motion measured");
+            if (interrupted) {
+                nt.getEntry("Status").setString("interrupted");
+                return;
+            }
+            if (stopReason != null) {
+                // Deliberately not a radius: a partial arc against a full-turn assumption is a
+                // wrong number that looks like a right one, and a team pastes it into constants.
+                nt.getEntry("Status").setString("stopped: " + stopReason);
+                DriverStationErrors.reportWarning("[Catalyst] Wheel radius calibration stopped: " + stopReason, false);
+                return;
+            }
+            if (measuredArc < 1e-6) {
+                nt.getEntry("Status").setString("no motion measured");
                 return;
             }
 

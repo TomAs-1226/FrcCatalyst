@@ -1,7 +1,7 @@
 package frc.lib.catalyst.physics;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.kinematics.ChassisVelocities;
 
 /**
  * The one thing every Catalyst component needs from "where is the robot": a pose, a field-relative
@@ -35,10 +35,10 @@ public interface RobotStateSource {
      * Best current estimate of the robot's velocity in <b>field-relative</b> terms — {@code vx} points
      * down the field's +X axis regardless of which way the robot is facing.
      */
-    ChassisSpeeds fieldVelocity();
+    ChassisVelocities fieldVelocity();
 
     /**
-     * The timestamp, on the same clock as {@code Timer.getFPGATimestamp()}, that {@link #pose()} and
+     * The timestamp, on the same clock as {@code Timer.getTimestamp()}, that {@link #pose()} and
      * {@link #fieldVelocity()} describe. Callers use this to reject stale state and to line the
      * estimate up with a timestamped measurement.
      */

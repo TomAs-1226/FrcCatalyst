@@ -103,7 +103,7 @@ public sealed interface WinchGoal
      * a partial deploy, a pre-tension pull before a climb, a nudge to unseat a ratchet.
      * Arrival is a <b>settle timer</b> and nothing more — {@code atGoal} is
      * {@code secondsSinceApplied >= seconds()}, evaluated against the parameter the engine
-     * supplies rather than {@code Timer.getFPGATimestamp()}, and a binding must report
+     * supplies rather than {@code Timer.getTimestamp()}, and a binding must report
      * {@code observable(goal) == false} so that nobody reading a log later mistakes an
      * elapsed stopwatch for a sensed position.
      *

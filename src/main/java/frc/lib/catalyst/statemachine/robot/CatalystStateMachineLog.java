@@ -1,6 +1,7 @@
 package frc.lib.catalyst.statemachine.robot;
 
-import edu.wpi.first.wpilibj.DriverStation;
+import org.wpilib.driverstation.DriverStationErrors;
+import org.wpilib.driverstation.DriverStation;
 import frc.lib.catalyst.logging.CatalystLog;
 import frc.lib.catalyst.statemachine.BindingSample;
 import frc.lib.catalyst.statemachine.Phase;
@@ -69,7 +70,7 @@ public final class CatalystStateMachineLog<S extends Enum<S>> implements StateMa
         log("Graph/Dot", dot);
         log("Graph/Warnings", warnings.toArray(new String[0]));
         for (String w : warnings) {
-            DriverStation.reportWarning("[" + prefix + "] " + w, false);
+            DriverStationErrors.reportWarning("[" + prefix + "] " + w, false);
         }
     }
 
@@ -223,7 +224,7 @@ public final class CatalystStateMachineLog<S extends Enum<S>> implements StateMa
      */
     private void announce(String message) {
         if (driverStationMessages) {
-            DriverStation.reportWarning("[" + prefix + "] " + message, false);
+            DriverStationErrors.reportWarning("[" + prefix + "] " + message, false);
         }
     }
 

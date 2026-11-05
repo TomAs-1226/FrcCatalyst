@@ -1,19 +1,29 @@
 name: Deploy Docs
 
-# Publishes two sites from one GitHub Pages deployment.
+# Publishes three sites from one GitHub Pages deployment.
 #
-# A repository gets exactly one Pages deployment, so the stable docs and the 2027/Systemcore beta
-# docs cannot each own one. The build below assembles both into a single artifact: `main` at the
-# root and the `systemcore-alpha6` branch under /beta/, which is the 2.x line that ships: the docs
-# branch it used to build from was folded into it on 2026-09-19, so the site and the releases can no
-# longer drift apart. The beta branch sets its own baseurl to match.
+# A repository gets exactly one Pages deployment, so the build below assembles everything into one
+# artifact. From 2.0.0 (2026-11-05) `main` is the 2.x line:
 #
-# This file must live on `main`, because that is the branch whose workflow GitHub runs for the Pages
-# environment. Pushing docs to `systemcore` triggers it too, and it rebuilds both.
-
+#   /           main's docs: Catalyst 2.x for WPILib 2027 on Systemcore
+#   /beta/      the same docs again under the old address, so every link to /beta/ still resolves
+#   /v1/        the `1.x` branch's docs: the roboRIO / WPILib 2026 line
+#
+# THE VENDORDEPS ARE THE PART THAT MUST NOT MOVE. A robot project fetches its vendordep's `jsonUrl`
+# to look for updates, so both addresses keep serving what they always served:
+#
+#   /vendordep/FrcCatalyst.json        1.x, from the `1.x` branch. A 2026 roboRIO project is never
+#                                      offered a 2027 library.
+#   /beta/vendordep/FrcCatalyst.json   2.x, from main. Every 2.x robot finds its updates here, and
+#                                      main's vendordep names this address as its jsonUrl.
+#
+# The root build writes main's 2.x vendordep to /vendordep/ first; the step after it puts the 1.x one
+# back. Drop that step and every 2026 project is offered a library it cannot build.
+#
+# This file must live on `main`, because that is the branch the `github-pages` environment allows.
 on:
   push:
-    branches: [ main, master, upgrade/alpha-7 ]
+    branches: [ main ]
     paths:
       - 'docs/**'
       - 'README.md'
@@ -30,21 +40,14 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # The 2.x branch the /beta/ site is built from. `systemcore-alpha6` was merged into
-  # `upgrade/alpha-7` on 2026-09-25 and that is now the single 2.x line and the one 2.0.0 ships from,
-  # so the beta site follows it.
-  #
-  # This name and the trigger below must BOTH be updated when the 2.x branch moves. Getting only one
-  # of them is silent in a way that has now cost time twice: with a stale trigger a docs push matches
-  # nothing at all, and with a stale BETA_BRANCH the build is green and publishes the OLD branch's
-  # content — which reads as "my docs change did not take" with no failure anywhere to explain it.
-  BETA_BRANCH: upgrade/alpha-7
+  # The branch the /v1/ site and the stable vendordep are built from.
+  V1_BRANCH: 1.x
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out the stable branch
+      - name: Check out main
         uses: actions/checkout@v4
         with:
           ref: main
@@ -52,30 +55,60 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
-      - name: Build the stable site
+      - name: Build the 2.x site at the root
         uses: actions/jekyll-build-pages@v1
         with:
           source: ./docs
           destination: ./_site
 
-      # The beta docs are built from their own branch, with their own _config.yml. Nothing is copied
-      # between the two: they are separate sites that happen to share a host.
-      - name: Check out the beta branch
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ env.BETA_BRANCH }}
-          path: beta-src
+      # The same source with only its baseurl changed, so /beta/ pages link within /beta/.
+      - name: Prepare the /beta/ copy
+        run: |
+          mkdir -p beta-src
+          cp -r docs beta-src/docs
+          sed -i 's#^baseurl: .*#baseurl: "/FrcCatalyst/beta"#' beta-src/docs/_config.yml
 
-      - name: Build the beta site
+      - name: Build the /beta/ copy
         uses: actions/jekyll-build-pages@v1
         with:
           source: ./beta-src/docs
           destination: ./_site/beta
 
+      - name: Check out the 1.x branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.V1_BRANCH }}
+          path: v1-src
+
+      - name: Point the 1.x site at /v1/
+        run: sed -i 's#^baseurl: .*#baseurl: "/FrcCatalyst/v1"#' v1-src/docs/_config.yml
+
+      - name: Build the 1.x site
+        uses: actions/jekyll-build-pages@v1
+        with:
+          source: ./v1-src/docs
+          destination: ./_site/v1
+
+      # See the header. Both files are checked, not just copied: a wrong jsonUrl here is silent.
+      - name: Keep each vendordep at the address its robots fetch
+        run: |
+          sudo cp v1-src/docs/vendordep/FrcCatalyst.json _site/vendordep/FrcCatalyst.json
+          sudo cp docs/vendordep/FrcCatalyst.json _site/beta/vendordep/FrcCatalyst.json
+          python3 - <<'EOF'
+          import json
+          stable = json.load(open("_site/vendordep/FrcCatalyst.json"))
+          beta = json.load(open("_site/beta/vendordep/FrcCatalyst.json"))
+          assert stable["version"].startswith("1."), stable["version"]
+          assert stable["jsonUrl"].endswith("/FrcCatalyst/vendordep/FrcCatalyst.json"), stable["jsonUrl"]
+          assert beta["version"].startswith("2."), beta["version"]
+          assert beta["jsonUrl"].endswith("/FrcCatalyst/beta/vendordep/FrcCatalyst.json"), beta["jsonUrl"]
+          print("stable", stable["version"], "beta", beta["version"])
+          EOF
+
       # The tools generate code that is compiled against the library, so a generator that drifts from
       # CANRegistry would otherwise be found by a team at build time rather than here.
-      - name: Test the beta browser tools
-        run: node --test beta-src/docs/tools/**/*.test.mjs
+      - name: Test the browser tools
+        run: node --test "docs/tools/**/*.test.mjs"
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

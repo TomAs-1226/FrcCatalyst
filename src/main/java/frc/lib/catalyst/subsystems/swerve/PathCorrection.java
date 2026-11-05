@@ -1,10 +1,11 @@
 package frc.lib.catalyst.subsystems.swerve;
 
+import frc.lib.catalyst.command.CatalystCommand;
 import com.pathplanner.lib.controllers.PPHolonomicDriveController;
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.wpilibj2.command.Command;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.command3.Command;
 
 import java.util.Optional;
 import java.util.function.DoubleSupplier;
@@ -67,11 +68,11 @@ public final class PathCorrection {
      * @param follow  the path-follow command (e.g. {@code swerve.followPath("X")})
      */
     public static Command facing(Supplier<Optional<Rotation2d>> heading, Command follow) {
-        return follow
+        return CatalystCommand.of(follow)
                 .beforeStarting(() -> PPHolonomicDriveController.setRotationTargetOverride(heading))
                 .finallyDo(interrupted ->
                         PPHolonomicDriveController.setRotationTargetOverride(NO_ROTATION_OVERRIDE))
-                .withName("PathCorrection.facing(" + follow.getName() + ")");
+                .withName("PathCorrection.facing(" + follow.name() + ")");
     }
 
     /**
@@ -103,10 +104,10 @@ public final class PathCorrection {
      * @param follow      the path-follow command
      */
     public static Command nudgingXY(DoubleSupplier xCorrection, DoubleSupplier yCorrection, Command follow) {
-        return follow
+        return CatalystCommand.of(follow)
                 .beforeStarting(() -> PPHolonomicDriveController.overrideXYFeedback(xCorrection, yCorrection))
                 .finallyDo(interrupted -> PPHolonomicDriveController.clearXYFeedbackOverride())
-                .withName("PathCorrection.nudgingXY(" + follow.getName() + ")");
+                .withName("PathCorrection.nudgingXY(" + follow.name() + ")");
     }
 
     /** Clear every active path correction override. A safety reset. */

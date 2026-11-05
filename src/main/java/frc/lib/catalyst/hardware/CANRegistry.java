@@ -70,7 +70,15 @@ public final class CANRegistry {
         if (canId < 0 || canId > 62) {
             throw new IllegalArgumentException("CAN id must be 0–62, got " + canId);
         }
-        String b = bus == null ? "" : bus;
+        // Normalised, not raw. "", "0" and "can_s0" are three spellings of one physical bus, and
+        // keying on the raw string aliased them apart - so an elevator built with the default bus
+        // and an intake built with .canBus("can_s0"), both at id 12 and both on the same wire,
+        // registered under different keys and never collided. The team met that as a Phoenix
+        // failure at an event instead of a named conflict at robotInit.
+        //
+        // The same aliasing split byBus(), so contention warnings and utilisation each saw two
+        // half-loaded buses where there was one overloaded one.
+        String b = CatalystCANBus.of(bus).name();
         String key = b + "/" + canId;
         Entry existing = byKey.get(key);
         Entry candidate = new Entry(name, canId, b, type == null ? "" : type);
@@ -111,9 +119,18 @@ public final class CANRegistry {
         }
     }
 
-    /** Look up which device owns a given {@code (canId, bus)} pair. */
+    /**
+     * Look up which device owns a given {@code (canId, bus)} pair.
+     *
+     * <p>The bus name is normalised exactly as {@link #register} normalises it. It was not, and the
+     * two disagreeing made this method a reliable way to get the wrong answer: {@code register}
+     * stores {@code "can_s0/12"} for a device declared on {@code ""}, {@code "0"} or {@code "can_s0"},
+     * while this built its key from whatever string it was handed. {@code lookup(12, "")} therefore
+     * searched for {@code "/12"}, found nothing, and returned an empty Optional that reads as
+     * "no device has that id" rather than "the name was spelled differently".
+     */
     public static synchronized Optional<Entry> lookup(int canId, String bus) {
-        String b = bus == null ? "" : bus;
+        String b = CatalystCANBus.of(bus).name();
         return Optional.ofNullable(byKey.get(b + "/" + canId));
     }
 
@@ -142,9 +159,144 @@ public final class CANRegistry {
     }
 
     /**
+     * Claim a CAN ID on a typed bus. Equivalent to the string overload, and clearer at the call
+     * site now that there are five buses to choose between.
+     */
+    public static void register(String name, int canId, CatalystCANBus bus, String type) {
+        register(name, canId, bus == null ? "" : bus.name(), type);
+    }
+
+    /**
+     * Wiring problems the registry can see from the plan alone, before the robot is ever enabled.
+     *
+     * <p>Two kinds, both specific to Systemcore:
+     *
+     * <ul>
+     *   <li><b>Everything on one bus.</b> Five buses exist; putting every device on {@code can_s0}
+     *       wastes four of them and is the single easiest way to run out of bandwidth. Reported
+     *       once the count passes what a 1 Mbit/s CAN 2.0 bus comfortably carries.</li>
+     *   <li><b>Loaded buses that share an SPI controller.</b> {@code can_s0}/{@code can_s1} and
+     *       {@code can_s3}/{@code can_s4} are paired in hardware, so splitting a heavy load across
+     *       a pair buys much less than splitting it across unpaired buses. This is the failure that
+     *       looks like a mystery at an event, because on paper the devices are on "different buses".</li>
+     * </ul>
+     *
+     * <p>Advisory only — nothing here throws. It is meant for {@code SystemCheck} and the health
+     * dashboard to surface in the pit, where it can still be acted on.
+     *
+     * @return human-readable warnings, empty when the plan looks sound
+     */
+    public static synchronized List<String> contentionWarnings() {
+        // Devices per bus is a rough proxy for load. A precise figure needs each device's status
+        // signal rates, which is the next step for the planner; this catches the obvious cases.
+        final int busyThreshold = 12;
+
+        Map<String, List<Entry>> buses = byBus();
+        List<String> warnings = new ArrayList<>();
+
+        for (var e : buses.entrySet()) {
+            if (e.getValue().size() > busyThreshold) {
+                warnings.add("Bus " + displayName(e.getKey()) + " carries " + e.getValue().size()
+                        + " devices. Systemcore has " + CatalystCANBus.SYSTEMCORE_BUS_COUNT
+                        + " buses - spreading these out will cut utilisation.");
+            }
+        }
+
+        List<String> names = new ArrayList<>(buses.keySet());
+        for (int i = 0; i < names.size(); i++) {
+            for (int j = i + 1; j < names.size(); j++) {
+                CatalystCANBus a = safeBus(names.get(i));
+                CatalystCANBus b = safeBus(names.get(j));
+                if (a == null || b == null || !a.sharesControllerWith(b)) continue;
+
+                int load = buses.get(names.get(i)).size() + buses.get(names.get(j)).size();
+                if (load > busyThreshold) {
+                    warnings.add("Buses " + a.name() + " and " + b.name()
+                            + " share an SPI controller and together carry " + load
+                            + " devices. Moving some onto an unpaired bus will help more than "
+                            + "splitting them across this pair.");
+                }
+            }
+        }
+        return warnings;
+    }
+
+    private static String displayName(String bus) {
+        return bus == null || bus.isEmpty() ? CatalystCANBus.DEFAULT.name() : bus;
+    }
+
+    /** Resolve a stored bus string, tolerating anything unparseable rather than throwing. */
+    private static CatalystCANBus safeBus(String bus) {
+        try {
+            return CatalystCANBus.of(bus);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    /**
      * Drop every registration. Mostly useful in unit tests — production
      * code shouldn't need this.
      */
+    /**
+     * The wiring plan as a DBC file, for Systemcore's CAN Bus Monitor.
+     *
+     * <p>Systemcore's web UI decodes live CAN traffic if you upload a DBC or REV JSON spec. Without
+     * one it shows numbers: an id and some bytes. Catalyst already knows every device's name, id,
+     * bus and type, so it can emit the file and turn that display into names.
+     *
+     * <p>Scope, stated plainly: this maps <b>identity</b>, not payloads. Each device becomes a DBC
+     * message named the way robot code names it, so the monitor shows {@code FrontLeftDrive} rather
+     * than an id. It does not describe Phoenix's signal layout inside those frames - that is CTRE's
+     * to publish, it is firmware-dependent, and guessing at it would produce a file that decodes
+     * confidently and wrongly, which is worse than one that decodes nothing.
+     *
+     * <pre>{@code
+     * java.nio.file.Files.writeString(java.nio.file.Path.of("catalyst.dbc"), CANRegistry.toDbc());
+     * }</pre>
+     *
+     * @return DBC file content, one message per registered device
+     */
+    public static synchronized String toDbc() {
+        StringBuilder out = new StringBuilder();
+        out.append("VERSION \"\"\n\n");
+        out.append("NS_ :\n\n");
+        out.append("BS_:\n\n");
+
+        // One node per bus, so the monitor groups devices the way the robot is actually wired.
+        out.append("BU_:");
+        for (String bus : byBus().keySet()) {
+            out.append(' ').append(nodeName(bus));
+        }
+        out.append("\n\n");
+
+        for (Entry e : all()) {
+            // Phoenix device ids are not CAN arbitration ids, and that mapping is CTRE's business.
+            // The id is used here only to keep messages distinct; the name is the part teams read.
+            String message = dbcSafe(e.name());
+            String node = nodeName(e.bus());
+            out.append(String.format("BO_ %d %s: 8 %s%n", e.canId(), message, node));
+            out.append(String.format("  SG_ %s_raw : 0|64@1+ (1,0) [0|0] \"\" %s%n%n", message, node));
+        }
+        return out.toString();
+    }
+
+    /** DBC node name for a bus. */
+    private static String nodeName(String bus) {
+        return dbcSafe(bus == null || bus.isEmpty()
+                ? CatalystCANBus.DEFAULT.name()
+                : CatalystCANBus.of(bus).name());
+    }
+
+    /** DBC identifiers allow letters, digits and underscores, and cannot start with a digit. */
+    private static String dbcSafe(String raw) {
+        String cleaned = raw == null ? "" : raw.replaceAll("[^A-Za-z0-9_]", "_");
+        if (cleaned.isEmpty()) {
+            return "Unnamed";
+        }
+        return Character.isDigit(cleaned.charAt(0)) ? "_" + cleaned : cleaned;
+    }
+
     public static synchronized void clear() {
         byKey.clear();
         republish();

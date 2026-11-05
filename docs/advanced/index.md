@@ -27,7 +27,7 @@ One line in `RobotContainer`, and the robot publishes its own spec sheet on Netw
 RobotIdentity.declare("Ratchet");
 ```
 
-Team number, season, which roboRIO this is with its serial and image, the Catalyst and WPILib
+Team number, season, which robot controller this is with its serial and image, the Catalyst and WPILib
 versions, the brownout threshold, the CAN inventory, the gyro — and, as soon as a `SwerveSubsystem`
 exists, drivetrain type, module count and positions, track width, wheelbase, odometry rate and top
 speed. None of that is a parameter: anything passed in can drift, and a team that regears the drive
@@ -206,7 +206,7 @@ Calculates the derivative of a signal with built-in smoothing:
 
 ```java
 var rateCalc = new SignalProcessor.RateOfChange(0.3); // smoothing alpha
-double velocity = rateCalc.calculate(position, Timer.getFPGATimestamp());
+double velocity = rateCalc.calculate(position, Timer.getTimestamp());
 ```
 
 ---
@@ -303,12 +303,18 @@ drive.setSkewCorrectionEnabled(true);
 Smooth acceleration/deceleration profiles to prevent wheel slip:
 
 ```java
-// Symmetric limiting
-drive.enableSlewRateLimiting(3.0); // 3 units/sec
+// Two arguments: translation rate, rotation rate. Acceleration and braking share the
+// translation rate.
+drive.enableSlewRateLimiting(3.0, 6.0);   // 3 m/s per second, 6 rad/s per second
 
-// Asymmetric (accelerate slower, brake harder)
-drive.enableSlewRateLimiting(2.0, 5.0); // accel rate, decel rate
+// Three arguments: acceleration and braking split, plus rotation.
+drive.enableSlewRateLimiting(2.0, 5.0, 6.0);   // accelerate at 2, brake at 5, rotate at 6
 ```
+
+Read the two-argument form carefully: the second number is the **rotation** rate, not a decel rate,
+so `enableSlewRateLimiting(2.0, 5.0)` limits rotation to 5 rad/s per second and still accelerates and
+brakes at the same 2 m/s per second. A decel rate only exists in the three-argument overload, and
+there is no one-argument overload at all — pass one number and it will not compile.
 
 ### Snap-to-Angle
 
@@ -370,11 +376,14 @@ The `VisionSubsystem` includes additional filtering capabilities:
 ```java
 VisionConfig.builder()
     .addLimelight("limelight-front", frontCameraPose)
-    .singleTagStdDevs(4, 8)
-    .multiTagStdDevs(0.5, 1)
-    .rejectDuringHighSpeed(3.0)       // reject when > 3 m/s
-    .maxHeadingDivergence(15.0)       // reject if heading disagrees > 15 deg
-    .fieldDimensions(16.54, 8.21)     // custom field bounds
+    .baseXYStdDev(0.5)                    // expected XY error at 1 m off one tag (default 0.5)
+    .baseRotStdDev(0.9)                   // expected heading error in radians (default 0.9)
+    .xyDistanceScaling(1.0)               // xyStdDev = base * (1 + distance^2 * scaling)
+    .rotDistanceScaling(1.5)              // heading degrades faster with distance than XY does
+    .singleTagRotDistanceThreshold(4.0)   // past 4 m, a single tag's heading is ignored outright
+    .rejectDuringHighSpeed(3.0)           // reject when > 3 m/s
+    .maxHeadingDivergence(15.0)           // reject if heading disagrees > 15 deg
+    .fieldDimensions(16.54, 8.07)         // REBUILT 2026 bounds
     .build();
 ```
 
@@ -384,7 +393,7 @@ VisionConfig.builder()
 
 {: .note }
 **Start with [the state machine guide](statemachine.html) instead.** As of v1.2.0 the
-`frc.lib.catalyst.statemachine` package supersedes everything in this section: it accepts all nine
+`frc.lib.catalyst.statemachine` package supersedes everything in this section: it accepts all ten
 Catalyst mechanism types plus your own subsystems, enforces a legal-transition graph, and logs
 every decision it makes. The features below are the coordinator's versions of the same ideas —
 collision zones become interlocks, transition rules become per-edge staging — and the section is
@@ -419,8 +428,8 @@ Run code when entering or leaving a state:
 superstructure.defineState("SCORE_HIGH")
     .setLinear("elevator", 1.1)
     .setRotational("arm", 95.0)
-    .onEntry(() -> leds.setSolidColor(Color.kGreen))
-    .onExit(() -> leds.setSolidColor(Color.kBlue))
+    .onEntry(() -> leds.setSolidColor(Color.GREEN))
+    .onExit(() -> leds.setSolidColor(Color.BLUE))
     .done();
 ```
 
@@ -449,9 +458,9 @@ Eight new pattern commands beyond the original set:
 | `gradient(color1, color2)` | Static two-color gradient |
 | `scrollingGradient(color1, color2, speed)` | Moving gradient wave |
 | `strobe(color, hz)` | High-frequency flashing |
-| `larsonScanner(color, width)` | Cylon/KITT-style scanner |
+| `larsonScanner(color, width, speedHz)` | Cylon/KITT-style scanner; `speedHz` is back-and-forth cycles per second and is not optional |
 | `dynamicProgress(color, progress)` | Dynamic progress bar (0-1) |
-| `statusIndicator(good, warn, bad)` | Multi-zone status indicator |
+| `statusIndicator(readyColor, notReadyColor, condition)` | Whole strip in one of two colours, picked each loop by a `BooleanSupplier` |
 | `alignmentIndicator(color, progress)` | Auto-alignment visual feedback |
 
 ```java
@@ -459,8 +468,8 @@ Eight new pattern commands beyond the original set:
 leds.fire();
 
 // Show scoring progress
-leds.dynamicProgress(Color.kGreen, () -> elevator.getPosition() / 1.2);
+leds.dynamicProgress(Color.GREEN, () -> elevator.getPosition() / 1.2);
 
 // Alignment feedback for driver
-leds.alignmentIndicator(Color.kGreen, () -> alignProgress);
+leds.alignmentIndicator(Color.GREEN, () -> alignProgress);
 ```

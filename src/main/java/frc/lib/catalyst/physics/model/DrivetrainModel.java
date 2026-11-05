@@ -2,7 +2,7 @@ package frc.lib.catalyst.physics.model;
 
 import java.util.Locale;
 
-import edu.wpi.first.math.geometry.Translation2d;
+import org.wpilib.math.geometry.Translation2d;
 
 /**
  * What the carpet and gravity will actually let your drivetrain do.

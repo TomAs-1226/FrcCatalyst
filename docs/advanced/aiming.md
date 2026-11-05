@@ -39,6 +39,12 @@ directly — but together they do shoot-while-moving.
 > instead treats the shot as a velocity vector and also solves the hood angle and wheel speed. Pick
 > whichever matches how your shooter is characterised — both are pure math and unit-tested.
 
+> **No turret?** A swerve drivetrain can be the turret: `HeadingTracker` aims the whole robot while
+> the driver drives it, with its own lag and yaw handled. See
+> [Shoot on the Move]({% link advanced/shoot-on-the-move.md %}). On this line that is ported and
+> compiled; Phoenix 6 `26.70.0-alpha-2` lets it run on a CTRE drivetrain now (with 26.70.x device
+> firmware), but it has not yet been driven on a robot.
+
 ---
 
 ## TurretMechanism
@@ -135,11 +141,13 @@ Supplier<AimingSolver.Solution> sol =
     () -> solver.solve(drive.getPose(), drive.getFieldRelativeSpeeds());
 
 // Turret leads the moving goal with exact analytic-rate feedforward. Pass the
-// chassis yaw rate too, so it stays locked while you ALSO rotate:
+// chassis yaw rate too, so it stays locked while you ALSO rotate - the gyro's
+// rate, not the one the wheels report, which runs ahead of the chassis at
+// every turn onset:
 turret.setDefaultCommand(turret.track(
     sol,
     () -> drive.getHeading().getDegrees(),
-    () -> Math.toDegrees(drive.getChassisSpeeds().omegaRadiansPerSecond)));
+    () -> Math.toDegrees(drive.getYawRateRadPerSec())));
 
 // Flywheel RPM and hood angle follow the live distance every loop (v1.0):
 shooter.setDefaultCommand(shooter.track(() -> sol.get().shooterRpm() / 60.0));  // RPM -> RPS
@@ -151,8 +159,8 @@ boolean ready = turret.isOnTarget(sol.get(), drive.getHeading().getDegrees(), 2.
 ```
 
 > Field-relative speeds matter. If your drive only gives robot-relative
-> `ChassisSpeeds`, rotate them first:
-> `ChassisSpeeds.fromRobotRelativeSpeeds(speeds, drive.getHeading())`.
+> `ChassisVelocities`, rotate them first: `speeds.toFieldRelative(drive.getHeading())`.
+> (`SwerveSubsystem.getFieldRelativeSpeeds()` already does this.)
 
 ### Reading the solution
 
@@ -181,7 +189,7 @@ Resolve the target before handing it to the solver, and update it on
 alliance change:
 
 ```java
-RobotState.alliance() == DriverStation.Alliance.Red
+RobotState.isRed()
     ? solver.setTarget(FieldConstants.RED_GOAL)
     : solver.setTarget(FieldConstants.BLUE_GOAL);
 ```

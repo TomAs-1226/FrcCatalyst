@@ -3,12 +3,12 @@ package frc.lib.catalyst.physics;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.geometry.Translation3d;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
-import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.geometry.Translation3d;
+import org.wpilib.math.kinematics.ChassisVelocities;
+import org.wpilib.math.kinematics.SwerveDriveKinematics;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -50,7 +50,7 @@ class AutoPathPhysicsTest {
     }
 
     /** One leg of the routine: hold these robot-relative speeds for this long. */
-    private record Leg(String name, ChassisSpeeds speeds, double seconds) {}
+    private record Leg(String name, ChassisVelocities speeds, double seconds) {}
 
     /**
      * The routine under test.
@@ -61,10 +61,10 @@ class AutoPathPhysicsTest {
      */
     private static List<Leg> testAuto() {
         return List.of(
-                new Leg("leave the line", new ChassisSpeeds(2.4, 0.0, 0.0), 1.20),
-                new Leg("arc across", new ChassisSpeeds(2.0, 1.1, 0.9), 1.40),
-                new Leg("square up", new ChassisSpeeds(1.4, 0.0, -0.9), 0.80),
-                new Leg("stop", new ChassisSpeeds(0.0, 0.0, 0.0), 0.60));
+                new Leg("leave the line", new ChassisVelocities(2.4, 0.0, 0.0), 1.20),
+                new Leg("arc across", new ChassisVelocities(2.0, 1.1, 0.9), 1.40),
+                new Leg("square up", new ChassisVelocities(1.4, 0.0, -0.9), 0.80),
+                new Leg("stop", new ChassisVelocities(0.0, 0.0, 0.0), 0.60));
     }
 
     private record Run(

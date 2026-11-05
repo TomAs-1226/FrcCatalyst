@@ -1,5 +1,5 @@
 title: FrcCatalyst
-description: Pre-built FRC mechanisms and utilities for CTRE Phoenix 6 + WPILib 2026
+description: Pre-built FRC mechanisms, hardware wrappers, Physics Core and autonomy for CTRE Phoenix 6 and WPILib 2027 on Limelight Systemcore
 baseurl: "/FrcCatalyst"
 url: "https://tomas-1226.github.io"
 
@@ -14,6 +14,8 @@ aux_links:
     - "/FrcCatalyst/downloads.html"
   "Tools":
     - "/FrcCatalyst/tools/"
+  "1.x docs (roboRIO)":
+    - "https://tomas-1226.github.io/FrcCatalyst/v1/"
   "Releases":
     - "https://github.com/TomAs-1226/FrcCatalyst/releases"
   "GitHub":
@@ -22,18 +24,20 @@ aux_links:
 # GitHub + Releases open externally; the Tools link stays in-tab.
 aux_links_new_tab: false
 
+# From 2.0.0 main is the 2.x line. The docs workflow builds this site at the root and again under
+# /beta/ (with only baseurl changed), and the `1.x` branch's site under /v1/.
+
 # What this site documents. _includes/header_custom.html puts it at the top of every page and the
-# footer repeats it, so no page is read without knowing which Catalyst it describes. The 2.x sites
-# carry their own values on their own branches.
+# footer repeats it, so no page is read without knowing which Catalyst it describes.
 # (The key is not `documents:` - Jekyll already uses site.documents for every document in every
 # collection, and a config key of that name is silently shadowed.)
 catalyst_docs:
-  version: "1.12.0"
-  platform: "roboRIO &middot; WPILib 2026.2.1"
+  version: "2.0.0"
+  platform: "Systemcore OS image 14 &middot; WPILib 2027 alpha-7"
   versions_url: "https://tomas-1226.github.io/FrcCatalyst/versions.html"
 
 # Footer
-footer_content: 'Documents Catalyst 1.12.0 (roboRIO, WPILib 2026.2.1). Other versions: <a href="https://tomas-1226.github.io/FrcCatalyst/versions.html">Versions and compatibility</a>. Built for the FRC community. Go build something awesome.'
+footer_content: 'Documents Catalyst 2.0.0 (Systemcore OS image 14, WPILib 2027.0.0-alpha-7). For the roboRIO and WPILib 2026: <a href="https://tomas-1226.github.io/FrcCatalyst/v1/">Catalyst 1.x docs</a>. Other versions: <a href="https://tomas-1226.github.io/FrcCatalyst/versions.html">Versions and compatibility</a>. Built for the FRC community. Go build something awesome.'
 
 # Search
 search_enabled: true

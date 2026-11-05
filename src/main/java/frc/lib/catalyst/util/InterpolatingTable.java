@@ -40,6 +40,12 @@ public class InterpolatingTable {
     public double get(double key) {
         if (table.isEmpty()) return 0;
 
+        // A key that is not a number must come back as one that is not either. Java orders NaN above every
+        // real value, so floorKey would find the last entry and ceilingKey none, and the clamp below would
+        // hand back the table's top value as if it had been asked for: a shot table would answer a corrupt
+        // distance with a plausible RPM, and the caller's isFinite guard would never fire.
+        if (!Double.isFinite(key)) return Double.NaN;
+
         Double exact = table.get(key);
         if (exact != null) return exact;
 

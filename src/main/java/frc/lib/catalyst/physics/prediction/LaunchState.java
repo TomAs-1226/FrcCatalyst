@@ -1,7 +1,7 @@
 package frc.lib.catalyst.physics.prediction;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.kinematics.ChassisVelocities;
 
 import frc.lib.catalyst.physics.LocalizationQuality;
 
@@ -34,7 +34,7 @@ import frc.lib.catalyst.physics.LocalizationQuality;
  */
 public record LaunchState(
         Pose2d pose,
-        ChassisSpeeds fieldVelocity,
+        ChassisVelocities fieldVelocity,
         double timestampSeconds,
         double releaseDelaySeconds,
         LocalizationQuality quality) {
@@ -70,6 +70,6 @@ public record LaunchState(
 
     /** Ground speed at release, in metres per second. */
     public double speedMetersPerSecond() {
-        return Math.hypot(fieldVelocity.vxMetersPerSecond, fieldVelocity.vyMetersPerSecond);
+        return Math.hypot(fieldVelocity.vx, fieldVelocity.vy);
     }
 }

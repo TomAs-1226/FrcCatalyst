@@ -1,9 +1,9 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
+import org.wpilib.system.Timer;
+import org.wpilib.command3.Command;
+import frc.lib.catalyst.command.Commands;
+import org.wpilib.command3.Trigger;
 import frc.lib.catalyst.logging.CatalystLog;
 
 /**
@@ -49,10 +49,17 @@ import frc.lib.catalyst.logging.CatalystLog;
 public final class RobotSafety {
 
     private static Config config = null;
-    private static boolean tripped = false;
+    /**
+     * Volatile because this is a watchdog: every writer holds the lock, and every reader
+     * ({@link #isTripped()}, {@link #trippedTrigger()}, {@link #reason()}) deliberately does not -
+     * a trigger polled from the scheduler must never block behind a health sweep. Without volatile
+     * the reader is free to keep observing "not tripped" after the trip, which is the one state
+     * this class exists to publish.
+     */
+    private static volatile boolean tripped = false;
     private static double overThresholdSince = -1;
     private static double underThresholdSince = -1;
-    private static String lastReason = "";
+    private static volatile String lastReason = "";
 
     private RobotSafety() {}
 
@@ -133,7 +140,7 @@ public final class RobotSafety {
     public static synchronized void tick(int errorCount, int warnCount) {
         if (config == null) return;
 
-        double now = Timer.getFPGATimestamp();
+        double now = Timer.getTimestamp();
         boolean over =
                 errorCount >= config.maxConcurrentErrors
                         || (config.maxConcurrentWarns > 0 && warnCount >= config.maxConcurrentWarns);

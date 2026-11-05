@@ -5,7 +5,7 @@
  * <p>The one class that matters here is {@link frc.lib.catalyst.statemachine.StateMachineCore},
  * a real guarded, logged finite state machine over an enum of states. What makes this package
  * unusual is what it does <b>not</b> import: nothing from WPILib. There is no {@code Command}, no
- * {@code Subsystem}, no {@code Timer}, no NetworkTables anywhere below this line. The engine is
+ * {@code Mechanism}, no {@code Timer}, no NetworkTables anywhere below this line. The engine is
  * driven by {@code step()} and told the time by a {@code DoubleSupplier}, which is exactly what
  * lets the whole of its logic — routing, guards, arrival, deadlines, faults — be unit-tested on a
  * laptop with no HAL. The invariant it exists to protect is that {@code current()} is only ever a
@@ -15,7 +15,7 @@
  *
  * <p><b>If you are writing robot code, you are almost certainly in the wrong package.</b> Build
  * your machine through {@link frc.lib.catalyst.statemachine.robot.Superstructure}, which wraps this
- * engine in a {@code SubsystemBase}, steps it once per loop, and hands you {@code Command} and
+ * engine in a {@code Mechanism}, steps it once per loop, and hands you {@code Command} and
  * {@code Trigger} factories. Come here only to understand what that facade is standing on.
  *
  * <h2>The engine and how you configure it</h2>

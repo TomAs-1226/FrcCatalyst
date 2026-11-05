@@ -55,12 +55,15 @@ public final class PowerPredictor {
     private final DoubleSupplier presentVoltage;
     private final double internalResistance;
     private final double minimumVoltage;
+    /** Main-breaker budget in amps, or NaN when the caller has not committed to one. */
+    private final double breakerBudgetAmps;
 
     private PowerPredictor(Builder builder) {
         this.presentCurrent = builder.presentCurrent;
         this.presentVoltage = builder.presentVoltage;
         this.internalResistance = builder.internalResistance;
         this.minimumVoltage = builder.minimumVoltage;
+        this.breakerBudgetAmps = builder.breakerBudgetAmps;
     }
 
     /** Current total draw, in amps. */
@@ -93,12 +96,51 @@ public final class PowerPredictor {
     }
 
     /**
-     * How many more amps the robot can draw before the bus reaches the floor. Negative when it is
-     * already past it — which is a real answer, not an error, and tells you how much to shed.
+     * How many more amps the robot can draw before the bus reaches the floor, and - when a
+     * {@linkplain Builder#breakerBudgetAmps breaker budget} has been set - before the main breaker
+     * is the binding constraint instead. The smaller of the two, because both are real.
+     *
+     * <p>Negative is a real answer, not an error: it says how much to shed.
+     *
+     * <p><b>The sag term does not depend on the present current, and that surprises everyone who
+     * checks.</b> Substituting {@code V_open = V + I·R} into {@code (V_open − V_min)/R − I} makes
+     * the current terms cancel exactly, leaving {@code (V − V_min)/R}. That is correct - under this
+     * model the room left before the floor is a function of how far the bus has already sagged, and
+     * the present draw is already visible in that sag. It is also why this number alone is not a
+     * budget: with the defaults, a robot sitting still at 12.4 V is told it has 245 A of room, which
+     * is true of the battery and false of a 120 A main breaker. Set the breaker budget and the
+     * answer becomes the one an allocator can spend.
      */
     public double headroomAmps() {
         if (internalResistance <= 0) return Double.POSITIVE_INFINITY;
+        double sagLimited = sagHeadroomAmps();
+        if (Double.isNaN(breakerBudgetAmps)) {
+            return sagLimited;
+        }
+        return Math.min(sagLimited, breakerBudgetAmps - presentCurrentAmps());
+    }
+
+    /**
+     * The battery-sag headroom on its own, ignoring any breaker budget: how many more amps before
+     * the bus reaches the floor. Kept separate so a dashboard can show which of the two limits is
+     * binding rather than only their minimum.
+     */
+    public double sagHeadroomAmps() {
         return (openCircuitVolts() - minimumVoltage) / internalResistance - presentCurrentAmps();
+    }
+
+    /** The breaker budget in amps, or empty when none was set. */
+    public java.util.OptionalDouble breakerBudgetAmps() {
+        return Double.isNaN(breakerBudgetAmps)
+                ? java.util.OptionalDouble.empty() : java.util.OptionalDouble.of(breakerBudgetAmps);
+    }
+
+    /** Which limit is currently binding: {@code "breaker"}, {@code "battery"}, or {@code "battery (no breaker budget set)"}. */
+    public String bindingLimit() {
+        if (Double.isNaN(breakerBudgetAmps)) {
+            return "battery (no breaker budget set)";
+        }
+        return (breakerBudgetAmps - presentCurrentAmps()) < sagHeadroomAmps() ? "breaker" : "battery";
     }
 
     /** The voltage floor this predictor plans against. */
@@ -226,6 +268,7 @@ public final class PowerPredictor {
         private DoubleSupplier presentVoltage;
         private double internalResistance = 0.020;
         private double minimumVoltage = 7.5;
+        private double breakerBudgetAmps = Double.NaN;
 
         /** Where the robot's total current draw comes from, e.g. {@code pdh::getTotalCurrent}. Required. */
         public Builder presentCurrent(DoubleSupplier presentCurrent) {
@@ -259,6 +302,20 @@ public final class PowerPredictor {
         }
 
         /** Validate and build. */
+        /**
+         * The main-breaker budget in amps - what the robot is allowed to draw in total, which is a
+         * number a person commits to rather than one the robot can measure. Typically somewhat under
+         * the breaker's rating, because a breaker that is at its rating is already on its way out.
+         *
+         * <p>Leave it unset and {@link #headroomAmps()} answers the battery-sag question alone,
+         * which is what it has always done. Set it and the answer becomes something an allocator can
+         * safely spend.
+         */
+        public Builder breakerBudgetAmps(double amps) {
+            this.breakerBudgetAmps = amps;
+            return this;
+        }
+
         public PowerPredictor build() {
             if (presentCurrent == null || presentVoltage == null) {
                 throw new IllegalStateException("presentCurrent and presentVoltage are both required - "
@@ -270,6 +327,10 @@ public final class PowerPredictor {
             }
             if (!(minimumVoltage > 0)) {
                 throw new IllegalStateException("minimumVoltage must be > 0 (got " + minimumVoltage + ")");
+            }
+            if (!Double.isNaN(breakerBudgetAmps) && !(breakerBudgetAmps > 0)) {
+                throw new IllegalStateException("breakerBudgetAmps must be > 0 when set (got "
+                        + breakerBudgetAmps + ")");
             }
             return new PowerPredictor(this);
         }

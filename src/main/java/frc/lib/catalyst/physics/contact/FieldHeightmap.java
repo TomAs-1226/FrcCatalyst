@@ -1,8 +1,8 @@
 package frc.lib.catalyst.physics.contact;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Translation2d;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -285,7 +285,7 @@ public final class FieldHeightmap {
         }
 
         if (blockedCount == 0) {
-            return new Verdict(false, Translation2d.kZero, 0, support, lowestClearance, "clear");
+            return new Verdict(false, Translation2d.ZERO, 0, support, lowestClearance, "clear");
         }
 
         /* Containment is absolute, and it is checked before anything derived from the samples.

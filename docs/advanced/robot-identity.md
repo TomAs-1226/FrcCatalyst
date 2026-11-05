@@ -29,7 +29,7 @@ public RobotContainer() {
 ```
 
 That publishes everything Catalyst can work out for itself under `/Catalyst/Robot/`: team number,
-season, which roboRIO this is with its serial and image, the Catalyst and WPILib versions, the
+season, which robot controller this is with its serial and image, the Catalyst and WPILib versions, the
 brownout threshold, the CAN inventory, the gyro, and — as soon as a `SwerveSubsystem` exists —
 drivetrain type, module count and positions, track width, wheelbase, odometry rate and top speed.
 
@@ -131,9 +131,17 @@ honest way to say "unknown". In practice:
   whose cameras Catalyst never saw look identical from inside the library, and publishing an empty
   array would assert the first with confidence earned for neither.
 
-`SpecSheet` is what enforces this. Every setter takes an `Optional`, and there is deliberately no
-overload that accepts a bare `double` — writing a placeholder takes more effort than writing the
+`SpecSheet` is what enforces this. Every setter for a *measurement* — `putText`, `putNumber`,
+`putInt` — takes an `Optional`, `OptionalDouble` or `OptionalInt`, and there is deliberately no
+overload that accepts a bare `double`, so writing a placeholder takes more effort than writing the
 truth rather than less.
+
+Three setters do take plain values, each for its own reason. `putFlag(String, boolean)` does because
+a boolean has no "unknown" to encode: a caller who does not know reaches that line through
+`Optional.ifPresent` or does not reach it at all. `putList(String, List<String>)` and
+`putNumbers(String, double[])` do because an empty collection *is* the absence — both drop an empty
+argument rather than publishing an empty array, and `putNumbers` drops the whole array if any element
+is not finite.
 
 ## Publishing once is enough
 
@@ -143,7 +151,7 @@ receives the whole sheet on connect without the robot republishing anything. Thi
 write, not a periodic one.
 
 Nothing is marked persistent, and that is a decision rather than an oversight. A persistent topic is
-saved to the roboRIO and republished by the server on the *next* boot — so a build that threw before
+saved to the robot controller and republished by the server on the *next* boot — so a build that threw before
 reaching its `declare(...)` would serve last week's mass with a fresh timestamp and no way for the
 dashboard to tell. Absent is correct; stale-but-confident is the defect.
 
@@ -185,9 +193,9 @@ Catalyst.
 | `Identity/Name` | declared — the one fact only the team knows |
 | `Identity/TeamNumber` | `RobotController.getTeamNumber()`, omitted when it reports 0 |
 | `Identity/Season` | the year in the runtime WPILib version |
-| `Identity/Controller` | `roboRIO`, `roboRIO 2` or `Simulation`, from the HAL runtime type |
-| `Identity/RioSerial` | `RobotController.getSerialNumber()` |
-| `Identity/RioComment` | the Imaging Tool's comments field, when a team filled it in |
+| `Identity/Controller` | `Systemcore` or `Simulation`, from the HAL runtime type. 2027 dropped both roboRIO runtime types, so an unknown runtime is absent rather than guessed |
+| `Identity/ControllerSerial` | `RobotController.getSerialNumber()`. Also published as `Identity/RioSerial` so 1.x dashboards keep resolving |
+| `Identity/ControllerComment` | the imaging tool's comments field, when a team filled it in. Also `Identity/RioComment` |
 
 ### Software
 
@@ -265,6 +273,7 @@ actually measured.
 |-----|--------|
 | `Hardware/CanDevices` | count, merged across sources |
 | `Hardware/Inventory` | `type|count` rows |
+| `Hardware/Devices` (v1.12.0+) | `bus|id|type` rows, one per device, sorted by bus then numerically by id |
 | `Hardware/Gyro` | the drivetrain's Pigeon 2, else a registered `CatalystGyro` |
 | `Hardware/GyroCanId` | its CAN id |
 | `Hardware/Cameras` | camera names from `VisionSubsystem` |
@@ -303,9 +312,9 @@ the constructors happened to run.
 ## Naming the library's own build
 
 ```java
-CatalystVersion.version();     // "1.12.0"
-CatalystVersion.gitSha();      // Optional["cc5cadf"]
-CatalystVersion.describe();    // "1.12.0 (cc5cadf, dirty)"
+CatalystVersion.version();     // "2.0.0"
+CatalystVersion.gitSha();      // Optional["36315c9"]
+CatalystVersion.describe();    // "2.0.0 (36315c9, dirty)"
 ```
 
 The build generates these into a compiled constant rather than stamping the jar manifest, because a

@@ -48,7 +48,7 @@ public interface Binding<G> {
      * @param secondsSinceApplied seconds since this exact goal was first applied, or
      *                            {@code 0.0} when the goal is not currently applied. This is
      *                            the only sanctioned source of elapsed time; a binding must
-     *                            never call {@code Timer.getFPGATimestamp()} itself, or it
+     *                            never call {@code Timer.getTimestamp()} itself, or it
      *                            becomes untestable and disabled-mode accounting breaks.
      */
     boolean atGoal(G goal, double secondsSinceApplied);

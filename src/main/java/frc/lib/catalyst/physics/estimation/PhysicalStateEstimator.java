@@ -2,10 +2,10 @@ package frc.lib.catalyst.physics.estimation;
 
 import java.util.Locale;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.kinematics.ChassisVelocities;
 
 import frc.lib.catalyst.physics.LocalizationQuality;
 import frc.lib.catalyst.physics.PhysicalRobotState;
@@ -139,18 +139,45 @@ public final class PhysicalStateEstimator {
     public PhysicalRobotState update(
             double timestampSeconds,
             Pose2d pose,
-            ChassisSpeeds kinematicRobotRelativeSpeeds,
+            ChassisVelocities kinematicRobotRelativeSpeeds,
             Translation2d robotRelativeAcceleration,
             double yawRateRadPerSec,
             double slipFactor) {
+        return update(timestampSeconds, pose, kinematicRobotRelativeSpeeds,
+                robotRelativeAcceleration, yawRateRadPerSec, slipFactor, null);
+    }
+
+    /**
+     * As above, with angular acceleration supplied rather than derived.
+     *
+     * <p>Without it, angular acceleration is the gyro rate differenced across a loop and smoothed.
+     * On a clean signal that is exact. On a real one it is not: differentiating scales noise by
+     * 1/dt, so at 50 Hz a rate wobbling by a tenth of a degree per second becomes several degrees
+     * per second squared of acceleration that is not happening, and the smoothing that hides it is
+     * hiding a real signal too.
+     *
+     * <p>Two accelerometers at known points on the rigid body measure the same quantity directly. A
+     * difference of two measurements does not amplify noise the way a derivative does. See
+     * {@code DualIMU}.
+     *
+     * @param measuredAngularAccelRadPerSecSq measured value, or null to derive it as before
+     */
+    public PhysicalRobotState update(
+            double timestampSeconds,
+            Pose2d pose,
+            ChassisVelocities kinematicRobotRelativeSpeeds,
+            Translation2d robotRelativeAcceleration,
+            double yawRateRadPerSec,
+            double slipFactor,
+            Double measuredAngularAccelRadPerSecSq) {
 
         Rotation2d heading = pose.getRotation();
-        ChassisSpeeds kinematicField =
-                ChassisSpeeds.fromRobotRelativeSpeeds(kinematicRobotRelativeSpeeds, heading);
+        ChassisVelocities kinematicField =
+                kinematicRobotRelativeSpeeds.toFieldRelative(heading);
         Translation2d wheelVelocity =
-                new Translation2d(kinematicField.vxMetersPerSecond, kinematicField.vyMetersPerSecond);
+                new Translation2d(kinematicField.vx, kinematicField.vy);
         Translation2d measuredAccelField = robotRelativeAcceleration == null
-                ? Translation2d.kZero
+                ? Translation2d.ZERO
                 : robotRelativeAcceleration.rotateBy(heading);
 
         double dt = initialized ? timestampSeconds - lastTimestamp : Double.NaN;
@@ -165,9 +192,11 @@ public final class PhysicalStateEstimator {
             // (disabled period, loop overrun, replay seek). Take the wheels at face value and
             // restart the derivative filters rather than emitting a huge false acceleration.
             fusedVelocity = wheelVelocity;
-            fusedAccel = Translation2d.kZero;
+            fusedAccel = Translation2d.ZERO;
             fusedAngularAccel = 0.0;
             lastDisagreement = 0.0;
+            // A rebased wheel velocity is a new estimate. Old external precision cannot certify it.
+            observedVelocityVariance = Double.NaN;
             accelX.reset();
             accelY.reset();
             angularAccel.reset();
@@ -179,7 +208,7 @@ public final class PhysicalStateEstimator {
                     slipSeconds + (slipFactor > 0.3 ? dt : -dt)));
 
             Translation2d previousVelocity = new Translation2d(
-                    state.fieldVelocity().vxMetersPerSecond, state.fieldVelocity().vyMetersPerSecond);
+                    state.fieldVelocity().vx, state.fieldVelocity().vy);
             Translation2d imuVelocity = previousVelocity.plus(measuredAccelField.times(dt));
 
             // Availability is per sample: the configured flag can veto the IMU, but it cannot conjure
@@ -193,7 +222,11 @@ public final class PhysicalStateEstimator {
             Translation2d rawAccel = fusedVelocity.minus(previousVelocity).div(dt);
             fusedAccel = new Translation2d(
                     accelX.calculate(rawAccel.getX()), accelY.calculate(rawAccel.getY()));
-            fusedAngularAccel = angularAccel.calculate((yawRateRadPerSec - lastYawRate) / dt);
+            // A measured value goes in unsmoothed. The filter exists to make a derivative usable;
+            // applying it to something that was never differentiated only adds lag.
+            fusedAngularAccel = measuredAngularAccelRadPerSecSq != null
+                    ? measuredAngularAccelRadPerSecSq
+                    : angularAccel.calculate((yawRateRadPerSec - lastYawRate) / dt);
             growObservedVelocityVariance(dt);
         }
 
@@ -201,7 +234,7 @@ public final class PhysicalStateEstimator {
         state = new PhysicalRobotState(
                 timestampSeconds,
                 pose,
-                new ChassisSpeeds(fusedVelocity.getX(), fusedVelocity.getY(), yawRateRadPerSec),
+                new ChassisVelocities(fusedVelocity.getX(), fusedVelocity.getY(), yawRateRadPerSec),
                 fusedAccel,
                 fusedAngularAccel,
                 quality);
@@ -324,14 +357,17 @@ public final class PhysicalStateEstimator {
      *         estimate to fuse with
      */
     public boolean applyVelocityObservation(Translation2d fieldVelocity, double standardDeviation) {
-        if (!initialized || fieldVelocity == null || !(standardDeviation > 0)) return false;
+        if (!initialized || fieldVelocity == null || !(standardDeviation > 0)
+                || !Double.isFinite(fieldVelocity.getX()) || !Double.isFinite(fieldVelocity.getY())
+                || !Double.isFinite(standardDeviation)
+                || !Double.isFinite(standardDeviation * standardDeviation)) return false;
 
         double estimateVariance = effectiveVelocityVariance();
         double observationVariance = standardDeviation * standardDeviation;
         double weight = estimateVariance / (estimateVariance + observationVariance);
 
         Translation2d current = new Translation2d(
-                state.fieldVelocity().vxMetersPerSecond, state.fieldVelocity().vyMetersPerSecond);
+                state.fieldVelocity().vx, state.fieldVelocity().vy);
         Translation2d fused = current.plus(fieldVelocity.minus(current).times(weight));
 
         observedVelocityVariance =
@@ -340,8 +376,8 @@ public final class PhysicalStateEstimator {
         state = new PhysicalRobotState(
                 state.timestampSeconds(),
                 state.pose(),
-                new ChassisSpeeds(fused.getX(), fused.getY(),
-                        state.fieldVelocity().omegaRadiansPerSecond),
+                new ChassisVelocities(fused.getX(), fused.getY(),
+                        state.fieldVelocity().omega),
                 state.fieldAcceleration(),
                 state.angularAccelerationRadPerSecSq(),
                 rebuildQualityWithVelocity(state.quality()));
@@ -407,6 +443,12 @@ public final class PhysicalStateEstimator {
         lastDisagreement = 0.0;
         initialized = false;
         observedVelocityVariance = Double.NaN;
+        // The slip budget is state too, and forgetting it was the whole bug: a reset after a long
+        // shove left the budget exhausted, so the very next slip ran on plain odometry with the IMU
+        // fusion effectively switched off - roughly a 200x over-trust of the wheels - until about a
+        // second of clean gripping drained it back. A team calling reset() at the auto-to-teleop
+        // boundary got exactly that, in the case the fusion exists for.
+        slipSeconds = 0.0;
         accelX.reset();
         accelY.reset();
         angularAccel.reset();

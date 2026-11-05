@@ -1,9 +1,10 @@
 package frc.lib.catalyst.statemachine.mech;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Subsystem;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Mechanism;
 import frc.lib.catalyst.mechanisms.MechanismView;
 import frc.lib.catalyst.mechanisms.TurretMechanism;
 import frc.lib.catalyst.statemachine.goals.TurretGoal;
@@ -75,7 +76,7 @@ public final class TurretBinding implements Actuator<TurretGoal> {
     private final TurretMechanism mechanism;
     private final String key;
     private final DoubleSupplier robotHeadingDeg;
-    private final Set<Subsystem> requirements;
+    private final Set<Mechanism> requirements;
 
     private final double minAngleDeg;
     private final double maxAngleDeg;
@@ -197,7 +198,7 @@ public final class TurretBinding implements Actuator<TurretGoal> {
 
     /** {@inheritDoc} */
     @Override
-    public Set<Subsystem> requirements() {
+    public Set<Mechanism> requirements() {
         return requirements;
     }
 
@@ -219,7 +220,7 @@ public final class TurretBinding implements Actuator<TurretGoal> {
      * turret that holds its last aim is merely unhelpful, and {@link #note} says so out loud.
      */
     @Override
-    public Command pursueCommand(TurretGoal goal) {
+    public CatalystCommand pursueCommand(TurretGoal goal) {
         try {
             if (goal instanceof TurretGoal.RobotRelative r) {
                 return mechanism.goToAngle(r.degrees());
@@ -266,7 +267,7 @@ public final class TurretBinding implements Actuator<TurretGoal> {
      * its pursue command already is {@code holdAngle()}.
      */
     @Override
-    public Command holdCommand(TurretGoal goal) {
+    public CatalystCommand holdCommand(TurretGoal goal) {
         if (goal instanceof TurretGoal.RobotRelative) {
             return mechanism.holdAngle();
         }

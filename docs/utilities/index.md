@@ -85,7 +85,7 @@ One-line SysId characterization setup. Pass the mechanism and its motor — the 
 ```java
 CharacterizationHelper charHelper = new CharacterizationHelper(
     "Elevator",          // name for SysId logging
-    elevator,            // subsystem (extends SubsystemBase)
+    elevator,            // subsystem (implements CatalystSubsystem)
     elevator.getMotor()  // CatalystMotor for voltage control
 );
 
@@ -106,11 +106,11 @@ MechanismVisualizer viz = new MechanismVisualizer("Robot", 1.0, 2.0);
 
 // Add an elevator visualization
 // (name, rootX, rootY, maxHeight, color)
-var elevatorViz = viz.addElevator("Elevator", 0.5, 0.0, 1.2, Color.kBlue);
+var elevatorViz = viz.addElevator("Elevator", 0.5, 0.0, 1.2, Color.BLUE);
 
 // Add an arm on top of the elevator
 // (name, rootX, rootY, length, color)
-var armViz = viz.addArm("Arm", 0.5, 0.0, 0.5, Color.kRed);
+var armViz = viz.addArm("Arm", 0.5, 0.0, 0.5, Color.RED);
 
 // In periodic: update positions
 elevatorViz.setLength(elevator.getPosition());
@@ -280,6 +280,19 @@ BrownoutMonitor brownout = BrownoutMonitor.builder()
     .build();
 brownout.update();   // outputScale() stays 1.0, nothing trips
 ```
+
+{: .note }
+> **No power module on CAN?** `totalCurrent` is a supplier, not a `PowerDistribution`. Every Talon FX
+> reports its own supply current over CAN, so the sum across your motors is a real current figure
+> without a PDH or PDP in the loop:
+>
+> ```java
+> .totalCurrent(() -> drive.motors().stream().mapToDouble(CatalystMotor::getSupplyCurrent).sum())
+> ```
+>
+> It misses whatever is not on CAN — the radio, the controller itself, servos, LEDs — which on most
+> robots is a small and fairly constant load you can add as a constant. Bus voltage never needed the
+> power module at all: it comes from the robot controller.
 
 {: .warning }
 The two aggressive behaviours — output throttling and a preemptive
@@ -505,3 +518,4 @@ in-house every season. See the [Advanced](../advanced/) section for:
 | **SignalProcessor** | EMA, median, low-pass, composite filters for sensor data |
 | **PoseHistory** | Temporal pose tracking with interpolation |
 | **DynamicAutoBuilder** | Runtime path generation with PathPlanner |
+- [Motor history](motor-history.md) — what every motor has been through, by serial number, kept on the robot

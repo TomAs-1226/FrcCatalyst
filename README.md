@@ -3,38 +3,57 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/TomAs-1226/FrcCatalyst/actions"><img src="https://img.shields.io/github/actions/workflow/status/TomAs-1226/FrcCatalyst/build.yml?style=for-the-badge&logo=github&label=Build" alt="Build Status"/></a>
-  <a href="https://github.com/TomAs-1226/FrcCatalyst/releases"><img src="https://img.shields.io/github/v/release/TomAs-1226/FrcCatalyst?style=for-the-badge&logo=semanticrelease&color=e94560" alt="Release"/></a>
-  <a href="https://github.com/TomAs-1226/FrcCatalyst/blob/main/LICENSE"><img src="https://img.shields.io/github/license/TomAs-1226/FrcCatalyst?style=for-the-badge&color=0f3460" alt="License"/></a>
-  <a href="https://tomas-1226.github.io/FrcCatalyst/"><img src="https://img.shields.io/badge/Docs-GitHub%20Pages-blue?style=for-the-badge&logo=github" alt="Docs"/></a>
+  <a href="https://github.com/TomAs-1226/FrcCatalyst/actions"><img src="https://img.shields.io/github/actions/workflow/status/TomAs-1226/FrcCatalyst/build.yml?style=for-the-badge&logo=github&label=Build" alt="Build status"/></a>
+  <a href="https://github.com/TomAs-1226/FrcCatalyst/releases"><img src="https://img.shields.io/github/v/release/TomAs-1226/FrcCatalyst?include_prereleases&style=for-the-badge&logo=semanticrelease&label=Release&color=182034&labelColor=0b0f1a" alt="Latest release"/></a>
+  <a href="https://tomas-1226.github.io/FrcCatalyst/"><img src="https://img.shields.io/badge/Docs-2.0-182034?style=for-the-badge&logo=readthedocs&labelColor=0b0f1a" alt="Documentation"/></a>
+  <a href="https://github.com/TomAs-1226/FrcCatalyst/blob/main/LICENSE"><img src="https://img.shields.io/github/license/TomAs-1226/FrcCatalyst?style=for-the-badge&label=License&color=182034&labelColor=0b0f1a" alt="License"/></a>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/WPILib-2026.2.1-green?style=flat-square" alt="WPILib"/>
-  <img src="https://img.shields.io/badge/Phoenix%206-26.1.1-orange?style=flat-square" alt="Phoenix 6"/>
-  <img src="https://img.shields.io/badge/Java-17-blue?style=flat-square&logo=openjdk" alt="Java 17"/>
-  <img src="https://img.shields.io/badge/PathPlanner-2026.1.2-purple?style=flat-square" alt="PathPlanner"/>
-  <img src="https://img.shields.io/badge/PhotonVision-v2026.3.1-yellow?style=flat-square" alt="PhotonVision"/>
+  <img src="https://img.shields.io/badge/WPILib-2027.0.0--alpha--7-182034?style=flat-square&labelColor=0b0f1a" alt="WPILib 2027.0.0-alpha-7"/>
+  <img src="https://img.shields.io/badge/Systemcore%20OS-beta%2014-e94560?style=flat-square&labelColor=0b0f1a" alt="Systemcore OS beta 14"/>
+  <img src="https://img.shields.io/badge/Java-25-182034?style=flat-square&logo=openjdk&labelColor=0b0f1a" alt="Java 25"/>
+  <img src="https://img.shields.io/badge/Phoenix%206-26.70.0--alpha--2-182034?style=flat-square&labelColor=0b0f1a" alt="Phoenix 6 26.70.0-alpha-2"/>
+  <img src="https://img.shields.io/badge/LimelightLib-2.0.0--beta9--alpha7-182034?style=flat-square&labelColor=0b0f1a" alt="LimelightLib 2.0.0-beta9-alpha7"/>
 </p>
 
----
+**The whole-robot library for FRC, on CTRE Phoenix 6.** Mechanisms, swerve, a state machine for the
+entire robot, physics, autonomy and telemetry — configured through builders instead of rewritten
+every season.
+
+Catalyst 2.0.0 is Rev 2 of that library, and it is the library's final 2.0.0 release. The platform
+under it (WPILib 2027 alpha-7, Systemcore OS beta 14, Phoenix alpha) is still prerelease. New computer, new JVM, new command framework underneath —
+and **974 of its 986 public methods kept their name.** Of the twelve that did not, nine were
+Commands v2 lifecycle overrides that no team ever called (`initialize`, `execute`, `end`,
+`isFinished`); the other three are `getServo`, `getModuleStates` and `addPhotonCamera`, all in the
+migration notes. That is what a second generation is supposed to cost you, and it is the number to
+hold this release to.
+
+```gradle
+implementation 'com.github.TomAs-1226:FrcCatalyst:v2.0.0'
+```
+
+<p align="center">
+  <img src="docs/assets/release-2.0.svg" alt="FrcCatalyst 2.0 — what moved underneath, and the five command decorators you have to rename" width="100%"/>
+</p>
 
 ## Versions and compatibility
 
 Which Catalyst goes on which robot is kept on one page,
-**[Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html)**. Checked
-17 October 2026:
+**[Versions and compatibility](https://tomas-1226.github.io/FrcCatalyst/versions.html)**. As of
+16 October 2026:
 
 | If you are | Use |
 |---|---|
-| Competing on a roboRIO / WPILib 2026 | **1.12.0 stable**, tag `v1.12.0`, Java 17 |
-| Developing on Systemcore / WPILib 2027 alpha-7 | **2.0.0-rc.1 prerelease**, tag `v2.0.0-rc.1`, Java 25, Phoenix 26.70.0-alpha-2; match the controller image and 26.70.x device firmware |
-| Maintaining an old alpha-6 robot | Keep its matching historical source stack until a deliberate migration |
+| On a Systemcore with CTRE motors | **2.0.0** on `main`, on JitPack: WPILib 2027.0.0-alpha-7, Systemcore OS image 14, Phoenix 6 **26.70.0-alpha-2**. Your devices need 26.70.x firmware. |
+| Competing this season on a roboRIO | **1.12.0**: tag `v1.12.0`, WPILib 2026.2.1, on JitPack. It lives on branch `1.x`; its documentation is at [/v1/](https://tomas-1226.github.io/FrcCatalyst/v1/). |
+| Still on Systemcore image 13 | **2.0.0-alpha.5** on `systemcore-alpha6`, WPILib 2027.0.0-alpha-6, Phoenix 26.50.0-alpha-1. Source build only — WPILib alpha-6 is on no public Maven. Nothing new lands here. |
 
-The RC1 JitPack artifacts and beta vendordep are published. Desktop apps and installers have
-separate versions; use the [suite downloads](https://tomas-1226.github.io/FrcCatalyst/downloads.html).
-
-This branch, `main`, is 1.12.0 and builds the stable docs site.
+**The alpha-7 line could not drive a CTRE robot until 2026-09-18**, because no Phoenix was built for
+WPILib alpha-7. Phoenix 26.70.0-alpha-2 fixed that and this line moved to it, which is why the two
+2.x lines were merged back together and why this is the line 2.0.0 ships from. Moving a robot here
+means re-flashing every TalonFX, CANcoder and Pigeon to 26.70.x firmware; budget an afternoon, not a
+`git checkout`.
 
 `python tools/catalyst-versions.py` prints the live map from git and Maven local: every tag and
 branch head with the WPILib and vendor versions it pins, and every local build traced to the commit
@@ -43,6 +62,11 @@ the vendordeps the docs site serves; `--apps` adds CatalystApp and CatalystConso
 checked out beside this repository. It only reads, and needs nothing beyond Python 3.8. A version
 number in Maven local is whatever `build.gradle` said when that build was published, which is not
 always the tag with the same number; the script says which commit each one really is.
+
+`v2.0.0` is the library's final release; the platform under it (WPILib 2027 alpha-7, Systemcore OS
+beta 14, Phoenix alpha) is still prerelease, and desktop tests are not on-robot qualification. These
+docs are served at the site root and, under the old address, at `/beta/`. See "What state this is
+in" below.
 
 ---
 
@@ -67,6 +91,90 @@ always the tag with the same number; the script says which commit each one reall
 
 ---
 
+## What state this is in
+
+A drawing files status in the title block, so this one does too. A ticked box was measured. An
+unticked box was not.
+
+| | | |
+|:--|:--|:--|
+| **&#9745;** | **2.0.0 source validation** | The tagged release passed the full library/example CI; see the release for exact evidence and known limitations |
+| **&#9744;** | **On-robot qualification of 2.0.0** | Desktop tests are not on-robot qualification; the changes new since RC1 need their own robot validation |
+| **&#9632;** | **Historical competition use** | The maintainer reports Catalyst was competition-tested at SoCal Showdown and performed well |
+
+2.0.0 includes the regression fixes from the October 15 current-library audit, and what proved
+itself on team 5805's robot through CAMIS 2026 (see the changelog). Desktop tests do not establish
+robot qualification; historical release notes below describe their named builds.
+
+The library is final at 2.0.0; the platform under it is not. It is pinned to WPILib `2027.0.0-alpha-7`, which has
+already changed `Mechanism` from an interface to a class and back across three builds, and it
+requires **Systemcore OS beta 14** — a build against alpha-7 aborts on beta 13 before your robot
+code runs, so a mismatch looks like a robot that deploys and then does nothing.
+
+**It can drive CTRE devices, as of 2026-09-18.** Phoenix 6 `26.70.0-alpha-2` is the first build for
+WPILib alpha-7, and this line moved to it. **It requires 26.70.x device firmware** — every TalonFX,
+CANcoder and Pigeon has to be re-flashed, so moving a robot onto this line is an afternoon of work,
+not a `git checkout`. The 2.0.0 source pins optional PathPlanner `2027.0.0-alpha-4.1` and includes
+WPILib's Commands v2 bridge while Catalyst uses Commands v3. PathPlanner remains `compileOnly`:
+a robot that uses it needs its matching vendordep and Maven repository. Source compilation is not
+hardware or autonomous-path qualification.
+
+Put it on an offseason robot over the offseason, so the port to 2027 is behind you rather than
+ahead of you in January. **If you are competing on a roboRIO, use
+[v1.12.0](https://github.com/TomAs-1226/FrcCatalyst/releases/tag/v1.12.0)** — WPILib 2026, roboRIO,
+branch `1.x`, [1.x documentation](https://tomas-1226.github.io/FrcCatalyst/v1/).
+
+## Four things you would otherwise build yourself
+
+**[Physics Core](https://tomas-1226.github.io/FrcCatalyst/advanced/physics.html)** is the part that
+notices what the robot *did*. It fuses wheel odometry and the IMU into one velocity with a
+confidence attached, scores which wheel is lying when a tyre breaks loose, tracks a centre of mass
+that moves as your elevator does, and predicts where the robot will be at the instant a shot leaves
+it. Strictly advisory: it writes no pose, schedules no command and changes no setpoint. Marked
+against a ground-truth simulator, where fused velocity carried 48% less error than the wheels alone
+through a slip.
+
+**[A state machine for the whole robot](https://tomas-1226.github.io/FrcCatalyst/advanced/statemachine.html)**,
+not a preset applier. You declare which transitions are legal, and an edge you did not declare is a
+request the robot refuses — with a reason, in the log. Arrival is *measured* from sensors rather
+than assumed, so a transition that times out leaves the machine where the robot actually is instead
+of where it was asked to go. All ten mechanism types plus subsystems you wrote yourself, and
+`superstructure.explain()` prints in plain language what you built and why it is stuck.
+
+**[Autonomy 2.0](https://tomas-1226.github.io/FrcCatalyst/advanced/autonomy.html)** is a package of
+small decision cores that answer *what should the robot do next* and nothing else. Each one takes an
+immutable `Situation` snapshot and returns a record with a reason string in it; none of them
+schedules a command or writes a setpoint, so a core you disagree with cannot break a robot that
+ignores it. Every facet of that snapshot carries its own validity flag — a robot with no current
+measurement reports `power().valid() == false` rather than a plausible zero.
+
+**[The Systemcore work](https://tomas-1226.github.io/FrcCatalyst/advanced/systemcore.html)** is the
+part of the 2027 platform you would otherwise absorb yourself. Five CAN buses, with a planner that
+knows `can_s0`+`can_s1` share one SPI controller, so a "split" across that pair buys far less than
+it looks. A machine that reports on itself: per-bus CAN utilisation measured rather than estimated,
+eMMC wear, storage, and the device's own brownout thresholds instead of the roboRIO's 6.8 V. Autos
+as OpModes the Driver Station lists natively, status on the Driver Station itself, and the Pigeon
+and the onboard IMU read as one.
+
+---
+
+## Catalyst 2.x needs two JVM flags
+
+Commands v3 runs on JDK continuations reached by reflection, so a 2027 robot program must launch
+with:
+
+```
+--add-opens java.base/jdk.internal.vm=ALL-UNNAMED
+--add-opens java.base/java.lang=ALL-UNNAMED
+```
+
+Nothing fails at build time or at startup. The robot boots, the dashboard connects, and the first
+command scheduled throws from inside WPILib. Both flags are needed, and the second only shows itself
+once the first is fixed. Full detail in
+[Systemcore & WPILib 2027](https://tomas-1226.github.io/FrcCatalyst/advanced/systemcore.html).
+
+Also required: Java 25 and Gradle 9.7 or later.
+
 ## Quick Start
 
 ### 1. Add the dependency
@@ -74,30 +182,45 @@ always the tag with the same number; the script says which commit each one reall
 **Easiest:** in WPILib VS Code, run **Manage Vendor Libraries → Install new libraries (online)** and paste:
 
 ```
-https://tomas-1226.github.io/FrcCatalyst/vendordep/FrcCatalyst.json
+https://tomas-1226.github.io/FrcCatalyst/beta/vendordep/FrcCatalyst.json
 ```
 
-Make sure the **Phoenix 6**, **PathPlanner**, and **PhotonVision** vendordeps are installed too (Catalyst builds on them).
+Install the **Phoenix 6** vendordep too, at 26.70.0-alpha-2 or later — Catalyst builds on it, and
+anything older was built for WPILib alpha-6 and will not link here.
 
-That URL installs 1.12.0, the same version as the `build.gradle` route below.
+**PathPlanner is optional.** The 2.0.0 source compiles against `2027.0.0-alpha-4.1` and includes
+the Commands v2 bridge. PathPlanner itself remains `compileOnly`; add the matching vendor dependency
+if your robot uses it. Missing or incompatible configuration is reported rather than silently enabled.
 
-<details><summary>Or add it by hand in <code>build.gradle</code></summary>
+PhotonVision has no 2027 build, so `PhotonSource` is excluded from the source set — use
+`LimelightSource`.
+
+> **That URL installs 2.0.0.** The `/beta/` in it is kept on purpose: every rc.1 robot's `jsonUrl`
+> already points there, so they see the update. A roboRIO / WPILib 2026 project keeps
+> `https://tomas-1226.github.io/FrcCatalyst/vendordep/FrcCatalyst.json`, which still installs 1.12.0.
+> See [installation and compatibility](docs/getting-started/installation.md).
+
+<details><summary>A source build, in <code>build.gradle</code></summary>
+
+First check out the intended commit and run `./gradlew build publishToMavenLocal`.
+The local publication declared by this source is:
 
 ```gradle
 repositories {
-    maven { url "https://jitpack.io" }
+    mavenLocal()
 }
 
 dependencies {
-    implementation "com.github.TomAs-1226:FrcCatalyst:v1.12.0"
+    implementation "com.frccatalyst:FrcCatalyst:2.0.0"
 }
 ```
 </details>
 
-### 2. Build a mechanism in seconds
+### 2. Build a mechanism
 
 ```java
-// A full-featured elevator in ~10 lines
+// A two-stage elevator with every option set. Most of these have defaults; this is
+// what the builder can carry, not what it needs.
 LinearMechanism elevator = new LinearMechanism(
     LinearMechanism.Config.builder()
         .name("Elevator")
@@ -129,6 +252,60 @@ operatorController.b().onTrue(elevator.goTo("STOW"));
 ```
 
 ---
+
+## v2.0.0-beta.2: WPILib 2027 and Limelight Systemcore
+
+The 2027 port. Commands v3, Java 25, five CAN buses, and a control system that reports on itself.
+
+**Required:** two JVM flags (see above), Java 25, Gradle 9.7+, and Systemcore OS beta 14. CTRE
+devices also need a Phoenix 6 release for alpha-7, which does not exist yet.
+
+New because the platform is new:
+
+- **Five CAN buses.** `CatalystCANBus` and a planner that knows `can_s0`+`can_s1` share an SPI
+  controller and `can_s3`+`can_s4` share another — so a "split" across a pair buys far less than it
+  looks, which is invisible from robot code.
+- **A machine that reports on itself.** Processor, temperature, memory, storage, eMMC wear, per-bus
+  CAN, fault counters, the 3.3 V rail, and the brownout thresholds the device holds rather than the
+  roboRIO's 6.8 V. A roboRIO reported almost none of this, which is why a robot that browned out
+  because logs filled the disk used to fail pointing at nothing.
+- **Catalyst Agent**, an optional package running on the Systemcore that answers what NetworkTables
+  cannot: which core is pinned and by what, what filled the disk, how many times the robot program
+  restarted and what it printed on the way down.
+- **OpModes.** Autos as annotated classes the Driver Station lists and selects natively.
+- **DriverBoard.** Status on the Driver Station itself — the one screen a driver is certainly
+  looking at.
+- **Dual IMU.** The Pigeon and Systemcore's onboard IMU read as one, measuring angular acceleration
+  from two accelerometers instead of differentiating a gyro.
+- Onboard IMU, typed SmartIO pins, I²C with the SCL/SDA swap handled, Hailo game-piece detection,
+  and a Systemcore simulator that makes a full disk or a pinned core reachable in a test.
+
+What changed for you — five decorators, because Commands v3 took the names and gave them
+incompatible return types:
+
+| was | now |
+|---|---|
+| `until` | `untilTrue` |
+| `andThen` | `then` |
+| `alongWith` | `together` |
+| `raceWith` | `racing` |
+| `withTimeout` | `timeoutAfter` |
+
+`AutoSelector.getChooser()` returns `Selectable<String>` — alpha-7 deleted `SendableChooser`,
+`SmartDashboard` and `Sendable` outright, so there is no type left to return. Two methods on it
+rename with it: `setDefaultOption` → `addDefault`, `addOption` → `add`. The widget also moves from
+`/SmartDashboard/<key>` to `/<key>`, so a hardcoded dashboard layout needs repointing.
+`ServoMechanism.getServo()` is `getPwm()`, and servos cannot be driven from Systemcore at all — it
+is 3.3 V and nowhere near the current. Everything else kept its name. PhotonVision and ChoreoLib
+have no 2027 build.
+
+At the time of this historical beta.2 entry, 867 tests passed on Windows and Linux; the documentation
+carries a list of the facts that could not be verified rather than guessing at them.
+
+---
+
+Everything below is the 1.x line: WPILib 2026 on a roboRIO, current release `v1.12.0`. It is the
+branch to use on a robot you are competing with, and none of it describes 2.x.
 
 ## v1.12.0: the devices, not the count
 
@@ -201,8 +378,10 @@ module constants (the only route to the gear ratios, since Phoenix does not hand
 
 **A fact Catalyst does not know is absent from the wire.** Not zero, not `-1`, not an empty string. A
 robot with no swerve publishes no drivetrain group at all; a project with no PathPlanner settings
-publishes no mass. Catalyst Console draws a dash for a missing key and a number for a present one, so
-a placeholder is indistinguishable from a measurement once it has left the robot.
+publishes no mass. A dashboard can tell an absent key from a published one; it cannot tell a
+placeholder from a measurement, because a zero on the wire looks exactly like a zero that was
+measured. Catalyst Console leaves an unpublished fact off the sheet rather than dashing it, since a
+dash beside "Gyro" reads as a robot that has no gyro when the truth is that it never mentioned one.
 
 Publishing happens once at boot and that is enough. NT4 servers keep the last value of every topic and
 send it to each subscriber on subscribe, so a dashboard that connects mid-match, or reconnects after
@@ -214,7 +393,7 @@ Catalyst also names its own build now. `CatalystVersion.describe()` returns `1.1
 — the version and git stamp are compiled in by the build, so they survive being shaded into a robot's
 fat jar, which is where `Package.getImplementationVersion()` used to come back null.
 
-Full key list in [docs/advanced/robot-identity.md](docs/advanced/robot-identity.md). 427 tests.
+Full key list in [docs/advanced/robot-identity.md](docs/advanced/robot-identity.md). 867 tests.
 
 ---
 
@@ -461,7 +640,7 @@ changes wait for 2.0.0. Go build something awesome. 🚀
 - **Swerve module telemetry**: measured and target `SwerveModuleState[]` publish to `/Catalyst/Swerve/ModuleStates` and `/ModuleTargets` for the AdvantageScope swerve view.
 - **SimDashboard v2**: per-mechanism sparkline history, a pause/resume toggle, and CSV export of the live snapshot.
 - **`SimCameraSource`**: a vision source that emits noisy, latency-delayed pose estimates from a simulated pose, so the multi-camera fusion pipeline runs in the simulator with no hardware.
-- **WPILib 2027**: a `wpilib-2027` branch with a grounded migration plan (`MIGRATION_2027.md`). Main stays on WPILib 2026.
+- **WPILib 2027**: done, and it is this branch. See v2.0.0-beta.2 above.
 
 ## What's New in v1.0.0-rc3: Configurable simulation
 
@@ -631,12 +810,14 @@ frc.lib.catalyst
 +-- mechanisms/          Generic reusable mechanisms
 |   +-- LinearMechanism             Elevator, slide, telescoping arm
 |   +-- RotationalMechanism         Arm, wrist, turret, hood
+|   +-- TurretMechanism             Aiming turret — continuous angle, wrap-safe
 |   +-- FlywheelMechanism           Shooter, accelerator wheel
 |   +-- RollerMechanism             Intake, conveyor, indexer (with ramp, pulse, voltage feed)
 |   +-- WinchMechanism              Climber, deployment
 |   +-- ClawMechanism               Motor-driven gripper with stall-based grip detection
 |   +-- DifferentialWristMechanism  Two-motor diffy wrist (pitch + roll)
 |   +-- PneumaticMechanism          Single/double solenoid with pressure-aware safety
+|   +-- ServoMechanism              PWM servo — hood, ratchet release, funnel flapper
 |   +-- SuperstructureCoordinator   Deprecated in v1.2.0 — use statemachine/ below
 |
 +-- statemachine/        Whole-robot state machine (v1.2.0)
@@ -649,8 +830,9 @@ frc.lib.catalyst
 |   +-- TransitionRecord         One history entry: outcome + per-mechanism arrival times
 |   +-- Snapshot                 Whole-machine state as one immutable object
 |   +-- goals/                   LinearGoal, RotationalGoal, WristGoal, FlywheelGoal,
-|   |                            TurretGoal, ClawGoal, RollerGoal, WinchGoal, PneumaticGoal
-|   +-- mech/Mechanisms          Factory facade: 9 typed bindings + 4 escape-hatch tiers
+|   |                            TurretGoal, ClawGoal, RollerGoal, WinchGoal,
+|   |                            PneumaticGoal, ServoGoal
+|   +-- mech/Mechanisms          Factory facade: 10 typed bindings + 4 escape-hatch tiers
 |   +-- robot/Superstructure     Public entry point — builder, commands, triggers
 |
 +-- io/                  Hardware-abstraction layer (v0.3)
@@ -673,7 +855,7 @@ frc.lib.catalyst
 +-- subsystems/          Complex subsystems
 |   +-- SwerveSubsystem      Swerve drive with skew correction, snap-to, advanced drive
 |   +-- VisionSubsystem      Multi-camera with innovation tracking + speed rejection
-|   +-- LEDSubsystem         14 addressable LED patterns
+|   +-- LEDSubsystem         17 addressable LED pattern commands
 |
 +-- util/                Utilities
     +-- FeedforwardGains         kS/kV/kA/kG storage + calculators
@@ -703,7 +885,7 @@ frc.lib.catalyst
 Every mechanism provides:
 - **Builder-pattern config** with sensible defaults
 - **Motion Magic** position control (on TalonFX)
-- **WPILib ProfiledPID** alternative (on roboRIO)
+- **WPILib ProfiledPID** as an alternative to Motion Magic
 - **Named position presets** (`goTo("STOW")`)
 - **Gravity compensation** (elevator static, arm cosine)
 - **Built-in simulation** (proper DCMotor models)
@@ -846,8 +1028,8 @@ safety, and cycle counting. Covers climbers, hatch ejectors, shifters, kickers.
 PneumaticMechanism climbHook = new PneumaticMechanism(
     PneumaticMechanism.Config.builder()
         .name("ClimbHook")
-        .doubleSolenoid(PneumaticsModuleType.REVPH, 0, 1)
-        .compressor(PneumaticsModuleType.REVPH)
+        .doubleSolenoid(PneumaticsModuleType.REV_PH, 0, 1)
+        .compressor(PneumaticsModuleType.REV_PH)
         .requirePressureAbove(40.0) // refuse to fire below 40 psi
         .build()
 );
@@ -974,7 +1156,7 @@ SwerveSubsystem drive = new SwerveSubsystem(
 
 // Enable advanced features
 drive.setSkewCorrectionEnabled(true);
-drive.enableSlewRateLimiting(2.0, 5.0);
+drive.enableSlewRateLimiting(2.0, 5.0);  // translation m/s per second, rotation rad/s per second
 drive.setSnapToAngles(new double[]{0.0, 90.0, 180.0, 270.0}, 5.0);
 
 // Advanced drive: deadband + slew + heading lock + snap + skew correction
@@ -993,15 +1175,16 @@ driver.leftBumper().whileTrue(drive.slowModeWhileHeld(0.3));
 
 ## Vision
 
-Multi-camera pose estimation with advanced Kalman filter tuning, innovation tracking, and multi-layer filtering.
+Multi-camera pose estimation with Kalman filter tuning, innovation tracking, and multi-layer
+filtering.
 
 ```java
 VisionSubsystem vision = new VisionSubsystem(VisionConfig.builder()
     .addLimelight("limelight-front",
         new Transform3d(0.3, 0, 0.5, new Rotation3d(0, Math.toRadians(-15), 0)))
-    .addPhotonCamera("cam-back",
+    .addLimelight("limelight-back",
         new Transform3d(-0.3, 0, 0.5, new Rotation3d(0, Math.toRadians(-20), Math.PI)),
-        fieldLayout)
+        true)                          // MegaTag2
     .driveSubsystem(drive)
     .baseXYStdDev(0.3)
     .baseRotStdDev(0.7)
@@ -1009,10 +1192,14 @@ VisionSubsystem vision = new VisionSubsystem(VisionConfig.builder()
     .rejectDuringSpin(2.0)
     .rejectDuringHighSpeed(3.0)        // reject when > 3 m/s
     .maxHeadingDivergence(15.0)        // reject if heading disagrees > 15 deg
-    .fieldDimensions(16.54, 8.21)      // custom field bounds
     .maxLatency(0.5)
     .build());
 ```
+
+`addPhotonCamera(...)` was removed in 2.0.0 — PhotonVision has no 2027 build, and the
+`AprilTagFieldLayout` it took is gone from WPILib 2027 as well. Use `addLimelight(...)`, or
+`addCamera(...)` with your own `CameraSource`. The field bounds default to the REBUILT field,
+16.541 m x 8.069 m; `fieldDimensions(...)` overrides them for an off-season field.
 
 ---
 
@@ -1098,27 +1285,40 @@ double maxSpeed = config.estimateMaxSpeed();      // ~1.9 m/s
 
 ## Testing
 
-FrcCatalyst ships **78 JUnit tests** in `src/test`, run with `./gradlew test`:
+Run `./gradlew build` with Java 25 to compile the library and example and execute the JUnit suite.
+Run `node --test "docs/tools/**/*.test.mjs"` for browser-tool and release-metadata checks, and
+`python -B -m unittest discover -s agent -p 'test_*.py'` for service packaging/parser tests.
+CI preserves full-build test reports, including failures. Use results for the exact candidate commit;
+older counts and results do not qualify a changed tree.
 
-- **46 tests covering the state machine engine** — graph validation and refused transitions
-  (`StateMachineGraphTest`), transition sequencing, staging and deadlines
-  (`StateMachineTransitionTest`), the proven-arrival invariant (`StateMachineTruthTest`), the
-  logging schema (`StateMachineTelemetryTest`), and robustness against throwing guards and
-  post-timeout recovery (`StateMachineRobustnessTest`).
-- **Aiming and field math** — the Shoot-On-The-Fly solver closed-loop proof (`AimingSolverTest`),
-  the vector-adding SOTF solver (`AimingSolverVectorTest`),
-  turret continuous-wrap (`TurretMathTest`), and alliance flipping (`AllianceFlipUtilTest`).
-
-```bash
-./gradlew test
-```
-
+Coverage includes physics/estimation, swerve/vision, utilities, autonomy, hardware wrappers, state
+machines, Systemcore availability, robot identity, Commands v3 and mechanisms. Desktop simulation
+does not prove hardware behavior. The separate Numbers shooting simulation remains an unresolved
+downstream gate, and ARES 2.0 prototype integration is deferred.
 A separate end-to-end project at [FrcCatalystTest](https://github.com/TomAs-1226/FrcCatalystTest)
 exercises the library in simulation across every mechanism type.
 
 ---
 
 ## Requirements
+
+Catalyst 2.0.0 (`v2.0.0`), the 2.x line on `main`:
+
+| Dependency | Version |
+|-----------|---------|
+| WPILib | 2027.0.0-alpha-7 |
+| Systemcore OS | beta 14 (`limelightosr-2027.0.0-beta14-210`) |
+| Java | 25 |
+| Gradle | 9.7+ |
+| CTRE Phoenix 6 | 26.70.0-alpha-2, published 2026-09-18: **requires 26.70.x device firmware** |
+| PathPlanner | 2027.0.0-alpha-4.1; optional `compileOnly`, Commands v2 bridge included |
+| LimelightLib | 2.0.0-beta9-alpha7 |
+
+The WPILib and OS versions are a pair, not a floor: a build against alpha-7 aborts on Systemcore OS
+beta 13 before robot code runs. PhotonVision and ChoreoLib have no 2027 build, so `PhotonSource` is
+excluded from this branch.
+
+Catalyst 1.x — `v1.12.0`, on branch `1.x`, the line for a roboRIO robot on WPILib 2026:
 
 | Dependency | Version |
 |-----------|---------|

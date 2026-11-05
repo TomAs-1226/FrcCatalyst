@@ -36,7 +36,7 @@ package frc.lib.catalyst.statemachine.goals;
  *
  * <p>Times on this type are always seconds measured from the moment the goal was applied, which
  * the binding reads from the {@code secondsSinceApplied} parameter it is handed. No goal here
- * captures a timestamp and no binding for one may call {@code Timer.getFPGATimestamp()}; doing
+ * captures a timestamp and no binding for one may call {@code Timer.getTimestamp()}; doing
  * so would make arrival untestable off-robot and would keep counting through a disabled period.
  *
  * @since 1.2.0

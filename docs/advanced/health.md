@@ -222,4 +222,4 @@ Each `HealthCheck.evaluate()` runs the predicate once, optionally formats
 a detail string, and updates two timestamps. No allocations on the steady
 path. With eight built-in mechanisms × ~3 checks each = 24 evaluations per
 loop, plus whatever teams add. At 50 Hz this is well under 1 ms total even
-on a roboRIO 2.
+on a Systemcore 2.

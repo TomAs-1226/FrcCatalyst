@@ -1,7 +1,8 @@
 package frc.lib.catalyst.statemachine.mech;
 
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Subsystem;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Mechanism;
 import frc.lib.catalyst.mechanisms.ServoMechanism;
 import frc.lib.catalyst.statemachine.goals.ServoGoal;
 import frc.lib.catalyst.statemachine.robot.Actuator;
@@ -26,7 +27,7 @@ public final class ServoBinding implements Actuator<ServoGoal> {
 
     private final ServoMechanism mechanism;
     private final String key;
-    private final Set<Subsystem> requirements;
+    private final Set<Mechanism> requirements;
 
     /** Angles resolved once at validate() time, so pursue/atGoal use the same clamped value. */
     private final Map<ServoGoal, Double> resolved = new HashMap<>();
@@ -59,14 +60,14 @@ public final class ServoBinding implements Actuator<ServoGoal> {
     }
 
     @Override
-    public Command pursueCommand(ServoGoal goal) {
+    public CatalystCommand pursueCommand(ServoGoal goal) {
         return mechanism.goTo(target(goal));
     }
 
     // holdCommand defaults to null: goTo already re-asserts the angle every loop, so the servo holds.
 
     @Override
-    public Set<Subsystem> requirements() {
+    public Set<Mechanism> requirements() {
         return requirements;
     }
 

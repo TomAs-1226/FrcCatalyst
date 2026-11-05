@@ -1,6 +1,6 @@
 package frc.lib.catalyst.physics.observation;
 
-import edu.wpi.first.math.geometry.Translation2d;
+import org.wpilib.math.geometry.Translation2d;
 
 /**
  * A measured distance from the robot to a known point on the field — a time-of-flight sensor against

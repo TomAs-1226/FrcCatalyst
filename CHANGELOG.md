@@ -5,6 +5,1014 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.0.0] — 2026-11-05 — The 2027 line, final
+
+Catalyst 2.0.0 is the final release of the 2.x line, and from today it is what `main` carries. It
+targets Java 25, WPILib `2027.0.0-alpha-7`, Phoenix `26.70.0-alpha-2` (26.70.x device firmware),
+LimelightLib `2.0.0-beta9-alpha7` and Systemcore OS beta 14, with optional PathPlanner
+`2027.0.0-alpha-4.1`. The library is final; the platform under it is still prerelease, and desktop
+tests are not on-robot qualification. RC1 ran on team 5805's robot through CAMIS 2026 and the event
+before it.
+
+The roboRIO / WPILib 2026 line, 1.12.0, moves to the `1.x` branch and its docs to `/v1/`. No
+dependency URL changes: a 2026 project's vendordep still resolves to 1.12.0, and every 2.x robot's
+vendordep (`/beta/vendordep/FrcCatalyst.json`) now offers 2.0.0. The 2.x docs move to the site root
+and stay at `/beta/` too.
+
+What proved itself on team 5805's robot "Numbers" through CAMIS 2026 and the event before it, on
+RC1, as Catalyst's own code. Every team constant stays in their repository: tag ids, speeds, field
+routes and start-zone rules are arguments here.
+
+### Added
+
+- **`VisionShotGate`: a shot only from camera evidence the wheels agree with.** The fused pose is
+  the one input a shot's readiness check never checked; after a hit or a spell without tags it can
+  be tens of centimetres off while the flywheel, hood and heading all read ready. The gate needs
+  three or more camera fixes over at least 0.2 s that land where the measured wheel velocity, paired
+  at each frame's capture time, says they should; then it may carry on the wheels alone for at most
+  1.5 s and 1.0 m of path length. Its limits are an aim error, not a length: 2 degrees of bearing,
+  10-20 cm with range. Held to a fixed 10 cm, Numbers refused every shot past 3.2 m in CAMIS Q63.
+  Two cameras that report the same capture time and disagree revoke the evidence. Pure, with every
+  reason it says no as a string. It gated every Numbers scoring shot at CAMIS; the range-scaled
+  limits came after the event and have run in simulation only.
+- **`TargetTagPriority` and `LimelightTagPriority`: one camera on the target's tags while scoring.**
+  The CAMIS logs had each camera steady to 1.5-3.5 cm on its own and the fused pose jumping 30 cm
+  (p90) whenever cameras on different tags were mixed. Once a camera has seen a target tag for 0.1 s,
+  the first such camera in the list leads and solves from the target's tags alone and the others are
+  paused through Limelight's `fiducial_id_filters_set`. A lost leader is held 0.3 s, then every
+  camera searches on target tags for 1.0 s before all tags return - with a 0.75 s hold and an
+  immediate return, none of 39 leader losses recovered and the pose stepped up to 108 cm. Raw frames
+  older than 0.25 s by their NetworkTables timestamp are not sightings. Catalyst had no tag filter.
+- **`AutoStartPose`: start an auto from the vision pose or from the mark.** A recent vision fix
+  stands when the gyro heading is within 20 degrees of the routine's start heading; otherwise, or
+  with no fix and no trusted pose, it resets to the mark. A fix made with a heading a quarter turn
+  out lands somewhere else on the field. Pure; the caller applies it.
+
+### Changed
+
+- **A vision seed or re-anchor keeps the gyro heading while the robot is enabled.**
+  `SwerveSubsystem.resetPose(pose, timestamp)`, the `VisionPoseSink` path, now takes only the
+  position when enabled: a heading that jumped under a driving robot swings field-centric forward
+  under the driver's thumbs. Disabled, the seed takes the vision pose whole, as before.
+  `setVisionResetsHeadingWhileEnabled(true)` restores RC1's behaviour. `resetPose(Pose2d)` is
+  unchanged.
+- **`Preflight.run()` never throws.** A check that throws, or whose native library is missing,
+  becomes a WARN finding naming it, and the others still run. Advice must never be the reason a
+  robot program does not start; Numbers had wrapped every call in its own try/catch.
+
+### Fixed
+
+- **The full build was red on a passing library.** `TunableGainsFanoutTest` read back motor configs
+  with a one-second timeout, which a simulated Phoenix device missed under the full suite (1 of 1109
+  tests on 2026-11-01; it passed alone three times out of three). It now retries the read until a
+  five-second deadline: it checks the values, not the latency.
+
+## [2.0.0-rc.1] - 2026-10-16 - Alpha-7 release candidate 1
+
+This prerelease targets Java 25, WPILib `2027.0.0-alpha-7`, Phoenix
+`26.70.0-alpha-2` (26.70.x device firmware), LimelightLib `2.0.0-beta9-alpha7`,
+and Systemcore OS beta 14. Optional PathPlanner support targets
+`2027.0.0-alpha-4.1`. It is not a WPILib 2026/roboRIO drop-in.
+The launch poster spells the label `2.0.0-rc-1`; the source version is
+`2.0.0-rc.1` and the dependency tag is `v2.0.0-rc.1`.
+
+ARES 1.1 remains incremental multicamera work. The deferred ARES 2.0 localization
+prototype is excluded. Experimental physics and odometry paths are advisory or
+default-off and require hardware qualification. SoCal Showdown tested the team's
+prior competition build; it did not validate every new RC1 feature. Desktop tests
+do not establish physical shot accuracy, sensor mounting, or autonomous readiness.
+
+At RC1 preparation, native CAN configuration-read flakes and an intermittent downstream
+`NumbersShootingSimTest` failure were recorded. **17 October validation update:** the
+Numbers failure was diagnosed and repaired in an isolated team-repository test fixture
+and desktop plant. Its full build passed 623 tests, followed by a fresh 4-test repeat,
+with all 32 original shooting assertions unchanged. This is not a new library binary
+or a deployed robot change. See [the validation evidence](docs/advanced/shooting-simulation-validation.md).
+The earlier native configuration-read observations and physical qualification limits
+remain recorded; the downstream simulation repair does not establish robot readiness.
+
+Autonomy 2.1 (shared control), and two drive fixes a robot on the Red alliance needs.
+
+### Fixed
+
+- RC1 preparation carries the October 15 current-library regression repairs: reused motor requests
+  clear obsolete additive feedforward; shared live gains reach every motor; adopted actions keep
+  their prerequisites during dwell; finite acceleration limits hold on invalid loop periods; and
+  NaN task scores cannot acquire resources. IMU fusion excludes unavailable yaw-rate sources,
+  rejects nonfinite noise and computes stable weights; vertical Systemcore raw vectors remain
+  unavailable without a measured 3D mapping. Velocity uncertainty resets across observation gaps,
+  and identification rejects invalid samples and seeds without partially changing the fit.
+  These are ARES 1.1/current-library fixes, not integration of the ARES 2.0 prototype.
+
+- Added default-off camera-trajectory recovery for latched native/IMU motion faults. Held-out
+  endpoint-velocity evidence, fresh native consistency and persistent event cutoffs prevent
+  wheelspin, stale frames or position-only fixes from automatically clearing uncertainty.
+- Corrected diagnostic gyro-wheel integration during steering changes with signed finite arc
+  chords and exact rotational displacement. Consensus gates remain unchanged; timing/reversal
+  aliases and physical mounting still require qualification before control opt-in.
+
+- Added diagnostic-by-default gyro-constrained cumulative-wheel shadow odometry with unique three-module consensus,
+  SE(2) integration and bounded capture-time weighted translation corrections. Corrected position
+  persists through wheel recovery. Native pose and legacy clients retain their contracts; common
+  wheelspin still requires the separate IMU guard, and correction noise requires hardware validation.
+  Control needs a separate explicit opt-in; changing-steering/native timing qualification remains open.
+
+- Added an opt-in bounded wheel/IMU motion observer for the alpha-7 source line. Persistent
+  disagreement no longer regains trust merely because wheelspin becomes constant; position-only
+  resets preserve motion faults, and independent velocity observations have freshness/finite guards.
+  Native pose remains read-only. CatalystGyro now offers fresh gravity-removed and tilt-leveled
+  acceleration without changing its raw acceleration interface. Hardware thresholds remain unverified.
+
+- **Physics Core called every hard launch wheel slip, and every start of one an impact.** The
+  disturbance residual is the IMU's acceleration minus the wheels'. The wheels' was smoothed (it is a
+  derivative) and the IMU's was not, so the two were never compared at the same lag: when a launch
+  ended the wheels still "claimed" acceleration the IMU no longer saw - the signature of slip - and
+  when it began the IMU saw acceleration the wheels had not yet claimed - the signature of an impact.
+  A robot rolling perfectly, with an IMU that agreed with its wheels exactly, read "wheel slip 67%" and
+  lost a quarter of its localisation confidence at the end of a 7 m/s^2 launch. This is what took
+  Catalyst X1's confidence down on 151 hard stick pushes on 2026-09-19; rc.2 stopped that from reaching
+  the driver's speed, and this removes the false reading itself. Both accelerations now pass through
+  the same filter on the same loops (`CleanAccelerationTest`).
+- **Vision measurements reached Phoenix stamped on the wrong clock.** Catalyst's cameras stamp frames
+  on WPILib's clock (`Timer.getTimestamp()`); Phoenix's pose estimator matches a measurement to its
+  odometry history on its own (`Utils.getCurrentTimeSeconds()`) and documents that it requires that
+  epoch. Phoenix's 2027 alpha no longer ships the conversion helper, and
+  `SwerveSubsystem.addVisionMeasurement` passed the timestamp through. Where the two clocks share an
+  epoch that was harmless; where they do not, a fix is matched to the wrong moment or to none.
+  `addVisionMeasurement` now converts, the new `SwerveSubsystem.samplePoseAt(timestamp)` does the same
+  for "where was the robot when this frame was taken", and `Swerve/PhoenixClockOffsetMs` publishes the
+  difference so a log says which case a robot is in. An offset of zero changes nothing.
+- **`VelocityLimiter` braked softer when the driver reversed the stick than when they let go.** Braking
+  meant "the speed asked is lower than the speed now", which a full reversal never is, so it used the
+  launch limit all the way down. Braking is now a change of velocity against the robot's motion: a
+  reversal brakes at the braking limit until the robot has stopped and launches from there, and a change
+  of direction at speed takes a blend of the two limits by how much of it opposes the motion, so the
+  rate never jumps.
+- **`driveToPose` and `driveToPiece` drove away from their target on the Red alliance.** Both compute a
+  velocity from the field pose error - a velocity on the field - and sent it through
+  `driveFieldCentric`, whose request Phoenix turns half a turn for a Red driver. The correction pointed
+  away from the target, the loop ran away at its clamp, and only a timeout stopped it: in simulation on
+  Red, a 1 m move ended 3.9 m the wrong side of its start. On Blue it was correct, so a shop with no
+  Driver Station (which defaults to Red 1) or a test that never sets an alliance never saw it. Both now
+  send a Blue-Alliance-perspective request through the new `driveFieldAbsolute(vx, vy, omega)`, which
+  is also what any code computing a field velocity should call. `driveToPose` additionally stands
+  still on a null target instead of throwing, and stops the robot when it ends.
+- **A heading reset while driving turned the robot.** `advancedDrive`'s heading hold kept its locked
+  heading across `resetPose` / `resetHeading()`. The lock was a number in the old frame, so after the
+  reset the robot was "off" it by the whole change and turned back at up to the full stick rate.
+  `resetPose` now drops the lock; the hold takes a fresh one.
+- **The heading hold undid the end of the driver's turn.** It locked the heading the instant the turn
+  stick came back to rest, while the robot was still rotating; the robot coasted past and the loop drove
+  it back. `advancedDrive` now takes a lock only once the measured yaw rate is under 0.3 rad/s.
+
+### Added
+
+- **Autonomy 2.1: shared control.** `frc.lib.catalyst.autonomy.SharedControl` blends the driver's
+  command with assists' *proposals* and returns one decision - the velocity to send, who owns the
+  heading, with how much authority, and why. Like every Autonomy core it commands nothing. It enforces
+  what "not intrusive" means: the driver's turn stick wins the same loop; a hold comes back only after
+  the stick has rested and the robot has stopped rotating; an assist never makes the robot faster than
+  the driver asked or sends it against their direction; a new heading owner ramps in from nothing; one
+  owner at a time, in the order the proposals are given; every assist's turn rate is capped. A proposal
+  can also name an *external* owner (an aim with its own controller), which the robot's code then drives.
+- **`VelocityLimiter`** limits how fast a commanded field velocity may change, as a vector: the size of
+  the change, not each axis. `enableSlewRateLimiting`'s per-axis limiters let a diagonal accelerate at
+  1.4 times the limit and call speeding up in -x "deceleration"; this does neither. Give it
+  `PhysicsConstraints.maxAccelerationMpsSq()` and a slammed stick becomes the hardest launch the
+  carpet and the robot's stability allow, and no harder.
+
+### Earlier RC1 preparation
+
+### Added
+
+- **`frc.lib.catalyst.fieldlab`: a planned, checkpointed measurement campaign for the afternoon a
+  team actually gets a real field.** Field time is rare enough that most of what only carpet can
+  tell you — odometry drift over twelve metres, a shot from the far side, whether a slip-current
+  guess holds — has always been taken ad hoc, into a notebook, in whatever order the day allowed, or
+  not taken at all. A `TestCampaign` is that afternoon written down and run by the robot instead: it
+  orders `Procedures.wheelRadius`, `slipCurrent`, `driveFeedforward`, `odometryDrift`,
+  `Procedures.sweep` (a shot map, or anything shaped like one) and `thermalSoak`, banks each finished
+  procedure to a `CampaignCheckpoint` so a disable, a brownout or a battery swap costs only the
+  procedure that was in flight, and refuses to go on below a set battery voltage rather than collect
+  characterisation data that is wrong in a direction that looks right — kV comes out high, a
+  flywheel never reaches its setpoint, a slip sweep slips early. A `TestStep.Measure` or `Confirm`
+  waits indefinitely for a person, over the same `/Catalyst/Tuning/FieldLab/` keys the dashboards
+  already write, with the operator's "go on" edge-triggered rather than level-triggered — a level a
+  step forgot to clear would run the whole campaign in one 20 ms loop. It runs as a Driver Station
+  Utility op mode (`FieldLabOpMode`), the same place every other Catalyst diagnostic lives, and fits
+  nothing itself: `tools/fieldlab.py` reads the resulting `.wpilog` afterwards, fits kS/kV/kA by
+  least squares and reports the residual (kA is the weakest of the three, being differentiated
+  twice), summarises drift and a sweep's scores, and refuses to guess a model for anything it does
+  not recognise. Framework-tested only — 939 tests pass with no HAL — and not yet run on a real
+  field.
+
+### Changed
+
+- **Phoenix 6 26.70.0-alpha-2, so this line can drive a CTRE robot.** Since it was cut, the alpha-7
+  line has been port-and-compile-only for anything on a CTRE drivetrain: there was no Phoenix built
+  for WPILib 2027 alpha-7. CTRE published one on 2026-09-18 and this line moved to it. **It requires
+  26.70.x device firmware** — every TalonFX, CANcoder and Pigeon has to be re-flashed, so moving a
+  robot between the two 2.x lines is an afternoon, not a `git checkout`. Three API changes came with
+  it, none of them in CTRE's changelog: `CANBus.systemcore(int)`/`motioncore(int)` are gone, because
+  naming a bus is WPILib's job now through `org.wpilib.hardware.bus.CANPort`;
+  `setOperatorPerspectiveForward` is `setOperatorForwardDirection`; and `CANBusStatus.BusOffCount`
+  and `TxFullCount` widened to `long`, which `CANBusHealth.BusStatus` widens with rather than casting
+  — a narrowing cast compiles and then reports a negative bus-off count after a long day.
+- **`systemcore-alpha6` is merged in, and the two 2.x lines are one again.** They forked on
+  2026-09-07 and were kept in step by cherry-picking, which put the docs tooling on one side and the
+  WPILib upgrade on the other; 45 commits existed only on alpha-6 and 33 only here. This line carries
+  both now — including the port-aware wiring tool and the shared tool chrome — and is the line 2.0.0
+  ships from, because it is the only one a team can install: WPILib alpha-6 is on no public Maven.
+  `systemcore-alpha6` stays readable for a robot still on Systemcore image 13; nothing new lands there.
+- **PathPlanner is `compileOnly`.** It is still at 2027.0.0-alpha-3 and built against commands v2, so
+  on this line it resolves but does not link — `AutoBuilder.configure()` throws
+  `NoClassDefFoundError`, which `SwerveSubsystem` has caught as a `Throwable` ever since a Systemcore
+  crash-looped at boot over it. As an `api` dependency it also leaked into the published pom, which is
+  why every Catalyst robot project has had to hand-add 3015's Maven repository for a library Catalyst
+  does not use: Catalyst follows its own paths. A team that wants PathPlanner adds its vendordep,
+  which brings the repository with it, plus WPILibNewCommands.
+
+- **The wiring tool plans ports, not a picture.** It drew a schematic: boxes joined by curves,
+  correct about what connects to what and not much use at the robot, because it never said which
+  channel anything went in — it auto-numbered them and showed you a diagram. It now draws the
+  boards. Every channel of the PDH or PDP appears in the board's own numbering; you pick a device
+  up and put it in one; and what comes out is a run list with **both ends of every run named**
+  (`PDH 7 → BR Steer`, `MPM F0 → LEDs`), its gauge, its length and its voltage drop. The schematic
+  is still there, as one card among several rather than the whole answer.
+- **Breakouts are first-class**, which is what makes the port model worth having: an MPM, VRM, RPM
+  or Servo Hub takes a channel on the main board and provides its own, and a device is placed into
+  one exactly the way it is placed into the board. A device that needs a regulated supply will only
+  go where regulated power exists, and everything else dims while you hold it. Auto-assign fills
+  breakouts before the main board, because filling the bays first leaves the MPM empty and the
+  board full, which is the problem the MPM was bought to solve.
+- **CAN is drawn as a chain.** The old diagram drew a rail with taps; the wiring is a daisy chain,
+  and showing it as a bus is the most common way a diagram misleads someone who has not wired one.
+  Each bus now prints in order, `Systemcore can_s0 → FL Drive → … → 120 Ω`, and the check that used
+  to count buses now knows the SPI pairing: two buses that share a controller read as a split that
+  buys much less than one across `can_s2`.
+- **The device catalogue is about six times larger** — brushed motors and the controllers they
+  need, Talon FXS and SRX, Thrifty Nova, CANrange, CANifier, Limelight cameras, network switches,
+  servos, limit switches, analog and quadrature inputs — and each entry says how it wants to be
+  fed rather than only what breaker it takes.
+- **Systemcore's own ports are on the sheet**: the five CAN buses with their controller groups,
+  the power inlet, Ethernet, the USB ports the Hailo accelerator sits on, the SmartIO header at
+  3.3 V, and the I²C port on GPIO 10/11 with its SCL/SDA swap.
+
+### Fixed
+
+- **The wiring tool stated several things it had no source for.** It attributed a recommendation
+  about regulators, a connector name and a wire gauge to Limelight, and none of them could be found
+  in any Limelight or WPILib document. The advice is kept, because a controller that browns out
+  mid-match is not a mistake worth inheriting from a diagram — but it now reads as what it is,
+  something to confirm against the hardware, in the same voice the docs already use for CAN
+  termination. The channel counts and running currents say plainly that they are the usual figures
+  and not values read off a datasheet.
+- **A breakout's feed run sized its voltage drop from its breaker rather than its load**, so a
+  lightly loaded MPM reported a 0.76 V problem it did not have. It uses what its tenants actually
+  draw. The run table also split its one ambiguous amps column into the breaker and the typical
+  running current, which were being shown and calculated from separately.
+
+- **`StateSpaceController.Position.correct(position)` taught the filter a velocity nothing had measured.**
+  For a mechanism with no velocity sensor it passed the filter's own velocity estimate back as a
+  measurement, at the real sensor's noise. A Kalman covariance update does not look at the value, only
+  at the noise it is claimed to have, so every loop shrank the filter's uncertainty in velocity as
+  though a fresh, precise reading had arrived; it ended up certain of a velocity nothing measured and
+  under-weighted the next real disturbance. It now corrects with the noise of a sensor that does not
+  exist, so that channel contributes nothing, and the class has tests.
+
+## [2.0.0-beta.2] — 2026-09-19 — The alpha-6 line's aiming and slip current, on the line teams can install
+
+2.0.0-alpha.4's changes, ported from the alpha-6 line. Phoenix 6 has no WPILib alpha-7 release, so
+on this line everything here that runs on a CTRE drivetrain is compiled, not run:
+`SlipCurrentCalibration`, the Pigeon's yaw rate, and the facing request the shoot-on-the-move pieces
+feed. A CTRE robot gets them from 2.0.0-alpha.4 on the alpha-6 line.
+
+The alpha-6 line's 2.0.0-alpha.5 as well, measured on team 5805's Catalyst X1 on 2026-09-19:
+its aim error fell from 4.2° RMS to 1.3°, with 94% of turret-mode time on target.
+
+### Added
+
+- **`AimSpeedGovernor` takes a flat top speed while aiming** (`Config.topSpeedMps`, 0 = off). The
+  governor's other caps are worked out from the geometry and move as the robot moves, and on a real
+  robot that turned out to be the problem: every change of geometry changed the robot's speed, and
+  each change knocked the aim. In the harness, tightening the geometry cap made a 2 m/s strafe aim
+  *worse*, 3.6° against 2.5°. A flat cap does not move. X1 holds 1.3° RMS at 1.0 m/s where it broke
+  above 1.3 m/s uncapped; team 581 cap their own robot at 1.5 m/s while it scores. Pick the number
+  from where the aim breaks, not from taste — the setter's javadoc shows the arithmetic.
+
+### Changed
+
+- **The slip-current measurement tells a light wheel from a rolling robot.** A wheel carrying little
+  of the robot's weight spins in place on a few amps while the others still hold: X1's front right
+  broke loose at 2 A against a wall while its back right held past 25 A. The old rule stopped the
+  whole measurement as "rolling" the moment any wheel turned on under 15 A, which on that robot meant
+  it never measured anything. Now such a wheel is noted as light and the ramp goes on to the first
+  wheel that breaks loose under load; only *every* wheel turning that way is the robot rolling.
+  Currents are read through the median of three loops and a break current is the highest of the last
+  0.3 s, so neither a one-loop spike nor a transient at the start passes for a slip.
+- **`SlipCurrentCalibration` publishes what a recording needs to judge it:** `WheelAmps` and
+  `WheelMps` every loop, `BreakAmps` at the end, and a result line that names the wheels that spun
+  early, so a jammed or unloaded corner is visible instead of being averaged away.
+- **`CatalystMath.mirrorPose` is deprecated.** It mirrors across the field's centre line, which is not
+  the alliance flip on a rotationally symmetric field like REBUILT — a pose flipped with it lands at
+  the wrong y with a heading up to 180° out. `AllianceFlipUtil.flip(Pose2d)` knows the field and its
+  symmetry. The method still mirrors, for the fields that really are mirrored.
+
+### Fixed
+
+- **`InterpolatingTable.get` answered a key that is not a number with the table's last value.** Java
+  orders NaN above every real number, so a corrupt distance found the top of a shot table and came
+  back as a plausible RPM, and the caller's `isFinite` guard never fired. It returns NaN now.
+- **`SlewRateLimiter` turned its own limit around when the clock stepped back.** It took the loop
+  period straight from the clock; a negative one made the rising ceiling negative, so the output fell
+  while the input climbed. Replay and simulation reach that. The period is now floored and capped the
+  way `SwerveSetpointGenerator` does.
+- The legacy Limelight reader's latency test measures from the publish rather than from a later read,
+  and the reader names its time unit, so the alpha-6 line's microseconds and the alpha-7 line's
+  nanoseconds cannot be confused again.
+- Two doc comments that a merge had orphaned are back on their methods, `VisionConfig`'s field
+  dimensions document their default, and the motor-history tests ignore what they do not set.
+
+## [2.0.0-alpha.4] — 2026-09-19 — Shoot on the move, the slip current, and three fixes
+
+### Added
+
+- **`SlipCurrentCalibration`** measures the drive's slip current, the stator limit Phoenix calls
+  `kSlipCurrent`, the way CTRE describes: bumper against a wall, modules straight, the drive
+  voltage ramped until a wheel spins up. It stops itself at the slip, at 6 V, or when a wheel turns
+  on a few amps (rolling, not held), leaves the drive at 0 V however it ends, and publishes the
+  result and a snippet under `/Catalyst/Calibration/SlipCurrent/`. Ported from team 5805's X1.
+- **`HeadingTracker`: shoot on the move for a swerve drivetrain that aims itself.** The Catalyst X1's
+  turret-mode controller, which the X1 calls V8. It says where to face and how fast that direction is
+  turning, as a reference for Phoenix's `FieldCentricFacingAngle`.
+  - The shot is solved from the shooter's exit, carrying the exit's own velocity round a turning
+    robot. The solve is a fixed-point iteration, so a measured time-of-flight table need not be
+    monotonic, and a `converged` flag says when it could not settle.
+  - The heading follows a second-order reference with a noise band, never the raw aim. Its feedforward
+    is led by the drivetrain's delay, and a disturbance observer takes out the turn the gyro sees but
+    the requests do not explain.
+  - `onTargetIn(lookahead, tolerance)` is the ready-to-shoot answer for a feeder that takes that long.
+  - On a model of the X1 fitted to its recordings, 0.5-1.5 m/s strafes held 0.8-1.9° RMS of aim error,
+    where Phoenix's facing request on its own held 2.4-7.1°. The modules steered a third to two thirds
+    as much. Not yet driven.
+  - Plain doubles with no WPILib imports, so the same source builds for WPILib 2026 and 2027.
+- **`AimSpeedGovernor`: the speed cap for aiming at speed.** It caps the driver's speed where the
+  target's swing would outrun the turn the drivetrain has left.
+  - The limit is the facing request's rate cap or the modules' headroom, less a reserve, and there is
+    an optional cap on closing speed. The smaller scale wins, the direction is kept, and the cap eases
+    rather than steps. That is team 581's radial and tangential structure, with the tangential cap
+    worked out rather than set by hand.
+  - `movingBeyondSafeSpeed(...)` gates the shot on the velocity actually measured.
+  - On the X1's model it took a 3 m/s arc round the target from 44° RMS to 8.7°, for 15-28% of the
+    mean speed there.
+- **`SwerveSetpointGenerator.Priority.ROTATION`.** When translation and rotation together would take a
+  module past its top speed, the translation alone gives way. It is shrunk along its direction by the
+  largest factor that fits every module, solved per module.
+  - Opt-in: `Priority.PROPORTIONAL` stays the default, and the existing constructors and `generate`
+    overloads behave exactly as before.
+  - New: a constructor taking the priority and the module positions, a field-relative
+    `generate(desired, dt, robotHeading)`, and `getTranslationScale()`.
+  - On the X1's model, in a 5 m/s pass, Phoenix's desaturation went from acting 25-35% of the time
+    to never.
+  - `allocationMargin(double)`, default 0.97, is the room it keeps for the heading loop's own
+    correction: the turn is budgeted as 1/0.97 of itself, so the room grows with the turn and none is
+    kept driving straight. (The docs' earlier workaround, passing 0.97 of the top speed, cut
+    straight-line speed by 3%.)
+- **`CatalystMotor.getSupplyCurrentLimit()` and `getStatorCurrentLimit()`.** The limits last
+  written: the builder's, or the last runtime change.
+- **`VisionPoseSink.getYawRateRadPerSec()`.** The gyro's own turn rate. The default method returns
+  the wheels' `getChassisSpeeds().omega`, so existing sinks compile and behave as before.
+  `SwerveSubsystem` overrides it with its Pigeon 2's `AngularVelocityZWorld`, and uses the wheels'
+  rate in simulation.
+- **Docs: [Shoot on the Move](docs/advanced/shoot-on-the-move.md).** The three pieces above, a wiring
+  example adapted from the X1's turret mode, every knob with its range, the `/Catalyst/Aim` contract
+  (`State`, `Target`, `AimPoint`, `HeadingErrorDeg`, `DistanceMeters`, `TimeOfFlightSeconds`, `Ready`,
+  `SpeedCapMps`, `Mode`), what to watch on the robot, and the X1 harness's evidence. On this line it
+  says which of that is compiled but not run.
+  - There is no skew or discretization term, on purpose. Phoenix's `FieldCentric` requests discretize
+    already, and the page says what the X1's own term measured.
+
+### Changed
+
+- **Vision's spin gate and MegaTag2's yaw rate come from the gyro.** Both used to read
+  `getChassisSpeeds().omega`, the rotation the wheel kinematics report.
+  - In the X1's 2026-09-17 recordings that rate disagreed with the gyro in 13 of 41 turning seconds,
+    some of them in sign. At every turn onset it led the gyro by 100-200 ms while the modules fought
+    and slipped.
+  - As a result the gate rejected sharp frames at every turn onset, before the chassis had turned, and
+    could pass blurred ones.
+  - Both now read `VisionPoseSink.getYawRateRadPerSec()`, once a loop, and fall back to the wheels'
+    rate when the gyro has no number to give.
+- **`SwerveSubsystem` raises its Pigeon 2's yaw rate to at least 100 Hz.** The Pigeon sends
+  `AngularVelocityZWorld` at 10 Hz by default on CAN 2.0, every Systemcore bus and the roboRIO's, so
+  `getYawRateRadPerSec()` could read a rate 100 ms old: the lag it exists to avoid. `CatalystGyro`
+  raised it for its own reads; a drivetrain built without one did not. A rate already set higher is
+  never lowered.
+- **The field defaults are REBUILT's exact size.** `AllianceFlipUtil`, `VisionConfig`'s field bounds
+  and `CatalystMath.FIELD_LENGTH` and `FIELD_WIDTH` are now 16.541 x 8.069 m, the field in WPILib's
+  2026-rebuilt-welded AprilTag layout, where 2.0.0-beta.1 had rounded it to 16.54 x 8.07. A robot
+  that relies on the default flips red poses about a millimetre differently; one that calls
+  `AllianceFlipUtil.configure(...)` is unaffected. (On the alpha-6 line this entry is 2.0.0-alpha.4's
+  fix of 2024's 8.21 m width, which beta.1 had already made here.)
+
+### Fixed
+
+- **The older Limelight API's times were a thousand times too long on WPILib alpha-7.** NetworkTables
+  keeps time in nanoseconds on alpha-7, where alpha-6 used microseconds, and `LegacyLimelightReader`
+  (written on alpha-6) divided by a million. A frame 20 ms old was stamped 20 s in the past, so its
+  pose reached the estimator at the wrong time or not at all, and a live camera's heartbeat read as
+  dead. Measured: `NetworkTablesJNI.now()` read 2.4062e13 with `Timer.getTimestamp()` at 24,062 s. It
+  affects cameras on the per-key API (Limelight OS 2026) only. It came to light when the latency test
+  was changed to check the capture time against the publish itself; it had compared two estimates,
+  and the error, the same in both, cancelled.
+- **Runtime current limits reach a motor's followers.** `setSupplyCurrentLimit`,
+  `setStatorCurrentLimit` and `setCurrentLimits` wrote the leader alone, though the builder gives
+  every follower the leader's limits. A follower kept its boot limit through every state, so a
+  state-based power budget that cut a roller pair to 5 A cut one motor of the two. Every follower is
+  written now. Each write waits for the motor to acknowledge it: switch limits often from a
+  background thread, not the main loop.
+- **`DifferentialWristMechanism`'s roll gains publish where the docs say.** Since 0.3.5-beta
+  the six Slot 1 tunables (`kP`, `kI`, `kD`, `kS`, `kV`, `kA`) were created with `Catalyst/Tuning/`
+  already in their key, and `TunableNumber` files every key under that table itself, so they went
+  out at `/Catalyst/Tuning/Catalyst/Tuning/<Name>/Diff/kP` and so on. The mechanisms page and the
+  0.3.5-beta notes both say `/Catalyst/Tuning/<Name>/Diff/...`. The gains still hot-reloaded, but
+  only from the doubled key: editing the documented one did nothing, and nothing said why. They now
+  publish beside the Slot 0 (pitch) gains, and a test that builds a real mechanism against the
+  simulated HAL holds them there. This moves a published NT key: a dashboard layout saved against
+  the doubled path needs repointing. The AdvantageScope bundle's Tuning tab now lists all six.
+
+## [2.0.0-beta.1] — 2026-09-09
+
+The 2027 port, on the WPILib and Systemcore OS pair that actually run together.
+
+**Beta rather than 2.0.0, deliberately.** This is pinned to WPILib `2027.0.0-alpha-7`, and an alpha
+is not a foundation you can call stable — that one has already changed `Mechanism` from interface to
+class and back across three builds. Nothing here has been driven on a competition robot either. The
+API is what 2.0.0 will be; the version says what it is standing on. 2.0.0 follows when WPILib 2027
+does.
+
+### Requires
+
+| | |
+|---|---|
+| WPILib | `2027.0.0-alpha-7` |
+| Systemcore OS | **beta 14** (`limelightosr-2027.0.0-beta14-210`) |
+| Java | 25 |
+| Phoenix 6 | `26.50.0-alpha-1` |
+| LimelightLib | `2.0.0-beta8-alpha7` |
+
+The OS pairing is not advice. The beta 14 release is titled "(REQUIRES WPILIB ALPHA 7)", and a
+mismatch does not degrade — on alpha-6 against beta 13 the program aborted before any robot code ran
+with `MRC API version mismatch`, and systemd restarted it 22 times in two minutes.
+
+### Fixed
+
+- **The default field was a season out of date.** `CatalystMath.FIELD_WIDTH`, `AllianceFlipUtil` and
+  `VisionConfig` all defaulted to 8.21 m — the REEFSCAPE width — while the rest of the library used
+  8.07 m. A team that never called `configure(...)` had every red-alliance Y flipped about an axis
+  7 cm off centre: 14 cm of error on every mirrored waypoint, on one alliance only, with nothing
+  reporting a fault. Now 8.07 m everywhere, pinned by a test against WPILib's own 2026-REBUILT
+  layout so the two cannot drift together and still agree.
+- **An unsolved MegaTag2 no longer discards the MegaTag1 fix beside it.** Measured on a Limelight 4
+  over 1,540 frames in four IMU configurations: MegaTag1 solved every frame, MegaTag2 none. An
+  unsolved MegaTag2 does not leave its topic empty — it publishes six zeros, and the blue-origin
+  copy of that is the exact centre of the field, full length and finite. The reader preferred it
+  forever and fell back only when the array was *missing*, so a good pose in the same frame was
+  never read. Frame de-duplication is now per source; one shared marker meant rejecting the MegaTag2
+  frame also consumed the MegaTag1 one.
+- **`org.wpilib.tunables` needs avaje-jsonb at runtime**, and 2027's poms are flat. Constructing an
+  `AutoSelector` threw `NoClassDefFoundError` on a robot at startup. Declared `runtimeOnly`.
+- **The published vendordep declared `wpilibYear: 2027_alpha5`.** GradleRIO alpha-7 refuses to apply
+  on a year mismatch, so installing it failed before a team wrote a line.
+
+### Changed
+
+- Five classes are back in the build — `WpiTelemetrySink`, `TelemetryUtil`, `MechanismVisualizer`,
+  `DriverBoard` — excluded on alpha-6 only because `org.wpilib.telemetry` and `DriverStationDisplay`
+  existed nowhere but a development snapshot. Only `PhotonSource` remains excluded.
+- **Tags are installable again.** Alpha-6's release was on no public maven, so JitPack could not
+  build this library and every tag after `v2.0.0-alpha.1` needed a source build on a machine with
+  the WPILib installer. Alpha-7 is on `frcmaven/release`; that cost is paid.
+- `Rotation2d.kZero` and friends are `ZERO`; the commands artifact is `commandsv3-java`;
+  `HAL.initialize()` takes no arguments; `RobotBase.startRobot` takes a supplier.
+
+### Breaking
+
+- **`AutoSelector.getChooser()` returns `Selectable<String>`**, not `SendableChooser<String>`.
+  Alpha-7 deleted `SendableChooser`, `SmartDashboard`, `Sendable` and `SendableBuilder` outright, so
+  there is no type left to return. Callers rename two methods — `setDefaultOption` → `addDefault`,
+  `addOption` → `add`. `getSelected()` is unchanged, as is every other member of `AutoSelector`.
+  This is the only signature in the library that 2027 forced to change.
+- The auto-chooser widget moves from `/SmartDashboard/<key>` to `/<key>`. A dashboard layout
+  hardcoding the old path needs repointing.
+
+### Autonomy 2.0 - the decision cores
+
+A new `frc.lib.catalyst.autonomy` package. Every decision in it is a pure function of its inputs
+returning a record, so a season of scoring rules can be exercised at a desk with no HAL, no
+scheduler and no robot. Nothing in it is required: a team that ignores the package keeps exactly the
+Catalyst they had.
+
+### Added — the decision cores
+
+- **`Situation`** and **`SituationSource`** — one physics snapshot per loop, with a validity flag on
+  every facet. Nothing invents a number: a robot with no power measurement reports
+  `power().valid() == false`, not `headroomAmps() == 0`. `cachedPerLoop()` makes every consumer in a
+  loop see the same snapshot, so they cannot disagree with each other inside one 20 ms window.
+  Measured at well under a microsecond per sample.
+- **`CycleCore`** — which phase of a repeating cycle to run, with dwell (a chattering sensor no
+  longer thrashes the cycle), stall detection, and a voluntary handback so an impossible phase is a
+  pause rather than a lockout. Generalises `Autopilot` to N phases.
+- **`StepCore`** — the reactive sequence's run / substitute / skip / abort decision, lifted out of a
+  deferred lambda inside a builder where nothing could reach it.
+- **`TaskArbiter`** — picks as many non-conflicting tasks as will fit, best first. The primitive the
+  library did not have: everything else chooses exactly one thing, so two behaviours sharing no
+  mechanisms still ran one at a time for no reason. Greedy by score, deterministic, and it says what
+  it held back and why.
+- **`ChaseCore`** — which target to pursue, ranked by value per second rather than by value or by
+  distance, refusing anything the match will not let you finish.
+- **`AuthorityCore`** — combines every limiter into one number and names the binding one. A limiter
+  can only ever slow the robot, which is what makes adding one safe without auditing the others.
+- **`ShedCore`** — who gives up current when there is not enough. Shed only, never boost, and every
+  claim carries a floor: an elevator holding its height is never shed below the current that holds
+  it, because the obvious implementation drops the load at the moment the robot is already in
+  trouble.
+- **`IntentCore`** — guesses what the driver is about to do and keeps score of how often it was
+  right. It has no way to command anything, and a test asserts that. The hit rate is the deliverable:
+  it is the evidence that decides whether inference is ever worth wiring to something.
+- **`AutonomyBoard`** — publishes all of the above under `/Catalyst/Autonomy/` on a fixed schema,
+  only when values change. Kept separate so the cores stay pure.
+
+### Changed
+
+- **`Autopilot`** runs on `CycleCore`: dwell and handback are opt-in (`dwellSeconds`,
+  `handBackAfterStalled`), an N-phase form is available via `phases(...)`, and the two-phase
+  `acquire`/`score` sugar and its build-time check are untouched.
+- **`Strategist.yieldWhen(...)`** — stand down while the driver wants the robot. Without it, a driver
+  who interrupted the selector's command got that command rescheduled on the very next loop and had
+  to fight for their own robot; the only thing keeping that out of teleop was a javadoc. A yield
+  condition that throws is read as "yes, yield", because a selector that is off can be turned back on
+  and one that fights the driver cannot be.
+- **`BehaviorEngine`** delegates to `StepCore` and guards the preconditions it evaluates. One that
+  threw used to take the whole autonomous sequence down at the step that needed it most.
+
+### Not built, deliberately
+
+- **Motor powerboost** — raising a limit above its configured value. The measurement half is solved
+  by a power distribution hub, but the other half is not: it is the exact shape of two bugs this
+  library shipped this week, with more energy behind it. `ShedCore` can only ever reduce.
+- **Battery allocation as remaining energy.** A hub integrates joules *out*; nothing knows the
+  battery's true state of charge going in. Energy spent per match is honest and is available;
+  "energy remaining" is not.
+- **A mode-switching core.** `CycleCore` already selects among N named states with hysteresis. A
+  second class doing that under a different noun would be a fifth near-synonym on the driver's
+  dashboard beside phase, goal, state and fire mode.
+
+### Autonomy 2.0, Phase 0: the truth pass
+
+The first increment of the Autonomy 2.0 track. No new concepts and no new package: this is the
+defects the autonomy and power code already had, and making three things that were silently inert
+say so. Everything here is independently useful whatever the rest of the track turns into.
+
+#### Fixed
+
+- **`Autopilot` ignored `Action.canStart()`**, alone among everything that consumes a precondition.
+  An acquire that could not succeed - no piece in view, a camera down - was scheduled anyway and the
+  repeating cycle ran it forever, so the driver was locked out of the drivetrain until they noticed
+  and released the button, with nothing on the dashboard saying why. It now checks, publishes
+  `Stalled: <action> cannot start`, and holds its requirements in a wait rather than letting the
+  repeating sequence re-defer at loop rate. It resumes the moment the precondition clears or the
+  piece state flips.
+- **A team's readiness lambda could take down the command that called it.** `GoalDirector` invoked
+  `Goal.readyNow()` and `SuperstructureCoordinator.isAtState(...)` unguarded from inside the pursue
+  command's monitor. Both are now guarded: a goal that cannot say whether it is ready is not ready,
+  and `WhyNotReady` names the cause.
+- **Two `GoalDirector`s on one robot overwrote each other.** Both wrote `Goal/Active` every loop and
+  the dashboard showed whichever ran last. `GoalDirector.Builder.name(...)` namespaces one as
+  `Goal/<name>/...`; leave it unset and every key is exactly what it was.
+- **`BrownoutMonitor` was inert by default and did not say so.** Its current supplier defaulted to
+  `() -> 0`, and the prediction is `v - I*R`, so the "predicted" voltage was just the present voltage
+  and the look-ahead the class exists for never happened. There is no default any more: unset means
+  unarmed, `isArmed()` and `Power/Brownout/Armed` report it, and the reflex is honest about being a
+  voltmeter until it is given a current source.
+
+#### Added
+
+- **`PowerPredictor.breakerBudgetAmps(...)`.** `headroomAmps()` answered a battery question and was
+  being reached for as a power budget: at 12.4 V it reports 245 A of room, which is true of the
+  battery and false of a 120 A main breaker. With a budget set it returns the smaller of the two,
+  `sagHeadroomAmps()` keeps the battery answer, and `bindingLimit()` says which one is holding.
+  Unset, the number is unchanged. The class had no tests; it has seven.
+- **`RecordingSink`** (test scope) - a `LogSink` that keeps what was written, so telemetry is an
+  assertion target with no NT server, no HAL and no robot.
+
+#### Changed
+
+- `behavior/` and `goal/` publish through `CatalystLog` instead of writing straight at
+  NetworkTables. The key paths are byte-identical, so no dashboard moves, but their reasoning now
+  reaches every installed sink - it lands in the WPILOG beside the match - and can be tested. It is
+  also marginally cheaper: the sink caches entries where the raw calls re-resolved a path each time.
+  Values that are stable for seconds at a time (`Phase`, `Active`, `Ready`, `WhyNotReady`,
+  `LastSwitchReason`) publish only when they change.
+- The `goal` package had no tests. It has five.
+
+## [2.0.0-alpha.2] — 2026-09-06 — Vetting pass: the governor, the heading loop, the history file
+
+> **Install note.** This tag cannot be installed through the published vendordep. The library is
+> pinned to the *released* WPILib 2027 alpha-6, the build Systemcore OS beta 13 runs, and that
+> version is not on any public maven - so JitPack cannot build it. Build from source on a machine
+> with the WPILib 2027 installer, or stay on `v2.0.0-alpha.1`, which was cut against the public
+> development snapshot and is on JitPack. Re-pinning to alpha-7 resolves this. See the header of
+> `build.gradle`.
+
+A read of the library rather than a robot bug report. Three defects, all of the same shape: a bound
+that was documented, or applied next door, and not applied here.
+
+### Fixed
+
+- **`setSpeedMultiplier` was ignored by six of the eight drive commands.** It is the one governor
+  between the sticks and the wheels - slow mode goes through it, and so does Physics Core's slip
+  and tipping scale - and only `advancedDrive` and `autoAlignDrive` honoured it. A driver who
+  engaged slow mode and then held the heading-lock, point-at or nudge button got full speed, and a
+  robot whose slip detector had cut it to 60% went back to 100% for as long as that button was
+  held. Now applied to translation and rotation in every driver-facing command. Autonomous moves
+  (`driveToPose`) deliberately keep their own speed, so an auto does not change because a teleop
+  flag was left set. `getSpeedMultiplier()` added.
+- **The heading loop's output reached the drivetrain unbounded** in `driveWithHeading`,
+  `pointAtTarget`, `autoAlignDrive` and `driveToPose`. It is a rate in rad/s with no relation to
+  the drivetrain: at the default kP of 5, half a turn of error asks for 15.7 rad/s, so a target
+  behind the robot produced a full-rate spin rather than a turn. `driveToPose` clamped its
+  translation and not its rotation, in the same method. All four now go through one bounded helper
+  that also stops chasing an error inside the loop's own tolerance.
+- **The motor-history file could be written by two threads at once.** The timed flush and the
+  one every disable triggers both wrote the same temporary file and both renamed it into place, so
+  the history could be replaced by half of itself - and it is the file that is never re-derived.
+  Writes are serialised and each carries its own temporary name. `lastFailure` is volatile.
+- **`RobotSafety.tripped` and `.reason` were not volatile.** Every writer holds the lock and every
+  reader deliberately does not, so a poller was free to keep observing "not tripped" after the
+  trip - the one state the class exists to publish.
+
+- **Wheel radius calibration could not finish on a test bench.** It turned the drivetrain until the
+  gyro had accumulated the requested rotations, with no other way out - and a robot on blocks never
+  rotates however long its wheels spin, so the command drove the drivetrain until somebody
+  disabled it. It now stops on a timeout derived from the commanded rate, and sooner if the heading
+  has not moved for three seconds, and says which happened instead of publishing a radius computed
+  from an arc that never occurred.
+
+- **Runtime motor configuration failures were silent.** `setPIDGains`, `setSlot1Gains`,
+  `setCurrentLimits` and `setMotionMagic` - the setters live tuning and runtime power budgeting go
+  through - discarded the status code. A rejected write is not rare on a real robot: an unlicensed
+  device refuses a Pro feature and rejects the whole group, and a device briefly off the bus answers
+  `RxTimeout`. A team moved a slider, saw no change, and had nothing to look at. Each now reports the
+  refusal to the driver station, rate-limited per motor so a device off the bus cannot flood it.
+
+### Changed
+
+- The example project no longer calls the deprecated `timeoutAfter`; the library builds with no
+  compiler warnings and no broken javadoc references.
+
+### Documentation
+
+- **`CatalystLog.getSink()` documented a default the code does not use.** It said the default sink
+  became a wrapper over `org.wpilib.telemetry` in 2.0.0; that class is excluded from the source set
+  because the package is not in a WPILib release the Systemcore image accepts, and the code has
+  always fallen back to `NetworkTablesSink`. A team reading it would believe its data reached
+  Elastic and AdvantageScope through WPILib's facade when it went to plain NetworkTables.
+  `Superstructure.addToDashboard` carried the same claim, contradicted by the comment three lines
+  below it.
+- Stale 2026 API names in javadoc references: `Command#getRequirements()`, `Alliance#Blue`.
+
+## [2.0.0-alpha.2-a10] — 2026-09-06 — A parked robot is not asked to turn
+
+The Catalyst X1's first two enables: nobody touching the sticks, every module tangential, wheels
+spinning. Read as a steer-direction runaway, because that is what module runaway usually is. It was
+`advancedDrive`: with the rotation stick at rest it locked the heading to the nearest cardinal and
+ran the heading loop against it, always - on a robot on blocks, that is a robot that cannot turn
+being told to turn, from the moment of enable.
+
+### Fixed
+
+- **`advancedDrive` holds heading only while translating.** Parked, the rotation channel is zero
+  and no lock is taken. While translating, the hold engages on the current heading (snapped to a
+  preset within tolerance, as before), an error inside the loop's tolerance is ignored rather than
+  chased, and the correction is clamped to the rate the stick could ask for, scaled by the speed
+  multiplier - it was unclamped and ignored slow mode. `headingLockDrive` (an explicit button)
+  keeps holding while parked, with the same deadband and clamp. The decision is
+  `HeadingHold.decide(...)`, tested without a drivetrain.
+
+## [2.0.0-alpha.2-a9] — 2026-09-05 — Motor history
+
+Asked for after a day of finding out that the X1's motors were not what their names said. A
+motor's id and name change; its serial number does not.
+
+### Added
+
+- **`identity.MotorHistory`.** Every device the Phoenix diagnostic server lists (so every CTRE
+  device on every bus, whether or not the team's code constructs it) gets a record keyed by serial
+  number: each id / name / bus / firmware it has been seen with and when, and for motors the
+  powered, turning, loaded and hot seconds, revolutions, energy, peak stator current and
+  temperature, sticky faults, and a bounded log of recent boots. Read from the status frames the
+  motors already send, at 10 Hz, through Phoenix objects it makes for itself. Kept in
+  `catalyst/motor-history.json` beside the program - loaded at boot, never re-derived, written when
+  it changes and on every disable - so it can be copied off the robot as it is. Rides on
+  `HealthMonitor.update()` like the device roster; configure with `MotorHistory.configure(...)`.
+  Publishes a live summary under `/Catalyst/MotorHistory/` (`Rows`, `Count`, `Summary`, `File`) for
+  the Console; the Systemcore agent 2.0.3 serves the whole file on `/api/motor-history` and
+  `/api/motor-history.csv` for the App.
+- **`util.MiniJson`.** A page of JSON writer and parser, so the file above needs no dependency
+  that would have to be listed in every team's vendordep.
+
+## [2.0.0-alpha.2-a8] — 2026-09-05 — A tag the camera cannot place is not the field's centre
+
+Found minutes after a7 went on the X1, by decoding the pose it had seeded to: (8.2705, 4.0345, 0)
+to the millimetre, the centre of the field. A Limelight that sees a tag but cannot solve it
+(MegaTag2 with no heading, or a tag not in its map) publishes a zero centre-origin pose, and its
+blue-origin copy is that plus half a field, with `tv` = 1 and a tag counted.
+
+### Fixed
+
+- `LegacyLimelightReader` reads the centre-origin `botpose` / `botpose_orb` too and refuses a
+  frame whose solve is zero. On the per-key API this was the only way to tell.
+- `VisionSubsystem` now tells every camera the robot yaw individually as well as through the
+  2027 shared table: a Limelight on the 2026 per-key API reads only its own
+  `robot_orientation_set`, so four MegaTag2 cameras were solving with no heading at all.
+
+### Added
+
+- `VisionConfig.addLimelight(name, robotToCamera, useMegaTag2)`.
+
+## [2.0.0-alpha.2-a7] — 2026-09-05 — Vision seeds the pose
+
+Found on the Catalyst X1: four cameras seeing tags from close range, every estimate rejected as
+`TooFar`. The gate measures against the drivetrain's pose, and a drivetrain boots believing it is at
+the origin - wherever the robot was switched on - so a robot carried onto the field could never be
+told where it was. Additive; no existing call changes.
+
+### Added
+
+- **Seeding.** The first estimate good enough to trust (two or more tags, or one within 3 m) now
+  *replaces* the pose through `VisionPoseSink.resetPose(...)` instead of being fused into it, and the
+  distance and heading gates measure against the pose only from then on. `VisionConfig.seedFromVision`
+  (default on) turns it off. `VisionSubsystem.isSeeded()`, `reseed()`; `Vision/Seeded`, `Vision/Seed/*`.
+- **Re-anchoring.** When every camera that sees tags is rejected as too far, none is accepted, and
+  what they see holds still relative to itself for `reanchorAfterSeconds` (default 1 s, 0 disables),
+  the pose is reset to it, counted on `Vision/Reanchor/Count` and alerted - because it means
+  odometry had gone wrong. `getReanchorCount()`.
+- **MegaTag1 until seeded.** A `LimelightSource` configured for MegaTag2 is read with MegaTag1 while
+  seeding (`setSeeding`): MegaTag2 resolves tags against a heading, and before the seed the heading
+  it would be given is the gyro's boot zero.
+- `VisionPoseSink.resetPose(Pose2d, double)`, defaulting to a measurement the estimator cannot
+  argue with; `SwerveSubsystem` and `StandaloneVisionPose` reset outright.
+
+## [2.0.0-alpha.2-a6] — 2026-09-04 — Four cameras on a Systemcore
+
+Built against four Limelight 4s on a Systemcore, which is where most of it came from. Additive:
+every existing call is unchanged, and the one validation that was removed only ever threw.
+
+### Added
+
+- **`VisionPoseSink`** — the three things vision fusion needs from a drivetrain, as an interface.
+  `SwerveSubsystem` implements it unchanged; `VisionConfig.builder().poseSink(...)` accepts
+  anything else. **`StandaloneVisionPose`** is the no-drivetrain case: the pose is the cameras'
+  latest accepted estimate, for a tank drive, a team's own swerve, or a bench. `hasPose()` lets the
+  two pose-relative filter gates stand down until the sink has a pose, so the first estimate is not
+  rejected for being far from an origin nobody is at.
+- **`VisionHealth`** — a state per camera (`OK`, `NO_TARGETS`, `DISCONNECTED`, `STALE`, `HOT`,
+  `LOW_FPS`, `REJECTING`) and a level for vision as a whole (`OK`, `DEGRADED`, `BLIND`), published
+  under `/Catalyst/Vision/Health/`, with alerts debounced by a second in both directions. Thresholds
+  on `VisionConfig.builder()`: `cameraHotCelsius` (80), `cameraMinFps` (10),
+  `staleFrameSeconds` (1). `VisionSubsystem.health()` returns the current picture.
+- **`LimelightSource.isConnected()`** now reads the camera's heartbeat when LimelightLib's own
+  answer is no, so it is true for a shipping camera. New: `secondsSinceHeartbeat()`,
+  `cameraFps()`, `cameraTemperatureC()`, `isUsingMegaTag2()`. `CameraSource.isConnected()` is a
+  new default method (true).
+- **`DeviceRoster`** — cameras, motors and the controller as *expected* and *connected* counts
+  with a row per device, under `/Catalyst/Devices/`. `CatalystMotor` (and its followers) and
+  `VisionSubsystem`'s cameras register themselves; `CatalystMotor.isConnected()` is new. Published
+  from `HealthMonitor.update()` at 4 Hz.
+- **`AutoStartCheck`** — distance and heading from the selected auto's starting pose while
+  disabled, under `/Catalyst/Auto/StartCheck/`, warning when out of tolerance.
+  `AutoSelector.selectedStartingPose()` and `AutoSelector.startCheck(poseSupplier)` wire it to
+  PathPlanner autos.
+- **catalyst-agent 2.0.2** — `/api/cameras`: the Systemcore vision aggregator's camera list
+  joined with each camera's own status (temperature, CPU, frame rate, pipeline), so the pit sees
+  a hot or unplugged camera with no robot code running.
+- **`VisionSubsystem` with no sink** now still polls the cameras, publishes their telemetry and
+  their health, and says at construction that nothing is being fused.
+
+### Fixed
+
+- **A robot with a `SwerveSubsystem` and a PathPlanner config crash-looped at boot on Systemcore.**
+  PathPlannerLib 2027 is compiled against commands v2, and GradleRIO drops every `org.wpilib.*`
+  transitive dependency of a vendordep, so `commandsv2-java` never reached the robot even though
+  Catalyst's POM lists it. `AutoBuilder.configure()` then threw a `NoClassDefFoundError` — an
+  Error, which `configurePathPlanner`'s `catch (Exception)` let straight through. Two fixes: the
+  catch is now `Throwable` and names the missing jar, so a robot without it boots and says
+  "autos will not path"; and the vendordep now declares `org.wpilib.commandsv2:commandsv2-java`
+  in its own `javaDependencies`, the way `CommandsV3.json` declares commands3, so the jar arrives.
+  `AutoSelector` catches `Throwable` at its two PathPlanner call sites for the same reason. Found
+  by deploying the Catalyst X1 project to a Systemcore.
+
+### Changed
+
+- `VisionConfig.build()` no longer throws without a drive subsystem. It only ever threw; the
+  warning it was guarding was unreachable.
+- `docs/advanced/systemcore.md` — the camera section said a Limelight 4 plugs into a Systemcore
+  USB port. It does not: LL4s are Ethernet cameras to the OS, and the section now describes the
+  addressing that was measured to work and the OS's alias NAT that makes the cameras reachable from
+  the Driver Station laptop.
+
+## [2.0.0-alpha.1-a6] — 2026-09-02 — Different computer, same library
+
+WPILib 2027 and Limelight Systemcore. Not a version bump: the package root moved from
+`edu.wpi.first` to `org.wpilib`, the hardware layer was reorganised, the command framework was
+replaced with one built on JDK continuations, and the robot controller went from one CAN bus to
+five.
+
+The constraint this whole release was built under is that **none of that is a team's problem**.
+Nobody should have to relearn Catalyst because WPILib reorganised itself, so every builder, every
+mechanism signature and every binding call is where it was, and 2027 is absorbed behind that line.
+Where WPILib now ships something Catalyst already had, Catalyst kept its own class and delegates
+inwards rather than deleting it and making everyone migrate.
+
+Four things could not be kept, and they are listed under *Changed* rather than buried. Five
+decorator names is the painful one.
+
+**Read the pairing before flashing anything.** This build targets the *released* WPILib
+`2027.0.0-alpha-6`, which is what Systemcore OS beta 13 runs. The development snapshot of the same
+alpha is a materially different API — it has `org.wpilib.telemetry`, `tunables` and `fields`, which
+the release does not — and a robot program built against one aborts on the other with a version
+mismatch the daemon reports rather than a compile error. Match the two.
+
+### Added — the machine underneath
+
+For the first time there is something to ask. A roboRIO could not tell you why it was unhappy;
+Systemcore measures itself and publishes it.
+
+- **`SystemCoreStatus`** — battery, brownout state, CPU, RAM, storage and team number, read from the
+  system server the OS runs alongside the robot program. Topic names were read out of the
+  `MrcCommDaemon` binary in the OS image rather than taken from documentation. Every reader returns
+  an empty `Optional` when a topic is absent, so a call is safe on a desktop.
+
+  `SystemCoreSim` and `SystemCoreSource` sit behind it so all of the above is testable without a
+  board — and so a test can install an absent machine without resolving the real one, which loads
+  HAL natives and, if they are missing, terminates the JVM rather than throwing.
+
+- **`Preflight`** — one call at boot that answers whether the robot is fit to enable. Findings are
+  levelled, and only a `BLOCKER` means no. It reports the things that are invisible until they are
+  expensive: a filling disk, eMMC nearing its write life, a hot Systemcore (the cores throttle
+  silently, so the symptom is a loop overrun and not a temperature), and the two JVM flags Commands
+  v3 needs.
+
+- **`CatalystCANBus`, `CANBusPlanner`, `CANBusHealth`** — one bus meant there was no decision to
+  make. Five means there is, and it is not the obvious one: **the buses are not five independent
+  lanes.** `can_s0`/`can_s1` share an SPI controller and `can_s3`/`can_s4` share another, with
+  `can_s2` alone — read off the OS image. Splitting a heavy load across a *paired* bus buys much
+  less than splitting across unpaired ones, and `CANBusPlanner` knows the difference.
+  `CANRegistry.contentionWarnings()` flags both that and everything-on-one-bus from the plan alone,
+  before the robot is ever enabled. Advisory; nothing throws.
+
+- **`SystemCoreIMU`, `DualIMU`, `CatalystIMU`** — Systemcore has an IMU built in, costing no CAN id,
+  no wiring and no bus bandwidth, and most robots already carry a Pigeon. `DualIMU` reads the two as
+  one and can tell you when they disagree, which is the only cheap way to catch a gyro that has
+  started lying.
+
+  `SystemCoreIMU` will not report acceleration until it has been told how the board is mounted. That
+  is deliberate: the board's frame and the robot's are only the same if it was installed flat and
+  square, and an acceleration in the wrong frame is a plausible number pointing the wrong way.
+
+- **`SmartIO` and `CatalystI2C`** — Systemcore's IO pins are typed, and the type is set *on the
+  device* in its web UI, not in robot code. `SmartIO` makes robot code declare what it expects, so a
+  mismatch is a message instead of a pin that reads zero forever.
+
+- **`opmode/CatalystOpMode`, `CommandOpMode`** — 2027 robots are OpModes. A program with no
+  registered OpMode connects, looks healthy, and cannot be enabled, with nothing on any dashboard
+  saying why.
+
+- **`sysid/SysIdRoutine`** — WPILib kept `SysIdRoutineLog`, the half that writes what the desktop
+  tool reads, and deleted the half that drove the mechanism, because that half was Commands v2.
+  Characterisation is not optional here — feedforward gains, `MotionConstraintCalculator` and Physics
+  Core's identifiers all assume a team can measure kS/kV/kA — so Catalyst supplies the driving half
+  on v3 coroutines and keeps writing through `SysIdRoutineLog`. **The desktop tool sees exactly the
+  same data as before.**
+
+- **`GamePieceDetector`** — Systemcore has a Hailo accelerator on USB ports 0 and 1, so neural object
+  detection is available to any team rather than to whoever had a spare coprocessor.
+
+- **`command/`** — `CatalystCommand`, `Commands`, `CatalystSubsystem`, `CommandRuntime`. Commands v3
+  ships a deliberately small surface: no `withName`, no `finallyDo`, no `beforeStarting`, no
+  `Commands` class, and `Mechanism.run` takes a `Consumer<Coroutine>` where `SubsystemBase.run` took
+  a `Runnable`. Catalyst used those shapes about four hundred times. Rather than rewrite every call
+  site, these restore them on top of v3 — most call sites changed an import and nothing else.
+
+### Changed — the four things a team actually has to edit
+
+- **Five command decorators were renamed.** `until` → `untilTrue`, `andThen` → `then`, `alongWith` →
+  `together`, `raceWith` → `racing`, `withTimeout` → `timeoutAfter`.
+
+  This is the one place the no-migration rule could not be honoured, and it is worth being straight
+  about why: v3 declares those five names returning group *builders*, and Java will not allow an
+  override that narrows a builder to a finished command. Keeping the names would not have compiled.
+  v3's own versions stay inherited and reachable under the original names, so both are available —
+  they just do different things.
+
+- **`ServoMechanism.getServo()` is now `getPwm()`**, because `Servo` was removed from WPILib, and
+  deliberately. Two hardware facts came with that and matter more than the rename: Systemcore's IO
+  pins output **3.3 V** at nowhere near a servo's current, so a servo wired straight to the board
+  will not work and the rules are not expected to permit it; and **Systemcore returns every PWM
+  output to centre when the robot is disabled** — IO-chip firmware, no override. A mechanism that
+  must hold position through a disable cannot hold it on PWM. Design around that well beyond servos.
+  The supported path for servos is a CAN servo hub.
+
+- **The default CAN bus is now `can_s0`**, where it was `""` — the rio bus, which no longer exists.
+  Code that never named a bus keeps working and keeps its devices together.
+
+- **`periodic()` is no longer automatic.** `SubsystemBase` registered itself; v3's `Mechanism` is an
+  interface with no constructor to hook. A subsystem that defines `periodic()` and never calls
+  `registerPeriodic()` compiles and silently never ticks. Every Catalyst subsystem and mechanism now
+  registers itself, so this only bites a team's own classes — but it bites silently, which is why it
+  is here rather than in a footnote.
+
+### Removed — and what to use instead
+
+- **`DriverBoard`, `WpiTelemetrySink`, `TelemetryUtil`, `MechanismVisualizer`** are not in this
+  build. The released alpha-6 ships no `org.wpilib.telemetry` and no `org.wpilib.tunables` —
+  verified by searching every jar in the installer — so there is no `Telemetry` and no
+  `DriverStationDisplay` for them to sit on.
+
+  **`AutoSelector` was on this list and should not have been**, which is worth stating plainly
+  because the mistake was mine and it cost teams their auto chooser. It was ported to
+  `org.wpilib.tunable.Selectable` on the belief that `SendableChooser` had been removed in 2027,
+  and dropped from the build when that package proved absent. Only the second half was true:
+  `SendableChooser`, `SmartDashboard`, `Sendable` and `SendableBuilder` are all present in the
+  released `wpilibj-java`. The removal claim came from the development snapshot. `AutoSelector` is
+  back, unchanged from 1.x, and the "one forced API break" recorded below was not a break.
+
+  They are *excluded from the source set, not deleted*: they are the better implementations and they
+  return the moment a release ships those packages. Nothing is lost meanwhile. `CatalystLog` falls
+  back to `NetworkTablesSink`, which is the sink this library used before 2027 and is still fully
+  tested, and published key paths are unchanged — Console, the health dashboard and any existing
+  AdvantageScope layout resolve the same names.
+
+- **PhotonVision** has no 2027 vendordep, so `PhotonSource` is excluded. Catalyst is Limelight-first,
+  and this is a stated direction rather than a temporary gap.
+
+- **ChoreoLib** has no build past alpha-2, but nothing is lost: `followChoreoPath()` reads Choreo
+  `.traj` files through PathPlanner's `fromChoreoTrajectory`, so it never depended on the ChoreoLib
+  vendordep and still works.
+
+### Fixed
+
+- **`LimelightSource` was rewritten, and had to be.** Catalyst read Limelight NT keys directly —
+  `botpose_wpiblue`, `tx`, `ta` — to avoid a vendordep. Limelight OS 2027.0 publishes results as a
+  single MessagePack topic and **disables the classic per-key API by default**. The old code compiles
+  perfectly and silently sees nothing, which is the worst way for vision to fail. Taking LimelightLib
+  2 also brought the camera's own rejection rules, real distance- and tag-count-scaled standard
+  deviations instead of Catalyst approximating from tag count, and every queued frame between loops
+  rather than only the newest.
+
+  **The consequence, which was not written down until a real camera was tested: Catalyst 2.x
+  requires Limelight OS 2027.** On a 2026 camera the mirror failure happens — the camera publishes
+  only the classic keys, LimelightLib reads none of them, and vision contributes nothing while
+  `isConnected()` reads false despite a live NT4 connection. Catalyst now reports that state and
+  names the version as the cause.
+
+- **A single non-finite reading permanently wedged a `SignalBuffer`.** Every guard in that class is a
+  comparison and NaN compares false to all of them, so each was one bad sample away from being
+  switched off for the rest of the match. Measured: after one `add(+Infinity, …)`, **zero of ten
+  thousand** following good samples were stored, and `latest()` went on answering the pre-fault value
+  as though it were current. A vision frame with no target, or a latency computed by dividing by a
+  zero frame count, is all it took, and a pose estimator had no way to tell the frozen value from a
+  live one.
+
+- **`SystemCoreStatus.isAvailable()` answered true in simulation.** It tested `resolved != null`,
+  which looks right and is not — `getSystemServer()` returns a non-null instance wrapping handle 0
+  when there is no board. Nothing crashed, because the readings were all empty anyway; what broke was
+  the diagnosis. Preflight told a student running in simulation `Systemcore: reporting`, and the
+  health dashboard registered checks whose detail line read `battery NaN V`.
+
+- **A NaN contact normal disabled all four of `ContactResolver`'s guards at once** — the
+  degenerate-normal check, both early returns and the friction branch — and handed back NaN
+  velocities that propagated into every later position and collision, without throwing and without
+  even counting as a contact.
+
+### Known limits — stated, not hidden
+
+- **`ignoringDisable(boolean)` is a no-op.** v3's disabled-mode semantics could not be confirmed
+  against the alpha-6 jars, and guessing at what runs while disabled is not acceptable. The method is
+  kept so call sites compile and intent stays readable. Verify on hardware before depending on it.
+- **`Models.createDCMotorSystem` has no same-named successor** and is mapped to
+  `singleJointedArmFromPhysicalConstants`, which builds the same rotational double-integrator. That
+  equivalence is reasoned rather than read off a jar, and it feeds five mechanism sim models.
+- **`SystemCoreStatus` works on hardware; the handle value itself was never printed there.** Live
+  `/diagnostics/canbusutil` readings came back through this class on a real board, and every reader
+  returns empty unless availability resolved true — so it does resolve true on hardware. What was
+  not done is reading the raw handle on a board to confirm *why*, so the reasoning that a real
+  instance carries a non-zero typed handle remains reasoning.
+- The example project builds as a plain Java project, not a GradleRIO one: GradleRIO 2027 stops at
+  alpha-2 on the plugin portal and the alpha-6 plugin ships only inside the 2.6 GB installer. The
+  deploy configuration is recorded in `example/build.gradle` ready to paste back.
+
 ## [1.12.0] — 2026-08-07 — The devices, not the count
 
 ### Added

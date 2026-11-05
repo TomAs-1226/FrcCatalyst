@@ -1,8 +1,9 @@
 package frc.lib.catalyst.statemachine.mech;
 
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
-import edu.wpi.first.wpilibj2.command.Subsystem;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.command3.Command;
+import frc.lib.catalyst.command.Commands;
+import org.wpilib.command3.Mechanism;
 import frc.lib.catalyst.mechanisms.PneumaticMechanism;
 import frc.lib.catalyst.statemachine.goals.PneumaticGoal;
 import frc.lib.catalyst.statemachine.robot.Actuator;
@@ -355,7 +356,7 @@ public final class PneumaticBinding implements Actuator<PneumaticGoal> {
      * @return a fresh command that commands the solenoid, never null
      */
     @Override
-    public Command pursueCommand(PneumaticGoal goal) {
+    public CatalystCommand pursueCommand(PneumaticGoal goal) {
         if (goal == null) {
             return Commands.none().withName(key + ".NoGoal");
         }
@@ -384,13 +385,13 @@ public final class PneumaticBinding implements Actuator<PneumaticGoal> {
      * holding current whether or not anything is scheduled, so there is no equivalent hazard.
      */
     @Override
-    public Command holdCommand(PneumaticGoal goal) {
+    public CatalystCommand holdCommand(PneumaticGoal goal) {
         return null;
     }
 
     /** {@inheritDoc} */
     @Override
-    public Set<Subsystem> requirements() {
+    public Set<Mechanism> requirements() {
         return Set.of(mechanism);
     }
 

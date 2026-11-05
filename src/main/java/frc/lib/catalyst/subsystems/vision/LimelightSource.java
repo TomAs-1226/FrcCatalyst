@@ -1,45 +1,137 @@
 package frc.lib.catalyst.subsystems.vision;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Pose3d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Transform3d;
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
+import com.limelightvision.Limelight;
+
+import frc.lib.catalyst.logging.CatalystLog;
+
+import org.wpilib.driverstation.DriverStationErrors;
+import org.wpilib.networktables.NetworkTableInstance;
+import org.wpilib.system.Timer;
+
+import org.wpilib.math.geometry.Pose3d;
+import org.wpilib.math.geometry.Transform3d;
 
 import java.util.Optional;
 
 /**
- * Camera source implementation for Limelight cameras.
- * Uses NetworkTables directly (no external LimelightLib dependency required).
+ * Camera source for Limelight cameras, on LimelightLib 2.
  *
- * <p>Supports MegaTag2 pose estimation when robot orientation is set.
+ * <p><b>This was rewritten for 2027, and it had to be.</b> Catalyst used to read Limelight
+ * NetworkTables keys directly — {@code botpose_wpiblue}, {@code tx}, {@code ta} — specifically so it
+ * would not need a vendordep. Limelight OS 2027.0 ends that: results are published as a single
+ * MessagePack topic, and the classic per-key API is <em>disabled by default</em>. The old code
+ * compiles perfectly against 2027 and silently sees nothing at all, which is the worst way for
+ * vision to fail. Decoding MessagePack by hand to keep avoiding a dependency would have been a
+ * worse trade than taking it.
  *
- * <p>Example:
- * <pre>{@code
- * LimelightSource cam = new LimelightSource("limelight-front",
- *     new Transform3d(0.3, 0, 0.5, new Rotation3d(0, Math.toRadians(-15), 0)));
- * }</pre>
+ * <p>What comes with the change, beyond working:
+ *
+ * <ul>
+ *   <li><b>Filtering the camera already does.</b> LimelightLib 2 applies its own rejection rules and
+ *       distance/tag-count standard-deviation scaling, and reports why an estimate was rejected.
+ *       {@link #getEstimatedPose()} drains the <em>accepted</em> queue, so obviously-bad poses never
+ *       reach the estimator.</li>
+ *   <li><b>Real standard deviations.</b> The camera computes them from tag count, distance and area.
+ *       Catalyst previously had to approximate this from tag count alone.</li>
+ *   <li><b>Every frame, not just the newest.</b> The camera queues estimates between robot loops.
+ *       Reading the queue rather than a single latest value keeps the frames a 20 ms loop would
+ *       otherwise throw away.</li>
+ * </ul>
+ *
+ * <p><b>Coordinate systems changed too.</b> Limelight OS 2027.0 unified everything on NWU
+ * right-handed (X forward, Y left, Z up). A camera transform carried over from 2026 needs its mount
+ * side and pitch signs re-checked — this class passes the transform straight through, so a wrong
+ * sign here is a wrong pose with no warning.
+ *
+ * <p>USB-attached Limelights on Systemcore are named by {@link Limelight#SYSTEMCORE_USB0} and
+ * friends; see {@link #usb(int, Transform3d)}.
+ *
+ * @since 2.0.0
  */
 public class LimelightSource implements CameraSource {
 
     private final String name;
+    private final Limelight limelight;
+    private final boolean useMegaTag2;
+
+    /**
+     * How stale the robot yaw may be before MegaTag2 estimates stop being trusted.
+     *
+     * <p>Half a second is about twenty-five robot loops. Anything that is still publishing yaw at
+     * all will be well inside it, and anything outside it has stopped, which is the case worth
+     * catching.
+     */
+    private static final double ORIENTATION_STALE_SECONDS = 0.5;
+
+    /** When this camera was last told the robot's yaw. */
+    private double lastOrientationTs = Double.NEGATIVE_INFINITY;
+
+    /** When ANY camera was last told the robot's yaw through the shared table. */
+    private static volatile double lastSharedOrientationTs = Double.NEGATIVE_INFINITY;
+
+    /** So the warning below is said once per camera, not fifty times a second. */
+    private boolean warnedAboutMissingYaw = false;
+    /** While true, a MegaTag2 camera is read with MegaTag1. Set by VisionSubsystem until it has seeded. */
+    private volatile boolean seeding = false;
+
+    /** The per-key reader, used when the camera does not speak the 2027 results topic. */
+    private final LegacyLimelightReader legacy;
+
+    /** Which API this camera turned out to speak. Null until it has said anything at all. */
+    private Boolean usingLegacyApi = null;
+    /** Canonical mount, retained so API discovery can publish the matching coordinate convention. */
     private final Transform3d robotToCamera;
-    private final NetworkTable limelightTable;
 
-    // Robot orientation for MegaTag2
-    private double robotYaw = 0;
-    private double robotYawRate = 0;
-    private double robotPitch = 0;
-    private double robotRoll = 0;
+    /** When this camera first looked connected-but-silent. NaN once it has spoken. */
+    private double connectedButSilentSince = Double.NaN;
 
+    /** So the OS-mismatch diagnosis is said once per camera. */
+    private boolean warnedAboutNoData = false;
+
+    /**
+     * How long a camera may be connected and publishing nothing before that is worth reporting.
+     *
+     * <p>Long enough to cover a boot and a pipeline switch, short enough that a pit crew hears
+     * about it before the match rather than after.
+     */
+    private static final double SILENT_GRACE_SECONDS = 4.0;
+
+    /**
+     * A Limelight by name, using MegaTag2.
+     *
+     * @param name          camera name, e.g. {@code "limelight-front"}
+     * @param robotToCamera camera pose in robot space, NWU
+     */
     public LimelightSource(String name, Transform3d robotToCamera) {
-        this.name = name;
-        this.robotToCamera = robotToCamera;
-        this.limelightTable = NetworkTableInstance.getDefault().getTable(name);
+        this(name, robotToCamera, true);
+    }
 
-        // Set camera pose relative to robot
-        limelightTable.getEntry("camerapose_robotspace_set").setDoubleArray(new double[]{
+    /**
+     * A Limelight by name, choosing the localisation mode.
+     *
+     * @param name          camera name
+     * @param robotToCamera camera pose in robot space, NWU
+     * @param useMegaTag2   true for MegaTag2 (needs robot yaw published each loop), false for
+     *                      MegaTag1, which is self-contained but less stable at range
+     */
+    public LimelightSource(String name, Transform3d robotToCamera, boolean useMegaTag2) {
+        this.name = name;
+        this.useMegaTag2 = useMegaTag2;
+        this.robotToCamera = robotToCamera;
+        // Both firmware generations use the same override key with different coordinate signs.
+        // Do not write it until the camera announces which API it speaks.
+        this.limelight = new Limelight(name);
+        this.legacy = new LegacyLimelightReader(name);
+
+        // Log the canonical transform at construction; publish after API discovery below.
+        //
+        // Limelight OS 2027.0 unified every 3D space on NWU right-handed. A transform carried over
+        // from 2026 may need its mount side and pitch signs flipped, and the failure mode is not a
+        // crash - it is a pose that is confidently, consistently wrong by a few degrees of camera
+        // pitch, which reads as "vision is a bit noisy" rather than as a configuration error.
+        // Catalyst cannot tell a correct transform from an incorrect one, so it does the next best
+        // thing and puts the numbers somewhere a human can check them against the robot.
+        CatalystLog.log("Vision/" + name + "/RobotToCamera", new double[] {
                 robotToCamera.getX(),
                 robotToCamera.getY(),
                 robotToCamera.getZ(),
@@ -49,66 +141,444 @@ public class LimelightSource implements CameraSource {
         });
     }
 
+    /**
+     * A Limelight attached to one of Systemcore's USB ports.
+     *
+     * <p>Systemcore runs four independent vision instances, so a robot can carry four cameras with
+     * no network switch and no extra wiring. Ports are numbered 0–3.
+     *
+     * @param usbPort       0–3
+     * @param robotToCamera camera pose in robot space, NWU
+     */
+    public static LimelightSource usb(int usbPort, Transform3d robotToCamera) {
+        String name = switch (usbPort) {
+            case 0 -> Limelight.SYSTEMCORE_USB0;
+            case 1 -> Limelight.SYSTEMCORE_USB1;
+            case 2 -> Limelight.SYSTEMCORE_USB2;
+            case 3 -> Limelight.SYSTEMCORE_USB3;
+            default -> throw new IllegalArgumentException(
+                    "Systemcore has USB vision ports 0-3, got " + usbPort);
+        };
+        return new LimelightSource(name, robotToCamera);
+    }
+
     @Override
     public String getName() {
         return name;
     }
 
-    @Override
-    public Optional<PoseEstimate> getEstimatedPose() {
-        // Set robot orientation for MegaTag2
-        limelightTable.getEntry("robot_orientation_set").setDoubleArray(new double[]{
-                robotYaw, robotYawRate, robotPitch, 0, robotRoll, 0
-        });
-
-        // Try MegaTag2 first (more reliable with robot orientation)
-        double[] botposeBlue = limelightTable.getEntry("botpose_orb_wpiblue").getDoubleArray(new double[0]);
-
-        if (botposeBlue.length < 7) {
-            // Fall back to MegaTag1
-            botposeBlue = limelightTable.getEntry("botpose_wpiblue").getDoubleArray(new double[0]);
-        }
-
-        if (botposeBlue.length < 7) {
-            return Optional.empty();
-        }
-
-        // Check if we have valid tag data
-        double tv = limelightTable.getEntry("tv").getDouble(0);
-        if (tv < 1) {
-            return Optional.empty();
-        }
-
-        double x = botposeBlue[0];
-        double y = botposeBlue[1];
-        double yaw = botposeBlue[5];
-        double latency = botposeBlue[6]; // total latency in ms
-
-        // Tag count and average distance from additional fields
-        int tagCount = botposeBlue.length > 7 ? (int) botposeBlue[7] : 1;
-        double avgDist = botposeBlue.length > 9 ? botposeBlue[9] : 3.0;
-
-        // Timestamp
-        double timestampSeconds = (edu.wpi.first.wpilibj.Timer.getFPGATimestamp())
-                - (latency / 1000.0);
-
-        Pose2d pose = new Pose2d(x, y, Rotation2d.fromDegrees(yaw));
-
-        return Optional.of(new PoseEstimate(
-                pose,
-                timestampSeconds,
-                tagCount,
-                avgDist,
-                0.0 // Limelight doesn't directly expose ambiguity in same way
-        ));
+    /**
+     * Whether this camera has been given the robot's yaw recently enough to trust MegaTag2.
+     *
+     * <p>Either route counts. A robot with four cameras is expected to use the shared publish, and
+     * one with a single camera usually calls the instance method; neither should look unwired
+     * because it chose the other.
+     */
+    private boolean orientationIsFresh() {
+        double newest = Math.max(lastOrientationTs, lastSharedOrientationTs);
+        return (Timer.getTimestamp() - newest) <= ORIENTATION_STALE_SECONDS;
     }
 
+    /**
+     * Whether MegaTag2 is currently being fed, for a dashboard or a pre-match check.
+     *
+     * <p>Exposed because "vision is not returning anything" and "vision is not being told where the
+     * robot is pointing" look identical from the outside and have completely different fixes.
+     */
+    public boolean isReceivingRobotOrientation() {
+        return !useMegaTag2 || orientationIsFresh();
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Returns the newest estimate the camera has <em>accepted</em>. Rejected ones are dropped by
+     * the camera before they get here, so this no longer needs Catalyst-side sanity checks.
+     */
+    @Override
+    public Optional<PoseEstimate> getEstimatedPose() {
+        // Seeding wants MegaTag1: a full pose with its own heading. MegaTag2 is only better once
+        // there is a trusted heading to give it, which is what the seed provides.
+        boolean mt2 = useMegaTag2 && !seeding;
+        com.limelightvision.PoseEstimateType type = mt2
+                ? com.limelightvision.PoseEstimateType.MT2_WPIBLUE
+                : com.limelightvision.PoseEstimateType.MT1_WPIBLUE;
+
+        // MegaTag2 without a robot yaw is not a degraded estimate, it is a wrong one.
+        //
+        // MT2 resolves tag ambiguity using an externally supplied heading. If nobody supplies it,
+        // the camera does not fail and does not complain - it uses the last value it was given,
+        // which at boot is zero. Every pose it then produces is confidently wrong by exactly the
+        // robot's true heading, and it looks like a plausible pose, so it goes into the estimator
+        // and drags the fused pose with it.
+        //
+        // Confirmed on a Limelight 4 on the bench rather than reasoned about: an untouched camera
+        // reports botorient = {alpha: 0.001, imumode: 0, interpbotyaw: 0.0}. imumode 0 is
+        // "use the externally supplied yaw", and interpbotyaw stays 0.0 until something publishes.
+        // So a robot that constructs LimelightSource with useMegaTag2 and never wires the yaw feed
+        // is asking the camera to localise a robot it believes is facing field-X, forever.
+        //
+        // Refusing is the right answer rather than warning and returning anyway: there is no sense
+        // in which the estimate is usable, and handing it to a pose estimator is strictly worse
+        // than handing it nothing. A camera that has simply not been fed yet - the first loops
+        // after boot - is the same case and is also correctly refused, because MT2 genuinely has
+        // no answer yet.
+        if (mt2 && !orientationIsFresh()) {
+            if (!warnedAboutMissingYaw) {
+                warnedAboutMissingYaw = true;
+                DriverStationErrors.reportWarning(
+                        "[Catalyst] " + name + " is configured for MegaTag2 but has not been given "
+                                + "the robot's yaw for " + ORIENTATION_STALE_SECONDS + "s. MegaTag2 "
+                                + "resolves tags against that heading and silently assumes 0 when "
+                                + "it is missing, so its poses would be wrong by the robot's true "
+                                + "heading. Call setRobotOrientation(...) or "
+                                + "LimelightSource.setSharedRobotOrientation(...) every loop, or "
+                                + "construct this source with useMegaTag2 = false.",
+                        false);
+            }
+            return Optional.empty();
+        }
+
+        if (useLegacyApi()) {
+            return legacy.read(mt2);
+        }
+
+        try {
+            diagnoseSilentCamera();
+        } catch (Throwable ignored) {
+            // A diagnostic must never be the thing that breaks the read it is diagnosing. Reporting
+            // goes through the Driver Station, which is not present in every JVM this runs in.
+        }
+
+        com.limelightvision.PoseEstimate[] accepted;
+        try {
+            accepted = limelight.readAcceptedPoseEstimates(type);
+        } catch (RuntimeException ignored) {
+            return Optional.empty();
+        }
+        if (accepted == null || accepted.length == 0) {
+            return Optional.empty();
+        }
+
+        // Newest wins. The queue exists so nothing is lost between loops; a pose estimator wants the
+        // most recent measurement, and older ones in the same batch are superseded by it.
+        com.limelightvision.PoseEstimate latest = accepted[accepted.length - 1];
+        if (!latest.isValid()) {
+            return Optional.empty();
+        }
+
+        return Optional.of(new PoseEstimate(
+                latest.pose,
+                latest.timestampSeconds,
+                latest.fieldedTagCount,
+                latest.avgTagDistanceMeters,
+                // LimelightLib 2 filters on ambiguity itself and does not surface a single figure
+                // here. Reporting 0 says "this passed the camera's ambiguity gate", which is true
+                // and is what a downstream consumer of this record actually wants to know.
+                0.0));
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>MegaTag2 needs the robot's yaw to resolve tag ambiguity. Publish the estimator's fused yaw
+     * here, not a raw IMU reading — feeding back a heading the vision system helped produce is the
+     * classic way to build a loop that slowly convinces itself of a wrong answer.
+     *
+     * <p>With several cameras, prefer {@link #setSharedRobotOrientation(double)}: one publish feeds
+     * every Limelight, instead of one per camera per loop.
+     */
     @Override
     public void setRobotOrientation(double yawDegrees, double yawRate,
-                                     double pitchDegrees, double rollDegrees) {
-        this.robotYaw = yawDegrees;
-        this.robotYawRate = yawRate;
-        this.robotPitch = pitchDegrees;
-        this.robotRoll = rollDegrees;
+                                    double pitchDegrees, double rollDegrees) {
+        if (!useMegaTag2) {
+            return;
+        }
+        // Stamped before the call, not after: the point is that a caller is feeding yaw this
+        // loop. Whether the camera is reachable right now is a different question, and one that
+        // must not make a correctly-wired robot look unwired.
+        lastOrientationTs = Timer.getTimestamp();
+        warnedAboutMissingYaw = false;
+        try {
+            // Both paths, deliberately, and not one or the other. The API is chosen lazily on the
+            // first successful read, so during the loops before that the camera would otherwise get
+            // no heading at all - and MegaTag2 with no heading is exactly the wrong-pose case the
+            // guard above exists to prevent. Writing both is two NetworkTables sets and settles as
+            // soon as the path is known.
+            //
+            // The trailing true is a flush. LimelightLib beta8 folded its four orientation setters
+            // into two, replacing the setRobotOrientation / setRobotOrientation_NoFlush pair with a
+            // boolean; the old six-argument call this replaces was the flushing one, so true keeps
+            // the behaviour rather than changing it in an upgrade. Flushing is also what the
+            // yaw feed is for: MegaTag2 resolves each frame against the heading the camera holds
+            // when that frame is processed, and a heading still sitting in the NetworkTables send
+            // buffer is one the camera does not have yet.
+            limelight.setRobotOrientation(yawDegrees, yawRate, pitchDegrees, 0, rollDegrees, 0, true);
+            legacy.setRobotOrientation(yawDegrees, yawRate, pitchDegrees, rollDegrees);
+        } catch (RuntimeException ignored) {
+            // A camera that is not connected yet is normal at startup, not an error.
+        }
+    }
+
+    /**
+     * Publish robot yaw once, for every Limelight on the robot.
+     *
+     * <p>New in Limelight OS 2027.0: cameras read a shared orientation table by default. With four
+     * cameras this replaces four writes per loop with one.
+     *
+     * @param yawDegrees fused robot yaw, CCW positive
+     */
+    public static void setSharedRobotOrientation(double yawDegrees) {
+        lastSharedOrientationTs = Timer.getTimestamp();
+        try {
+            Limelight.setSharedRobotOrientation(yawDegrees);
+        } catch (RuntimeException ignored) {
+            // Nothing listening yet.
+        }
+    }
+
+    /**
+     * Whether the camera has already applied its own rejection rules to this estimate.
+     *
+     * <p><b>Only on the modern path.</b> LimelightLib's accepted-estimate queue applies the
+     * camera's own tag-count, ambiguity, distance, area and field-bounds gates using the raw
+     * detections, which it can do better than {@code VisionSubsystem} can from a finished pose - so
+     * that filtering is skipped rather than repeated with a second set of thresholds nobody tuned.
+     *
+     * <p>The per-key path has no such gates. It reads {@code botpose_*} straight off NetworkTables
+     * and the camera applies nothing, so claiming prefiltered there tells VisionSubsystem to skip
+     * <em>its</em> checks too and nothing gates the estimate at all - including the field-bounds
+     * check, which is the one standing between a garbage pose and the fused estimate.
+     *
+     * <p>This returned an unconditional {@code true}, which was correct for exactly as long as this
+     * class only spoke the modern API. Adding the per-key reader silently turned it into a lie, and
+     * the shape of that lie was every estimate from a 2026 camera -
+     * entering the pose estimator ungated.
+     */
+    @Override
+    public boolean isPrefiltered() {
+        return !isUsingLegacyApi();
+    }
+
+    /** Whether the camera currently sees a target. */
+    public boolean hasTarget() {
+        try {
+            return limelight.hasTarget();
+        } catch (RuntimeException ignored) {
+            return false;
+        }
+    }
+
+    /** Horizontal offset to the target, in degrees. Positive is to the right of the crosshair. */
+    public double getTX() {
+        try {
+            return limelight.getTXDegrees();
+        } catch (RuntimeException ignored) {
+            return 0.0;
+        }
+    }
+
+    /** Vertical offset to the target, in degrees. */
+    public double getTY() {
+        try {
+            return limelight.getTYDegrees();
+        } catch (RuntimeException ignored) {
+            return 0.0;
+        }
+    }
+
+    /** Target area, 0–100 as a percentage of the image. Consistent across pipelines since 2027.0. */
+    public double getTargetArea() {
+        try {
+            return limelight.getTargetAreaPercent();
+        } catch (RuntimeException ignored) {
+            return 0.0;
+        }
+    }
+
+    /** Whether the camera is connected and publishing. */
+    public boolean isConnected() {
+        // LimelightLib answers for the 2027 results topic. A 2026 camera needs the classic API's
+        // heartbeat is the second opinion, and it is the one that is usually right.
+        try {
+            if (limelight.isConnected()) {
+                return true;
+            }
+        } catch (RuntimeException ignored) {
+            // fall through to the heartbeat
+        }
+        return legacy.isAlive();
+    }
+
+    /**
+     * What the camera link is actually doing, which is four states and not two.
+     *
+     * <p>{@link #isConnected()} collapses them into a boolean, and two of the four are "connected"
+     * while vision is dead: {@code STALE} is a camera holding its NetworkTables connection while its
+     * data stops advancing, and {@code DECODE_ERROR} is data arriving that cannot be parsed. Both
+     * read as connected, and neither produces a pose.
+     *
+     * @return {@code OK}, {@code NO_DATA}, {@code STALE} or {@code DECODE_ERROR}
+     */
+    public com.limelightvision.Status cameraStatus() {
+        try {
+            return limelight.getStatus();
+        } catch (RuntimeException ignored) {
+            return com.limelightvision.Status.NO_DATA;
+        }
+    }
+
+    /**
+     * Select the camera API and publish the mount in its coordinate convention.
+     *
+     * <p>2027 uses the MessagePack protocol and NWU. A 2026 camera uses classic per-key output
+     * and needs the mount side and pitch signs reversed. Classic keys can also be enabled on
+     * 2027, so a protocol announcement wins over them. A delayed announcement can correct an
+     * early classic selection; an ordinary dropout does not switch a known-modern camera back.
+     */
+    private boolean useLegacyApi() {
+        // 2027 can publish classic keys as well. Its protocol announcement takes precedence even
+        // before the first results frame arrives, and corrects a startup race where tv arrived first.
+        if (limelight.getProtocolVersion() > 0 || cameraStatus() == com.limelightvision.Status.OK) {
+            if (!Boolean.FALSE.equals(usingLegacyApi)) {
+                limelight.setCameraPose_RobotSpaceOverride(new Pose3d(
+                        robotToCamera.getTranslation(), robotToCamera.getRotation()), true);
+                usingLegacyApi = false;
+                CatalystLog.log("Vision/" + name + "/Api", "results_msgpack (Limelight OS 2027+)");
+            }
+            return false;
+        }
+        if (usingLegacyApi != null) {
+            return usingLegacyApi;
+        }
+        if (legacy.isPublishing()) {
+            legacy.setCameraPose(robotToCamera);
+            usingLegacyApi = true;
+            CatalystLog.log("Vision/" + name + "/Api", "per-key (Limelight OS 2026)");
+            return true;
+        }
+        return false;   // Nothing yet. Ask again next loop.
+    }
+
+    /**
+     * How long since this camera produced a NEW pose, or empty if it never has.
+     *
+     * <p>Only meaningful on the per-key path, and only possible there since frames gained
+     * identities. LimelightLib calls the equivalent state {@code STALE} — a camera holding its
+     * NetworkTables connection while its data stops advancing — but that detection routes through
+     * the modern API, so on a 2026 camera it can
+     * never fire. This is the substitute.
+     *
+     * <p>Worth watching on a dashboard next to {@code isConnected()}, because those two disagreeing
+     * is exactly the frozen-camera case: connected, publishing, and saying the same thing forever.
+     */
+    public java.util.OptionalDouble secondsSinceLastFrame() {
+        return legacy.secondsSinceLastFrame();
+    }
+
+    /**
+     * How long since the camera's heartbeat advanced, or empty if it never has.
+     *
+     * <p>The liveness signal behind {@link #isConnected()}: a camera with a NetworkTables session
+     * but a dead pipeline stops advancing it, and an unplugged camera leaves its last value in the
+     * table. Both read as a growing number here.
+     */
+    public java.util.OptionalDouble secondsSinceHeartbeat() {
+        return legacy.secondsSinceHeartbeat();
+    }
+
+    /** The frame rate the camera reports about itself, or empty if it does not. */
+    public java.util.OptionalDouble cameraFps() {
+        return legacy.fps();
+    }
+
+    /**
+     * The CPU temperature the camera reports about itself, in C, or empty.
+     *
+     * <p>Worth watching on a Limelight 4: it throttles its pipeline when hot, and a throttled camera
+     * is a slow one and then an absent one. {@code VisionHealth} raises an alert at the configured
+     * ceiling.
+     */
+    public java.util.OptionalDouble cameraTemperatureC() {
+        return legacy.cpuTemperatureC();
+    }
+
+    /**
+     * Whether this camera is being read over the older per-key API.
+     *
+     * <p>Worth putting on a pit dashboard. It is not a fault - it is how a camera still running its 2026
+     * image is read - but it means the camera's own rejection gates and standard deviations
+     * are not in play, so a pose estimator wants its own limits.
+     */
+    public boolean isUsingLegacyApi() {
+        return Boolean.TRUE.equals(usingLegacyApi);
+    }
+
+    private void diagnoseSilentCamera() {
+        if (cameraStatus() != com.limelightvision.Status.NO_DATA) {
+            connectedButSilentSince = Double.NaN;
+            return;
+        }
+
+        // Is anything at all publishing under this camera's name? An old camera is; an unplugged
+        // one is not, and that is a different problem with a different fix.
+        boolean publishingOldStyle = NetworkTableInstance.getDefault()
+                .getTable(name).getEntry("tv").exists();
+        if (!publishingOldStyle) {
+            connectedButSilentSince = Double.NaN;
+            return;
+        }
+
+        double now = Timer.getTimestamp();
+        if (Double.isNaN(connectedButSilentSince)) {
+            connectedButSilentSince = now;
+            return;
+        }
+        if (warnedAboutNoData || (now - connectedButSilentSince) < SILENT_GRACE_SECONDS) {
+            return;
+        }
+        warnedAboutNoData = true;
+        DriverStationErrors.reportWarning(
+                "[Catalyst] " + name + " is not publishing anything Catalyst can read - neither the "
+                        + "2027 results topic nor the older per-key topics. The camera is reachable "
+                        + "but silent. Check that it is on a pipeline that produces output, and note "
+                        + "that isConnected() reads false in this state because it tests data "
+                        + "freshness rather than the link.",
+                false);
+    }
+
+    /**
+     * Whether this camera looks like it is on Limelight OS 2026 rather than 2027.
+     *
+     * <p>True when it is publishing the old per-key topics and LimelightLib can read nothing from
+     * it. Worth putting on a pit dashboard: it is the difference between "the camera is broken" and
+     * "the camera needs a firmware update", which look identical from the robot.
+     */
+    public boolean looksLikeOldLimelightOs() {
+        try {
+            return cameraStatus() == com.limelightvision.Status.NO_DATA
+                    && NetworkTableInstance.getDefault().getTable(name).getEntry("tv").exists();
+        } catch (RuntimeException ignored) {
+            return false;
+        }
+    }
+
+    /** The underlying LimelightLib object, for pipeline control and everything not wrapped here. */
+    public Limelight getLimelight() {
+        return limelight;
+    }
+
+    /**
+     * Read MegaTag1 for now even if configured for MegaTag2. {@link VisionSubsystem} sets this until the
+     * pose has been seeded; MegaTag2 resolves tags against a heading, and before the seed there is
+     * no heading worth giving it.
+     */
+    public void setSeeding(boolean seeding) {
+        this.seeding = seeding;
+    }
+
+    /** Whether this source asks the camera for MegaTag2, which needs an external yaw every loop. */
+    public boolean isUsingMegaTag2() {
+        return useMegaTag2;
     }
 }

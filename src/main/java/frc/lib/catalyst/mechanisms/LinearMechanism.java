@@ -1,16 +1,17 @@
 package frc.lib.catalyst.mechanisms;
 
+import frc.lib.catalyst.command.CatalystCommand;
 import com.ctre.phoenix6.signals.GravityTypeValue;
-import edu.wpi.first.math.MathUtil;
-import edu.wpi.first.math.controller.ProfiledPIDController;
-import edu.wpi.first.math.system.plant.DCMotor;
-import edu.wpi.first.math.system.plant.LinearSystemId;
-import edu.wpi.first.math.trajectory.TrapezoidProfile;
-import edu.wpi.first.wpilibj.DigitalInput;
-import edu.wpi.first.wpilibj.RobotBase;
-import edu.wpi.first.wpilibj.simulation.ElevatorSim;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
+import org.wpilib.math.util.MathUtil;
+import org.wpilib.math.controller.ProfiledPIDController;
+import org.wpilib.math.system.DCMotor;
+import org.wpilib.math.system.Models;
+import org.wpilib.math.trajectory.TrapezoidProfile;
+import org.wpilib.hardware.discrete.DigitalInput;
+import org.wpilib.framework.RobotBase;
+import org.wpilib.simulation.ElevatorSim;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Trigger;
 import frc.lib.catalyst.hardware.CatalystMotor;
 import frc.lib.catalyst.hardware.CatalystMotor.FollowerSpec;
 import frc.lib.catalyst.hardware.MotorType;
@@ -77,6 +78,9 @@ public class LinearMechanism extends CatalystMechanism {
 
     // State
     private double setpointMeters = 0;
+    // Previous limit-switch states, so auto-zero fires on the edge rather than while held.
+    private boolean reverseLimitWasPressed = false;
+    private boolean forwardLimitWasPressed = false;
     private boolean hasBeenZeroed = false;
 
     // Reusable inputs snapshot — populated every periodic, forwarded to the
@@ -308,9 +312,9 @@ public class LinearMechanism extends CatalystMechanism {
      * use {@link #goToAndWait(double, double)} (or gate on
      * {@link #atPositionTrigger(double)}) instead.
      */
-    public Command goTo(double meters) {
+    public CatalystCommand goTo(double meters) {
         return runOnce(() -> {
-            setpointMeters = MathUtil.clamp(meters, config.minPosition, config.maxPosition);
+            setpointMeters = Math.clamp(meters, config.minPosition, config.maxPosition);
             motor.setMotionMagicPosition(metersToRotations(setpointMeters));
             setState("GoTo " + String.format("%.2f", setpointMeters) + "m");
         }).withName(name + ".GoTo(" + String.format("%.2f", meters) + ")");
@@ -320,7 +324,7 @@ public class LinearMechanism extends CatalystMechanism {
      * Command to move to a named position using Motion Magic.
      * @throws IllegalArgumentException if the position name is not defined
      */
-    public Command goTo(String positionName) {
+    public CatalystCommand goTo(String positionName) {
         Double target = config.namedPositions.get(positionName);
         if (target == null) {
             throw new IllegalArgumentException(
@@ -334,7 +338,7 @@ public class LinearMechanism extends CatalystMechanism {
      * Type-safe variant of {@link #goTo(String)} for enums implementing
      * {@link PositionEnum} — no name strings to misspell.
      */
-    public Command goTo(PositionEnum pos) {
+    public CatalystCommand goTo(PositionEnum pos) {
         return goTo(pos.getTarget())
                 .withName(name + ".GoTo(" + ((Enum<?>) pos).name() + ")");
     }
@@ -342,19 +346,19 @@ public class LinearMechanism extends CatalystMechanism {
     /**
      * Command to move to a position and wait until it arrives (within tolerance).
      */
-    public Command goToAndWait(double meters, double toleranceMeters) {
+    public CatalystCommand goToAndWait(double meters, double toleranceMeters) {
         return run(() -> {
-            setpointMeters = MathUtil.clamp(meters, config.minPosition, config.maxPosition);
+            setpointMeters = Math.clamp(meters, config.minPosition, config.maxPosition);
             motor.setMotionMagicPosition(metersToRotations(setpointMeters));
             setState("GoTo " + String.format("%.2f", setpointMeters) + "m");
-        }).until(() -> atPosition(meters, toleranceMeters))
+        }).untilTrue(() -> atPosition(meters, toleranceMeters))
                 .withName(name + ".GoToAndWait(" + String.format("%.2f", meters) + ")");
     }
 
     /**
      * Command to move to a named position and wait until it arrives.
      */
-    public Command goToAndWait(String positionName, double toleranceMeters) {
+    public CatalystCommand goToAndWait(String positionName, double toleranceMeters) {
         Double target = config.namedPositions.get(positionName);
         if (target == null) {
             throw new IllegalArgumentException(
@@ -368,7 +372,7 @@ public class LinearMechanism extends CatalystMechanism {
      * Command that continuously holds the current position.
      * Good as a default command.
      */
-    public Command holdPosition() {
+    public CatalystCommand holdPosition() {
         return run(() -> {
             motor.setMotionMagicPosition(metersToRotations(setpointMeters));
             setState("Hold " + String.format("%.2f", setpointMeters) + "m");
@@ -376,7 +380,7 @@ public class LinearMechanism extends CatalystMechanism {
     }
 
     /** Command to jog upward at a given voltage. */
-    public Command jogUp(double volts) {
+    public CatalystCommand jogUp(double volts) {
         return run(() -> {
             motor.setVoltage(Math.abs(volts));
             setpointMeters = getPosition();
@@ -388,7 +392,7 @@ public class LinearMechanism extends CatalystMechanism {
     }
 
     /** Command to jog downward at a given voltage. */
-    public Command jogDown(double volts) {
+    public CatalystCommand jogDown(double volts) {
         return run(() -> {
             motor.setVoltage(-Math.abs(volts));
             setpointMeters = getPosition();
@@ -400,7 +404,7 @@ public class LinearMechanism extends CatalystMechanism {
     }
 
     /** Command to jog with a dynamic speed supplier (e.g., joystick). */
-    public Command jog(DoubleSupplier voltsSupplier) {
+    public CatalystCommand jog(DoubleSupplier voltsSupplier) {
         return run(() -> {
             double volts = voltsSupplier.getAsDouble();
             if (Math.abs(volts) < 0.1) {
@@ -422,15 +426,21 @@ public class LinearMechanism extends CatalystMechanism {
      * Requires {@code useWPILibProfile(true)} in config.
      * Runs continuously until cancelled or another command takes over.
      */
-    public Command goToProfiled(double meters) {
+    public CatalystCommand goToProfiled(double meters) {
         if (profiledPID == null) {
             throw new IllegalStateException(
                     name + ": WPILib profile not configured. Use .useWPILibProfile(true) in config.");
         }
         return run(() -> {
-            setpointMeters = MathUtil.clamp(meters, config.minPosition, config.maxPosition);
+            setpointMeters = Math.clamp(meters, config.minPosition, config.maxPosition);
             double output = profiledPID.calculate(getPosition(), setpointMeters);
-            double ff = feedforwardGains.calculateElevator(profiledPID.getSetpoint().velocity);
+            // Converted to drum rotations per second. The profile runs in metres, but kV is volts
+            // per drum rotation per second - the same field is handed to Phoenix's Slot0.kV, which
+            // fixes that unit. Passing m/s straight in made the velocity feedforward roughly 6x too
+            // small on a 1-inch drum, so a profiled move lagged its own trapezoid and arrived late
+            // with the timing guarantees of the profile meaning nothing.
+            double ff = feedforwardGains.calculateElevator(
+                    metersToRotations(profiledPID.getSetpoint().velocity));
             motor.setVoltage(output + ff);
             setState("ProfiledGoTo " + String.format("%.2f", setpointMeters) + "m");
         }).beforeStarting(() -> profiledPID.reset(getPosition(), getVelocity()))
@@ -440,7 +450,7 @@ public class LinearMechanism extends CatalystMechanism {
     /**
      * Command to move to a named position using WPILib ProfiledPID.
      */
-    public Command goToProfiled(String positionName) {
+    public CatalystCommand goToProfiled(String positionName) {
         Double target = config.namedPositions.get(positionName);
         if (target == null) {
             throw new IllegalArgumentException(
@@ -453,14 +463,20 @@ public class LinearMechanism extends CatalystMechanism {
      * Command that holds position using WPILib ProfiledPID.
      * Alternative to the Motion Magic holdPosition() command.
      */
-    public Command holdPositionProfiled() {
+    public CatalystCommand holdPositionProfiled() {
         if (profiledPID == null) {
             throw new IllegalStateException(
                     name + ": WPILib profile not configured. Use .useWPILibProfile(true) in config.");
         }
         return run(() -> {
             double output = profiledPID.calculate(getPosition(), setpointMeters);
-            double ff = feedforwardGains.calculateElevator(profiledPID.getSetpoint().velocity);
+            // Converted to drum rotations per second. The profile runs in metres, but kV is volts
+            // per drum rotation per second - the same field is handed to Phoenix's Slot0.kV, which
+            // fixes that unit. Passing m/s straight in made the velocity feedforward roughly 6x too
+            // small on a 1-inch drum, so a profiled move lagged its own trapezoid and arrived late
+            // with the timing guarantees of the profile meaning nothing.
+            double ff = feedforwardGains.calculateElevator(
+                    metersToRotations(profiledPID.getSetpoint().velocity));
             motor.setVoltage(output + ff);
             setState("ProfiledHold " + String.format("%.2f", setpointMeters) + "m");
         }).beforeStarting(() -> profiledPID.reset(getPosition(), getVelocity()))
@@ -468,7 +484,7 @@ public class LinearMechanism extends CatalystMechanism {
     }
 
     /** Command to zero the encoder at the current position. */
-    public Command zero() {
+    public CatalystCommand zero() {
         return runOnce(() -> {
             motor.zeroEncoder();
             setpointMeters = 0;
@@ -482,13 +498,13 @@ public class LinearMechanism extends CatalystMechanism {
      * toward the stop) until the stator current reaches {@code currentThresholdAmps},
      * then seed the encoder to {@code seedMeters}, hold there, and mark the
      * mechanism zeroed. Useful when there is no limit switch. Bound it with
-     * {@code .withTimeout(...)} as a safety net in case the spike never arrives.
+     * {@code .timeoutAfter(...)} as a safety net in case the spike never arrives.
      */
-    public Command homeOnCurrent(double volts, double currentThresholdAmps, double seedMeters) {
+    public CatalystCommand homeOnCurrent(double volts, double currentThresholdAmps, double seedMeters) {
         return run(() -> {
             motor.setVoltage(volts);
             setState("Homing");
-        }).until(() -> getCurrent() >= currentThresholdAmps)
+        }).untilTrue(() -> getCurrent() >= currentThresholdAmps)
           .finallyDo(interrupted -> {
             if (!interrupted) {
                 motor.setEncoderPosition(metersToRotations(seedMeters));
@@ -504,7 +520,7 @@ public class LinearMechanism extends CatalystMechanism {
     }
 
     /** Home against a hard stop by current spike, seeding the encoder to 0. */
-    public Command homeOnCurrent(double volts, double currentThresholdAmps) {
+    public CatalystCommand homeOnCurrent(double volts, double currentThresholdAmps) {
         return homeOnCurrent(volts, currentThresholdAmps, 0.0);
     }
 
@@ -549,21 +565,38 @@ public class LinearMechanism extends CatalystMechanism {
         if (forwardLimitSwitch != null) log("ForwardLimit", isForwardLimitPressed());
         if (reverseLimitSwitch != null) log("ReverseLimit", isReverseLimitPressed());
 
-        // Auto-zero on reverse limit switch (sets encoder to min position)
-        if (config.autoZeroOnReverseLimit && isReverseLimitPressed()) {
+        // Auto-zero, on the EDGE of the limit switch rather than while it is held.
+        //
+        // These blocks used to be bare `if (pressed)`, which ran every loop the switch stayed
+        // closed - and each run wrote minPosition back into setpointMeters. A limit switch is held
+        // for as long as the mechanism is at its stop, so a command to move away was overwritten on
+        // the very next telemetry tick, before the motor could leave the switch. The mechanism sat
+        // at home, drawing current against a setpoint it kept re-issuing to itself, with no error
+        // and no fault: setEncoderPosition was writing the truth, and the setpoint was the lie.
+        //
+        // Two guards, and both are needed. The edge guard stops the re-assertion. The !hasBeenZeroed
+        // guard covers the case the edge guard cannot: a mechanism that boots on its stop, is zeroed
+        // there, and later returns home mid-match legitimately re-triggers the edge - and on that
+        // edge, claiming the setpoint would fight a command that is deliberately driving through.
+        // Zeroing the encoder is always right; owning the setpoint is only right before the first
+        // zero, when there is no meaningful setpoint to preserve.
+        boolean reversePressed = isReverseLimitPressed();
+        if (config.autoZeroOnReverseLimit && reversePressed && !reverseLimitWasPressed) {
             motor.setEncoderPosition(metersToRotations(config.minPosition));
-            setpointMeters = config.minPosition;
+            if (!hasBeenZeroed) setpointMeters = config.minPosition;
             hasBeenZeroed = true;
         }
+        reverseLimitWasPressed = reversePressed;
 
-        // Auto-zero on forward limit switch (sets encoder to max position).
-        // Useful for mechanisms whose home position is at the top of travel
-        // (e.g., spring-loaded climbers that rest extended).
-        if (config.autoZeroOnForwardLimit && isForwardLimitPressed()) {
+        // Same, for mechanisms whose home is at the top of travel (e.g. spring-loaded climbers
+        // that rest extended).
+        boolean forwardPressed = isForwardLimitPressed();
+        if (config.autoZeroOnForwardLimit && forwardPressed && !forwardLimitWasPressed) {
             motor.setEncoderPosition(metersToRotations(config.maxPosition));
-            setpointMeters = config.maxPosition;
+            if (!hasBeenZeroed) setpointMeters = config.maxPosition;
             hasBeenZeroed = true;
         }
+        forwardLimitWasPressed = forwardPressed;
 
         HealthMonitor.getInstance().update();
     }
@@ -574,8 +607,8 @@ public class LinearMechanism extends CatalystMechanism {
             var simState = motor.getTalonFX().getSimState();
             sim.setInput(simState.getMotorVoltage());
             sim.update(0.02);
-            simState.setRawRotorPosition(metersToRotations(sim.getPositionMeters()) * config.gearRatio);
-            simState.setRotorVelocity(metersToRotations(sim.getVelocityMetersPerSecond()) * config.gearRatio);
+            simState.setRawRotorPosition(metersToRotations(sim.getPosition()) * config.gearRatio);
+            simState.setRotorVelocity(metersToRotations(sim.getVelocity()) * config.gearRatio);
         }
     }
 
@@ -714,8 +747,14 @@ public class LinearMechanism extends CatalystMechanism {
          */
         public double estimateGravityFF() {
             double force = mass * 9.81; // N
-            // Multi-stage: the force at the drum is divided by stages
-            double torqueAtDrum = force * drumRadius / stages; // Nm
+            // Multi-stage MULTIPLIES the torque the drum must supply, it does not divide it.
+            // Power balance: the carriage travels `stages` times further than the cable pays out,
+            // so cable tension is `stages` times the carriage force. Dividing understated the
+            // holding torque by stages squared relative to the truth - a 3-stage elevator asked for
+            // a third of the feedforward it needed and sagged, and the usual response to that is to
+            // add kG by hand until it stops, which hides the bug and leaves the derived
+            // acceleration limits wrong too.
+            double torqueAtDrum = force * drumRadius * stages; // Nm
             return motorType.holdingVoltage(torqueAtDrum, gearRatio);
         }
 

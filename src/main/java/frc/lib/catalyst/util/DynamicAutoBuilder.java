@@ -1,15 +1,19 @@
 package frc.lib.catalyst.util;
 
+import org.wpilib.driverstation.Alliance;
+import frc.lib.catalyst.command.LegacyCommands;
+import org.wpilib.driverstation.MatchState;
+import org.wpilib.driverstation.DriverStationErrors;
 import com.pathplanner.lib.auto.AutoBuilder;
 import com.pathplanner.lib.path.GoalEndState;
 import com.pathplanner.lib.path.PathConstraints;
 import com.pathplanner.lib.path.PathPlannerPath;
 import com.pathplanner.lib.path.Waypoint;
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.wpilibj.DriverStation;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.driverstation.DriverStation;
+import org.wpilib.command3.Command;
+import frc.lib.catalyst.command.Commands;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -94,9 +98,9 @@ public final class DynamicAutoBuilder {
      */
     public static Command pathfindToPose(Pose2d targetPose, PathConstraints constraints) {
         try {
-            return AutoBuilder.pathfindToPose(targetPose, constraints);
+            return LegacyCommands.fromV2(AutoBuilder.pathfindToPose(targetPose, constraints));
         } catch (Exception e) {
-            DriverStation.reportError("DynamicAutoBuilder: Failed to pathfind - " + e.getMessage(), false);
+            DriverStationErrors.reportError("DynamicAutoBuilder: Failed to pathfind - " + e.getMessage(), false);
             return Commands.none();
         }
     }
@@ -112,9 +116,9 @@ public final class DynamicAutoBuilder {
     public static Command pathfindToPose(Pose2d targetPose, PathConstraints constraints,
                                           double endVelocityMPS) {
         try {
-            return AutoBuilder.pathfindToPose(targetPose, constraints, endVelocityMPS);
+            return LegacyCommands.fromV2(AutoBuilder.pathfindToPose(targetPose, constraints, endVelocityMPS));
         } catch (Exception e) {
-            DriverStation.reportError("DynamicAutoBuilder: Failed to pathfind - " + e.getMessage(), false);
+            DriverStationErrors.reportError("DynamicAutoBuilder: Failed to pathfind - " + e.getMessage(), false);
             return Commands.none();
         }
     }
@@ -131,9 +135,9 @@ public final class DynamicAutoBuilder {
     public static Command pathfindThenFollowPath(String pathName, PathConstraints constraints) {
         try {
             PathPlannerPath path = PathPlannerPath.fromPathFile(pathName);
-            return AutoBuilder.pathfindThenFollowPath(path, constraints);
+            return LegacyCommands.fromV2(AutoBuilder.pathfindThenFollowPath(path, constraints));
         } catch (Exception e) {
-            DriverStation.reportError("DynamicAutoBuilder: Failed to load path '" + pathName
+            DriverStationErrors.reportError("DynamicAutoBuilder: Failed to load path '" + pathName
                     + "' - " + e.getMessage(), false);
             return Commands.none();
         }
@@ -148,9 +152,9 @@ public final class DynamicAutoBuilder {
     public static Command followPath(String pathName) {
         try {
             PathPlannerPath path = PathPlannerPath.fromPathFile(pathName);
-            return AutoBuilder.followPath(path);
+            return LegacyCommands.fromV2(AutoBuilder.followPath(path));
         } catch (Exception e) {
-            DriverStation.reportError("DynamicAutoBuilder: Failed to load path '" + pathName
+            DriverStationErrors.reportError("DynamicAutoBuilder: Failed to load path '" + pathName
                     + "' - " + e.getMessage(), false);
             return Commands.none();
         }
@@ -191,9 +195,9 @@ public final class DynamicAutoBuilder {
                         null, // ideal starting state (auto-computed)
                         new GoalEndState(endVelocityMPS, endHeading));
 
-                return AutoBuilder.followPath(path);
+                return LegacyCommands.fromV2(AutoBuilder.followPath(path));
             } catch (Exception e) {
-                DriverStation.reportError(
+                DriverStationErrors.reportError(
                         "DynamicAutoBuilder: Failed to generate path - " + e.getMessage(), false);
                 return Commands.none();
             }
@@ -229,8 +233,8 @@ public final class DynamicAutoBuilder {
      * @return alliance-correct pose
      */
     public static Pose2d alliancePose(Pose2d bluePose) {
-        var alliance = DriverStation.getAlliance();
-        if (alliance.isPresent() && alliance.get() == DriverStation.Alliance.Red) {
+        var alliance = MatchState.getAlliance();
+        if (alliance.isPresent() && alliance.get() == Alliance.RED) {
             return mirrorForRed(bluePose);
         }
         return bluePose;

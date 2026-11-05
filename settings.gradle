@@ -1,1 +1,9 @@
 rootProject.name = 'FrcCatalyst'
+
+// The example is part of the build, not a detached folder that rots.
+//
+// It was previously its own Gradle build with its own settings.gradle, which meant nothing ever
+// compiled it - the library could change shape underneath it and CI stayed green. Including it here
+// makes `gradlew build` fail when the example stops matching the API, which is the only way an
+// example stays honest.
+include 'example'

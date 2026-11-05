@@ -50,8 +50,8 @@ SwerveSubsystem drive = new SwerveSubsystem(
 // Advanced drive (recommended default command)
 // Combines deadband, slew limiting, heading lock, snap-to-angle, and skew correction
 drive.setSkewCorrectionEnabled(true);
-drive.enableSlewRateLimiting(2.0, 5.0); // accel, decel
-drive.setSnapToAngles(List.of(0.0, 90.0, 180.0, 270.0), 5.0);
+drive.enableSlewRateLimiting(2.0, 5.0); // translation m/s per second, rotation rad/s per second
+drive.setSnapToAngles(new double[]{0.0, 90.0, 180.0, 270.0}, 5.0);
 drive.setDefaultCommand(drive.advancedDrive(
     () -> -driver.getLeftY(),
     () -> -driver.getLeftX(),
@@ -74,6 +74,32 @@ driver.rightBumper().whileTrue(drive.pointAtTarget(
 {: .tip }
 See the [Advanced Features](../advanced/) section for detailed documentation on skew correction, slew rate limiting, snap-to-angle, and auto-align.
 
+### driveFieldCentric or driveFieldAbsolute
+
+Both take a field velocity and a turn rate (`m/s`, `m/s`, `rad/s`). They differ in which field:
+
+| Method | Use it for | Frame |
+|---|---|---|
+| `driveFieldCentric(vx, vy, omega)` | A driver's sticks | The operator's perspective: Phoenix turns the request half a turn on the Red alliance, so "forward" is always away from the driver |
+| `driveFieldAbsolute(vx, vy, omega)` | Anything computed from the field pose | The field itself: +x away from the Blue Alliance wall, +y to its left, whichever alliance the robot is on |
+
+**The rule: a velocity computed from the field pose goes through `driveFieldAbsolute`.** A pose
+controller, or an assist that steers toward a field point, works in field coordinates; sent through
+`driveFieldCentric` its correction points the wrong way on Red.
+
+```java
+// vx, vy from the field pose error (target minus drive.getPose()):
+drive.driveFieldAbsolute(vx, vy, omega);
+
+// vx, vy from the driver's sticks:
+drive.driveFieldCentric(vx, vy, omega);
+```
+
+{: .warning }
+`driveToPose` and `driveToPiece` were wrong on the Red alliance before 2.0.0-rc.3-a6: they sent a
+field-pose velocity through `driveFieldCentric`, so on Red they drove away from the target. Both now
+use `driveFieldAbsolute` and are fixed.
+
 ### PathPlanner support
 
 `SwerveSubsystem` configures PathPlanner's `AutoBuilder` for you when you
@@ -81,7 +107,7 @@ pass a `PathPlannerConfig` (as above). It wires:
 
 - `getPose` / `resetPose` — pose source + reset
 - `getChassisSpeeds` — **robot-relative** speeds (what PathPlanner expects)
-- a robot-relative `ChassisSpeeds` consumer for path output
+- a robot-relative `ChassisVelocities` consumer for path output
 - a `PPHolonomicDriveController` from your translation/rotation PID
 - `RobotConfig.fromGUISettings()` — mass, MOI, module config from the
   PathPlanner GUI
@@ -165,9 +191,35 @@ test.a().onTrue(WheelRadiusCalibration.builder(swerve)
 The corrected radius + a copy-paste constant publish to
 `/Catalyst/Calibration/WheelRadius/...`.
 
+### SlipCurrentCalibration (Unreleased)
+
+Measures Phoenix's **slip current** — the drive's stator current limit
+(`kSlipCurrent`) — instead of keeping a number copied from another robot. A
+light robot's wheels break traction far below a heavy one's, and a wheel
+spinning on the carpet is motion the odometry believes. CTRE's method: front
+bumper squarely against a wall, modules straight, the drive voltage ramped
+slowly until a wheel spins up; that wheel's peak current is the answer.
+
+```java
+test.b().onTrue(SlipCurrentCalibration.builder(swerve)
+    .currentSlipAmps(120)         // what your constants say today, for the snippet
+    .build());
+```
+
+It stops by itself at the slip, at its voltage cap (6 V), or when a wheel
+turns on a few amps — the robot is rolling, not held, and nothing is
+measured — and leaves the drive at 0 V however it ends, cancellation
+included. `Status`, `Volts`, `PeakAmps`, `SlipAmps`, `RecommendedAmps`
+(rounded down to 5 A), `Result` and `Snippet` publish to
+`/Catalyst/Calibration/SlipCurrent/...`.
+
+On this line it is compiled and, with Phoenix 6 `26.70.0-alpha-2` and
+26.70.x device firmware, can drive a CTRE drivetrain — it just has not
+yet been driven on a robot.
+
 ### SwerveSetpointGenerator (v0.4.0+)
 
-Light chassis-aware accel/skid clamp. Wraps a `ChassisSpeeds` and
+Light chassis-aware accel/skid clamp. Wraps a `ChassisVelocities` and
 returns one limited by max wheel speed, max angular rate, and a
 per-second delta-v cap.
 
@@ -175,24 +227,44 @@ per-second delta-v cap.
 SwerveSetpointGenerator gen = new SwerveSetpointGenerator(
     drive.getMaxSpeedMPS(), drive.getMaxAngularRate(), 8.0); // 8 m/s² accel cap
 
-ChassisSpeeds limited = gen.generate(requestedSpeeds);
-drivetrain.setControl(req.withVelocityX(limited.vxMetersPerSecond)
-                        .withVelocityY(limited.vyMetersPerSecond)
-                        .withRotationalRate(limited.omegaRadiansPerSecond));
+ChassisVelocities limited = gen.generate(requestedSpeeds);
+drivetrain.setControl(req.withVelocityX(limited.vx)
+                        .withVelocityY(limited.vy)
+                        .withRotationalRate(limited.omega));
 ```
 
 Catches the most common driver-induced skid (jerking the stick from
 full-forward to full-right) without doing a full per-wheel feasibility
 solve. Cheap.
 
+**Keeping the rotation (unreleased, on this branch).** When translation and rotation together ask a
+module for more than its top speed, the drivetrain's own desaturation shrinks both in proportion, and
+that stays the default. `Priority.ROTATION` shrinks only the translation, along its direction, by
+the largest factor that fits every module beside the rotation. That is the one wheel-by-wheel question
+a robot aiming itself needs answered:
+
+```java
+SwerveSetpointGenerator aimGen = new SwerveSetpointGenerator(
+    drive.getMaxSpeedMPS(), 3.0, 8.0, Math.PI * 8,
+    SwerveSetpointGenerator.Priority.ROTATION,
+    drive.getDrivetrain().getModuleLocations());
+
+// A field-relative request, judged where the robot faces:
+ChassisVelocities send = aimGen.generate(requested, dt, drive.getHeading());
+double kept = aimGen.getTranslationScale();  // 1 unless translation gave way
+```
+
+[Shoot on the Move]({% link advanced/shoot-on-the-move.md %}) shows it in use.
+
 ## VisionSubsystem
 
-Multi-camera pose estimation with Kalman filter integration. Supports both Limelight (MegaTag2) and PhotonVision cameras simultaneously.
+Multi-camera pose estimation with Kalman filter integration. Limelight-first: MegaTag1 and MegaTag2, several cameras at once. PhotonVision is not built on this branch - there is no 2027 vendordep for it.
 
 **Features:**
 - **Distance-scaled standard deviations** — trusts close targets more
 - **Ambiguity-scaled std devs** — higher ambiguity = less trust
-- **Spin rejection** — ignores vision during fast rotation
+- **Spin rejection** — ignores vision during fast rotation, as the gyro measures it
+  (`VisionPoseSink.getYawRateRadPerSec()`), not as the wheels report it
 - **High-speed rejection** — ignores vision while driving fast
 - **Heading divergence filtering** — rejects single-tag poses that disagree with the gyro
 - **Kalman innovation tracking** — logs innovation norms for tuning
@@ -206,14 +278,15 @@ VisionSubsystem vision = new VisionSubsystem(
         .driveSubsystem(drive)                                    // wires pose fusion
         .addLimelight("limelight-front", frontCameraPose)
         .addPhotonCamera("cam-rear", rearCameraPose, fieldLayout) // Photon needs the tag layout
-        .singleTagStdDevs(4, 8)
-        .multiTagStdDevs(0.5, 1)
-        .xyDistanceScaling(1.0)
-        .rotDistanceScaling(1.5)
+        .baseXYStdDev(0.5)                // expected XY error at 1 m off one tag
+        .baseRotStdDev(0.9)               // expected heading error in radians
+        .xyDistanceScaling(1.0)           // xyStdDev = base * (1 + distance^2 * scaling)
+        .rotDistanceScaling(1.5)          // heading degrades faster with distance than XY does
+        .singleTagRotDistanceThreshold(4.0)  // past 4 m, one tag's heading is ignored outright
         .rejectDuringSpin(2.0)
         .rejectDuringHighSpeed(3.0)       // reject when > 3 m/s
         .maxHeadingDivergence(15.0)       // reject if heading disagrees > 15 deg
-        .fieldDimensions(16.54, 8.21)     // custom field bounds
+        .fieldDimensions(16.54, 8.07)     // REBUILT 2026 bounds
         .maxLatency(0.5)
         .build()
 );
@@ -223,6 +296,57 @@ VisionSubsystem vision = new VisionSubsystem(
 > independently and added to the pose estimator in timestamp order with
 > quality/index tiebreaks, so the result is reproducible run-to-run.
 
+### Vision resets keep the gyro heading while enabled
+
+**New in 2.0.0, and a behaviour change from 2.0.0-rc.1.** `SwerveSubsystem.resetPose(Pose2d, double)`
+is what a vision seed or re-anchor calls. While the robot is enabled it now takes the position and keeps
+the gyro's heading, because a re-anchor that turned the heading under a driving robot would swing
+field-centric "forward" under the driver. Disabled (the seed before a match) the vision heading is taken
+whole. To get the old behaviour back:
+
+```java
+drive.setVisionResetsHeadingWhileEnabled(true);
+```
+
+{: .note }
+This rule ran on team 5805's robot through two events.
+
+### Target-tag priority
+
+**New in 2.0.0.** Two cameras that are each steady can still make the fused pose jump when they solve
+from different tags. `TargetTagPriority` picks one leader camera that solves from the target's own tags
+while the robot is scoring, and pauses the other cameras that may lead. `LimelightTagPriority` wires it
+to Limelights: it reads each camera's `rawfiducials` and writes its `fiducial_id_filters_set` (a paused
+camera gets the filter `[0]`). Nothing else in Catalyst writes that key, so a filter set in the
+Limelight's web interface is overridden while this runs.
+
+| Mode | Cameras |
+|---|---|
+| `ALL_TAGS` | Priority not asked for: every camera, every tag. |
+| `WAITING` | Asked for, but no camera has seen a target tag: still every tag. |
+| `TARGET_TAGS` | A camera has seen a target tag for `debounceSeconds` (default 0.1 s): the first such camera in the list leads on the target's tags; the other cameras that may lead are paused. A leader is replaced only once it has lost the target. |
+| `TARGET_SEARCH` | The leader has not seen a target tag for `holdSeconds` (default 0.3 s): every camera on target tags only, and the first to see one leads. After `searchSeconds` (default 1.0 s) more with nothing, back to every tag. |
+
+List the shooter's camera first and it wins ties. Cameras not in the `mayLead` set keep every tag
+throughout. A frame counts as a sighting only while it is at most 0.25 s old.
+
+```java
+// Shooter camera first: it leads whenever it can see the target.
+LimelightTagPriority priority = new LimelightTagPriority(
+        List.of("limelight-shooter", "limelight-left", "limelight-right"),
+        Set.of("limelight-shooter", "limelight-left", "limelight-right"),
+        fieldLayout.getTags().stream().mapToInt(t -> t.ID).toArray());
+
+// Every loop:
+priority.update(scoring, isRed ? RED_GOAL_TAGS : BLUE_GOAL_TAGS);
+```
+
+It publishes `/Catalyst/Vision/TagPriority/Mode`, `Leader` (index, or -1), `LeaderName` and
+`VisibleTagIds`. Pass a `TargetTagPriority.Config` as the last constructor argument to change the timings.
+
+{: .note }
+Ran on team 5805's robot at CAMIS 2026; the hold and search timings were set from that event's logs.
+
 ### LimelightTriggers (v0.4.0+)
 
 Wrap a Limelight's NetworkTables keys as WPILib `Trigger`s. Point at
@@ -231,7 +355,7 @@ the table name, bind, done.
 ```java
 LimelightTriggers front = new LimelightTriggers("limelight-front");
 
-front.hasTarget().onTrue(leds.solid(Color.kGreen));
+front.hasTarget().onTrue(leds.solid(Color.GREEN));
 front.tagInView(7).whileTrue(swerve.pathfindToPose(() -> SCORE_7));
 front.detectorClass("note").onTrue(intake.intakeCommand());
 front.horizontalErrorBelow(2.0).onTrue(rumble.fire(Pattern.DOUBLE_TAP, Channel.DRIVER));
@@ -260,28 +384,28 @@ Addressable LED pattern controller with 14 pre-built effects.
 ```java
 LEDSubsystem leds = new LEDSubsystem(
     LEDConfig.builder()
-        .port(0)
-        .length(60)
+        .pwmPort(0)          // PWM port the strip is on
+        .ledCount(60)        // LEDs in the strip
         .build()
 );
 
 // Alliance color by default
-leds.setDefaultCommand(leds.solid(Color.kBlue));
+leds.setDefaultCommand(leds.solid(Color.BLUE));
 
 // Rainbow when scoring
 scoring.whileTrue(leds.rainbow());
 
 // Blink green when game piece acquired
-intake.hasPieceTrigger().whileTrue(leds.blink(Color.kGreen, 0.1));
+intake.hasPieceTrigger().whileTrue(leds.blink(Color.GREEN, 0.1));
 
 // Fire effect for celebration
 scoring.whileTrue(leds.fire());
 
 // Alignment indicator for driver (Color + 0..1 progress supplier)
-aligning.whileTrue(leds.alignmentIndicator(Color.kGreen, () -> alignProgress));
+aligning.whileTrue(leds.alignmentIndicator(Color.GREEN, () -> alignProgress));
 
 // Progress bar for elevator height
-leds.dynamicProgress(Color.kGreen, () -> elevator.getPosition() / 1.2);
+leds.dynamicProgress(Color.GREEN, () -> elevator.getPosition() / 1.2);
 ```
 
 {: .tip }

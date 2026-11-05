@@ -1,5 +1,6 @@
 package frc.lib.catalyst.hardware;
 
+import frc.lib.catalyst.command.CatalystCommand;
 import com.ctre.phoenix6.BaseStatusSignal;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.configs.CurrentLimitsConfigs;
@@ -19,15 +20,19 @@ import com.ctre.phoenix6.controls.VelocityTorqueCurrentFOC;
 import com.ctre.phoenix6.controls.VelocityVoltage;
 import com.ctre.phoenix6.controls.VoltageOut;
 import com.ctre.phoenix6.hardware.CANcoder;
+import com.ctre.phoenix6.StatusCode;
+import org.wpilib.system.Timer;
+
+import org.wpilib.driverstation.DriverStationErrors;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.SignalLogger;
 import com.ctre.phoenix6.signals.GravityTypeValue;
 import com.ctre.phoenix6.signals.InvertedValue;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.SubsystemBase;
-import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
-import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
-import static edu.wpi.first.units.Units.Volts;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Mechanism;
+import frc.lib.catalyst.sysid.SysIdRoutine;
+import frc.lib.catalyst.sysid.SysIdRoutine.Direction;
+import static org.wpilib.units.Units.Volts;
 import com.ctre.phoenix6.signals.NeutralModeValue;
 import frc.lib.catalyst.logging.CatalystLog;
 
@@ -60,6 +65,11 @@ public class CatalystMotor {
     private final int canId;
     private final String name;
 
+    /** Rate limiting for {@link #applyOrReport}: the same refusal is reported this often. */
+    private static final double APPLY_REPORT_SECONDS = 5.0;
+    private String lastApplyFailure = null;
+    private double lastApplyFailureAt = Double.NEGATIVE_INFINITY;
+
     // Control requests (reused to avoid GC pressure)
     private final DutyCycleOut dutyCycleRequest = new DutyCycleOut(0);
     private final VoltageOut voltageRequest = new VoltageOut(0);
@@ -71,7 +81,6 @@ public class CatalystMotor {
 
     // Config storage
     private double gearRatio = 1.0;
-    private double positionConversionFactor = 1.0; // rotations to mechanism units
     // Retained so live-tuning helpers can rebuild Slot0Configs without losing the
     // gravity model the mechanism was originally configured with.
     private GravityTypeValue gravityType;
@@ -89,10 +98,12 @@ public class CatalystMotor {
         // so a duplicate id surfaces at robotInit with a clear message rather
         // than waiting for Phoenix to fail later.
         CANRegistry.register(this.name, canId, builder.canBus, "TalonFX");
+        // The supplier is read later, so it is fine that the TalonFX is built on the next line.
+        frc.lib.catalyst.identity.DeviceRoster.registerMotor(
+                this.name, builder.canBus, canId, this::isConnected);
 
-        this.motor = new TalonFX(canId, builder.canBus);
+        this.motor = new TalonFX(canId, CatalystCANBus.of(builder.canBus).phoenix());
         this.gearRatio = builder.gearRatio;
-        this.positionConversionFactor = builder.positionConversionFactor;
         this.gravityType = builder.gravityType;
         this.supplyCurrentLimit = builder.currentLimit;
         this.statorCurrentLimit = builder.statorCurrentLimit;
@@ -201,17 +212,34 @@ public class CatalystMotor {
             config.Feedback.SensorToMechanismRatio = builder.gearRatio;
         }
 
-        // Apply config with retries
+        // Apply config with retries, and say so if none of them worked.
+        //
+        // The status used to be read and dropped, so five failures and a success were
+        // indistinguishable. A TalonFX on a bus that is briefly down at boot - a loose connector, a
+        // device still enumerating - would take every default from whatever was left in its flash by
+        // the last Tuner X session, possibly including no current limit at all, and robotInit would
+        // complete clean. The team's first indication is a browned-out robot or a burnt motor.
+        StatusCode configStatus = StatusCode.OK;
         for (int i = 0; i < 5; i++) {
-            var status = motor.getConfigurator().apply(config);
-            if (status.isOK()) break;
+            configStatus = motor.getConfigurator().apply(config);
+            if (configStatus.isOK()) {
+                break;
+            }
+        }
+        if (!configStatus.isOK()) {
+            DriverStationErrors.reportError(
+                    "CatalystMotor " + builder.canId + " on " + builder.canBus
+                            + ": configuration failed after 5 attempts (" + configStatus
+                            + "). The motor is running on whatever was left in its flash - check the"
+                            + " CAN connection before enabling.",
+                    Thread.currentThread().getStackTrace());
         }
 
         // Set up followers. Each one gets a fresh TalonFX, shared current/neutral
         // config, and a Follower control request pointing at the leader.
         for (FollowerSpec spec : builder.followerSpecs) {
             CANRegistry.register(this.name + "Follower" + spec.canId(), spec.canId(), builder.canBus, "TalonFX (follower)");
-            TalonFX follower = new TalonFX(spec.canId(), builder.canBus);
+            TalonFX follower = new TalonFX(spec.canId(), CatalystCANBus.of(builder.canBus).phoenix());
             TalonFXConfiguration followerConfig = new TalonFXConfiguration();
             followerConfig.MotorOutput.NeutralMode = builder.brakeMode
                     ? NeutralModeValue.Brake
@@ -232,6 +260,9 @@ public class CatalystMotor {
                             ? MotorAlignmentValue.Opposed
                             : MotorAlignmentValue.Aligned));
             followers.add(follower);
+            frc.lib.catalyst.identity.DeviceRoster.registerMotor(
+                    this.name + "Follower" + spec.canId(), builder.canBus, spec.canId(),
+                    follower::isConnected);
         }
 
         // Optional CAN-bus hygiene: raise only the status signals we actually
@@ -240,6 +271,11 @@ public class CatalystMotor {
         // bus utilization. Opt-in (default off) so it never silently starves a
         // signal a team depends on.
         if (builder.optimizeCanBus) {
+            // Record the achieved rate so CANBusPlanner can price this device honestly. A motor
+            // whose signals were cut to 50 Hz costs a fraction of one left on Phoenix defaults, and
+            // a planner that treats them alike will send a team rewiring a bus that was fine.
+            CANBusPlanner.noteOptimizedDevice(this.name, builder.canUpdateHz);
+
             BaseStatusSignal.setUpdateFrequencyForAll(builder.canUpdateHz,
                     motor.getPosition(), motor.getVelocity(), motor.getMotorVoltage(),
                     motor.getStatorCurrent(), motor.getSupplyCurrent(), motor.getDeviceTemp(),
@@ -268,7 +304,7 @@ public class CatalystMotor {
 
     /** Set closed-loop position target in mechanism units. */
     public void setPosition(double position) {
-        motor.setControl(positionRequest.withPosition(position));
+        setPosition(position, 0.0);
     }
 
     /** Set closed-loop position target with arbitrary feedforward voltage. */
@@ -278,7 +314,7 @@ public class CatalystMotor {
 
     /** Set Motion Magic position target in mechanism units. */
     public void setMotionMagicPosition(double position) {
-        motor.setControl(motionMagicRequest.withPosition(position));
+        setMotionMagicPosition(position, 0.0);
     }
 
     /** Set Motion Magic position target with arbitrary feedforward voltage. */
@@ -422,17 +458,56 @@ public class CatalystMotor {
         slot.kP = kP; slot.kI = kI; slot.kD = kD;
         slot.kS = kS; slot.kV = kV; slot.kA = kA; slot.kG = kG;
         slot.GravityType = gravityType;
-        motor.getConfigurator().apply(slot);
+        applyOrReport(motor.getConfigurator().apply(slot), "Slot 0 gains");
+    }
+
+    /**
+     * Apply a runtime configuration change and say so when the device refuses it.
+     *
+     * <p>These setters exist for live tuning and runtime power budgeting, and they discarded the
+     * status code. A rejected write is not rare on a real robot - an unlicensed device refusing a
+     * Pro feature rejects the whole group, and a device that is briefly off the bus answers
+     * {@code RxTimeout} - so a team would move a slider, see the robot behave exactly as before,
+     * and have nothing to look at. Rate-limited per motor: a device that is off the bus would
+     * otherwise fill the driver station at loop rate.
+     */
+    private void applyOrReport(StatusCode status, String what) {
+        if (status.isOK()) {
+            lastApplyFailure = null;
+            return;
+        }
+        double now = Timer.getTimestamp();
+        String signature = what + ":" + status;
+        if (signature.equals(lastApplyFailure) && now - lastApplyFailureAt < APPLY_REPORT_SECONDS) {
+            return;
+        }
+        lastApplyFailure = signature;
+        lastApplyFailureAt = now;
+        DriverStationErrors.reportWarning(
+                "CatalystMotor " + name + " (id " + canId + "): " + what + " was rejected ("
+                        + status + "). The motor is still running its previous " + what + ".",
+                false);
     }
 
     /**
      * Change the supply current limit at runtime (e.g. state-based power
-     * budgeting). Re-sends the whole {@link CurrentLimitsConfigs} group so the
-     * stator limit and both enables are preserved.
+     * budgeting), on the leader and every follower. Re-sends the whole
+     * {@link CurrentLimitsConfigs} group so the stator limit and both enables are
+     * preserved. Blocks until each motor acknowledges.
      */
     public void setSupplyCurrentLimit(double amps) {
         this.supplyCurrentLimit = amps;
         applyCurrentLimits();
+    }
+
+    /** The supply current limit last written, A: the builder's, or the last runtime change. */
+    public double getSupplyCurrentLimit() {
+        return supplyCurrentLimit;
+    }
+
+    /** The stator current limit last written, A: the builder's, or the last runtime change. */
+    public double getStatorCurrentLimit() {
+        return statorCurrentLimit;
     }
 
     /** Change the stator current limit at runtime. Preserves the supply limit. */
@@ -448,13 +523,21 @@ public class CatalystMotor {
         applyCurrentLimits();
     }
 
+    // Every motor on the mechanism: the builder gave the followers the leader's limits, and a change
+    // that wrote the leader alone would leave a follower drawing its boot limit in every state.
+    // Each write waits for the device to acknowledge it, so switching limits often belongs on a
+    // background thread rather than the main loop.
     private void applyCurrentLimits() {
         CurrentLimitsConfigs limits = new CurrentLimitsConfigs();
         limits.SupplyCurrentLimitEnable = true;
         limits.SupplyCurrentLimit = supplyCurrentLimit;
         limits.StatorCurrentLimitEnable = true;
         limits.StatorCurrentLimit = statorCurrentLimit;
-        motor.getConfigurator().apply(limits);
+        applyOrReport(motor.getConfigurator().apply(limits), "current limits");
+        for (TalonFX follower : followers) {
+            applyOrReport(follower.getConfigurator().apply(limits),
+                    "follower " + follower.getDeviceID() + " current limits");
+        }
     }
 
     /**
@@ -467,7 +550,7 @@ public class CatalystMotor {
         Slot1Configs slot = new Slot1Configs();
         slot.kP = kP; slot.kI = kI; slot.kD = kD;
         slot.kS = kS; slot.kV = kV; slot.kA = kA;
-        motor.getConfigurator().apply(slot);
+        applyOrReport(motor.getConfigurator().apply(slot), "Slot 1 gains");
     }
 
     /**
@@ -480,7 +563,7 @@ public class CatalystMotor {
         mm.MotionMagicCruiseVelocity = cruiseVelocity;
         mm.MotionMagicAcceleration = acceleration;
         mm.MotionMagicJerk = jerk;
-        motor.getConfigurator().apply(mm);
+        applyOrReport(motor.getConfigurator().apply(mm), "Motion Magic profile");
     }
 
     /** Update telemetry. Call from subsystem periodic(). Publishes through CatalystLog. */
@@ -537,12 +620,12 @@ public class CatalystMotor {
     // for the WPILib SysId tooling to find the data.
 
     /** Build a {@link SysIdRoutine} for this motor with the given subsystem requirement. */
-    public SysIdRoutine sysIdRoutine(SubsystemBase requirement) {
+    public SysIdRoutine sysIdRoutine(Mechanism requirement) {
         return sysIdRoutine(requirement, defaultSysIdConfig());
     }
 
     /** Build a {@link SysIdRoutine} for this motor with a custom config. */
-    public SysIdRoutine sysIdRoutine(SubsystemBase requirement, SysIdRoutine.Config config) {
+    public SysIdRoutine sysIdRoutine(Mechanism requirement, SysIdRoutine.Config config) {
         return new SysIdRoutine(
                 config,
                 new SysIdRoutine.Mechanism(
@@ -562,12 +645,12 @@ public class CatalystMotor {
     }
 
     /** Quasistatic SysId command — slow ramp, characterises kS / kV. */
-    public Command sysIdQuasistatic(SubsystemBase requirement, Direction dir) {
+    public CatalystCommand sysIdQuasistatic(Mechanism requirement, Direction dir) {
         return sysIdRoutine(requirement).quasistatic(dir);
     }
 
     /** Dynamic SysId command — step input, characterises kA. */
-    public Command sysIdDynamic(SubsystemBase requirement, Direction dir) {
+    public CatalystCommand sysIdDynamic(Mechanism requirement, Direction dir) {
         return sysIdRoutine(requirement).dynamic(dir);
     }
 
@@ -592,7 +675,6 @@ public class CatalystMotor {
         private double peakForwardTorqueCurrent = 800;
         private double peakReverseTorqueCurrent = -800;
         private double gearRatio = 1.0;
-        private double positionConversionFactor = 1.0;
         private double kP = 0, kI = 0, kD = 0;
         private double kS = 0, kV = 0, kA = 0, kG = 0;
         private GravityTypeValue gravityType = GravityTypeValue.Elevator_Static;
@@ -630,6 +712,18 @@ public class CatalystMotor {
          *
          * @param updateHz status-signal rate (50 Hz is a good default)
          */
+        /**
+         * Raise only the status signals Catalyst reads to {@code updateHz} and silence the rest.
+         *
+         * <p>Worth more on Systemcore than it was on a roboRIO, and for a reason that is easy to get
+         * backwards. Five buses make it tempting to solve bus load purely by spreading devices out,
+         * but the buses share three SPI controllers, so spreading has a floor. Cutting what each
+         * device says has no such floor, and the two compose: fewer frames per device <em>and</em>
+         * fewer devices per controller.
+         *
+         * <p>Still opt-in and still off by default — silencing a signal a team reads would be a
+         * silent failure, and this cannot know which those are.
+         */
         public Builder optimizeCanBus(double updateHz) {
             this.optimizeCanBus = true;
             this.canUpdateHz = updateHz;
@@ -655,7 +749,6 @@ public class CatalystMotor {
             return this;
         }
         public Builder gearRatio(double ratio) { this.gearRatio = ratio; return this; }
-        public Builder positionConversionFactor(double factor) { this.positionConversionFactor = factor; return this; }
 
         public Builder pid(double kP, double kI, double kD) {
             this.kP = kP; this.kI = kI; this.kD = kD; return this;
@@ -804,6 +897,21 @@ public class CatalystMotor {
 
         public CatalystMotor build() {
             return new CatalystMotor(this);
+        }
+    }
+
+    /**
+     * Whether the lead motor is answering on its CAN bus.
+     *
+     * <p>Phoenix decides this from the age of the device's status frames, so it costs nothing and
+     * needs no round trip. False means the controller has not heard from the motor recently: it is
+     * unpowered, unplugged, on a different bus than configured, or has the wrong id.
+     */
+    public boolean isConnected() {
+        try {
+            return motor.isConnected();
+        } catch (RuntimeException e) {
+            return false;
         }
     }
 }

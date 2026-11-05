@@ -6,10 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Pose3d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation3d;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Pose3d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Translation3d;
 
 import frc.lib.catalyst.physics.model.ArticulatedRobotModel;
 import frc.lib.catalyst.physics.model.MechanismModel;
@@ -221,18 +221,18 @@ class ArticulatedModelTest {
                 .chassis(chassis()).add(elevator(h)).add(elevator(h)).build());
 
         assertThrows(IllegalArgumentException.class,
-                () -> MechanismModel.fixed("Bad", 0.0, Translation3d.kZero));
+                () -> MechanismModel.fixed("Bad", 0.0, Translation3d.ZERO));
         assertThrows(IllegalStateException.class,
                 () -> MechanismModel.linear("NoPosition", 1.0).build());
         assertThrows(IllegalStateException.class,
                 () -> MechanismModel.rotational("NoAngle", 1.0).build());
         assertThrows(IllegalStateException.class, () -> MechanismModel.linear("ZeroAxis", 1.0)
-                .along(Translation3d.kZero).position(() -> 0).build());
+                .along(Translation3d.ZERO).position(() -> 0).build());
     }
 
     @Test
     void aParentCycleIsRejectedRatherThanLoopingForever() {
-        MechanismModel a = MechanismModel.fixed("A", 1.0, Translation3d.kZero);
+        MechanismModel a = MechanismModel.fixed("A", 1.0, Translation3d.ZERO);
         MechanismModel selfParented = MechanismModel.linear("B", 1.0)
                 .childOf("B").position(() -> 0.0).build();
 

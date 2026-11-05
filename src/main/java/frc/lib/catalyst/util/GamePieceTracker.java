@@ -1,8 +1,8 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
+import org.wpilib.networktables.NetworkTable;
+import org.wpilib.networktables.NetworkTableInstance;
+import org.wpilib.command3.Trigger;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -35,8 +35,8 @@ import java.util.function.BooleanSupplier;
  * int count = tracker.getPieceCount();             // total across all stages
  *
  * // Use as a Trigger for command bindings
- * tracker.atTrigger("Shooter").onTrue(leds.solid(Color.kGreen));
- * tracker.hasPieceTrigger().whileTrue(leds.blink(Color.kOrange, 5));
+ * tracker.atTrigger("Shooter").onTrue(leds.solid(Color.GREEN));
+ * tracker.hasPieceTrigger().whileTrue(leds.blink(Color.ORANGE, 5));
  * }</pre>
  */
 public class GamePieceTracker {

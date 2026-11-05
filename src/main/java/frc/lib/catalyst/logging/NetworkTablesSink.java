@@ -1,11 +1,11 @@
 package frc.lib.catalyst.logging;
 
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableEntry;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.networktables.StructArrayPublisher;
-import edu.wpi.first.networktables.StructPublisher;
-import edu.wpi.first.util.struct.Struct;
+import org.wpilib.networktables.NetworkTable;
+import org.wpilib.networktables.NetworkTableEntry;
+import org.wpilib.networktables.NetworkTableInstance;
+import org.wpilib.networktables.StructArrayPublisher;
+import org.wpilib.networktables.StructPublisher;
+import org.wpilib.util.struct.Struct;
 
 import java.util.HashMap;
 import java.util.Map;

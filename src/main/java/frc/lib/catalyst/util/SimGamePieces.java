@@ -1,6 +1,6 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.math.geometry.Pose3d;
+import org.wpilib.math.geometry.Pose3d;
 import frc.lib.catalyst.logging.CatalystLog;
 
 import java.util.LinkedHashMap;

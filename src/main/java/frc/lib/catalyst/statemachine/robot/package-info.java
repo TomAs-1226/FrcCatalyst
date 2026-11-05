@@ -4,7 +4,7 @@
  *
  * <p>Everything below {@link frc.lib.catalyst.statemachine.StateMachineCore} is deliberately
  * WPILib-free so it can be unit-tested on a laptop. This package is where that abstinence ends and
- * the {@code Command}, {@code Subsystem} and {@code Trigger} types finally appear. Keeping all of
+ * the {@code Command}, {@code Mechanism} and {@code Trigger} types finally appear. Keeping all of
  * that glue in one small layer is what will make the eventual port to the 2027 command framework a
  * change here rather than a rewrite of the engine.
  *
@@ -12,7 +12,7 @@
  *
  * <ul>
  *   <li>{@link frc.lib.catalyst.statemachine.robot.Superstructure} — the facade you actually build.
- *       It wraps the engine in a {@code SubsystemBase}, steps it once per loop in
+ *       It wraps the engine in a {@code Mechanism}, steps it once per loop in
  *       {@code periodic()}, wires the logging, and hands you {@code Command} and {@code Trigger}
  *       factories. Unlike the old {@code SuperstructureCoordinator}, it accepts every Catalyst
  *       mechanism type and any subsystem you wrote yourself.</li>

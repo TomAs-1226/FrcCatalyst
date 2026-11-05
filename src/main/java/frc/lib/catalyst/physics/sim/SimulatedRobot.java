@@ -3,13 +3,13 @@ package frc.lib.catalyst.physics.sim;
 import java.util.Optional;
 import java.util.Random;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.geometry.Translation3d;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
-import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
-import edu.wpi.first.math.kinematics.SwerveModuleState;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.geometry.Translation3d;
+import org.wpilib.math.kinematics.ChassisVelocities;
+import org.wpilib.math.kinematics.SwerveDriveKinematics;
+import org.wpilib.math.kinematics.SwerveModuleVelocity;
 
 import frc.lib.catalyst.physics.PhysicsSample;
 import frc.lib.catalyst.physics.contact.CollisionField;
@@ -56,11 +56,11 @@ import frc.lib.catalyst.physics.model.RobotModel;
  *     .seed(42)
  *     .build();
  *
- * sim.command(new ChassisSpeeds(3.0, 0, 0));
+ * sim.command(new ChassisVelocities(3.0, 0, 0));
  * for (int i = 0; i < 100; i++) {
  *     sim.step();
  *     physics.update(sim.sample());
- *     double error = physics.state().speedMetersPerSecond() - sim.trueSpeed();
+ *     double error = physics.state().velocity() - sim.trueSpeed();
  * }
  * }</pre>
  *
@@ -125,18 +125,18 @@ public final class SimulatedRobot {
     /** Whether the previous step ended in contact — the difference between an impact and a lean. */
     private boolean touching = false;
 
-    private Pose2d truePose = Pose2d.kZero;
-    private Translation2d trueVelocity = Translation2d.kZero;
-    private Translation2d trueAcceleration = Translation2d.kZero;
+    private Pose2d truePose = Pose2d.ZERO;
+    private Translation2d trueVelocity = Translation2d.ZERO;
+    private Translation2d trueAcceleration = Translation2d.ZERO;
     private double trueOmega = 0.0;
 
     /** What the wheels believe, which diverges from the truth whenever they slip. */
-    private Translation2d wheelVelocity = Translation2d.kZero;
+    private Translation2d wheelVelocity = Translation2d.ZERO;
     /** The pose a drivetrain estimator would report, integrated from wheel velocity. */
-    private Pose2d odometryPose = Pose2d.kZero;
+    private Pose2d odometryPose = Pose2d.ZERO;
 
-    private ChassisSpeeds commandedRobotRelative = new ChassisSpeeds();
-    private Translation2d externalAcceleration = Translation2d.kZero;
+    private ChassisVelocities commandedRobotRelative = new ChassisVelocities();
+    private Translation2d externalAcceleration = Translation2d.ZERO;
     /** Per-module over-reporting, for the differential slip a uniform model cannot produce. */
     private final double[] moduleSlipBias;
     private double frictionScale = 1.0;
@@ -173,13 +173,13 @@ public final class SimulatedRobot {
     // ===========================================
 
     /** Ask the robot to travel at these robot-relative speeds. It gets there as fast as grip allows. */
-    public void command(ChassisSpeeds robotRelative) {
-        this.commandedRobotRelative = robotRelative == null ? new ChassisSpeeds() : robotRelative;
+    public void command(ChassisVelocities robotRelative) {
+        this.commandedRobotRelative = robotRelative == null ? new ChassisVelocities() : robotRelative;
     }
 
     /** Ask the robot to stop. */
     public void stop() {
-        command(new ChassisSpeeds());
+        command(new ChassisVelocities());
     }
 
     /**
@@ -189,7 +189,7 @@ public final class SimulatedRobot {
      * @param fieldAcceleration acceleration the drivetrain did not command, m/s^2
      */
     public void applyExternalAcceleration(Translation2d fieldAcceleration) {
-        this.externalAcceleration = fieldAcceleration == null ? Translation2d.kZero : fieldAcceleration;
+        this.externalAcceleration = fieldAcceleration == null ? Translation2d.ZERO : fieldAcceleration;
     }
 
     /**
@@ -248,10 +248,10 @@ public final class SimulatedRobot {
      */
     public void step() {
         Rotation2d heading = truePose.getRotation();
-        ChassisSpeeds commandedField =
-                ChassisSpeeds.fromRobotRelativeSpeeds(commandedRobotRelative, heading);
+        ChassisVelocities commandedField =
+                commandedRobotRelative.toFieldRelative(heading);
         Translation2d targetVelocity =
-                new Translation2d(commandedField.vxMetersPerSecond, commandedField.vyMetersPerSecond);
+                new Translation2d(commandedField.vx, commandedField.vy);
 
         Translation2d desiredAcceleration = targetVelocity.minus(trueVelocity).div(velocityTimeConstant);
         double tractionLimit = drivetrain.maxTractionAccelerationMpsSq() * frictionScale;
@@ -288,7 +288,7 @@ public final class SimulatedRobot {
                     .times(timestamp < slipUntil ? 0.35 : 0.6));
         }
 
-        trueOmega = commandedField.omegaRadiansPerSecond;
+        trueOmega = commandedField.omega;
         double heading2 = heading.getRadians() + trueOmega * dt;
 
         truePose = new Pose2d(truePose.getTranslation().plus(trueVelocity.times(dt)),
@@ -299,7 +299,7 @@ public final class SimulatedRobot {
         odometryPose = new Pose2d(odometryPose.getTranslation().plus(wheelVelocity.times(dt)),
                 new Rotation2d(heading2));
 
-        externalAcceleration = Translation2d.kZero;
+        externalAcceleration = Translation2d.ZERO;
         timestamp += dt;
     }
 
@@ -488,18 +488,30 @@ public final class SimulatedRobot {
         // Encoders measure wheel rotations and the code multiplies by the radius it was told. Get
         // that radius wrong and every speed is wrong by the same factor.
         Translation2d reported = wheelVelocity.times(wheelRadiusError);
-        ChassisSpeeds robotRelative = ChassisSpeeds.fromFieldRelativeSpeeds(
-                reported.getX(), reported.getY(), trueOmega + noise(gyroNoise), heading);
+        // toRobotRelative, not toFieldRelative. wheelVelocity is field-relative - it is integrated
+        // from the commanded field velocity - and this is the one place in the codebase that
+        // converts the other way. The port's sweep turned every conversion into toFieldRelative,
+        // which was right for the four that were fromRobotRelativeSpeeds and exactly backwards for
+        // this one, which was fromFieldRelativeSpeeds. The variable is even named robotRelative.
+        //
+        // The cost was invisible at heading zero, where the two are identical, and every validator
+        // scenario drives at heading zero. At 90 degrees the reported velocity came out exactly
+        // reversed, and a turning robot showed a phantom disturbance over half the traction limit -
+        // so isDisturbed() read true on every turn, in the simulator teams are told to validate
+        // against before taking Physics Core to carpet.
+        ChassisVelocities robotRelative = new ChassisVelocities(
+                reported.getX(), reported.getY(), trueOmega + noise(gyroNoise))
+                .toRobotRelative(heading);
 
-        SwerveModuleState[] states = kinematics.toSwerveModuleStates(robotRelative);
+        SwerveModuleVelocity[] states = kinematics.toSwerveModuleVelocities(robotRelative);
         if (states.length > moduleCount) {
-            SwerveModuleState[] trimmed = new SwerveModuleState[moduleCount];
+            SwerveModuleVelocity[] trimmed = new SwerveModuleVelocity[moduleCount];
             System.arraycopy(states, 0, trimmed, 0, moduleCount);
             states = trimmed;
         }
         for (int i = 0; i < states.length; i++) {
-            states[i] = new SwerveModuleState(
-                    states[i].speedMetersPerSecond + moduleSlipBias[i] + noise(moduleSpeedNoise),
+            states[i] = new SwerveModuleVelocity(
+                    states[i].velocity + moduleSlipBias[i] + noise(moduleSpeedNoise),
                     states[i].angle);
         }
 
@@ -509,7 +521,7 @@ public final class SimulatedRobot {
                 .plus(new Translation2d(noise(accelerometerNoise), noise(accelerometerNoise)));
 
         return new PhysicsSample(timestamp, odometryPose, robotRelative, states,
-                measuredAcceleration, robotRelative.omegaRadiansPerSecond);
+                measuredAcceleration, robotRelative.omega);
     }
 
     /** The pose a drivetrain estimator would be reporting — drifted by any slip that has happened. */
@@ -532,8 +544,8 @@ public final class SimulatedRobot {
     }
 
     /** How fast it really is going, field-relative. */
-    public ChassisSpeeds trueFieldVelocity() {
-        return new ChassisSpeeds(trueVelocity.getX(), trueVelocity.getY(), trueOmega);
+    public ChassisVelocities trueFieldVelocity() {
+        return new ChassisVelocities(trueVelocity.getX(), trueVelocity.getY(), trueOmega);
     }
 
     /** Ground speed, m/s. */
@@ -580,16 +592,16 @@ public final class SimulatedRobot {
     public void reset() {
         truePose = startingPose;
         odometryPose = startingPose;
-        trueVelocity = Translation2d.kZero;
-        wheelVelocity = Translation2d.kZero;
-        trueAcceleration = Translation2d.kZero;
+        trueVelocity = Translation2d.ZERO;
+        wheelVelocity = Translation2d.ZERO;
+        trueAcceleration = Translation2d.ZERO;
         trueOmega = 0.0;
         timestamp = 0.0;
         slipping = false;
         slipUntil = Double.NEGATIVE_INFINITY;
         frictionScale = 1.0;
-        externalAcceleration = Translation2d.kZero;
-        commandedRobotRelative = new ChassisSpeeds();
+        externalAcceleration = Translation2d.ZERO;
+        commandedRobotRelative = new ChassisVelocities();
         lastContact = null;
         collisions = 0;
         touching = false;
@@ -614,12 +626,12 @@ public final class SimulatedRobot {
         private FieldHeightmap heightmap = null;
         private double robotHeightMeters = 0.85;
         private double climbLimitMeters = 0.0;
-        private Pose2d startingPose = Pose2d.kZero;
+        private Pose2d startingPose = Pose2d.ZERO;
         private SwerveDriveKinematics kinematics;
         private int moduleCount = 4;
         private double loopPeriod = 0.02;
         private double wheelRadiusError = 1.0;
-        private Translation2d accelerometerBias = Translation2d.kZero;
+        private Translation2d accelerometerBias = Translation2d.ZERO;
         private double accelerometerNoise = 0.0;
         private double moduleSpeedNoise = 0.0;
         private double gyroNoise = 0.0;

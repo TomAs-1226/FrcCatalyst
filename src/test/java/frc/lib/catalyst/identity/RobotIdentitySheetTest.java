@@ -9,17 +9,27 @@ import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.wpilib.hardware.hal.HAL;
 
 /**
  * What the sheet says, and — mostly — what it declines to say.
  *
- * <p>These run on a bare JVM with no HAL, no roboRIO and no deployed PathPlanner settings, which is
+ * <p>These run with the desktop HAL, no robot controller and no deployed PathPlanner settings, which is
  * the harshest version of the case that matters: almost nothing is knowable, so almost nothing may
  * be published. Every key that shows up here has a real source behind it.
  */
 class RobotIdentitySheetTest {
+
+    @BeforeAll
+    static void initializeDesktopHal() {
+        // Derivation reads RobotController.getTeamNumber(). With natives present but HAL not
+        // initialized, alpha-7 crashes in HALUtil.getTeamNumber() instead of throwing Java code.
+        // This fixture must own its setup rather than inherit initialization from another class.
+        assertTrue(HAL.initialize(), "the desktop HAL must initialize before native identity reads");
+    }
 
     @BeforeEach
     @AfterEach
@@ -141,7 +151,8 @@ class RobotIdentitySheetTest {
 
     @Test
     void aSheetSurvivesAMachineThatKnowsNothing() {
-        // No HAL here, so every rio-sourced fact must come back missing rather than throwing.
+        // The HAL loads in tests now, but there is no Systemcore behind it, so every fact that comes
+        // from the hardware must still come back missing rather than zero or a throw.
         Map<String, Object> sheet = sheetFor(RobotIdentity.named("Ratchet"));
         assertFalse(sheet.containsKey("Identity/TeamNumber"));
         assertFalse(sheet.containsKey("Identity/RioSerial"));
@@ -149,6 +160,7 @@ class RobotIdentitySheetTest {
         // ...and the facts that need nothing but the JVM must still be there.
         assertTrue(sheet.containsKey("Software/WPILibVersion"));
         assertTrue(sheet.containsKey("Software/JavaVersion"));
-        assertEquals(2026L, sheet.get("Identity/Season"));
+        // Read off the WPILib version string, so this tracks the dependency rather than a constant.
+        assertEquals(2027L, sheet.get("Identity/Season"));
     }
 }

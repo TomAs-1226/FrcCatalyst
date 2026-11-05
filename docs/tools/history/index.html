@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Catalyst Motor History</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="../tool.css" />
+  <script src="../tool.js" defer></script>
+  <style>
+    /* This tool's own: what file is loaded, the motor's name cell with its résumé under it, the
+       row you opened and the panel that opens with it, and the strip of one bar per boot.
+       Everything else — header, sidebar, cards, fields, buttons, chips, bars, notices, the
+       table, its sort arrows and the empty state — is ../tool.css. */
+
+    /* --------------------------------------------------------------- the file */
+    /* Keys and their values, not `.stat` rows: half these values are sentences, and a bordered
+       row would put every one of them on a second line. */
+    .kv {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: var(--cat-space-1) var(--cat-space-3);
+      font-size: var(--cat-fs-13);
+    }
+
+    .kv dt { color: var(--cat-dim); }
+    .kv dd {
+      margin: 0;
+      min-width: 0;
+      font-family: var(--cat-mono);
+      font-size: var(--cat-fs-12);
+      color: var(--cat-ink);
+      overflow-wrap: anywhere;
+    }
+
+    /* An aside that has to be read but must not be read first — "unnamed", "none yet", a footnote
+       under a panel. The chrome's `.muted` is a paragraph's colour and size; this is only the
+       colour, so it can sit inside a line that has its own. */
+    .dim { color: var(--cat-quiet); }
+
+    /* -------------------------------------------------------------- the table */
+    /* Ten columns is more than a narrow window has room for, and a column squeezed down to two
+       characters is worse than one you have to scroll to. Both `min-width: 0`s are load-bearing:
+       a grid item's default minimum is its content, so without them the table's 880px pushed the
+       panel — and then the whole page — wider than the window instead of scrolling inside it. */
+    #table { min-width: 0; }
+    .tscroll { min-width: 0; overflow-x: auto; }
+    .tscroll table { min-width: 880px; }
+
+    /* Every figure here is a measurement, so every figure is mono and right-aligned — the chrome
+       aligns and faces `.num`; this only stops a unit wrapping under its own number. */
+    td.num, th.num { white-space: nowrap; }
+
+    /* A motor is a name, and under it everything that identifies it: where it is on the bus, the
+       tail of its serial, its model, and how many identities it has worn before this one. */
+    td.name { color: var(--cat-ink); font-weight: var(--cat-w-semi); }
+    td.name small {
+      display: block;
+      margin-top: 2px;
+      font-family: var(--cat-mono);
+      font-size: var(--cat-fs-11);
+      font-weight: var(--cat-w-normal);
+      color: var(--cat-quiet);
+    }
+
+    /* Powered is what the table sorts by until you say otherwise, so it is the one column that
+       carries a length as well as a number. The bar goes under its own figure rather than beside
+       it, because a bar in front of the digits moves them every time the sort changes. */
+    td.powered { width: 132px; }
+    td.powered .bar { margin-top: 5px; }
+
+    /* Hot is the one thing in this table that is a warning rather than a measurement. */
+    td.hot { color: var(--cat-warn); }
+
+    /* A row is a control: it opens. The one that is open keeps the signal, and nothing else on
+       this page spends it. */
+    tbody tr.dev { cursor: pointer; transition: background-color var(--cat-dur-effect) var(--cat-ease-effect); }
+    tbody tr.dev:hover > td { background: var(--cat-surface-2); }
+    tbody tr.dev.open > td { background: var(--cat-signal-tint); }
+    tbody tr.dev.open td:first-child { box-shadow: inset 2px 0 0 var(--cat-signal); }
+
+    /* ------------------------------------------------- one motor's whole life */
+    tr.detail > td {
+      padding: var(--cat-space-4);
+      background: var(--cat-surface-2);
+      white-space: normal;
+    }
+
+    .detail-body { display: grid; gap: var(--cat-space-2); }
+    .detail-body b { color: var(--cat-ink); font-weight: var(--cat-w-semi); }
+
+    /* Every id, name and firmware this serial has carried, oldest first. */
+    .timeline {
+      display: grid;
+      grid-template-columns: auto auto minmax(0, 1fr);
+      gap: var(--cat-space-1) var(--cat-space-4);
+      font-family: var(--cat-mono);
+      font-size: var(--cat-fs-12);
+    }
+
+    .timeline .t { color: var(--cat-dim); white-space: nowrap; }
+
+    /* One bar per boot, height is revolutions. Quiet, like every other quantity drawn as a length
+       here; amber is the only one of them that means anything, and it means the motor got hot. */
+    .sessions { display: flex; align-items: flex-end; gap: 3px; height: 44px; }
+    .sessions i {
+      display: block;
+      width: 9px;
+      min-height: 2px;
+      border-radius: 2px 2px 0 0;
+      background: var(--cat-dim);
+    }
+    .sessions i[data-hot="true"] { background: var(--cat-warn); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Motor History</h1>
+    <span class="badge">2.0.0</span>
+    <span class="hint">What every motor on the robot has been through, by serial number. Pulled off the Systemcore, saved wherever you keep such things.</span>
+    <a href="../" class="back"></a>
+  </header>
+
+  <main>
+    <aside>
+      <h2>Robot</h2>
+      <div class="row">
+        <label for="team">Team number</label>
+        <input id="team" inputmode="numeric" placeholder="5805" />
+      </div>
+      <div class="row">
+        <label for="host">Systemcore address <span class="v">blank = 10.TE.AM.2</span></label>
+        <input id="host" placeholder="10.58.5.2 or 172.26.0.1 over USB" />
+      </div>
+      <div class="actions">
+        <button class="primary" id="fetch">Fetch history</button>
+        <button id="load">Open a saved file</button>
+        <button id="saveJson" disabled>Save JSON</button>
+        <button id="saveCsv" disabled>Save CSV</button>
+        <input type="file" id="file" accept=".json,application/json" hidden />
+      </div>
+      <p class="notice" id="status" role="status">The robot program writes <code>catalyst/motor-history.json</code> beside itself; <code>catalyst-agent</code> 2.0.3 on the Systemcore serves it on port 9010.</p>
+
+      <h2>This file</h2>
+      <dl class="kv" id="meta"><dt>—</dt><dd>nothing loaded</dd></dl>
+
+      <h2>Reading it</h2>
+      <p class="hint">
+        <b>Powered</b> is time on the bus; <b>turning</b> wore the bearings; <b>loaded</b> (over 5 A) wore
+        the windings. <b>Hot</b> counts time at or above 70 °C. <b>Past</b> identities are old ids, names
+        or firmware: the motor's résumé. Click a row for its identities and recent boots.
+      </p>
+    </aside>
+
+    <div class="cards">
+      <div class="card">
+        <h2>Motors</h2>
+        <div id="table"><p class="empty">Fetch from a robot, or open a saved file.</p></div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    "use strict";
+    const $ = (s) => document.querySelector(s);
+    const PORT = 9010;
+    const HOT_C = 70;
+    const COLS = [
+      ["name", "Motor", (r) => r.name.toLowerCase()],
+      ["powered", "Powered", (r) => r.poweredSeconds],
+      ["running", "Turning", (r) => r.runningSeconds],
+      ["loaded", "Loaded", (r) => r.loadedSeconds],
+      ["revs", "Revs", (r) => r.revolutions],
+      ["peakA", "Peak A", (r) => r.peakStatorAmps],
+      ["peakC", "Peak °C", (r) => r.peakTempC],
+      ["hot", "Hot", (r) => r.hotSeconds],
+      ["boots", "Boots", (r) => r.boots],
+      ["first", "First seen", (r) => r.firstSeenMs],
+    ];
+    let doc = null;
+    let rows = [];
+    let sortKey = "powered";
+    let sortDesc = true;
+    let open = null;
+
+    const TAURI = (() => { try { return window.parent && window.parent.__TAURI__ ? window.parent.__TAURI__ : (window.__TAURI__ || null); } catch { return null; } })();
+
+    const settings = {
+      get: (k, d) => { try { const v = localStorage.getItem("catalyst.history." + k); return v === null ? d : v; } catch { return d; } },
+      set: (k, v) => { try { localStorage.setItem("catalyst.history." + k, v); } catch { /* private mode */ } },
+    };
+    $("#team").value = settings.get("team", "");
+    $("#host").value = settings.get("host", "");
+
+    function hostFor() {
+      const host = $("#host").value.trim();
+      if (host) return host;
+      const team = parseInt($("#team").value, 10);
+      if (!Number.isFinite(team) || team <= 0) return null;
+      return `10.${Math.floor(team / 100)}.${team % 100}.2`;
+    }
+
+    /* The chrome's notice, in the three states it has: neutral while nothing has happened, and
+       ok / bad once something has. */
+    function status(text, kind) {
+      const el = $("#status");
+      el.textContent = text;
+      el.className = "notice" + (kind ? " " + kind : "");
+    }
+
+    function hours(s) {
+      if (!Number.isFinite(s) || s <= 0) return "0";
+      if (s < 3600) return `${(s / 60).toFixed(0)} min`;
+      return `${(s / 3600).toFixed(1)} h`;
+    }
+    function revs(r) {
+      if (!Number.isFinite(r) || r <= 0) return "0";
+      if (r >= 1e6) return `${(r / 1e6).toFixed(2)} M`;
+      if (r >= 1e3) return `${(r / 1e3).toFixed(1)} k`;
+      return r.toFixed(0);
+    }
+    function date(ms, trusted) {
+      if (!ms) return "—";
+      if (trusted === false) return "relative";
+      const d = new Date(ms);
+      return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    }
+    function esc(s) { return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+    function shortSerial(s) { s = String(s || ""); return s.length > 10 ? "…" + s.slice(-8) : s; }
+
+    /* The file's devices, flattened: the latest identity and the totals beside each record. */
+    function flatten(d) {
+      return (d.devices || []).map((dev) => {
+        const ids = dev.identities || [];
+        const latest = ids[ids.length - 1] || {};
+        const t = dev.totals || {};
+        return {
+          dev, serial: dev.serial || "", model: dev.model || "", kind: dev.kind || "device",
+          bus: latest.bus || "", id: latest.id, name: latest.name || "", firmware: latest.firmware || "",
+          poweredSeconds: t.poweredSeconds || 0, runningSeconds: t.runningSeconds || 0, loadedSeconds: t.loadedSeconds || 0,
+          revolutions: t.revolutions || 0, peakStatorAmps: t.peakStatorAmps || 0, peakTempC: t.peakTempC || 0,
+          hotSeconds: t.hotSeconds || 0, energyJoules: t.energyJoules || 0, boots: dev.boots || 0,
+          firstSeenMs: dev.firstSeenMs || 0, lastSeenMs: dev.lastSeenMs || 0, identities: ids, sessions: dev.sessions || [],
+          stickyFaults: t.stickyFaults || 0,
+        };
+      });
+    }
+
+    function csv() {
+      const cols = ["serial", "model", "kind", "bus", "id", "name", "firmware", "poweredSeconds", "runningSeconds", "loadedSeconds",
+        "revolutions", "peakStatorAmps", "peakTempC", "hotSeconds", "energyJoules", "boots", "firstSeenMs", "lastSeenMs", "identities", "stickyFaults"];
+      const cell = (v) => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+      const lines = [cols.join(",")];
+      for (const r of rows) {
+        lines.push(cols.map((c) => cell(c === "identities" ? r.identities.length : c === "id" ? (r.id ?? "") : r[c])).join(","));
+      }
+      return lines.join("\n") + "\n";
+    }
+
+    function render() {
+      const meta = $("#meta");
+      if (!doc) { meta.innerHTML = "<dt>—</dt><dd>nothing loaded</dd>"; $("#table").innerHTML = '<p class="empty">Fetch from a robot, or open a saved file.</p>'; return; }
+      const motors = rows.filter((r) => r.kind === "motor");
+      const totalH = motors.reduce((a, r) => a + r.poweredSeconds, 0) / 3600;
+      const hottest = motors.reduce((a, r) => (!a || r.peakTempC > a.peakTempC ? r : a), null);
+      meta.innerHTML = [
+        ["Source", esc(doc.path || doc.__source || "file")],
+        ["Updated", esc(doc.updatedMs ? new Date(doc.updatedMs).toLocaleString() : "—") + (doc.clockTrusted === false ? " <span class=\"dim\">(robot clock not set)</span>" : "")],
+        ["Devices", `${rows.length} (${motors.length} motors)`],
+        ["Powered", `${totalH.toFixed(1)} h across all motors`],
+        ["Hottest ever", hottest && hottest.peakTempC ? `${hottest.peakTempC.toFixed(0)} °C, ${esc(hottest.name || shortSerial(hottest.serial))}` : "—"],
+      ].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
+
+      const col = COLS.find((c) => c[0] === sortKey) || COLS[1];
+      const key = col[2];
+      const sorted = rows.filter((r) => r.kind === "motor").sort((a, b) => {
+        const x = key(a), y = key(b);
+        const c = typeof x === "string" ? x.localeCompare(y) : x - y;
+        return sortDesc ? -c : c;
+      });
+      const others = rows.filter((r) => r.kind !== "motor");
+      const max = Math.max(1, ...sorted.map((r) => r.poweredSeconds));
+      // The arrow and the announcement are one attribute, which is what the chrome draws from —
+      // this used to hand-build its own ↓ and ↑ and tell a screen reader nothing.
+      const head = COLS.map(([k, label], i) => {
+        const mark = k === sortKey ? ` aria-sort="${sortDesc ? "descending" : "ascending"}"` : "";
+        return `<th data-sort="${k}"${i ? ' class="num"' : ""}${mark}>${label}</th>`;
+      }).join("");
+      const body = sorted.map((r) => {
+        const where = [r.bus, r.id != null && r.id !== "" ? `id ${r.id}` : ""].filter(Boolean).join(" · ");
+        // Beside the name, not down in the small print: how many identities this serial has worn
+        // before this one is the one thing here that is about the motor rather than about a number.
+        const past = r.identities.length > 1 ? ` <span class="chip sm warn" title="renumbered, renamed or reflashed ${r.identities.length - 1} time(s)">${r.identities.length - 1} past</span>` : "";
+        const main = `<tr class="dev${open === r.serial ? " open" : ""}" data-serial="${esc(r.serial)}">
+          <td class="name">${esc(r.name) || '<span class="dim">unnamed</span>'}${past}<small>${esc(where)} · ${esc(shortSerial(r.serial))} · ${esc(r.model)}</small></td>
+          <td class="num powered">${hours(r.poweredSeconds)}<span class="bar"><i style="width:${(100 * r.poweredSeconds / max).toFixed(1)}%"></i></span></td>
+          <td class="num">${hours(r.runningSeconds)}</td>
+          <td class="num">${hours(r.loadedSeconds)}</td>
+          <td class="num">${revs(r.revolutions)}</td>
+          <td class="num">${r.peakStatorAmps ? r.peakStatorAmps.toFixed(0) : "—"}</td>
+          <td class="num${r.peakTempC >= HOT_C ? " hot" : ""}">${r.peakTempC ? r.peakTempC.toFixed(0) : "—"}</td>
+          <td class="num${r.hotSeconds > 0 ? " hot" : ""}">${r.hotSeconds > 0 ? hours(r.hotSeconds) : "—"}</td>
+          <td class="num">${r.boots}</td>
+          <td class="num">${date(r.firstSeenMs, doc.clockTrusted)}</td>
+        </tr>`;
+        if (open !== r.serial) return main;
+        const ids = r.identities.map((i) => `<span class="t">${date(i.firstSeenMs, doc.clockTrusted)} – ${date(i.lastSeenMs, doc.clockTrusted)}</span><span>id ${esc(i.id)} on ${esc(i.bus)}</span><span>${esc(i.name) || "<i>unnamed</i>"} · ${esc(i.firmware) || "firmware unknown"}</span>`).join("");
+        const sessions = r.sessions.slice(-40);
+        const smax = Math.max(1, ...sessions.map((s) => s.revolutions || 0));
+        const bars = sessions.map((s) => `<i style="height:${Math.max(4, 100 * (s.revolutions || 0) / smax).toFixed(0)}%" data-hot="${(s.hotSeconds || 0) > 0}" title="${date(s.startMs, doc.clockTrusted)}: ${hours(s.seconds)} powered, ${revs(s.revolutions)} revs, peak ${(s.peakAmps || 0).toFixed(0)} A / ${(s.peakTempC || 0).toFixed(0)} °C"></i>`).join("");
+        const energy = r.energyJoules > 0 ? `${(r.energyJoules / 3600).toFixed(1)} Wh` : "—";
+        return main + `<tr class="detail"><td colspan="10"><div class="detail-body">
+          <b>Identities</b> — every id, name and firmware this serial has carried
+          <div class="timeline">${ids}</div>
+          <b>Recent boots</b> — one bar per boot, height is revolutions, amber had hot time (${sessions.length} of ${r.boots} on record)
+          <div class="sessions">${bars || '<span class="dim">none yet</span>'}</div>
+          <div class="dim">Energy through the windings ${energy} · sticky faults ever set: ${r.stickyFaults ? "0x" + r.stickyFaults.toString(16) : "none"} · serial ${esc(r.serial)} · ${esc(r.dev.hardwareRev ? "hardware " + r.dev.hardwareRev : "")} ${esc(r.dev.manufactured ? "made " + r.dev.manufactured : "")}</div>
+        </div></td></tr>`;
+      }).join("");
+      const rest = others.length ? `<p class="hint">${others.length} other device${others.length === 1 ? "" : "s"} on record: ${others.map((o) => esc(o.name || shortSerial(o.serial)) + " (" + esc(o.model) + ")").join(", ")}</p>` : "";
+      $("#table").innerHTML = motors.length
+        ? `<div class="tscroll"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>${rest}`
+        : `<p class="empty">No motors on record yet. The robot program writes the file once it has seen a motor.</p>${rest}`;
+      $("#table").querySelectorAll("th[data-sort]").forEach((th) => th.addEventListener("click", () => {
+        const k = th.dataset.sort;
+        if (sortKey === k) sortDesc = !sortDesc; else { sortKey = k; sortDesc = k !== "name"; }
+        render();
+      }));
+      $("#table").querySelectorAll("tr.dev").forEach((tr) => tr.addEventListener("click", () => {
+        open = open === tr.dataset.serial ? null : tr.dataset.serial;
+        render();
+      }));
+    }
+
+    function adopt(d, source) {
+      doc = d;
+      if (source) doc.__source = source;
+      rows = flatten(d);
+      $("#saveJson").disabled = false;
+      $("#saveCsv").disabled = false;
+      render();
+    }
+
+    async function fetchHistory() {
+      const host = hostFor();
+      if (!host) { status("Enter a team number or an address first.", "err"); return; }
+      settings.set("team", $("#team").value.trim());
+      settings.set("host", $("#host").value.trim());
+      const url = `http://${host}:${PORT}/api/motor-history`;
+      status(`Fetching ${url} …`);
+      $("#fetch").disabled = true;
+      try {
+        const ctl = new AbortController();
+        const timer = setTimeout(() => ctl.abort(), 6000);
+        const res = await fetch(url, { signal: ctl.signal, cache: "no-store" });
+        clearTimeout(timer);
+        const body = await res.json();
+        if (!res.ok || body.error) {
+          status(body.error ? `The robot says: ${body.error}` : `HTTP ${res.status} from the agent`, "err");
+          return;
+        }
+        adopt(body, url);
+        status(`Fetched ${rows.length} devices from ${host}.`, "ok");
+      } catch (e) {
+        status(`Could not reach ${host}: ${e.name === "AbortError" ? "no answer in 6 s" : e.message}. Is catalyst-agent 2.0.3 installed, and is this laptop on the robot's network?`, "err");
+      } finally {
+        $("#fetch").disabled = false;
+      }
+    }
+
+    async function save(kind) {
+      const text = kind === "csv" ? csv() : JSON.stringify(doc, (k, v) => (k === "__source" ? undefined : v), 2);
+      const stamp = new Date().toISOString().slice(0, 10);
+      const name = `motor-history-${stamp}.${kind}`;
+      if (TAURI && TAURI.dialog && TAURI.core) {
+        try {
+          const path = await TAURI.dialog.save({ defaultPath: name, filters: [{ name: kind.toUpperCase(), extensions: [kind] }] });
+          if (!path) { status("Not saved."); return; }
+          await TAURI.core.invoke("save_text_file", { path, content: text });
+          status(`Saved ${path}`, "ok");
+          return;
+        } catch (e) {
+          status(`Could not save: ${e}`, "err");
+          return;
+        }
+      }
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([text], { type: kind === "csv" ? "text/csv" : "application/json" }));
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      status(`Downloaded ${name}`, "ok");
+    }
+
+    $("#fetch").addEventListener("click", fetchHistory);
+    $("#saveJson").addEventListener("click", () => save("json"));
+    $("#saveCsv").addEventListener("click", () => save("csv"));
+    $("#load").addEventListener("click", () => $("#file").click());
+    $("#file").addEventListener("change", async (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      try { adopt(JSON.parse(await f.text()), f.name); status(`Opened ${f.name}: ${rows.length} devices.`, "ok"); }
+      catch (err) { status(`Not a motor history file: ${err.message}`, "err"); }
+      e.target.value = "";
+    });
+    document.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.target.id === "team" || e.target.id === "host")) fetchHistory(); });
+  </script>
+</body>
+</html>

@@ -1,8 +1,8 @@
 package frc.lib.catalyst.subsystems.vision;
 
 import edu.wpi.first.apriltag.AprilTagFieldLayout;
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Transform3d;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Transform3d;
 import org.photonvision.PhotonCamera;
 import org.photonvision.PhotonPoseEstimator;
 import org.photonvision.PhotonPoseEstimator.PoseStrategy;

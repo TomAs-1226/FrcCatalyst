@@ -78,8 +78,10 @@ PhysicsCore physics = PhysicsCore.builder()
 One line in `robotPeriodic()`, after the drivetrain has updated:
 
 ```java
-public void robotPeriodic() {
-    CommandScheduler.getInstance().run();
+// Once per loop, after the scheduler has ticked. On a CatalystOpMode that is
+// onPeriodic(); on a TimedRobot it is robotPeriodic(), after your own
+// Scheduler.getDefault().run().
+@Override protected void onPeriodic() {
     physics.update();
 }
 ```
@@ -316,6 +318,11 @@ Physics Core is told what it may spend rather than being hard-coded to a control
 one today you get `BALANCED` behaviour, and the profile is recorded in `health()` so a log says what
 was actually running.
 
+Prediction is not gated by the profile at all. `predict(...)` and `predictLaunchState(...)` answer
+under every profile including `MINIMAL`, because they are calls you make on demand rather than work
+`update()` does each loop. The profile constants gate exactly two things — slip scoring and the
+disturbance/diagnostics chain — and `MINIMAL` is the only one that turns either off.
+
 The profile gates only what runs **inside** `PhysicsCore.update()`. The models, identifiers,
 evaluators, and constraints described below are separate objects you construct and call yourself, so
 their cost is yours to place — most are pure functions you can call once a second rather than once a
@@ -447,6 +454,10 @@ battery.addSample(RobotController.getBatteryVoltage(), pdh.getTotalCurrent());
 battery.recommendation().ifPresent(r -> System.out.println(r.describe()));
 ```
 
+`addSample` wants amps, not a `PowerDistribution`. With no power module on CAN, sum the Talon FX
+supply currents instead - `motors.stream().mapToDouble(CatalystMotor::getSupplyCurrent).sum()`. The
+fit only needs current to *vary* against voltage, and the drivetrain is what makes it vary.
+
 Both are recursive least squares — constant time, constant memory, mathematically identical to a batch
 fit over the whole log.
 
@@ -569,18 +580,37 @@ PhysicsConstraints limits = PhysicsConstraints.builder()
 drive.setSpeedMultiplier(limits.speedScale());
 ```
 
-Four limits, each independent, tightest wins: traction and tipping (from the live CoM, so it tightens
-on its own when the elevator goes up), confidence, slip, and electrical headroom.
+The acceleration limit takes the tightest of traction, tipping (from the live CoM, so it tightens on
+its own when the elevator goes up) and electrical headroom. The speed scale takes the tightest of two
+physical limits: wheel slip (engaging above 20%, letting go below 10%) and electrical headroom.
 
-`limits.explain()` names whichever is binding — every slowdown this recommends is attributable to a
-sentence:
+**The speed scale is eased.** A limit on a driver's speed must never be a step: `speedScale()` falls
+toward the limit at no more than 1.0 per second, holds a reduction for 0.5 s after its cause clears,
+and gives the speed back at 0.5 per second (`Builder.easing(...)` changes all three).
+`targetSpeedScale()` is the instantaneous limit, for logging beside it.
 
-```text
-speed scaled to 45%, accel capped at 4.2 m/s^2: confidence LOW (vision stale 4.1 s); wheel slip 34%
+**Localisation confidence is not in the speed scale.** It says how far to trust the pose, not how fast
+the robot can safely go, and a driver steering by eye does not use the pose. Through 2.0.0-rc.1 it was
+folded in as bands (75 / 45 / 25% of top speed), and on Catalyst X1 that stepped the driver's top speed
+down and back up as often as 30 times a minute — whenever a tag had been out of view for 1.8 s, and at
+almost every hard stick push, when the wheels and the IMU disagreed about the acceleration. The robot
+drove like it was shifting gears. Confidence is now `confidenceScale()`, continuous and eased, for
+motion driven *on the pose* to apply if it chooses:
+
+```java
+double autoScale = Math.min(limits.speedScale(), limits.confidenceScale());  // auto-align, paths
 ```
 
-The speed scale never returns zero unless the estimate is genuinely lost; a robot frozen mid-match
-because a camera blinked is worse than one moving cautiously.
+`limits.explain()` names whichever limit is binding — every slowdown this recommends is attributable
+to a sentence — and reports confidence without applying it:
+
+```text
+speed scaled to 72% (limit 66%), accel capped at 8.3 m/s^2: wheel slip 68%; localisation confidence
+MODERATE (vision stale 2.4 s): confidenceScale 78% for pose-driven motion, not applied to the speed scale
+```
+
+Neither scale returns zero unless you set `minimumSpeedScale(0)`; a robot frozen mid-match because a
+camera blinked is worse than one moving cautiously.
 
 ---
 
@@ -726,8 +756,10 @@ arm and confirming `centerOfMassHeightMeters()` goes **up**.
 **5. Start consuming it read-only** — a state-machine guard, a `BehaviorEngine` precondition, a shot
 gate. Still no control authority; you are just letting decisions see the physics.
 
-**6. Only then, `PhysicsConstraints`.** Log `speedScale()` alongside what you are actually commanding
-for a session before you apply it, so you can see when it would have intervened and agree with it.
+**6. Only then, `PhysicsConstraints`.** Log `speedScale()` and `targetSpeedScale()` alongside what you
+are actually commanding for a session before you apply it, so you can see when it would have
+intervened and agree with it. A limit that fires at the start of every hard acceleration is telling
+you about a sensor, not about the carpet: find out which before you let it near the sticks.
 
 **7. Parameter identification is independent of all of the above** and safe to run from day one — it
 cannot change anything. Let it collect over a few matches and compare its recommendations with your
@@ -736,3 +768,144 @@ constants file.
 > **The rule that governs all of it:** if a Physics Core signal does not measurably outperform the
 > simple check you already had, keep the simple check. That applies to everything in this package, and
 > it is why the roadmap carries explicit kill criteria.
+
+
+## Opt-in bounded motion integrity (alpha-7 source candidate)
+
+Enable `.withMotionObserver(true)` to expose `physics.motion()` alongside the legacy native pose.
+This API is in the alpha-7 source branch; it does not imply a newly published Maven release.
+`physics.state().pose()` still passes through native drivetrain pose. `motion().pose()` is a separate
+guarded translation estimate, and neither API writes native odometry.
+
+Supply one coherent `PhysicsSample`: native pose, native wheel/chassis velocities, gravity-removed
+horizontal acceleration in the robot's yaw frame, and gyro rate. Measurements must be finite, fresh,
+and describe the same interval. `CatalystGyro.getLevelLinearAcceleration(maxAgeSeconds,
+maxSkewSeconds)` subtracts gravity XYZ and levels tilt using nonblocking cached readings. The caller
+must also align timestamps to the native motion frame, verify/transform the reported yaw axes to
+the robot frame, and account for the accelerometer's lever arm from chassis center. Tilt leveling
+does not infer mounting yaw; the current API documentation does not establish whether every raw
+XYZ signal includes the configured mount transform. Raw `getAcceleration()` retains its previous
+gravity-inclusive contract.
+
+The observer follows native pose during consistent rolling, including real constant-speed travel
+with zero acceleration. Accumulated wheel/IMU disagreement starts a short inertial bridge; confirmed
+disagreement persists through steady wheelspin. After 0.60 seconds the bridge expires, translation
+holds, and `motion().usable()` remains false until independent repair. Its thresholds are engineering
+defaults requiring hardware validation, not calibrated probabilities. Legacy clients remain opt-out.
+
+When opted in, uncertain state velocity/quality also remain guarded instead of inheriting the
+legacy estimator's eventual return to wheel trust. A caller can use `motion().usable()` to inhibit
+pose-dependent arrival/feeding; manual control and enable remain the caller's separate policies.
+
+`physics.invalidateMotion(timestamp, reason)` rejects stale native input. Call
+`physics.resetMotion(validatedPose)` after an externally validated native position repair; it
+preserves a motion fault and does not certify untrusted wheel velocity. Use
+`physics.seedMotionAtRest(validatedPose)` only for a deliberately verified stationary starting pose.
+
+An independent `VelocityObservation` can renew the inertial reference when capture time, freshness,
+finite uncertainty and monotonicity checks pass. Velocity evidence alone never repairs the position
+anchor. A recent post-fault `PoseObservation` must agree with guarded/native position and current
+wheel velocity before restoring usable motion. After the inertial bridge expires, its placeholder
+zero velocity cannot establish standstill; fresh independent velocity evidence or a deliberately
+verified stationary seed is required. A large position repair belongs to the existing
+validated native reanchor path. Never label wheel-derived velocity as independent on a real robot.
+
+Constant common-mode wheelspin can be indistinguishable from real travel if no independent sensor
+saw its onset. This observer does not solve that observability limit. Independent ground velocity
+(qualified optical flow or non-driven odometry wheels) is the useful next input for sustained
+camera-independent motion. Additional tag cameras improve view coverage and repair opportunities.
+
+Telemetry is under `Catalyst/Physics/Motion/`: `Pose`, `Mode`, `Usable`, `NeedsAbsoluteFix`,
+`DisagreementMps`, `RejectedWheelTravelM`, and `Why`. Field-check clean reversals, tilted standstill,
+blocked wheelspin, sensor dropouts, and continuing spin during camera reanchor before control use.
+
+
+## Optional gyro-constrained wheel-position shadow pose (alpha-7 source candidate)
+
+Build with `.withMotionObserver(true).withGyroWheelOdometry(moduleLocations)` for a diagnostic trial.
+Control defaults off. Only after sensor-timing/changing-steering qualification, explicitly add
+`.withGyroWheelOdometryControl(true)`. Then update with
+`physics.update(sample, rawGyroHeading, modulePositions)` on every coherent new frame. The overload
+uses the sample timestamp. Supply cumulative encoder distances, raw independent gyro heading and
+geometry in the same robot frame/order; wheel-derived yaw is not independent gyro evidence.
+Enabling the option without a motion observer is rejected. Missing positions hold motion unknown.
+
+Each encoder displacement subtracts the rigid-body rotation `deltaYaw * (-moduleY, moduleX)`.
+A unique mutually agreeing set of at least three modules determines center translation; one bad
+wheel can be excluded on a four-module drive. SE(2) integration retains the curved interval travel.
+The shadow position persists across wheel recovery rather than inheriting native accumulated drift.
+No drivetrain pose is written; `state().pose()` retains its legacy native-pose contract.
+
+`gyroWheelEstimate()` exposes validity, initialized velocity, inliers, rejected module and residual.
+Validity means wheel/gyro agreement only. Common wheelspin still requires independent acceleration
+checks; no consensus result is submitted as a ground-velocity observation. Raw slip diagnostics
+remain visible and conservative. The first baseline has no initialized interval velocity; its
+placeholder zero cannot certify standstill. Rejected intervals never replay unchecked distance.
+
+Accepted `PoseObservation` translation fixes use capture-time innovation from a 0.5-second history.
+The correction gain is `sigmaOdometry/(sigmaOdometry+sigmaVision)`, initially assuming 0.10 m
+odometry uncertainty, not calibrated covariance. Positive finite vision uncertainty must be at most
+0.50 m, innovation at most 1.0 m; captures must be strictly increasing and within retained history.
+Heading stays gyro-derived. Observations never clear persistent motion faults by themselves.
+Position reset preserves faults; a verified stationary seed is separate. Module ending angles
+approximate each interval; mounting yaw, IMU lever arm, contact and sustained inertial drift remain
+physical validation requirements. This is source-branch functionality, not a new Maven release.
+
+
+`lastAcceptedShadowPoseFix()` exposes timestamped pre-correction capture innovation. Use it as
+evidence only if that SAME `observe()` call returned true and the timestamp matches; rejected
+observations leave older metadata unchanged. Reset clears it. Dashboard/control freshness should
+compare both native and shadow capture residuals, not use native agreement to certify another pose.
+The encoder interval-mean velocity is diagnostic only: IMU residuals and shot lead retain the
+coherent instantaneous chassis velocity and gyro rate supplied in `PhysicsSample`.
+
+
+Diagnostic mode preserves the native/IMU control pose, existing slip handling and native camera
+certification. Trial rejection cannot stop a path or grant a fresh aiming fix. Numbers keeps this
+mode because constant-angle native checks passed but changing-steering full autos rejected clean
+intervals. Ending-angle quadrature and per-signal timing require further qualification; do not
+widen rejection thresholds merely to pass those scenarios. `gyroWheelOdometryControlsMotion()`
+exposes the actual policy. Explicit control integration is covered by deterministic fault tests,
+not a claim of native/physical changing-steering qualification.
+
+
+## Optional camera-trajectory motion recovery (alpha-7 source candidate)
+
+Use `.withMotionObserver(true).withVisionRecovery(true)` to opt in; default is off. Supply only
+qualified real-camera captures through `observeRecoveryPose(PoseObservation)` after normal native
+fusion and camera/field/spin checks. Ordinary `observe()` calls do not populate recovery evidence.
+This option requires native motion control, and cannot be combined with experimental gyro-wheel
+control. `recoveryMaxSpeedMps(value)` sets the physical endpoint-speed envelope (default8m/s).
+
+The bounded two-second/48-capture trajectory uses normalized-time quadratic fitting and a newest
+held-out frame. It estimates endpoint velocity with model covariance, an uncertainty floor and an
+effective-sample cap. It checks source/epoch, freshness, fit residuals and model limits; weak data
+can remain insufficient indefinitely. The model is not calibrated statistical accuracy. Capture
+identity must represent a physical source; a generic shared label does not isolate future cameras.
+
+Recovery happens only in a fresh native update, after current camera position/velocity agree with
+native translation/current wheel velocity including uncertainty margins. It retains native gyro
+heading and never writes drivetrain pose. Motion may recover while actually moving; no stationary
+state is invented. Continued wheelspin or large native disagreement stays blocked. Native fused
+pose shares camera evidence and is a consistency check, not another independent absolute sensor.
+
+Invalid native/acceleration intervals, sampling gaps, impacts and explicit resets invalidate older
+captures even when the original fault epoch persists. Owner-clock age must also be <=35ms: mutually
+stale native/camera timestamps cannot appear fresh merely because they match one another. Model
+position, endpoint velocity and uncertainty are projected to the same native capture epoch.
+
+Read `visionRecoveryEnabled()`, `visionRecoveryCount()`, `visionRecoverySamples()` and
+`visionRecoveryReason()`. Recovery does not alter driver control, DS enable, caller auto deadlines,
+path clearance or shot protections. A single pose reset still cannot certify velocity. Camera loss
+still bounds absolute observability; independent ground sensing is needed for sustained slip-aware
+motion without camera fixes. Mount yaw, lever arm and contact behavior require hardware checks.
+
+### Finite changing-steering intervals
+
+The diagnostic gyro-wheel model now integrates signed travel through measured steering plus gyro
+sweep using a finite arc chord, subtracts `(R(deltaYaw)-I)*moduleLocation`, and composes that finite
+transform directly. It retains the original three-module consensus thresholds. Interval mean
+velocity remains diagnostic; current instantaneous native velocity supplies control/shot lead.
+This supersedes the ending-angle approximation described earlier. Exact half-turn aliases reject;
+within-interval speed reversals and unknown per-signal timing remain qualification limits. The
+implementation and physically integrated regressions are original; no foreign source was copied.

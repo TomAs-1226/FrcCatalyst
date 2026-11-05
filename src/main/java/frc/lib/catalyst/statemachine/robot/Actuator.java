@@ -1,7 +1,7 @@
 package frc.lib.catalyst.statemachine.robot;
 
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Subsystem;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Mechanism;
 import frc.lib.catalyst.statemachine.Binding;
 
 import java.util.Set;
@@ -57,7 +57,7 @@ public interface Actuator<G> extends Binding<G> {
     default Command holdCommand(G goal) { return null; }
 
     /** Subsystems this actuator owns. Exactly one for all nine Catalyst bindings. */
-    Set<Subsystem> requirements();
+    Set<Mechanism> requirements();
 
     /**
      * If the pursue command finishes while {@link #atGoal} is still {@code false}, re-run its

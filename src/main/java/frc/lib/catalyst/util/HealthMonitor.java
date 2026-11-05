@@ -1,8 +1,9 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.wpilibj.Timer;
+import frc.lib.catalyst.system.SystemCoreStatus;
+import org.wpilib.networktables.NetworkTable;
+import org.wpilib.networktables.NetworkTableInstance;
+import org.wpilib.system.Timer;
 import frc.lib.catalyst.hardware.CatalystMotor;
 
 import java.util.ArrayList;
@@ -48,6 +49,38 @@ public final class HealthMonitor {
         publishStatic(check);
     }
 
+    // --- Who calls update(), and why it is not the scheduler ---------------------
+    //
+    // Nothing used to, on a large class of robot. update() is the only evaluator of every check,
+    // the only writer of the health topics, the only feeder of HealthHistory and the only caller of
+    // RobotSafety.tick() - and its only callers were the nine updateTelemetry() bodies inside the
+    // mechanism classes. A robot built from SwerveSubsystem, a vision subsystem and the team's own
+    // CatalystSubsystems - which the state machine explicitly invites, since "a team's own subsystem
+    // is exactly as first-class as LinearMechanism" - owns no mechanism, so nothing called it.
+    //
+    // Measured: with a CAN bus taken off-line for five seconds, a mechanism-less robot left the
+    // ERROR check un-fired, HealthHistory empty, the health topics never written at all, and a
+    // configured RobotSafety all-stop never invoked. Adding one flywheel to the same robot, changing
+    // nothing else, brought every one of them back. The dashboard showed a healthy robot with a dead
+    // CAN bus, and the watchdog a team had configured to stop the robot sat there never asked.
+    //
+    // TRIED AND REJECTED: Scheduler.getDefault().addPeriodic(this::update) on first registration.
+    // It is the obvious fix and it is quietly unsafe. addPeriodic delegates to sideload, which
+    // stamps the callback with BindingScope.createNarrowestScope(this) - an opmode-scoped binding
+    // when an opmode is selected - and runPeriodicSideloads removes any callback whose scope has
+    // gone inactive, without running it. So a monitor installed during autonomous stops ticking the
+    // moment the Driver Station switches to teleop, silently, which is the same failure this was
+    // meant to fix and harder to find the second time.
+    //
+    // Driven from CatalystOpMode.periodic()/disabledPeriodic() instead, next to the
+    // SystemCoreStatus.publish() call that was already there. That runs in both robot states, cannot
+    // be reaped by a scope, and needs no registration. update() is throttled and idempotent, so it
+    // composes with the nine mechanism call sites and none of them had to be removed.
+    //
+    // A robot that does not use CatalystOpMode - a bare OpMode, or a test - still has to call
+    // update() itself. That is a real limit and is why this comment names it rather than leaving it
+    // to be rediscovered.
+
     /** Currently-registered checks. Snapshot copy — safe to iterate from callers. */
     public synchronized List<HealthCheck> checks() {
         return List.copyOf(checks);
@@ -62,7 +95,7 @@ public final class HealthMonitor {
      * mechanisms only pays the cost once per scheduler tick.
      */
     public synchronized void update() {
-        double now = Timer.getFPGATimestamp();
+        double now = Timer.getTimestamp();
         if (now - lastUpdateTs < 0.005) return;
         lastUpdateTs = now;
 
@@ -102,6 +135,13 @@ public final class HealthMonitor {
         // Forward to the optional cross-mechanism safety watchdog. Cheap no-op
         // when teams haven't called RobotSafety.configure(...).
         RobotSafety.tick(errorCount, warnCount);
+
+        // The device roster rides on this tick because it is the one Catalyst already drives
+        // whether the robot is enabled or not. Rate-limited inside; this is called at loop rate.
+        frc.lib.catalyst.identity.DeviceRoster.publish(now);
+        // And the motor history, for the same reason: a motor's hours accrue whether or not the
+        // robot is enabled, and this is the tick that always runs. Rate-limited inside too.
+        frc.lib.catalyst.identity.MotorHistory.update(now);
     }
 
     /**
@@ -163,6 +203,85 @@ public final class HealthMonitor {
                 .debounce(0.0)
                 .clearAfter(5.0)
                 .onFire(motor::stop)
+                .register();
+    }
+
+    /**
+     * Register health checks for the Systemcore itself.
+     *
+     * <p>Everything Catalyst monitored before this was about the robot — motor temperature, current,
+     * loop time. The machine underneath was invisible, largely because on a roboRIO there was very
+     * little to see. Systemcore measures and publishes its own CPU, memory, storage and power, which
+     * turns a class of mystery into a reading: a robot that browns out because logs filled the disk,
+     * or misses loop deadlines because something else is pinning a core, now says so in the pit
+     * rather than on the field.
+     *
+     * <p>No-ops off Systemcore. In simulation or a desktop build there is no system server, nothing
+     * is registered and nothing fires — call it unconditionally from robot init.
+     *
+     * <p>Thresholds are deliberately loose. These catch a machine in trouble, they do not grade it:
+     * a Systemcore at 70% RAM is fine, one at 95% is about to have a bad match.
+     */
+    public static void systemCoreChecks() {
+        SystemCoreStatus status = SystemCoreStatus.getInstance();
+        if (!status.isAvailable()) {
+            return;
+        }
+        final String subsystem = "Systemcore";
+
+        HealthCheck.builder(subsystem, "BrownedOut")
+                .severity(HealthCheck.Severity.ERROR)
+                .description("Systemcore reports a brownout")
+                .when(status::isBrownedOut)
+                .detail(() -> String.format("battery %.2f V",
+                        status.batteryVolts().orElse(Double.NaN)))
+                .register();
+
+        HealthCheck.builder(subsystem, "HighCpu")
+                .severity(HealthCheck.Severity.WARN)
+                .description("Systemcore CPU sustained above 90%")
+                .when(() -> status.cpuUtilization().orElse(0) > 90.0)
+                // Debounced: a spike at startup or on a log flush is normal, a sustained pin is not.
+                .debounce(5.0)
+                .detail(() -> String.format("cpu %.0f%%", status.cpuUtilization().orElse(Double.NaN)))
+                .register();
+
+        HealthCheck.builder(subsystem, "LowMemory")
+                .severity(HealthCheck.Severity.WARN)
+                .description("Systemcore RAM above 90% used")
+                .when(() -> status.ramFraction().orElse(0) > 0.90)
+                .debounce(5.0)
+                .detail(() -> String.format("ram %.0f%%",
+                        status.ramFraction().orElse(Double.NaN) * 100))
+                .register();
+
+        // Storage fills up silently and takes the robot with it: a full disk stops logs, then stops
+        // the robot program, and nothing about the failure points back at the disk.
+        HealthCheck.builder(subsystem, "LowStorage")
+                .severity(HealthCheck.Severity.ERROR)
+                .description("Systemcore storage above 90% used")
+                .when(() -> status.storageFraction().orElse(0) > 0.90)
+                .detail(() -> String.format("storage %.0f%%",
+                        status.storageFraction().orElse(Double.NaN) * 100))
+                .register();
+
+        // A team number set on the device that disagrees with the code is an afternoon of
+        // "why won't the Driver Station connect".
+        HealthCheck.builder(subsystem, "TeamNumberMismatch")
+                .severity(HealthCheck.Severity.WARN)
+                .description("Systemcore team number differs from the robot program's")
+                .when(() -> {
+                    var device = status.teamNumber();
+                    if (device.isEmpty()) {
+                        return false;
+                    }
+                    try {
+                        return device.getAsInt() != org.wpilib.system.RobotController.getTeamNumber();
+                    } catch (Throwable ignored) {
+                        return false;
+                    }
+                })
+                .detail(() -> "device reports team " + status.teamNumber().orElse(-1))
                 .register();
     }
 

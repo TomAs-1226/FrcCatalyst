@@ -30,9 +30,25 @@ the live picture. `docs/versions.md` on `main` is the same map written for peopl
 
 | Line | Branch | Runs on | How it installs |
 |---|---|---|---|
-| 1.x, the competition line | `main` | roboRIO, WPILib 2026, Java 17 | JitPack, through the stable vendordep |
-| Historical alpha-6 | `systemcore-alpha6` | Systemcore image 13, WPILib 2027 alpha-6, Java 25 | source only; superseded by the alpha-7 line |
-| 2.0.0-rc.1 | `upgrade/alpha-7` | Systemcore, WPILib 2027 alpha-7, Phoenix 26.70.0-alpha-2, Java 25 | JitPack prerelease; match controller/device firmware |
+| **2.0.0, the 2.x line** | `main` | Systemcore image 14, WPILib 2027 alpha-7, Phoenix 26.70.0-alpha-2, Java 25 | JitPack, through the `/beta/` vendordep |
+| 1.x, the roboRIO line | `1.x` | roboRIO, WPILib 2026, Java 17 (1.12.0) | JitPack, through the stable vendordep |
+| 2.0.0-alpha.5 | `systemcore-alpha6` | Systemcore image 13, WPILib 2027 alpha-6, Phoenix 26.50.0-alpha-1 | historical, **source build only**; folded into `main` |
+| 2.0.0-rc.1 | `upgrade/alpha-7` | the same stack as `main` | frozen at its merge into `main`; nothing new lands on it |
+
+**From 2.0.0 (2026-11-05) `main` is the 2.x line**; the roboRIO line moved to branch `1.x`. 2.0.0 is
+the library's final release, but the platform under it (WPILib 2027 alpha-7, Systemcore OS beta 14,
+Phoenix alpha) is still prerelease, and desktop tests are not on-robot qualification.
+
+**The alpha-7 line can drive a CTRE robot as of 2026-09-18.** Every doc in this repo used to say it
+could not, and that was true for eleven days: there was no Phoenix for WPILib alpha-7. CTRE published
+26.70.0-alpha-2 on 2026-09-18 and this line moved to it. **It requires 26.70.x device firmware** —
+every TalonFX, CANcoder and Pigeon has to be re-flashed, which is why moving a robot between the two
+2.x lines is an afternoon and not a `git checkout`.
+
+`systemcore-alpha6` was merged into `upgrade/alpha-7` on 2026-09-25, so the two 2.x lines were one
+again, and `upgrade/alpha-7` then became `main`. The alpha-6 branch stays readable for a robot that
+is still on image 13, but nothing new lands on it: the fork was maintained by cherry-picking for two
+weeks, which is how the docs tooling ended up on one side and the WPILib upgrade on the other.
 
 - **A version names one build.** Never publish a second build under a version that already exists.
   `devtools release FrcCatalyst <version>` does the bump, the CHANGELOG date, the checks, the commit
@@ -60,9 +76,10 @@ README section "Catalyst 2.x needs two JVM flags".
 Jekyll, with the just-the-docs remote theme. `docs/` is the site root.
 
 - **Publishing.** `.github/workflows/docs.yml` on `main` builds one GitHub Pages deployment: `main`'s
-  `docs/` at the root and `upgrade/alpha-7`'s under `/beta/`. The main workflow assembles both
-  with their own configurations. After a 2.x docs update, verify the Pages deployment rebuilt
-  from the active alpha-7 head.
+  `docs/` at the root, the same docs again under `/beta/` (old links keep working), and the `1.x`
+  branch's `docs/` under `/v1/`. Docs on any other branch, including `systemcore-alpha6` and
+  `upgrade/alpha-7`, are not published until they reach `main` or `1.x`. The workflow file is the
+  authority; read it before changing anything about publishing.
 - **Nav and titles** come from front matter (`title`, `nav_order`, `parent`, `has_children`). Every
   page needs a `title`: CatalystApp bundles all `.md` under `docs/` into its MCP server by it.
 - **Links.** `{% link %}` resolves against `docs/`: `{% link advanced/foo.md %}`, never
@@ -73,14 +90,21 @@ Jekyll, with the just-the-docs remote theme. `docs/` is the site root.
 **Never move or rename these:**
 
 - `docs/vendordep/FrcCatalyst.json`. Every robot project fetches it by URL, and its `jsonUrl` must
-  name its own site: `/beta/` on 2.x branches, the stable path on `main`.
+  name the address that line's robots already use: `/beta/vendordep/` on `main` (2.x), the stable
+  `/vendordep/` path on `1.x`.
 - `docs/tools/<tool>/index.html`. CatalystApp copies these by folder name (`npm run sync-tools`).
 - `docs/_includes/` and `docs/assets/`.
 
-**The published vendordep names a version that can actually be installed.** On `main` that is the
-newest tag JitPack has built. On the alpha-6 line JitPack can build nothing, so it deliberately stays
-at `v2.0.0-alpha.1` — the last tag it could build — and `docs/getting-started/installation.md` says
-which version it really installs. `docs/tools/versions.test.mjs` enforces exactly that rule.
+**Both vendordeps stay at their old addresses.** The 2.x one is served at
+`https://tomas-1226.github.io/FrcCatalyst/beta/vendordep/FrcCatalyst.json` and installs 2.0.0; the
+roboRIO one at `.../FrcCatalyst/vendordep/FrcCatalyst.json` still installs 1.12.0. Moving either
+strands the robots that already point at it, and `docs.yml` checks both after building.
+
+**The published vendordep names a version that can actually be installed**: the newest tag JitPack
+has built. On the alpha-6 line JitPack can build nothing, so it deliberately stayed at
+`v2.0.0-alpha.1` — the last tag it could build. If the vendordep ever lags the library,
+`docs/getting-started/installation.md` has to say which version it really installs, in the form
+`docs/tools/versions.test.mjs` checks; that test enforces the rule.
 
 **Before finishing docs work:** run `node --test "docs/tools/**/*.test.mjs"`, and grep the repo for
 any path you moved.

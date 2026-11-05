@@ -1,7 +1,8 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
+import frc.lib.catalyst.system.SystemCoreStatus;
+import org.wpilib.networktables.NetworkTable;
+import org.wpilib.networktables.NetworkTableInstance;
 
 import java.util.function.DoubleSupplier;
 
@@ -58,6 +59,8 @@ import java.util.function.DoubleSupplier;
 public final class BrownoutMonitor {
 
     private final DoubleSupplier totalCurrent;
+    /** False when no current source was supplied - see {@link #isArmed()}. */
+    private final boolean armed;
     private final double rInternal;
     private final double warnVoltage;
     private final double tripVoltage;
@@ -72,13 +75,14 @@ public final class BrownoutMonitor {
     private boolean tripped = false;
 
     private BrownoutMonitor(Builder b) {
-        this.totalCurrent = b.totalCurrent;
+        this.armed = b.totalCurrent != null;
+        this.totalCurrent = this.armed ? b.totalCurrent : () -> 0;
         this.rInternal = b.rInternal;
         this.warnVoltage = b.warnVoltage;
         this.tripVoltage = b.tripVoltage;
         this.throttlingEnabled = b.throttlingEnabled;
         this.tripsRobotSafety = b.tripsRobotSafety;
-        this.floorVoltage = b.floorVoltage;
+        this.floorVoltage = b.resolveFloorVoltage();
         this.nt = NetworkTableInstance.getDefault()
                 .getTable("Catalyst").getSubTable("Brownout");
     }
@@ -111,6 +115,7 @@ public final class BrownoutMonitor {
             tripped = false;
         }
 
+        nt.getEntry("Armed").setBoolean(armed);
         nt.getEntry("MeasuredVoltage").setDouble(v);
         nt.getEntry("TotalCurrent").setDouble(i);
         nt.getEntry("PredictedVoltage").setDouble(predictedVoltage);
@@ -138,7 +143,19 @@ public final class BrownoutMonitor {
         return predictedVoltage <= warnVoltage;
     }
 
+    /**
+     * Whether a current source was supplied. Without one this monitor can only repeat the present
+     * voltage, so {@code predictedVoltage()} is not a prediction and nothing here will warn before
+     * a sag rather than during it. Published as {@code Power/Brownout/Armed}.
+     */
+    public boolean isArmed() {
+        return armed;
+    }
+
     private double safeCurrent() {
+        if (!armed) {
+            return 0;
+        }
         try {
             double i = totalCurrent.getAsDouble();
             return Double.isFinite(i) && i > 0 ? i : 0;
@@ -151,18 +168,56 @@ public final class BrownoutMonitor {
     //                        BUILDER
     // ============================================================
 
+    /** roboRIO brownout floor, and the fallback when no hardware value is available. */
+    // Package-private so Preflight uses the same number. It had its own 6.75 - two guesses at one
+    // constant, which is how a preflight passes a battery the monitor is already throttling for.
+    static final double LEGACY_FLOOR_VOLTS = 6.8;
+
     public static Builder builder() {
         return new Builder();
     }
 
     public static class Builder {
-        private DoubleSupplier totalCurrent = () -> 0;
+        /**
+         * No default that pretends. Zero was the default, and it makes the whole class inert
+         * without saying so: the prediction is {@code v - I*R}, so with I pinned at zero the
+         * "predicted" voltage is just the present voltage and the look-ahead this class exists for
+         * never happens. Left unset, {@link #build()} now records that and the monitor reports
+         * itself as unarmed rather than quietly agreeing with the voltmeter.
+         */
+        private DoubleSupplier totalCurrent;
         private double rInternal = 0.020;   // ohms, healthy battery
         private double warnVoltage = 7.5;
         private double tripVoltage = 7.0;
         private boolean throttlingEnabled = false;
         private boolean tripsRobotSafety = false;
-        private double floorVoltage = 6.8;  // roboRIO brownout floor
+        /**
+         * Voltage at which output scale reaches zero.
+         *
+         * <p>Left unset it is resolved at build time from the hardware rather than hard-coded:
+         * Systemcore publishes its own brownout threshold, and using the real number beats a
+         * roboRIO-era constant that no longer describes anything. See {@link #floorVoltage(double)}.
+         */
+        private Double floorVoltage = null;
+
+        /**
+         * Work out the brownout floor to use.
+         *
+         * <p>Order: an explicit {@code floorVoltage(...)} call wins; otherwise Systemcore's own
+         * published threshold; otherwise the roboRIO figure of 6.8 V, which at least keeps the old
+         * behaviour on anything that is not a Systemcore.
+         *
+         * <p>The middle case is the point of this. Systemcore's default brownout is 6750 mV with
+         * recovery at 7500 mV, and those are configurable — a monitor predicting against 6.8 V while
+         * the hardware trips at something else is quietly wrong in the direction that matters.
+         */
+        private double resolveFloorVoltage() {
+            if (floorVoltage != null) {
+                return floorVoltage;
+            }
+            var fromHardware = SystemCoreStatus.getInstance().brownoutVolts();
+            return fromHardware.isPresent() ? fromHardware.getAsDouble() : LEGACY_FLOOR_VOLTS;
+        }
 
         /** Total robot current draw (A) — e.g. {@code () -> pdh.getTotalCurrent()}. */
         public Builder totalCurrent(DoubleSupplier totalCurrent) {
@@ -192,7 +247,12 @@ public final class BrownoutMonitor {
             return this;
         }
 
-        /** roboRIO brownout floor — output scale hits 0 here. Default 6.8 V. */
+        /**
+         * Brownout floor — output scale hits 0 here.
+         *
+         * <p>Setting this explicitly overrides the hardware value. Leave it alone on Systemcore and
+         * the real threshold is read from the OS instead.
+         */
         public Builder floorVoltage(double volts) {
             this.floorVoltage = volts;
             return this;

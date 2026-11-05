@@ -1,16 +1,15 @@
 package frc.lib.catalyst.subsystems.vision;
 
-import edu.wpi.first.apriltag.AprilTagFieldLayout;
-import edu.wpi.first.math.Matrix;
-import edu.wpi.first.math.VecBuilder;
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Transform3d;
-import edu.wpi.first.math.numbers.N1;
-import edu.wpi.first.math.numbers.N3;
-import edu.wpi.first.wpilibj.DriverStation;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
-import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import org.wpilib.math.linalg.Matrix;
+import org.wpilib.math.linalg.VecBuilder;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Transform3d;
+import org.wpilib.math.numbers.N1;
+import org.wpilib.math.numbers.N3;
+import org.wpilib.driverstation.DriverStation;
+import org.wpilib.math.kinematics.ChassisVelocities;
+import org.wpilib.system.Timer;
+import org.wpilib.command3.Mechanism;
 import frc.lib.catalyst.identity.RobotIdentity;
 import frc.lib.catalyst.logging.CatalystLog;
 import frc.lib.catalyst.subsystems.swerve.SwerveSubsystem;
@@ -64,11 +63,15 @@ import java.util.Optional;
  *     .build());
  * }</pre>
  */
-public class VisionSubsystem extends SubsystemBase {
+public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem {
 
     private final VisionConfig config;
     private final List<CameraSource> cameras;
-    private final SwerveSubsystem driveSubsystem;
+
+    /** Cross-camera transform check. Inert with fewer than two cameras. */
+    private final CameraAgreement agreement = new CameraAgreement();
+    private final VisionPoseSink poseSink;
+    private final VisionHealth health;
 
     // Telemetry
     private int totalAccepted = 0;
@@ -76,18 +79,51 @@ public class VisionSubsystem extends SubsystemBase {
     private int cycleAccepted = 0;
     private int cycleRejected = 0;
 
+    // Seeding and re-anchoring - see VisionPoseSink's class note.
+    /** A single tag this close is trusted to seed the pose; farther, wait for a better view. */
+    static final double SINGLE_TAG_SEED_RANGE_M = 3.0;
+    /** Rejected estimates must agree with each other this well to count as one disagreement. */
+    private static final double REANCHOR_AGREEMENT_M = 1.0;
+    private boolean seeded;
+    private double disagreementSince = Double.NaN;
+    private Pose2d disagreementPose = null;
+    private int reanchors = 0;
+
     public VisionSubsystem(VisionConfig config) {
         this.config = config;
         this.cameras = config.cameras;
-        this.driveSubsystem = config.driveSubsystem;
+        this.poseSink = config.poseSink;
+        this.health = new VisionHealth(VisionHealth.probesFor(cameras), new VisionHealth.Thresholds(
+                config.cameraHotCelsius, config.cameraMinFps, config.staleFrameSeconds, 0.2));
+        // Without seeding, the pose is anchored whenever the sink says it has one - the old rule.
+        this.seeded = !config.seedFromVision;
+        for (CameraSource c : cameras) {
+            String kind = c instanceof LimelightSource ? "Limelight" : c.getClass().getSimpleName();
+            frc.lib.catalyst.identity.DeviceRoster.registerCamera(c.getName(), kind, c::isConnected);
+        }
+        // Commands v3's Mechanism has no constructor to hook, so periodic() is registered
+        // explicitly. Without this the method compiles and is simply never called - see
+        // CatalystSubsystem#registerPeriodic.
+        registerPeriodic();
 
         // Surface a loud warning if vision is constructed without a drive subsystem.
         // Previously this silently no-op'd in periodic(), which made the issue
         // invisible to teams expecting vision fusion to "just work."
-        if (driveSubsystem == null) {
+        if (poseSink == null) {
             AlertManager.getInstance().warning("Vision",
-                    "VisionSubsystem constructed without driveSubsystem — pose fusion is disabled. "
-                            + "Call VisionConfig.builder().driveSubsystem(...) to enable.");
+                    "VisionSubsystem constructed without a pose sink — pose fusion is disabled. "
+                            + "Call VisionConfig.builder().driveSubsystem(...) or .poseSink(...) to enable.");
+        }
+        // MegaTag2 needs a yaw from somewhere other than itself. Fed from a standalone pose it
+        // gets its own last answer back, which is not a constraint, it is a loop.
+        if (poseSink instanceof StandaloneVisionPose) {
+            for (CameraSource c : cameras) {
+                if (c instanceof LimelightSource ll && ll.isUsingMegaTag2()) {
+                    AlertManager.getInstance().warning("Vision",
+                            ll.getName() + " uses MegaTag2 with a standalone pose sink - there is no "
+                                    + "gyro to constrain it. Construct it with useMegaTag2=false.");
+                }
+            }
         }
 
         // Names only, not this subsystem: RobotIdentity must never have to load a vision class, so a
@@ -110,14 +146,30 @@ public class VisionSubsystem extends SubsystemBase {
 
     @Override
     public void periodic() {
-        if (driveSubsystem == null) return;
+        // No sink means nothing to fuse into, but the cameras are still worth watching: their
+        // health and per-camera telemetry are the whole point of a bench with no drivetrain.
+        boolean fusing = poseSink != null;
+        double now = Timer.getTimestamp();
 
         cycleAccepted = 0;
         cycleRejected = 0;
 
-        Pose2d currentPose = driveSubsystem.getPose();
+        Pose2d currentPose = fusing ? poseSink.getPose() : Pose2d.ZERO;
+        // A sink with no pose yet cannot anchor the gates that compare against it - and neither can
+        // a drivetrain that has a pose but has never been told where it really is.
+        boolean anchored = fusing && poseSink.hasPose() && seeded;
+        boolean seeding = fusing && !seeded;
+        for (CameraSource c : cameras) {
+            if (c instanceof LimelightSource ll) {
+                ll.setSeeding(seeding);
+            }
+        }
+        // The best too-far rejection this cycle: what the cameras would have the pose be.
+        Accepted disagreement = null;
         double yaw = currentPose.getRotation().getDegrees();
-        double yawRate = driveSubsystem.getChassisSpeeds().omegaRadiansPerSecond;
+        // The gyro's turn rate, read once for the loop: MegaTag2 gets it below, and the spin gate uses
+        // the same number for every camera.
+        double yawRate = fusing ? sinkYawRate() : 0.0;
 
         // ---- Phase 1: snapshot every camera once, filter independently ----
         // Snapshotting up front means an async NT update mid-loop can't make
@@ -125,12 +177,24 @@ public class VisionSubsystem extends SubsystemBase {
         // from fusing so 4+ cameras fuse deterministically.
         List<Accepted> accepted = new ArrayList<>(cameras.size());
 
+        // MegaTag2 needs robot yaw. Limelight OS 2027.0 added a shared orientation table that every
+        // camera on that OS reads by default, so one publish serves all of them. Every camera is
+        // ALSO told individually: a Limelight still on the 2026 per-key API reads only its own
+        // robot_orientation_set, and a MegaTag2 camera that never receives a heading does not fail
+        // - it returns a zero solve that lands on the field's centre. Four cameras did exactly that
+        // on the X1 while the shared table was being written every loop. Four extra sets a loop is
+        // nothing next to a wrong pose.
+        LimelightSource.setSharedRobotOrientation(yaw);
+
         for (int i = 0; i < cameras.size(); i++) {
             CameraSource camera = cameras.get(i);
             camera.setRobotOrientation(yaw, Math.toDegrees(yawRate), 0, 0);
 
             Optional<CameraSource.PoseEstimate> estimate = camera.getEstimatedPose();
-            if (estimate.isEmpty()) continue;
+            if (estimate.isEmpty()) {
+                health.observe(i, VisionHealth.Outcome.NONE, null, now);
+                continue;
+            }
 
             CameraSource.PoseEstimate pe = estimate.get();
 
@@ -139,19 +203,101 @@ public class VisionSubsystem extends SubsystemBase {
                 totalRejected++;
                 cycleRejected++;
                 logCamera(camera.getName(), "Rejected: NonFinite", pe);
+                health.observe(i, VisionHealth.Outcome.REJECTED, "NonFinite", now);
                 continue;
             }
 
-            String rejectReason = filterEstimate(pe, currentPose);
+            if (!fusing) {
+                logCamera(camera.getName(), "Seen (no pose sink)", pe);
+                health.observe(i, VisionHealth.Outcome.SEEN, null, now);
+                continue;
+            }
+
+            String rejectReason = filterEstimate(pe, currentPose, yawRate, camera.isPrefiltered(), anchored);
             if (rejectReason != null) {
                 totalRejected++;
                 cycleRejected++;
                 logCamera(camera.getName(), "Rejected: " + rejectReason, pe);
+                health.observe(i, VisionHealth.Outcome.REJECTED, rejectReason, now);
+                if (rejectReason.startsWith("TooFar") && seedWorthy(pe)) {
+                    double q = qualityScore(pe);
+                    if (disagreement == null || q > disagreement.quality()) {
+                        disagreement = new Accepted(i, camera.getName(), pe, null, q);
+                    }
+                }
                 continue;
             }
 
             Matrix<N3, N1> stdDevs = calculateStdDevs(pe);
             accepted.add(new Accepted(i, camera.getName(), pe, stdDevs, qualityScore(pe)));
+            health.observe(i, VisionHealth.Outcome.ACCEPTED, null, now);
+        }
+
+        // ---- Phase 1a: seed, or re-anchor ----
+        // The first estimate good enough to trust replaces the pose outright. Fusing it would only
+        // nudge the origin a little toward the truth, and the distance gate would then reject the
+        // next one against a pose that is still mostly wrong.
+        if (seeding) {
+            Accepted seed = null;
+            for (Accepted a : accepted) {
+                if (seedWorthy(a.pe()) && (seed == null || a.quality() > seed.quality())) {
+                    seed = a;
+                }
+            }
+            if (seed != null) {
+                poseSink.resetPose(seed.pe().pose(), seed.pe().timestampSeconds());
+                seeded = true;
+                accepted.remove(seed);
+                totalAccepted++;
+                cycleAccepted++;
+                currentPose = seed.pe().pose();
+                logCamera(seed.cameraName(), "Seeded", seed.pe());
+                CatalystLog.log("Vision/Seed/Camera", seed.cameraName());
+                CatalystLog.log("Vision/Seed/Pose", Pose2d.struct, seed.pe().pose());
+                CatalystLog.log("Vision/Seed/Tags", (double) seed.pe().tagCount());
+                AlertManager.getInstance().info("Vision", "Odometry seeded from vision");
+            }
+        } else if (anchored && config.reanchorAfterSeconds > 0) {
+            // Every camera that saw tags was rejected for distance, none accepted, and what they
+            // saw has held still relative to itself: the pose is what is wrong.
+            if (!accepted.isEmpty() || disagreement == null) {
+                disagreementSince = Double.NaN;
+                disagreementPose = null;
+            } else if (disagreementPose == null || disagreementPose.getTranslation()
+                    .getDistance(disagreement.pe().pose().getTranslation()) > REANCHOR_AGREEMENT_M) {
+                disagreementSince = now;
+                disagreementPose = disagreement.pe().pose();
+            } else if (now - disagreementSince >= config.reanchorAfterSeconds) {
+                double off = currentPose.getTranslation().getDistance(disagreement.pe().pose().getTranslation());
+                poseSink.resetPose(disagreement.pe().pose(), disagreement.pe().timestampSeconds());
+                reanchors++;
+                disagreementSince = Double.NaN;
+                disagreementPose = null;
+                currentPose = disagreement.pe().pose();
+                logCamera(disagreement.cameraName(), "Re-anchored", disagreement.pe());
+                CatalystLog.log("Vision/Reanchor/Count", (double) reanchors);
+                CatalystLog.log("Vision/Reanchor/Meters", off);
+                CatalystLog.log("Vision/Reanchor/Camera", disagreement.cameraName());
+                CatalystLog.log("Vision/Reanchor/Pose", Pose2d.struct, disagreement.pe().pose());
+                AlertManager.getInstance().warning("Vision",
+                        "Odometry re-anchored to vision - it had drifted; see Vision/Reanchor");
+            }
+        }
+        CatalystLog.log("Vision/Seeded", seeded);
+        CatalystLog.log("Vision/Anchored", anchored);
+
+        // ---- Phase 1b: check the cameras against each other ----
+        // Only possible with more than one camera, which is the point. A robotToCamera transform has
+        // nothing to be checked against on a single-camera robot - LimelightSource says as much and
+        // publishes the numbers for a human instead. Two cameras seeing tags in the same loop are
+        // describing the same robot, so a disagreement that persists is a wrong transform rather
+        // than noise. Advisory: nothing below changes what reaches the estimator.
+        if (accepted.size() >= 2) {
+            agreement.observe(
+                    accepted.stream()
+                            .map(a -> new CameraAgreement.Sighting(a.cameraName(), a.pe().pose()))
+                            .toList(),
+                    currentPose.getRotation());
         }
 
         // ---- Phase 2: fuse in a deterministic order ----
@@ -166,7 +312,7 @@ public class VisionSubsystem extends SubsystemBase {
 
         Accepted best = null;
         for (Accepted a : accepted) {
-            driveSubsystem.addVisionMeasurement(a.pe().pose(), a.pe().timestampSeconds(), a.stdDevs());
+            poseSink.addVisionMeasurement(a.pe().pose(), a.pe().timestampSeconds(), a.stdDevs());
             totalAccepted++;
             cycleAccepted++;
             logCamera(a.cameraName(), "Accepted", a.pe());
@@ -188,6 +334,47 @@ public class VisionSubsystem extends SubsystemBase {
         CatalystLog.log("Vision/CycleAccepted", (double) cycleAccepted);
         CatalystLog.log("Vision/CycleRejected", (double) cycleRejected);
         CatalystLog.log("Vision/CameraCount", (double) cameras.size());
+
+        health.update(now);
+    }
+
+    /** The current health picture, or null before the first loop. */
+    public VisionHealth.Summary health() {
+        return health.summary();
+    }
+
+    /**
+     * Good enough to move the pose to, rather than nudge it: multi-tag PnP, or one tag close
+     * enough that its solution is not ambiguous. A far single tag can put the robot on the wrong
+     * side of it, and a seed in the wrong place is the exact failure seeding exists to prevent.
+     */
+    private boolean seedWorthy(CameraSource.PoseEstimate pe) {
+        if (pe.tagCount() >= 2) {
+            return true;
+        }
+        return pe.tagCount() == 1
+                && pe.averageTagDistance() <= SINGLE_TAG_SEED_RANGE_M
+                && pe.ambiguity() <= config.maxAmbiguity;
+    }
+
+    /** Whether the pose has been seeded from vision (or seeding is off). Gates measure only after. */
+    public boolean isSeeded() {
+        return seeded;
+    }
+
+    /** How many times the pose has been reset because every camera disagreed with it. */
+    public int getReanchorCount() {
+        return reanchors;
+    }
+
+    /**
+     * Forget the seed: the next good estimate replaces the pose outright again. For a "re-localise"
+     * button, or after the pose has been reset to something known to be wrong.
+     */
+    public void reseed() {
+        if (config.seedFromVision) {
+            seeded = false;
+        }
     }
 
     /** Higher = better. More tags and closer tags raise the score. */
@@ -206,42 +393,81 @@ public class VisionSubsystem extends SubsystemBase {
     }
 
     /**
-     * Filter a pose estimate. Returns null if accepted, or a rejection reason string.
+     * How fast the robot is turning, rad/s: the sink's gyro ({@link VisionPoseSink#getYawRateRadPerSec()}),
+     * or the rotation the wheels report when the gyro has no number to give.
      */
-    private String filterEstimate(CameraSource.PoseEstimate pe, Pose2d currentPose) {
-        // Reject if no tags seen
-        if (pe.tagCount() == 0) return "NoTags";
+    private double sinkYawRate() {
+        double gyro = poseSink.getYawRateRadPerSec();
+        return Double.isFinite(gyro) ? gyro : poseSink.getChassisSpeeds().omega;
+    }
 
-        // Reject if ambiguity is too high (single tag only — multi-tag PnP has low ambiguity)
-        if (pe.tagCount() == 1 && pe.ambiguity() > config.maxAmbiguity) {
-            return "HighAmbiguity(" + String.format("%.2f", pe.ambiguity()) + ")";
+    /**
+     * Filter a pose estimate. Returns null if accepted, or a rejection reason string.
+     *
+     * <p>Split by what each side can know. A source that reports
+     * {@link CameraSource#isPrefiltered()} has already applied everything decidable from the image —
+     * tag count, ambiguity, tag distance and area, field bounds — using the raw
+     * detections, which it can do better than this can from a finished pose. Those checks are
+     * skipped for such a source rather than repeated with a second set of thresholds nobody tuned.
+     *
+     * <p>What is never skipped is the half the camera cannot do, because it does not know where the
+     * robot thinks it is or what it is doing: distance from the current fused pose, angular and
+     * translational velocity, heading divergence. Frame time also runs for every source: a valid
+     * camera solve can arrive late after transport or robot-loop delays.
+     *
+     * @param yawRate the gyro's turn rate this loop, rad/s - see {@link #sinkYawRate()}
+     */
+    private String filterEstimate(CameraSource.PoseEstimate pe, Pose2d currentPose, double yawRate,
+                                  boolean prefiltered, boolean anchored) {
+        // Camera-side geometry filtering does not prove the frame is still in our odometry history.
+        // LimelightLib's accepted queue explicitly leaves timestamp validity to the pose estimator.
+        double latency = Timer.getTimestamp() - pe.timestampSeconds();
+        if (!Double.isFinite(latency)) {
+            return "NonFiniteTime";
         }
-
-        // Reject if too far from current Kalman filter estimate (likely outlier)
-        double distFromCurrent = currentPose.getTranslation()
-                .getDistance(pe.pose().getTranslation());
-        if (distFromCurrent > config.maxAcceptableDistance) {
-            return "TooFar(" + String.format("%.1fm", distFromCurrent) + ")";
+        if (latency < 0.0) {
+            return "FutureData";
         }
-
-        // Reject if pose is off the field (configurable bounds with margin)
-        double x = pe.pose().getX();
-        double y = pe.pose().getY();
-        double margin = config.fieldBoundsMargin;
-        if (x < -margin || x > config.fieldLengthMeters + margin
-                || y < -margin || y > config.fieldWidthMeters + margin) {
-            return "OffField";
-        }
-
-        // Reject if timestamp is too old (stale data degrades Kalman filter accuracy)
-        double latency = Timer.getFPGATimestamp() - pe.timestampSeconds();
         if (latency > config.maxLatencySeconds) {
             return "StaleData(" + String.format("%.0fms", latency * 1000) + ")";
         }
+        if (!prefiltered) {
+            // Reject if no tags seen
+            if (pe.tagCount() == 0) return "NoTags";
 
-        // Reject during high angular velocity (motion blur)
+            // Reject if ambiguity is too high (single tag only — multi-tag PnP has low ambiguity)
+            if (pe.tagCount() == 1 && pe.ambiguity() > config.maxAmbiguity) {
+                return "HighAmbiguity(" + String.format("%.2f", pe.ambiguity()) + ")";
+            }
+        }
+
+        // Reject if too far from current Kalman filter estimate (likely outlier). Only once the
+        // sink has a pose: before that the "current" pose is a default nobody is at, and this gate
+        // would reject every real estimate forever.
+        if (anchored) {
+            double distFromCurrent = currentPose.getTranslation()
+                    .getDistance(pe.pose().getTranslation());
+            if (distFromCurrent > config.maxAcceptableDistance) {
+                return "TooFar(" + String.format("%.1fm", distFromCurrent) + ")";
+            }
+        }
+
+        if (!prefiltered) {
+            // Reject if pose is off the field (configurable bounds with margin)
+            double x = pe.pose().getX();
+            double y = pe.pose().getY();
+            double margin = config.fieldBoundsMargin;
+            if (x < -margin || x > config.fieldLengthMeters + margin
+                    || y < -margin || y > config.fieldWidthMeters + margin) {
+                return "OffField";
+            }
+
+        }
+
+        // Reject during high angular velocity (motion blur) - as the gyro sees it: the wheels report a
+        // turn the chassis has not made yet at every onset, and sometimes one it is not making at all.
         if (config.rejectDuringSpinThreshold > 0) {
-            double spinRate = Math.abs(driveSubsystem.getChassisSpeeds().omegaRadiansPerSecond);
+            double spinRate = Math.abs(yawRate);
             if (spinRate > config.rejectDuringSpinThreshold) {
                 return "Spinning(" + String.format("%.1frad/s", spinRate) + ")";
             }
@@ -249,15 +475,15 @@ public class VisionSubsystem extends SubsystemBase {
 
         // Reject during high translational speed (configurable)
         if (config.rejectDuringHighSpeedThreshold > 0) {
-            ChassisSpeeds speeds = driveSubsystem.getChassisSpeeds();
-            double speed = Math.hypot(speeds.vxMetersPerSecond, speeds.vyMetersPerSecond);
+            ChassisVelocities speeds = poseSink.getChassisSpeeds();
+            double speed = Math.hypot(speeds.vx, speeds.vy);
             if (speed > config.rejectDuringHighSpeedThreshold) {
                 return "HighSpeed(" + String.format("%.1fm/s", speed) + ")";
             }
         }
 
         // Reject based on heading consistency (vision heading vs gyro heading)
-        if (config.maxHeadingDivergenceDegrees > 0 && pe.tagCount() == 1) {
+        if (anchored && config.maxHeadingDivergenceDegrees > 0 && pe.tagCount() == 1) {
             double headingDiff = Math.abs(
                     currentPose.getRotation().getDegrees() - pe.pose().getRotation().getDegrees());
             if (headingDiff > 180) headingDiff = 360 - headingDiff;

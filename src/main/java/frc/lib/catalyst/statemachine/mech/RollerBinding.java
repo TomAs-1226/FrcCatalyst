@@ -1,7 +1,8 @@
 package frc.lib.catalyst.statemachine.mech;
 
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Subsystem;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Mechanism;
 import frc.lib.catalyst.mechanisms.RollerMechanism;
 import frc.lib.catalyst.statemachine.goals.RollerGoal;
 import frc.lib.catalyst.statemachine.robot.Actuator;
@@ -230,7 +231,7 @@ public final class RollerBinding implements Actuator<RollerGoal> {
 
     /** {@inheritDoc} */
     @Override
-    public Set<Subsystem> requirements() {
+    public Set<Mechanism> requirements() {
         return Set.of(mechanism);
     }
 
@@ -257,7 +258,7 @@ public final class RollerBinding implements Actuator<RollerGoal> {
      * every circumstance.
      */
     @Override
-    public Command pursueCommand(RollerGoal goal) {
+    public CatalystCommand pursueCommand(RollerGoal goal) {
         if (goal instanceof RollerGoal.IntakeUntilPiece) {
             return mechanism.intake();
         }
@@ -300,7 +301,7 @@ public final class RollerBinding implements Actuator<RollerGoal> {
      * is left).
      */
     @Override
-    public Command holdCommand(RollerGoal goal) {
+    public CatalystCommand holdCommand(RollerGoal goal) {
         if (goal instanceof RollerGoal.Eject
                 || goal instanceof RollerGoal.Speed
                 || goal instanceof RollerGoal.FeedVolts

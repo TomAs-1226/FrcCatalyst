@@ -1,7 +1,7 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableInstance;
+import org.wpilib.networktables.NetworkTable;
+import org.wpilib.networktables.NetworkTableInstance;
 
 /**
  * Live, operator-adjustable aim bias for a turreted shooter — the knobs

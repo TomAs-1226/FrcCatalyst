@@ -1,7 +1,7 @@
 package frc.lib.catalyst.physics.observation;
 
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Translation2d;
 
 /**
  * A measured direction from the robot to a known point on the field — the yaw a camera reports to a

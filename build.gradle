@@ -4,86 +4,355 @@ plugins {
 }
 
 group = 'com.frccatalyst'
-version = '1.12.0'
+version = '2.0.0'
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
     withSourcesJar()
     withJavadocJar()
 }
 
+// ---------------------------------------------------------------------------
+// WPILib 2027 / Systemcore
+//
+// 2027 is not a version bump. The package root moved from `edu.wpi.first` to `org.wpilib`, the
+// hardware classes were reorganised into `org.wpilib.hardware.*`, and commands v2 was replaced by
+// commands v3 (coroutines on JDK continuations, which is why Java 25 above is a hard requirement
+// and not a preference).
+//
+// PINNED TO WPILIB 2027.0.0-alpha-7, PAIRED WITH SYSTEMCORE OS BETA 14.
+//
+// The pairing is declared upstream rather than inferred: the OS release is titled
+// "(REQUIRES WPILIB ALPHA 7)" - limelightosr-2027.0.0-beta14-210, published 2026-09-02, one day
+// after alpha-7 itself. They move together. A robot flashed to beta 13 will not run a build made
+// against alpha-7, and the failure is not graceful: on the alpha-6/beta-13 mismatch the program
+// aborted before any robot code ran, with "MRC API version mismatch", and systemd restarted it 22
+// times in two minutes. Check the OS image before blaming the code.
+//
+// What alpha-7 settled, all of which the alpha-6 pin had to work around:
+//
+//   * It is on a PUBLIC maven. Every coordinate here resolves from frcmaven/release - verified,
+//     not assumed. Alpha-6's release was on no public maven at all, so JitPack could not build
+//     this library and a tag cut from that branch could only be built from source on a machine
+//     with the installer. That is over: tags are installable through the published vendordep again.
+//   * org.wpilib.telemetry and .tunables exist in a release for the first time, so WpiTelemetrySink,
+//     TelemetryUtil, MechanismVisualizer and DriverBoard are back in the source set below instead
+//     of excluded from it.
+//   * Commands v3's Mechanism is an INTERFACE again. It was an interface in the development
+//     snapshot, a class in released alpha-6, and is an interface once more here. CatalystSubsystem
+//     follows whatever the released build says, because that is what the paired OS runs.
+//   * The commands artifact is `commandsv3-java`. Alpha-6's release called it `commands3-java`.
+//
+// Two traps worth keeping, because both cost real time and neither announces itself:
+//
+//   The Java package is `org.wpilib.tunable`, SINGULAR. Only the maven group id is plural
+//   (`org.wpilib.tunables:tunables-java`). The obvious import does not resolve.
+//
+//   2027's poms are flat - they declare no transitive dependencies whatsoever. Anything a WPILib
+//   jar needs at runtime has to be named here explicitly or it is simply absent on a robot. See
+//   the quickbuf and avaje-jsonb entries below; both were found as a NoClassDefFoundError rather
+//   than as a build failure, which is the expensive way round.
+// ---------------------------------------------------------------------------
 ext {
-    wpilibVersion = '2026.2.1'
-    phoenixVersion = '26.1.1'
-    photonVersion = 'v2026.3.1'
+    wpilibVersion = '2027.0.0-alpha-7'
+    // 26.70.0-alpha-2 (2026-09-18) is the first Phoenix built for WPILib 2027 alpha-7. CTRE's
+    // changelog: "compatible with WPILib 2027 alpha 7 on the Systemcore on the Alpha/Beta 14 image
+    // and does not support the roboRIO. This release requires 26.70.x device firmware."
+    //
+    // That last sentence is the one that costs time: the devices have to be re-flashed to 26.70.x,
+    // so moving a robot to this line is not a git operation. A pom cannot tell you any of this -
+    // Phoenix's poms declare no dependencies at all - only the changelog can.
+    phoenixVersion = '26.70.0-alpha-2'
+    pathplannerVersion = '2027.0.0-alpha-4.1'
+    limelightVersion = '2.0.0-beta9-alpha7'
 }
 
 repositories {
     mavenLocal()
     mavenCentral()
 
-    // Local WPILib installation (only used when available, e.g. developer machines)
+    // Local WPILib installation (only used when available, e.g. developer machines).
+    // The 2027 installer lands in a folder named for the alpha it was cut from, not the alpha it
+    // contains - alpha-6 installs to `2027_alpha5`. Probe the known names rather than guessing one.
     String userHome = System.getProperty('user.home')
     String publicFolder = System.getenv('PUBLIC') ?: 'C:\\Users\\Public'
-    [new File(publicFolder, 'wpilib/2026/maven'),
-     new File(userHome, 'wpilib/2026/maven')].each { dir ->
-        if (dir.exists()) {
-            maven {
-                name 'frcHome'
-                url dir
+    ['wpilib/2027_alpha7/maven', 'wpilib/2027/maven', 'wpilib/2027_alpha5/maven', 'wpilib/2027_alpha1/maven'].each { rel ->
+        [new File(publicFolder, rel), new File(userHome, rel)].each { dir ->
+            if (dir.exists()) {
+                maven {
+                    name 'frcHome'
+                    url dir
+                }
             }
         }
     }
 
-    // WPILib remote
+    // WPILib remote. 2027 alphas are published to `development`, not `release`.
+    maven { url "https://frcmaven.wpi.edu/artifactory/development/" }
     maven { url "https://frcmaven.wpi.edu/artifactory/release/" }
 
     // CTRE Phoenix 6
     maven { url "https://maven.ctr-electronics.com/release/" }
 
-    // PhotonVision
-    maven { url "https://maven.photonvision.org/repository/internal/" }
-    maven { url "https://maven.photonvision.org/repository/snapshots/" }
-
     // PathPlanner
     maven { url "https://3015rangerrobotics.github.io/pathplannerlib/repo" }
+
+    // LimelightLib 2
+    maven { url "https://limelightvision.github.io/limelightlib-public/maven/" }
 }
 
+// Source that cannot compile here.
+//
+// One file, for one reason: PhotonVision has no 2027 vendordep at all, so PhotonSource cannot
+// build. It is excluded rather than deleted, so it returns unchanged if PhotonVision ships one.
+// Catalyst is Limelight-first regardless - that pipeline is built into Systemcore.
+//
+// This list used to be five files long. WpiTelemetrySink, TelemetryUtil, MechanismVisualizer and
+// DriverBoard were all excluded on alpha-6 because org.wpilib.telemetry and DriverStationDisplay
+// existed only in a development snapshot. Alpha-7 ships both, so all four compile and are back in.
 dependencies {
     // WPILib core
-    api "edu.wpi.first.wpilibj:wpilibj-java:${wpilibVersion}"
-    api "edu.wpi.first.wpiutil:wpiutil-java:${wpilibVersion}"
-    api "edu.wpi.first.wpimath:wpimath-java:${wpilibVersion}"
-    api "edu.wpi.first.ntcore:ntcore-java:${wpilibVersion}"
-    api "edu.wpi.first.cscore:cscore-java:${wpilibVersion}"
-    api "edu.wpi.first.hal:hal-java:${wpilibVersion}"
-    api "edu.wpi.first.wpilibNewCommands:wpilibNewCommands-java:${wpilibVersion}"
-    api "edu.wpi.first.wpiunits:wpiunits-java:${wpilibVersion}"
-    api "edu.wpi.first.apriltag:apriltag-java:${wpilibVersion}"
+    // WPILib 2027. Every coordinate below was verified resolvable against
+    // frcmaven .../artifactory/development before being written here.
+    //
+    // The 2027 poms are flat - they declare no transitive dependencies - so each jar that used to
+    // arrive for free has to be named. wpinet, datalog and fields are new entries for that reason,
+    // not new functionality.
+    api "org.wpilib.wpilibj:wpilibj-java:${wpilibVersion}"
+    api "org.wpilib.wpiutil:wpiutil-java:${wpilibVersion}"
+    api "org.wpilib.wpimath:wpimath-java:${wpilibVersion}"
+    api "org.wpilib.wpiunits:wpiunits-java:${wpilibVersion}"
+    api "org.wpilib.ntcore:ntcore-java:${wpilibVersion}"
+    api "org.wpilib.wpinet:wpinet-java:${wpilibVersion}"
+    api "org.wpilib.cscore:cscore-java:${wpilibVersion}"
+
+    // CameraServerShared lives in cameraserver in the release, not cscore. wpilibj's static
+    // initialisers reach for it, so without this every test that touches the HAL dies with
+    // NoClassDefFoundError naming a vision class no Catalyst code mentions.
+    api "org.wpilib.cameraserver:cameraserver-java:${wpilibVersion}"
+    api "org.wpilib.hal:hal-java:${wpilibVersion}"
+    api "org.wpilib.apriltag:apriltag-java:${wpilibVersion}"
+    api "org.wpilib.datalog:datalog-java:${wpilibVersion}"
+    // New in the alpha-7 release. On alpha-6 these existed only in the development snapshot, which
+    // is why five classes were excluded from the source set below; they come back with these.
+    api "org.wpilib.telemetry:telemetry-java:${wpilibVersion}"
+    api "org.wpilib.tunables:tunables-java:${wpilibVersion}"
+
+    // New in 2027. `telemetry` is what replaced SmartDashboard and is where Catalyst's logging
+    // now lands (see WpiTelemetrySink); `tunables` is what replaced SendableChooser and backs
+    // AutoSelector. Both are the same facade-over-swappable-backend shape Catalyst already used,
+    // which is why adopting them changed no Catalyst signatures.
+
+    // Commands v3 replaces wpilibNewCommands. Catalyst's own command-facing API is unchanged for
+    // teams - Superstructure, the mechanism builders and the binding DSL keep their signatures.
+    // v3 is an implementation detail below that line.
+    api "org.wpilib:commandsv3-java:${wpilibVersion}"
+
+    // Commands v2, present only so PathPlanner works.
+    //
+    // PathPlannerLib 2027.0.0-alpha-4.1 is still compiled against org.wpilib.command2 - AutoBuilder
+    // hands back v2 commands. Catalyst is v3 throughout, so without this the whole PathPlanner
+    // integration is unbuildable. See frc.lib.catalyst.command.LegacyCommands for the bridge that
+    // makes a v2 command runnable on the v3 scheduler. Drop both when PathPlanner ships for v3.
+    api "org.wpilib.commandsv2:commandsv2-java:${wpilibVersion}"
 
     // CTRE Phoenix 6
     api "com.ctre.phoenix6:wpiapi-java:${phoenixVersion}"
 
-    // PhotonVision
-    api "org.photonvision:photonlib-java:${photonVersion}"
-    api "org.photonvision:photontargeting-java:${photonVersion}"
+    // PathPlanner (commonly used with swerve) - compileOnly, deliberately.
+    //
+    // PathPlanner uses commands v2. Keep the v2 bridge while Catalyst uses v3; without v2 it
+    // resolves but does not link: AutoBuilder.configure() throws NoClassDefFoundError on a v3-only
+    // robot. SwerveSubsystem.configurePathPlanner already catches Throwable for exactly that, and
+    // every PathPlanner entry point degrades loudly rather than crashing.
+    //
+    // As `api` it also leaked into the published pom, which is why every Catalyst robot project has
+    // had to hand-add 3015's maven repository to build.gradle - a dependency no Catalyst robot
+    // actually uses, since Catalyst follows its own paths. compileOnly keeps the integration
+    // compiled and out of every robot's classpath; a team that wants PathPlanner adds its vendordep,
+    // which brings the repository with it.
+    //
+    // testImplementation as well, so the test classpath is unchanged from when this was `api`.
+    compileOnly "com.pathplanner.lib:PathplannerLib-java:${pathplannerVersion}"
+    testImplementation "com.pathplanner.lib:PathplannerLib-java:${pathplannerVersion}"
 
-    // PathPlanner (commonly used with swerve)
-    api "com.pathplanner.lib:PathplannerLib-java:2026.1.2"
+    // LimelightLib 2. Catalyst read Limelight NetworkTables by hand for years specifically to avoid
+    // this dependency, and that stopped being viable in 2027: Limelight OS now publishes results as
+    // a single MessagePack topic and disables the classic per-key API by default. Hand-decoding
+    // MessagePack to avoid a vendordep would be a worse trade than taking the vendordep.
+    api "com.limelightvision:limelightlib-java:${limelightVersion}"
+
+    // PhotonVision is deliberately absent. There is no 2027 vendordep, and Catalyst is moving to
+    // Limelight-first vision because the pipeline is built into Systemcore. PhotonSource is
+    // excluded from the source set in build.gradle rather than deleted, so the file survives if
+    // a 2027 PhotonVision ever ships.
 
     // Tests
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.1'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     // wpimath geometry classes need quickbuf at runtime (protobuf serialization).
-    testRuntimeOnly 'us.hebi.quickbuf:quickbuf-runtime:1.4'
+    //
+    // `runtimeOnly`, not `testRuntimeOnly`, and the difference was a robot that would not run. As a
+    // test-only dependency this sat on the test classpath, so every test passed - while the
+    // published pom mentioned quickbuf nowhere and no consumer got it. A team depending on Catalyst
+    // hit `NoClassDefFoundError: us/hebi/quickbuf/ProtoMessage` from Translation2d's static
+    // initialiser, which is to say immediately, on a class they never asked for.
+    //
+    // 2027's poms are flat - no transitive dependencies - so anything WPILib needs at runtime has to
+    // be declared here or it does not exist. Found by running the example rather than by testing it.
+    runtimeOnly 'us.hebi.quickbuf:quickbuf-runtime:1.4'
+
+    // The same trap as quickbuf, found the same way and one alpha later. org.wpilib.tunables reads
+    // and writes its option lists as JSON through avaje-jsonb, and 2027's poms are flat - the
+    // tunables pom declares no dependencies at all - so nothing pulls it in. Without this,
+    // constructing an AutoSelector throws NoClassDefFoundError: io/avaje/json/JsonException from
+    // Selectable's constructor, on a robot, at startup.
+    //
+    // runtimeOnly rather than testRuntimeOnly, deliberately: as a test-only dependency every test
+    // here would pass while every consumer of the published jar crashed. That exact mistake is
+    // recorded above for quickbuf; this is it recurring on a new package.
+    runtimeOnly 'io.avaje:avaje-jsonb:3.11'
+    runtimeOnly 'io.avaje:avaje-json-core:3.11'
+
+    // Only the tests name the type. TelemetryBackend's entries declare logProtobuf(T, Protobuf),
+    // so a fake backend has to implement it, and Protobuf's signature reaches into quickbuf. The
+    // library itself never mentions it, which is why this is not a compile dependency.
+    testCompileOnly 'us.hebi.quickbuf:quickbuf-runtime:1.4'
     // SwerveDriveKinematics builds a SimpleMatrix, so wpimath needs EJML at runtime too.
-    testRuntimeOnly 'org.ejml:ejml-simple:0.44.0'
+    // Same story as quickbuf above: wpimath's linear algebra is EJML, 2027's flat poms do not carry
+    // it, and as a test-only dependency it was present for every test and absent for every robot.
+    // Constructing a mechanism threw NoClassDefFoundError on org/ejml/MatrixDimensionException.
+    runtimeOnly 'org.ejml:ejml-simple:0.44.0'
+}
+
+// Keep the source file in the tree but out of the compile, so the branch builds and nothing is
+// lost if PhotonVision ships a 2027 vendordep later.
+sourceSets {
+    main {
+        java {
+            exclude 'frc/lib/catalyst/subsystems/vision/PhotonSource.java'
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Desktop JNI natives for the test JVM
+//
+// Some tests touch the HAL - RobotIdentity's spec sheet reads the team number, for instance. Those
+// calls are guarded, but the guard cannot help: WPILib's RuntimeLoader terminates the JVM when a
+// native is missing rather than throwing, so the whole Gradle test worker dies with "wpiHaljni
+// could not be loaded from path" and no test results at all.
+//
+// GradleRIO normally handles this. This is a plain java-library, and 2027's poms are flat, so the
+// natives have to be fetched and unpacked by hand. They are published per-platform as zips.
+// ---------------------------------------------------------------------------
+configurations {
+    nativeDesktop
+}
+
+// Which desktop natives to unpack. Hardcoding Windows meant the test task only ever worked on one
+// machine: CI runs on Linux, unpacked a directory of DLLs, and failed loading the HAL with an error
+// about a missing library rather than about the wrong platform.
+def desktopClassifier = {
+    String os = System.getProperty('os.name').toLowerCase()
+    String arch = System.getProperty('os.arch').toLowerCase()
+    boolean arm = arch.contains('aarch64') || arch.contains('arm64')
+    if (os.contains('win')) {
+        return arm ? 'windowsarm64' : 'windowsx86-64'
+    }
+    if (os.contains('mac') || os.contains('darwin')) {
+        return 'osxuniversal'
+    }
+    return arm ? 'linuxarm64' : 'linuxx86-64'
+}()
+
+dependencies {
+    nativeDesktop "org.wpilib.hal:hal-cpp:${wpilibVersion}:${desktopClassifier}@zip"
+    nativeDesktop "org.wpilib.wpiutil:wpiutil-cpp:${wpilibVersion}:${desktopClassifier}@zip"
+    nativeDesktop "org.wpilib.wpimath:wpimath-cpp:${wpilibVersion}:${desktopClassifier}@zip"
+    nativeDesktop "org.wpilib.ntcore:ntcore-cpp:${wpilibVersion}:${desktopClassifier}@zip"
+    nativeDesktop "org.wpilib.wpinet:wpinet-cpp:${wpilibVersion}:${desktopClassifier}@zip"
+
+    // 2027 split these out of wpiutil/ntcore into their own libraries. wpimath.dll links against
+    // telemetry and tunables, and ntcore against datalog, so leaving them out makes every JNI load
+    // fail with "Can't find dependent libraries" - which names the library that failed, never the
+    // one actually missing.
+    nativeDesktop "org.wpilib.datalog:datalog-cpp:${wpilibVersion}:${desktopClassifier}@zip"
+
+    // Phoenix's desktop simulation natives.
+    //
+    // Without these, constructing any Catalyst mechanism *terminates the JVM*. Phoenix's loader
+    // behaves like WPILib's: a missing native is a process exit, not an exception, so a test that
+    // merely builds a FlywheelMechanism takes the Gradle worker down and loses every other result.
+    // That is why the mechanism classes had no tests - not because they were untestable, but
+    // because nobody had unpacked these.
+    //
+    // api-cpp-sim and tools-sim are the runtime; the simPro* libraries are the device models that
+    // make a TalonFX or a Pigeon respond to being commanded.
+    nativeDesktop "com.ctre.phoenix6.sim:api-cpp-sim:${phoenixVersion}:${desktopClassifier}@zip"
+    nativeDesktop "com.ctre.phoenix6.sim:tools-sim:${phoenixVersion}:${desktopClassifier}@zip"
+    nativeDesktop "com.ctre.phoenix6.sim:simProTalonFX:${phoenixVersion}:${desktopClassifier}@zip"
+    nativeDesktop "com.ctre.phoenix6.sim:simProTalonFXS:${phoenixVersion}:${desktopClassifier}@zip"
+    nativeDesktop "com.ctre.phoenix6.sim:simProCANcoder:${phoenixVersion}:${desktopClassifier}@zip"
+    nativeDesktop "com.ctre.phoenix6.sim:simProPigeon2:${phoenixVersion}:${desktopClassifier}@zip"
+    nativeDesktop "com.ctre.phoenix6.sim:simProCANdi:${phoenixVersion}:${desktopClassifier}@zip"
+    nativeDesktop "com.ctre.phoenix6.sim:simProCANdle:${phoenixVersion}:${desktopClassifier}@zip"
+    nativeDesktop "com.ctre.phoenix6.sim:simProCANrange:${phoenixVersion}:${desktopClassifier}@zip"
+    // CTRE_PhoenixTools_Sim links against these three by name even on a robot with none of them, so
+    // leaving them out makes the whole Phoenix sim stack fail to load - and Phoenix answers a failed
+    // load with System.exit(1), which is why a missing legacy device model killed the JVM.
+    nativeDesktop "com.ctre.phoenix6.sim:simTalonSRX:${phoenixVersion}:${desktopClassifier}@zip"
+    nativeDesktop "com.ctre.phoenix6.sim:simVictorSPX:${phoenixVersion}:${desktopClassifier}@zip"
+    nativeDesktop "com.ctre.phoenix6.sim:simPigeonIMU:${phoenixVersion}:${desktopClassifier}@zip"
+}
+
+def nativeLibsDir = layout.buildDirectory.dir('nativeLibs')
+
+tasks.register('extractNativeLibs', Copy) {
+    description = 'Unpacks the desktop JNI natives the test JVM needs.'
+    from { configurations.nativeDesktop.collect { zipTree(it) } }
+    into nativeLibsDir
+    include '**/*.dll', '**/*.so', '**/*.dylib'
+    eachFile { it.path = it.name }   // flatten; java.library.path wants one directory
+    includeEmptyDirs = false
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
 test {
     useJUnitPlatform()
+
+    // HAL/Phoenix and Commands v3 own process-global native state. RobotBootIntegrationTest
+    // shuts HAL down after creating Phoenix devices; restarting HAL in that same JVM left later
+    // configuration reads intermittently stale in the full suite, while fresh-JVM diagnostics
+    // passed. Give every class its own native lifecycle, as the Numbers integration suite does.
+    // This is isolation, not a retry: every original assertion still runs once and can fail CI.
+    forkEvery = 1
+    maxParallelForks = 1
+
+    // Commands v3 is built on JDK continuations, which live in jdk.internal.vm and are reached by
+    // reflection. Without this the Scheduler class fails to initialise - not at first use, but on
+    // static init, so the failure surfaces as ExceptionInInitializerError somewhere unrelated.
+    // The robot JVM needs the same flag; see docs/advanced/systemcore.md.
+    jvmArgs '--add-opens', 'java.base/jdk.internal.vm=ALL-UNNAMED',
+            '--add-opens', 'java.base/java.lang=ALL-UNNAMED'
     testLogging { showStandardStreams = true }
+
+    dependsOn tasks.named('extractNativeLibs')
+
+    def libs = nativeLibsDir.get().asFile.absolutePath
+    systemProperty 'java.library.path', libs
+
+    // java.library.path gets the JNI stubs loaded, but each stub links against its own
+    // implementation library (wpiHaljni -> wpiHal) and Windows resolves *those* off PATH, not
+    // java.library.path. Without this the load fails with the unhelpful "Can't find dependent
+    // libraries" even though every DLL is sitting in the same directory.
+    // Windows names the variable "Path", not "PATH". Setting "PATH" alongside it just adds a second
+    // entry the loader ignores, so find whatever key the environment actually uses and extend that.
+    def pathKey = System.getenv().keySet().find { it.equalsIgnoreCase('PATH') } ?: 'PATH'
+    environment pathKey, libs + File.pathSeparator + (System.getenv(pathKey) ?: '')
+    environment 'LD_LIBRARY_PATH', libs + File.pathSeparator + (System.getenv('LD_LIBRARY_PATH') ?: '')
+    environment 'DYLD_LIBRARY_PATH', libs + File.pathSeparator + (System.getenv('DYLD_LIBRARY_PATH') ?: '')
 }
 
 publishing {
@@ -185,4 +454,9 @@ tasks.withType(Javadoc) {
     options.addStringOption('Xdoclint:none', '-quiet')
     options.addStringOption('encoding', 'UTF-8')
     options.addStringOption('charSet', 'UTF-8')
+}
+
+// Temporary: surface every error, not just the first hundred, during the 2027 migration.
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs.addAll(['-Xmaxerrs', '2000'])
 }

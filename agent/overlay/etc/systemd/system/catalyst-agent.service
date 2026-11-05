@@ -1,0 +1,40 @@
+[Unit]
+Description=Catalyst Agent - read-only system telemetry for Catalyst Console
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/catalyst-agent/catalyst_agent.py
+Restart=always
+RestartSec=5
+TimeoutStartSec=3
+TimeoutStopSec=3
+
+# A diagnostic tool must never be the thing that costs a match. The robot program runs at real-time
+# priority under PREEMPT_RT; this is explicitly the opposite, so a poll from the pit cannot take
+# cycles from the control loop no matter how many people are refreshing the page.
+Nice=10
+CPUSchedulingPolicy=idle
+IOSchedulingClass=idle
+
+# It reads /proc, /sys and the journal, and writes nothing anywhere. Locked down to match, but only
+# with directives that do not need mount namespacing.
+#
+# ProtectSystem=strict, ProtectHome and PrivateTmp were here and had to go. All three set up a mount
+# namespace, and on an embedded systemd built without that support the unit does not start at all -
+# it fails with "Failed to set up mount namespacing", the service never comes up, and the package
+# manager's post-install port probe then reports the board as unreachable. A hardening directive
+# that stops the service existing is worse than not having it.
+#
+# ProtectSystem=full is the widely supported form and still makes /usr and /etc read-only to this
+# unit, which is the property that mattered: a bug here cannot damage a robot mid-competition.
+ProtectSystem=full
+NoNewPrivileges=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

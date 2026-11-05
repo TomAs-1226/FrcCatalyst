@@ -1,11 +1,11 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.interpolation.InterpolatingDoubleTreeMap;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
-import edu.wpi.first.math.util.Units;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.interpolation.InterpolatingDoubleTreeMap;
+import org.wpilib.math.kinematics.ChassisVelocities;
+import org.wpilib.math.util.Units;
 
 /**
  * Hardware-independent aiming math for a turreted shooter, including Shoot-On-The-Fly (SOTF) motion
@@ -66,8 +66,14 @@ public class AimingSolverVector {
      * @param robotPose           current field-relative pose of the robot
      * @param fieldRelativeSpeeds current field-relative velocity of the robot chassis
      * @return the required hood pitch, yaw (field-relative bearing), and flywheel RPS
+     * @implNote At zero range — the robot standing exactly on the target — there is no bearing to
+     *           the goal and the RPS/hood lookups are extrapolated off the end of their tables, so
+     *           the whole solve is degenerate and the returned yaw falls back to field zero.
+     *           {@link TargetState} has no feasibility flag to report this with, so gate the call on
+     *           distance yourself, the way {@link AimingSolver} does with its minimum feasible
+     *           distance, rather than trusting the result at point-blank range.
      */
-    public TargetState calculate(Pose2d robotPose, ChassisSpeeds fieldRelativeSpeeds) {
+    public TargetState calculate(Pose2d robotPose, ChassisVelocities fieldRelativeSpeeds) {
         Translation2d robotTranslation = robotPose.getTranslation();
         double distanceMeters = robotTranslation.getDistance(targetPosition);
 
@@ -78,14 +84,18 @@ public class AimingSolverVector {
         double staticSpeedMps = staticRps * wheelCircumference * efficiency;
 
         double theta = (Math.PI / 2.0) - staticHoodPitch.getRadians();
-        double phi = targetPosition.minus(robotTranslation).getAngle().getRadians();
+        // Zero range leaves phi undefined; field zero keeps the arithmetic below finite and matches
+        // what atan2(0, 0) fed this line before. The caller has to catch this case (see @implNote) —
+        // at that range the RPS and hood lookups are just as meaningless as the bearing.
+        double phi = targetPosition.minus(robotTranslation).getAngle()
+                .orElse(Rotation2d.ZERO).getRadians();
 
         double vx = staticSpeedMps * Math.sin(theta) * Math.cos(phi);
         double vy = staticSpeedMps * Math.sin(theta) * Math.sin(phi);
         double vz = staticSpeedMps * Math.cos(theta);
 
-        double reqVx = vx - fieldRelativeSpeeds.vxMetersPerSecond;
-        double reqVy = vy - fieldRelativeSpeeds.vyMetersPerSecond;
+        double reqVx = vx - fieldRelativeSpeeds.vx;
+        double reqVy = vy - fieldRelativeSpeeds.vy;
         double reqVz = vz;
 
         double reqPhi = Math.atan2(reqVy, reqVx);

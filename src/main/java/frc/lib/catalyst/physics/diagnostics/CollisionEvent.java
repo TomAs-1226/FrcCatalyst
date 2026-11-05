@@ -2,7 +2,7 @@ package frc.lib.catalyst.physics.diagnostics;
 
 import java.util.Locale;
 
-import edu.wpi.first.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Rotation2d;
 
 /**
  * A recorded impact: when it happened, how hard, and from which direction.

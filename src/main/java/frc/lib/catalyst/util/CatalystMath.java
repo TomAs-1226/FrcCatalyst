@@ -1,9 +1,9 @@
 package frc.lib.catalyst.util;
 
-import edu.wpi.first.math.MathUtil;
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
+import org.wpilib.math.util.MathUtil;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Translation2d;
 
 /**
  * Math utilities for FRC robot programming.
@@ -151,12 +151,22 @@ public final class CatalystMath {
     }
 
     /**
-     * Mirror a pose across the field centerline (for red/blue alliance symmetry).
-     * Assumes standard FRC field where the field is 16.54m long.
-     * @param pose blue-alliance pose
-     * @param fieldLengthMeters field length (default 16.54 for 2025+)
-     * @return mirrored (red-alliance) pose
+     * Mirror a pose across the field's centre line: x becomes {@code fieldLengthMeters - x}, y stays, and the
+     * heading turns to {@code pi - heading}.
+     *
+     * <p><b>This is not the alliance flip for a modern field.</b> REBUILT, like most fields since 2023, is
+     * rotationally symmetric, not mirrored: the red pose is the blue one turned half a circle about the
+     * field's centre, which also moves y. Use {@link AllianceFlipUtil#flip(Pose2d)}, which knows the field
+     * and its symmetry, for anything alliance-related. This stays for the fields, and the drawings, that
+     * really are mirrored.
+     *
+     * @param pose the pose to mirror
+     * @param fieldLengthMeters the field's length
+     * @return the mirrored pose
+     * @deprecated use {@link AllianceFlipUtil#flip(Pose2d)} for an alliance flip; this mirrors, which is a
+     *     different thing on a rotationally symmetric field.
      */
+    @Deprecated(since = "2.0.0-alpha.5")
     public static Pose2d mirrorPose(Pose2d pose, double fieldLengthMeters) {
         return new Pose2d(
                 fieldLengthMeters - pose.getX(),
@@ -164,7 +174,13 @@ public final class CatalystMath {
                 new Rotation2d(Math.PI).minus(pose.getRotation()));
     }
 
-    /** Mirror pose for a standard FRC field (16.54m). */
+    /**
+     * Mirror a pose on a 16.54 m field. See {@link #mirrorPose(Pose2d, double)}: this mirrors, and an
+     * alliance flip on this year's field is {@link AllianceFlipUtil#flip(Pose2d)}.
+     *
+     * @deprecated use {@link AllianceFlipUtil#flip(Pose2d)} for an alliance flip.
+     */
+    @Deprecated(since = "2.0.0-alpha.5")
     public static Pose2d mirrorPose(Pose2d pose) {
         return mirrorPose(pose, 16.54);
     }
@@ -262,11 +278,18 @@ public final class CatalystMath {
     /** Falcon 500 with FOC free speed in RPM. */
     public static final double FALCON_FOC_FREE_SPEED_RPM = 6080;
 
-    /** Standard FRC field length in meters (2025+). */
-    public static final double FIELD_LENGTH = 16.54;
+    /** The 2026 REBUILT field's length in metres: WPILib's 2026-rebuilt-welded AprilTag layout. */
+    public static final double FIELD_LENGTH = 16.541;
 
-    /** Standard FRC field width in meters. */
-    public static final double FIELD_WIDTH = 8.21;
+    /**
+     * The 2026 REBUILT field's width in metres: WPILib's 2026-rebuilt-welded AprilTag layout.
+     *
+     * <p>This was 8.21 until 2026-09-09 - 2024's width, two seasons out of date, and the value a
+     * team got by reaching for the obvious public constant. It is the more dangerous of the two
+     * because it is only wrong on one alliance: anything mirrored about the field's centre line
+     * landed 14 cm out, consistently, on red only.
+     */
+    public static final double FIELD_WIDTH = 8.069;
 
     /** Gravity acceleration constant in m/s^2. */
     public static final double G = 9.81;

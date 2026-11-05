@@ -63,7 +63,7 @@ private final SimDashboard dash = new SimDashboard();   // port 5805
 public void robotInit() {
     dash.add(elevator)
         // slider that schedules a Command each time it moves
-        .slider("Height (m)", 0.0, 0.6, v -> CommandScheduler.getInstance().schedule(elevator.goTo(v)))
+        .slider("Height (m)", 0.0, 0.6, v -> Scheduler.getDefault().schedule(elevator.goTo(v)))
         .command("Stow", () -> elevator.goTo("DOWN"))   // button that schedules a Command
         .command("Top",  () -> elevator.goTo("UP"));
 
@@ -74,7 +74,7 @@ public void robotInit() {
 
     dash.add(shooter)
         .slider("Target (rps)", 0.0, 90.0, v ->
-            CommandScheduler.getInstance().schedule(shooter.spinUp(v)));
+            Scheduler.getDefault().schedule(shooter.spinUp(v)));
 
     dash.start();
 }
@@ -273,7 +273,7 @@ commanded module states, so you never reach through the raw drivetrain:
 
 ```java
 // In simulationPeriodic(), instead of writing TalonFX sim states by hand:
-SwerveModuleState[] targets = drive.getModuleTargets();   // what Catalyst just commanded
+SwerveModuleVelocity[] targets = drive.getModuleTargets();   // what Catalyst just commanded
 if (targets != null) {
     selfControlledSim.runSwerveStates(targets);           // maple-sim owns the physics
 }

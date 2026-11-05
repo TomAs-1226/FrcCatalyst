@@ -1,7 +1,11 @@
 package frc.lib.catalyst.subsystems.swerve;
 
-import static edu.wpi.first.units.Units.MetersPerSecond;
-import static edu.wpi.first.units.Units.RadiansPerSecond;
+import frc.lib.catalyst.command.LegacyCommands;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.driverstation.MatchState;
+import org.wpilib.driverstation.DriverStationErrors;
+import static org.wpilib.units.Units.MetersPerSecond;
+import static org.wpilib.units.Units.RadiansPerSecond;
 
 import java.util.Set;
 import java.util.function.DoubleSupplier;
@@ -18,22 +22,22 @@ import com.pathplanner.lib.controllers.PPHolonomicDriveController;
 import com.pathplanner.lib.path.PathConstraints;
 import com.pathplanner.lib.path.PathPlannerPath;
 
-import edu.wpi.first.math.MathUtil;
-import edu.wpi.first.math.controller.PIDController;
-import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
-import edu.wpi.first.math.kinematics.SwerveModuleState;
-import edu.wpi.first.wpilibj.DriverStation;
-import edu.wpi.first.wpilibj.DriverStation.Alliance;
-import edu.wpi.first.wpilibj.Notifier;
-import edu.wpi.first.wpilibj.RobotBase;
-import edu.wpi.first.wpilibj.RobotController;
-import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Commands;
-import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import org.wpilib.math.util.MathUtil;
+import org.wpilib.math.controller.PIDController;
+import org.wpilib.math.geometry.Pose2d;
+import org.wpilib.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Translation2d;
+import org.wpilib.math.kinematics.ChassisVelocities;
+import org.wpilib.math.kinematics.SwerveModuleVelocity;
+import org.wpilib.driverstation.DriverStation;
+import org.wpilib.driverstation.Alliance;
+import org.wpilib.system.Notifier;
+import org.wpilib.framework.RobotBase;
+import org.wpilib.system.RobotController;
+import org.wpilib.system.Timer;
+import org.wpilib.command3.Command;
+import frc.lib.catalyst.command.Commands;
+import org.wpilib.command3.Mechanism;
 import frc.lib.catalyst.identity.RobotIdentity;
 import frc.lib.catalyst.logging.CatalystLog;
 import frc.lib.catalyst.physics.RobotStateSource;
@@ -70,7 +74,17 @@ import frc.lib.catalyst.util.SlewRateLimiter;
  * can take the interface and work equally well with a plain drivetrain or with
  * {@code PhysicsCore}.
  */
-public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
+public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
+        implements RobotStateSource, frc.lib.catalyst.subsystems.vision.VisionPoseSink {
+
+    /**
+     * The robot loop period, used by skew correction.
+     *
+     * <p>Matches WPILib's default. A robot on a different period should pass its own; getting this
+     * wrong scales the correction rather than breaking it, so it fails quietly.
+     */
+    private static final double LOOP_PERIOD_SECONDS = 0.02;
+
 
     private final SwerveDrivetrain drivetrain;
     private final double maxSpeedMPS;
@@ -106,14 +120,22 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
     private final SwerveRequest.FieldCentric fieldCentricRequest = new SwerveRequest.FieldCentric()
             .withDriveRequestType(DriveRequestType.OpenLoopVoltage)
             .withForwardPerspective(SwerveRequest.ForwardPerspectiveValue.OperatorPerspective);
+    // A velocity that is already on the field - a pose controller's output, an assist's - must not
+    // be turned for the operator. driveToPose and driveToPiece computed theirs from the field pose
+    // error and sent it through the operator-perspective request above, which Phoenix rotates half a
+    // turn on Red: the correction pointed away from the target and the loop ran away at its clamp.
+    // In simulation on Red, a 1 m move ended 3.9 m the wrong side of its start, at the timeout.
+    private final SwerveRequest.FieldCentric fieldAbsoluteRequest = new SwerveRequest.FieldCentric()
+            .withDriveRequestType(DriveRequestType.OpenLoopVoltage)
+            .withForwardPerspective(SwerveRequest.ForwardPerspectiveValue.BlueAlliance);
     private final SwerveRequest.RobotCentric robotCentricRequest = new SwerveRequest.RobotCentric()
             .withDriveRequestType(DriveRequestType.OpenLoopVoltage);
     private final SwerveRequest.SwerveDriveBrake brakeRequest = new SwerveRequest.SwerveDriveBrake();
     private final SwerveRequest.Idle idleRequest = new SwerveRequest.Idle();
     // Closed-loop request for path following: velocity control + wheel force
     // feedforwards from PathPlanner (both are dropped by the open-loop teleop path).
-    private final SwerveRequest.ApplyRobotSpeeds pathApplyRequest =
-            new SwerveRequest.ApplyRobotSpeeds().withDriveRequestType(DriveRequestType.Velocity);
+    private final SwerveRequest.ApplyRobotVelocity pathApplyRequest =
+            new SwerveRequest.ApplyRobotVelocity().withDriveRequestType(DriveRequestType.Velocity);
 
     // Simulation: a high-rate thread that actually advances the Phoenix sim so the
     // drivetrain moves in the simulator (without it, status signals stay stale).
@@ -139,6 +161,11 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
                            PathPlannerConfig pathPlannerConfig) {
         this.drivetrain = drivetrain;
         this.maxSpeedMPS = maxSpeedMPS;
+        raiseYawRateSignal();
+        // Commands v3's Mechanism has no constructor to hook, so periodic() is registered
+        // explicitly. Without this the method compiles and is simply never called - see
+        // CatalystSubsystem#registerPeriodic.
+        registerPeriodic();
         final double RadiusRobot = drivetrain.getModuleLocations()[0].getNorm();
         this.maxAngularRate = maxSpeedMPS / RadiusRobot;
 
@@ -194,7 +221,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
                     // Closed-loop velocity control, forwarding PathPlanner's wheel
                     // force feedforwards (both dropped by the open-loop teleop path).
                     (speeds, feedforwards) -> drivetrain.setControl(
-                            pathApplyRequest.withSpeeds(speeds)
+                            pathApplyRequest.withVelocity(speeds)
                                     .withWheelForceFeedforwardsX(feedforwards.robotRelativeForcesXNewtons())
                                     .withWheelForceFeedforwardsY(feedforwards.robotRelativeForcesYNewtons())),
                     new PPHolonomicDriveController(
@@ -202,15 +229,24 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
                             new PIDConstants(config.rotationKP, config.rotationKI, config.rotationKD)),
                     RobotConfig.fromGUISettings(),
                     () -> {
-                        var alliance = DriverStation.getAlliance();
-                        return alliance.isPresent() && alliance.get() == DriverStation.Alliance.Red;
-                    },
-                    this);
-        } catch (Exception e) {
-            // Loud + persistent: AutoBuilder is left unconfigured, so autos won't
+                        var alliance = MatchState.getAlliance();
+                        return alliance.isPresent() && alliance.get() == Alliance.RED;
+                    });
+        } catch (Throwable e) {
+            // Throwable, not Exception, and that is the whole fix: PathPlannerLib is built against
+            // commands v2, so on a v3-only robot AutoBuilder.configure() dies with a
+            // NoClassDefFoundError for org.wpilib.command2.Subsystem - an Error, which the old
+            // catch let straight through. The robot program crash-looped at boot with no line of
+            // team code in the trace. Found on a Systemcore with a real swerve config.
+            //
+            // Loud + persistent either way: AutoBuilder is left unconfigured, so autos won't
             // path. A quiet reportError is too easy to miss until a match.
-            String msg = "PathPlanner failed to configure (autos will not path): " + e.getMessage();
-            DriverStation.reportError(msg, e.getStackTrace());
+            String why = e instanceof NoClassDefFoundError
+                    ? "PathPlannerLib needs the WPILibNewCommands (commands v2) vendordep on the "
+                            + "robot - add vendordeps/WPILibNewCommands.json (" + e.getMessage() + ")"
+                    : String.valueOf(e.getMessage());
+            String msg = "PathPlanner failed to configure (autos will not path): " + why;
+            DriverStationErrors.reportError(msg, e.getStackTrace());
             AlertManager.getInstance().error("Swerve", msg);
         }
     }
@@ -223,6 +259,65 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
 
     public void resetPose(Pose2d pose) {
         drivetrain.resetPose(pose);
+        // A held heading is a number in the old frame. Kept across a reset it is a target the robot
+        // is suddenly far from: a heading reset pressed while driving turned the robot by the whole
+        // difference, at the full rate the stick allows. The hold takes a fresh lock on the next loop.
+        lockedHeading = null;
+    }
+
+    /** The least rate the Pigeon's yaw rate is sent at, Hz: twice the 50 Hz loop that reads it. */
+    static final double YAW_RATE_HZ = 100.0;
+
+    /**
+     * The Pigeon 2 sends {@code AngularVelocityZWorld} at 10 Hz by default on CAN 2.0 - every Systemcore bus, and
+     * the roboRIO's - so {@link #getYawRateRadPerSec()} would read a rate up to 100 ms old at a 50 Hz loop: the
+     * very lag it exists to avoid. {@code CatalystGyro} raises it for its own reads; a drivetrain built without one
+     * did not. Raise it to at least {@link #YAW_RATE_HZ}, and never lower a rate something else - Phoenix's
+     * odometry, a CANivore's faster frames - already set higher.
+     */
+    private void raiseYawRateSignal() {
+        if (RobotBase.isSimulation()) {
+            return;
+        }
+        var rate = drivetrain.getPigeon2().getAngularVelocityZWorld();
+        if (rate.getAppliedUpdateFrequency() < YAW_RATE_HZ) {
+            rate.setUpdateFrequency(YAW_RATE_HZ);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>A drivetrain resets outright. The frame's timestamp is not needed: odometry restarts from
+     * the reset, and the few milliseconds of motion since the frame are inside the estimator's noise.
+     *
+     * <p>While the robot is enabled only the position is taken; the heading stays the gyro's. A
+     * re-anchor that turned the heading under a driving robot would swing field-centric "forward"
+     * under the driver's thumbs mid-match. Team 5805 ran this rule through two events. Disabled - the
+     * seed before a match - the vision heading is taken whole. See
+     * {@link #setVisionResetsHeadingWhileEnabled(boolean)}.
+     */
+    @Override
+    public void resetPose(Pose2d pose, double timestampSeconds) {
+        resetPose(visionReset(pose, getPose().getRotation(),
+                RobotState.isEnabled() && !visionResetsHeadingWhileEnabled));
+    }
+
+    private boolean visionResetsHeadingWhileEnabled = false;
+
+    /**
+     * Let a vision seed or re-anchor replace the heading while the robot is enabled, as it did before
+     * 2.0.0. Default false: enabled, a vision reset moves the position and keeps the gyro's heading.
+     *
+     * @since 2.0.0
+     */
+    public void setVisionResetsHeadingWhileEnabled(boolean replace) {
+        this.visionResetsHeadingWhileEnabled = replace;
+    }
+
+    /** The pose a vision reset leaves: the vision pose, with the current heading kept if asked. */
+    static Pose2d visionReset(Pose2d vision, Rotation2d currentHeading, boolean keepHeading) {
+        return keepHeading ? new Pose2d(vision.getTranslation(), currentHeading) : vision;
     }
 
     /**
@@ -242,7 +337,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * #disableInternalSim()} yourself.
      */
     public void setSimPose(Pose2d simPose) {
-        if (edu.wpi.first.wpilibj.RobotBase.isSimulation() && simPose != null) {
+        if (org.wpilib.framework.RobotBase.isSimulation() && simPose != null) {
             disableInternalSim();
             drivetrain.resetPose(simPose);
         }
@@ -282,8 +377,27 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * Robot-relative chassis speeds (the convention PathPlanner's
      * {@code robotRelativeSpeedsSupplier} expects).
      */
-    public ChassisSpeeds getChassisSpeeds() {
-        return drivetrain.getState().Speeds;
+    public ChassisVelocities getChassisSpeeds() {
+        return drivetrain.getState().Velocity;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The drivetrain's Pigeon 2, its {@code AngularVelocityZWorld}: the turn the chassis is making,
+     * not the one the wheels report. Close heading loops and judge turns on this rate rather than on
+     * {@code getChassisSpeeds().omega}. In simulation it is the wheels' rate, since Phoenix's simulated
+     * gyro is integrated from those same wheels and an external physics engine does not drive it at all.
+     *
+     * @since 2.0.0
+     */
+    @Override
+    public double getYawRateRadPerSec() {
+        if (RobotBase.isSimulation()) {
+            return getChassisSpeeds().omega;
+        }
+        double degPerSec = drivetrain.getPigeon2().getAngularVelocityZWorld().getValueAsDouble();
+        return Double.isFinite(degPerSec) ? Math.toRadians(degPerSec) : getChassisSpeeds().omega;
     }
 
     /**
@@ -299,7 +413,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * @return the commanded module states, or {@code null} if none have been issued yet
      * @since 1.2.1
      */
-    public SwerveModuleState[] getModuleTargets() {
+    public SwerveModuleVelocity[] getModuleTargets() {
         return drivetrain.getState().ModuleTargets;
     }
 
@@ -309,8 +423,8 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * @return the measured module states, or {@code null} if unavailable
      * @since 1.2.1
      */
-    public SwerveModuleState[] getModuleStates() {
-        return drivetrain.getState().ModuleStates;
+    public SwerveModuleVelocity[] getModuleVelocities() {
+        return drivetrain.getState().ModuleVelocities;
     }
 
     /**
@@ -319,8 +433,8 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * needs for Shoot-On-The-Fly: the piece inherits the robot's velocity in
      * the field frame, not the robot frame.
      */
-    public ChassisSpeeds getFieldRelativeSpeeds() {
-        return ChassisSpeeds.fromRobotRelativeSpeeds(getChassisSpeeds(), getHeading());
+    public ChassisVelocities getFieldRelativeSpeeds() {
+        return getChassisSpeeds().toFieldRelative(getHeading());
     }
 
     public Rotation2d getHeading() {
@@ -349,7 +463,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * @since 1.5.0
      */
     @Override
-    public ChassisSpeeds fieldVelocity() {
+    public ChassisVelocities fieldVelocity() {
         return getFieldRelativeSpeeds();
     }
 
@@ -364,7 +478,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      */
     @Override
     public double timestampSeconds() {
-        return Timer.getFPGATimestamp();
+        return Timer.getTimestamp();
     }
 
     /** Max translational speed in m/s (as configured). */
@@ -397,6 +511,20 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
                         .withRotationalRate(RadiansPerSecond.of(rotSpeedRadPerSec)));
     }
 
+    /**
+     * Drive with a velocity given on the field itself: +x away from the Blue Alliance wall, +y to
+     * its left, whichever alliance the robot is on. For anything computed from the field pose - a
+     * pose controller, an assist that steers toward a field point. {@link #driveFieldCentric} is for
+     * a driver's sticks, and turns its velocity half a turn on Red.
+     */
+    public void driveFieldAbsolute(double xSpeedMPS, double ySpeedMPS, double rotSpeedRadPerSec) {
+        drivetrain.setControl(
+                fieldAbsoluteRequest
+                        .withVelocityX(MetersPerSecond.of(xSpeedMPS))
+                        .withVelocityY(MetersPerSecond.of(ySpeedMPS))
+                        .withRotationalRate(RadiansPerSecond.of(rotSpeedRadPerSec)));
+    }
+
     /** Drive robot-centric with raw speeds (m/s and rad/s). */
     public void driveRobotCentric(double xSpeedMPS, double ySpeedMPS, double rotSpeedRadPerSec) {
         drivetrain.setControl(
@@ -406,9 +534,9 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
                         .withRotationalRate(RadiansPerSecond.of(rotSpeedRadPerSec)));
     }
 
-    /** Drive robot-centric with a ChassisSpeeds object. */
-    public void driveRobotCentric(ChassisSpeeds speeds) {
-        driveRobotCentric(speeds.vxMetersPerSecond, speeds.vyMetersPerSecond, speeds.omegaRadiansPerSecond);
+    /** Drive robot-centric with a ChassisVelocities object. */
+    public void driveRobotCentric(ChassisVelocities speeds) {
+        driveRobotCentric(speeds.vx, speeds.vy, speeds.omega);
     }
 
     /** Set X-brake (wheels pointed inward to resist pushing). */
@@ -416,15 +544,48 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
         drivetrain.setControl(brakeRequest);
     }
 
-    /** Add a vision measurement for pose estimation. */
+    /**
+     * Add a vision measurement for pose estimation.
+     *
+     * @param timestampSeconds when the frame was taken, on WPILib's clock ({@code Timer.getTimestamp()})
+     *     - the clock every Catalyst camera stamps with. It is converted to Phoenix's; see
+     *     {@link #toPhoenixTime(double)}.
+     */
     public void addVisionMeasurement(Pose2d visionPose, double timestampSeconds,
-                                     edu.wpi.first.math.Matrix<edu.wpi.first.math.numbers.N3, edu.wpi.first.math.numbers.N1> stdDevs) {
-        drivetrain.addVisionMeasurement(visionPose, timestampSeconds, stdDevs);
+                                     org.wpilib.math.linalg.Matrix<org.wpilib.math.numbers.N3, org.wpilib.math.numbers.N1> stdDevs) {
+        drivetrain.addVisionMeasurement(visionPose, toPhoenixTime(timestampSeconds), stdDevs);
     }
 
-    /** Add a vision measurement with default standard deviations. */
+    /** Add a vision measurement with default standard deviations; the timestamp is on WPILib's clock. */
     public void addVisionMeasurement(Pose2d visionPose, double timestampSeconds) {
-        drivetrain.addVisionMeasurement(visionPose, timestampSeconds);
+        drivetrain.addVisionMeasurement(visionPose, toPhoenixTime(timestampSeconds));
+    }
+
+    /**
+     * Where the drivetrain thought the robot was at {@code timestampSeconds}, on WPILib's clock: the
+     * pose a camera frame taken then should be compared with. Empty before the first odometry sample.
+     */
+    public java.util.Optional<Pose2d> samplePoseAt(double timestampSeconds) {
+        return drivetrain.samplePoseAt(toPhoenixTime(timestampSeconds));
+    }
+
+    /**
+     * A time on WPILib's clock ({@code Timer.getTimestamp()}), on Phoenix's
+     * ({@code Utils.getCurrentTimeSeconds()}).
+     *
+     * <p>Phoenix's pose estimator keeps its odometry history on its own clock and matches a vision
+     * measurement to it by timestamp, and its documentation requires that epoch. The two clocks need
+     * not start together, and a measurement stamped on the wrong one is matched against the wrong
+     * moment - or, further out than the history reaches, against nothing: vision that looks fused
+     * and corrects nothing. Where the clocks do agree the offset is zero and this changes nothing.
+     */
+    public static double toPhoenixTime(double wpilibTimestampSeconds) {
+        return wpilibTimestampSeconds + phoenixClockOffsetSeconds();
+    }
+
+    /** Phoenix's clock minus WPILib's, now, in seconds. Published as {@code Swerve/PhoenixClockOffsetMs}. */
+    public static double phoenixClockOffsetSeconds() {
+        return Utils.getCurrentTimeSeconds() - Timer.getTimestamp();
     }
 
     // --- Command Factories ---
@@ -433,34 +594,34 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * Field-centric drive command for teleop.
      * Inputs are -1 to 1 (joystick axes). Automatically scales to max speed.
      */
-    public Command fieldCentricDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
+    public CatalystCommand fieldCentricDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
                                      DoubleSupplier rotSupplier) {
         return run(() -> {
-            double x = xSupplier.getAsDouble() * maxSpeedMPS;
-            double y = ySupplier.getAsDouble() * maxSpeedMPS;
-            double rot = rotSupplier.getAsDouble() * maxAngularRate;
+            double x = xSupplier.getAsDouble() * maxSpeedMPS * speedMultiplier;
+            double y = ySupplier.getAsDouble() * maxSpeedMPS * speedMultiplier;
+            double rot = rotSupplier.getAsDouble() * maxAngularRate * speedMultiplier;
             driveFieldCentric(x, y, rot);
         }).withName("Swerve.FieldCentric");
     }
 
     /** Field-centric drive with a deadband applied. */
-    public Command fieldCentricDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
+    public CatalystCommand fieldCentricDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
                                      DoubleSupplier rotSupplier, double deadband) {
         return run(() -> {
-            double x = applyDeadband(xSupplier.getAsDouble(), deadband) * maxSpeedMPS;
-            double y = applyDeadband(ySupplier.getAsDouble(), deadband) * maxSpeedMPS;
-            double rot = applyDeadband(rotSupplier.getAsDouble(), deadband) * maxAngularRate;
+            double x = applyDeadband(xSupplier.getAsDouble(), deadband) * maxSpeedMPS * speedMultiplier;
+            double y = applyDeadband(ySupplier.getAsDouble(), deadband) * maxSpeedMPS * speedMultiplier;
+            double rot = applyDeadband(rotSupplier.getAsDouble(), deadband) * maxAngularRate * speedMultiplier;
             driveFieldCentric(x, y, rot);
         }).withName("Swerve.FieldCentric");
     }
 
     /** Robot-centric drive command for teleop. */
-    public Command robotCentricDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
+    public CatalystCommand robotCentricDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
                                      DoubleSupplier rotSupplier) {
         return run(() -> {
-            double x = xSupplier.getAsDouble() * maxSpeedMPS;
-            double y = ySupplier.getAsDouble() * maxSpeedMPS;
-            double rot = rotSupplier.getAsDouble() * maxAngularRate;
+            double x = xSupplier.getAsDouble() * maxSpeedMPS * speedMultiplier;
+            double y = ySupplier.getAsDouble() * maxSpeedMPS * speedMultiplier;
+            double rot = rotSupplier.getAsDouble() * maxAngularRate * speedMultiplier;
             driveRobotCentric(x, y, rot);
         }).withName("Swerve.RobotCentric");
     }
@@ -476,27 +637,19 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * @param rotSupplier rotation input (-1 to 1)
      * @param deadband deadband applied to all axes
      */
-    public Command headingLockDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
+    public CatalystCommand headingLockDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
                                      DoubleSupplier rotSupplier, double deadband) {
         return run(() -> {
-            double x = applyDeadband(xSupplier.getAsDouble(), deadband) * maxSpeedMPS;
-            double y = applyDeadband(ySupplier.getAsDouble(), deadband) * maxSpeedMPS;
+            double x = applyDeadband(xSupplier.getAsDouble(), deadband) * maxSpeedMPS * speedMultiplier;
+            double y = applyDeadband(ySupplier.getAsDouble(), deadband) * maxSpeedMPS * speedMultiplier;
             double rotInput = applyDeadband(rotSupplier.getAsDouble(), deadband);
 
-            double rot;
-            if (Math.abs(rotInput) > 0.0) {
-                // Driver is actively rotating — pass through and unlock heading
-                rot = rotInput * maxAngularRate;
-                lockedHeading = null;
-            } else {
-                // Driver released rotation — lock to current heading
-                if (lockedHeading == null) {
-                    lockedHeading = getHeading();
-                }
-                rot = headingPID.calculate(
-                        getHeading().getRadians(), lockedHeading.getRadians());
-            }
-            driveFieldCentric(x, y, rot);
+            // Held on purpose - the driver is holding the button - so the hold stays on while parked
+            // too, but a small error is ignored and the correction is clamped, like advancedDrive.
+            HeadingHold.Decision hold = HeadingHold.decide(rotInput, true, getHeading(), lockedHeading,
+                    null, 0, headingPID, maxAngularRate, speedMultiplier);
+            lockedHeading = hold.locked();
+            driveFieldCentric(x, y, hold.rotRadPerSec());
         }).beforeStarting(() -> lockedHeading = null)
                 .withName("Swerve.HeadingLock");
     }
@@ -511,13 +664,12 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * @param targetHeading the heading to lock to
      * @param deadband deadband for translation axes
      */
-    public Command driveWithHeading(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
+    public CatalystCommand driveWithHeading(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
                                      Supplier<Rotation2d> targetHeading, double deadband) {
         return run(() -> {
-            double x = applyDeadband(xSupplier.getAsDouble(), deadband) * maxSpeedMPS;
-            double y = applyDeadband(ySupplier.getAsDouble(), deadband) * maxSpeedMPS;
-            double rot = headingPID.calculate(
-                    getHeading().getRadians(), targetHeading.get().getRadians());
+            double x = applyDeadband(xSupplier.getAsDouble(), deadband) * maxSpeedMPS * speedMultiplier;
+            double y = applyDeadband(ySupplier.getAsDouble(), deadband) * maxSpeedMPS * speedMultiplier;
+            double rot = headingRate(getHeading().getRadians(), targetHeading.get().getRadians(), true);
             driveFieldCentric(x, y, rot);
         }).withName("Swerve.DriveWithHeading");
     }
@@ -532,19 +684,22 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * @param targetPoint field position to point at (e.g., speaker location)
      * @param deadband deadband for translation axes
      */
-    public Command pointAtTarget(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
+    public CatalystCommand pointAtTarget(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
                                   Supplier<Translation2d> targetPoint, double deadband) {
         return run(() -> {
-            double x = applyDeadband(xSupplier.getAsDouble(), deadband) * maxSpeedMPS;
-            double y = applyDeadband(ySupplier.getAsDouble(), deadband) * maxSpeedMPS;
+            double x = applyDeadband(xSupplier.getAsDouble(), deadband) * maxSpeedMPS * speedMultiplier;
+            double y = applyDeadband(ySupplier.getAsDouble(), deadband) * maxSpeedMPS * speedMultiplier;
 
             // Calculate angle from robot to target
             Translation2d robotPos = getPose().getTranslation();
             Translation2d toTarget = targetPoint.get().minus(robotPos);
-            Rotation2d targetAngle = toTarget.getAngle();
+            Rotation2d heading = getHeading();
+            // A robot standing on the target has no bearing to it. Holding the current heading makes
+            // the error zero, so the driver keeps translating instead of being spun to field +X by a
+            // question that has no answer.
+            Rotation2d targetAngle = toTarget.getAngle().orElse(heading);
 
-            double rot = headingPID.calculate(
-                    getHeading().getRadians(), targetAngle.getRadians());
+            double rot = headingRate(heading.getRadians(), targetAngle.getRadians(), true);
             driveFieldCentric(x, y, rot);
         }).withName("Swerve.PointAtTarget");
     }
@@ -613,9 +768,44 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
         this.snapTolerance = toleranceDegrees;
     }
 
-    /** Set a speed multiplier for slow/turbo mode (0.0 to 1.0). */
+    /**
+     * Set a speed multiplier for slow/turbo mode (0.0 to 1.0).
+     *
+     * <p>Applies to <em>every</em> driver-facing drive command, translation and rotation alike.
+     * It used to apply to only two of them, so a robot whose slip detector or slow-mode button had
+     * turned the multiplier down went back to full speed the moment the driver held the heading
+     * lock or the point-at button. A governor that some commands ignore is not a governor.
+     */
     public void setSpeedMultiplier(double multiplier) {
-        this.speedMultiplier = MathUtil.clamp(multiplier, 0.0, 1.0);
+        this.speedMultiplier = Math.clamp(multiplier, 0.0, 1.0);
+    }
+
+    /** The current speed multiplier, in [0, 1]. */
+    public double getSpeedMultiplier() {
+        return speedMultiplier;
+    }
+
+    /**
+     * The heading loop's output as a rotation rate, bounded.
+     *
+     * <p>Raw {@code headingPID.calculate(...)} is a number of radians per second with no relation
+     * to what this drivetrain can do: at the default kP of 5, half a turn of error asks for
+     * 15.7 rad/s. Every heading-holding command sent that straight to the drivetrain, so a target
+     * behind the robot produced a full-rate spin rather than a turn. Inside the loop's tolerance
+     * the output is zero rather than a twitch, and the rest is clamped to the rate the driver's own
+     * stick could ask for, after the speed multiplier.
+     *
+     * @param currentRadians where the robot is pointing
+     * @param targetRadians  where it should point
+     * @param governed       whether the speed multiplier applies (false for autonomous moves)
+     */
+    private double headingRate(double currentRadians, double targetRadians, boolean governed) {
+        double rate = headingPID.calculate(currentRadians, targetRadians);
+        if (headingPID.atSetpoint()) {
+            return 0.0;
+        }
+        double limit = Math.abs(maxAngularRate * (governed ? speedMultiplier : 1.0));
+        return Math.clamp(rate, -limit, limit);
     }
 
     /**
@@ -634,7 +824,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * {@link #headingLockDrive}, {@link #driveWithHeading}, {@link #pointAtTarget})
      * intentionally do not apply them.
      */
-    public Command advancedDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
+    public CatalystCommand advancedDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
                                   DoubleSupplier rotSupplier, double deadband) {
         return run(() -> {
             // Apply deadband and scaling
@@ -651,48 +841,43 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
                 y = yLimiter.calculate(y);
             }
 
-            double rot;
-            if (Math.abs(rawRot) > 0.0) {
-                // Driver actively rotating
-                rot = rawRot * maxAngularRate * speedMultiplier;
-                if (rotLimiter != null) rot = rotLimiter.calculate(rot);
-                lockedHeading = null;
-            } else {
-                // Auto-lock heading
-                if (lockedHeading == null) {
-                    Rotation2d currentHeading = getHeading();
-                    // Snap to nearest preset angle if configured
-                    if (snapAngles != null) {
-                        double bestAngle = currentHeading.getDegrees();
-                        double minDiff = Double.MAX_VALUE;
-                        for (double snapAngle : snapAngles) {
-                            double diff = Math.abs(normalizeAngle(currentHeading.getDegrees() - snapAngle));
-                            if (diff < minDiff && diff < snapTolerance) {
-                                minDiff = diff;
-                                bestAngle = snapAngle;
-                            }
-                        }
-                        lockedHeading = Rotation2d.fromDegrees(bestAngle);
-                    } else {
-                        lockedHeading = currentHeading;
-                    }
-                }
-                rot = headingPID.calculate(
-                        getHeading().getRadians(), lockedHeading.getRadians());
-                if (rotLimiter != null) rotLimiter.calculate(rot); // keep limiter in sync
+            // Rotation: the driver's, or a held heading while translating, or nothing while parked.
+            // A parked robot has no heading to keep straight, and one on blocks cannot turn: the old
+            // rule locked to the nearest cardinal on enable and spun every module on a bench.
+            boolean translating = Math.abs(rawX) > 0.0 || Math.abs(rawY) > 0.0;
+            HeadingHold.Decision hold = HeadingHold.decide(rawRot, translating, getHeading(), lockedHeading,
+                    snapAngles, snapTolerance, headingPID, maxAngularRate, speedMultiplier,
+                    getYawRateRadPerSec());
+            lockedHeading = hold.locked();
+            double rot = hold.rotRadPerSec();
+            if (rotLimiter != null) {
+                rot = rotLimiter.calculate(rot);
             }
 
-            // Skew correction via pose exponential discretization
-            if (skewCorrectionEnabled && rot != 0) {
-                double dt = 0.02; // 20ms loop
-                double halfAngle = rot * dt / 2.0;
-                double cos = Math.cos(halfAngle);
-                double sin = Math.sin(halfAngle);
-                double correctedX = x * cos - y * sin;
-                double correctedY = x * sin + y * cos;
-                x = correctedX;
-                y = correctedY;
-            }
+            // Skew correction, via WPILib's own pose-exponential discretization.
+            //
+            // This was hand-rolled and rotated the wrong way: by +omega*dt/2 rather than
+            // -omega*dt/2, so it added the skew it exists to remove. Checked against
+            // ChassisVelocities.discretize with vx=3, omega=6, dt=0.02 - WPILib gives -3.4377
+            // degrees and the old code gave +3.4377. A driver pushing straight forward while
+            // spinning got roughly twice the drift they would have had with the feature switched
+            // off, which reads as "skew correction makes it worse" rather than as a sign error.
+            //
+            // Delegated rather than corrected in place. This is the canonical implementation of the
+            // operation the javadoc names, it cannot drift from WPILib, and there is no second copy
+            // of the trigonometry to get backwards again.
+            // ...and then removed entirely, because Phoenix already does it.
+            //
+            // SwerveRequest.FieldCentric discretizes internally, so correcting here applied the
+            // operation twice - and the second application used a different period, since Phoenix
+            // applies at its own 250 Hz rate rather than the 50 Hz loop this code can observe.
+            // Measured for x=3 m/s, omega=6 rad/s: the wheels received (2.994095, -0.215948) where
+            // plain FieldCentric gives (2.999856, -0.036000). The lateral term is six times too
+            // large, in a feature whose entire purpose is to remove lateral drift.
+            //
+            // Left as a comment rather than a corrected constant because the right period is not
+            // knowable from here. setSkewCorrectionEnabled is kept and documented as a no-op for
+            // this path rather than deleted, since teams call it.
 
             driveFieldCentric(x, y, rot);
         }).beforeStarting(() -> {
@@ -722,7 +907,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      *
      * @param slowFactor speed multiplier when slow (e.g. 0.3 for 30%)
      */
-    public Command slowModeWhileHeld(double slowFactor) {
+    public CatalystCommand slowModeWhileHeld(double slowFactor) {
         return Commands.startEnd(
                 () -> setSpeedMultiplier(slowFactor),
                 () -> setSpeedMultiplier(1.0)
@@ -740,13 +925,13 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * @param targetPose target pose (robot aligns to match its rotation)
      * @param deadband input deadband
      */
-    public Command autoAlignDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
+    public CatalystCommand autoAlignDrive(DoubleSupplier xSupplier, DoubleSupplier ySupplier,
                                    Supplier<Pose2d> targetPose, double deadband) {
         return run(() -> {
             double x = applyDeadband(xSupplier.getAsDouble(), deadband) * maxSpeedMPS * speedMultiplier;
             double y = applyDeadband(ySupplier.getAsDouble(), deadband) * maxSpeedMPS * speedMultiplier;
-            double rot = headingPID.calculate(
-                    getHeading().getRadians(), targetPose.get().getRotation().getRadians());
+            double rot = headingRate(getHeading().getRadians(),
+                    targetPose.get().getRotation().getRadians(), true);
             driveFieldCentric(x, y, rot);
         }).withName("Swerve.AutoAlign");
     }
@@ -760,7 +945,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * @param translationKP proportional gain for XY (try 2.0-5.0)
      * @param toleranceMeters position tolerance for "arrived"
      */
-    public Command driveToPose(Supplier<Pose2d> targetPose, double translationKP,
+    public CatalystCommand driveToPose(Supplier<Pose2d> targetPose, double translationKP,
                                 double toleranceMeters) {
         PIDController xController = new PIDController(translationKP, 0, 0);
         PIDController yController = new PIDController(translationKP, 0, 0);
@@ -768,25 +953,37 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
         return run(() -> {
             Pose2d target = targetPose.get();
             Pose2d current = getPose();
+            if (target == null) {
+                // No target this loop: stand still rather than throw inside the drive loop.
+                driveFieldAbsolute(0, 0, 0);
+                return;
+            }
 
             double xSpeed = xController.calculate(current.getX(), target.getX());
             double ySpeed = yController.calculate(current.getY(), target.getY());
-            double rotSpeed = headingPID.calculate(
-                    current.getRotation().getRadians(), target.getRotation().getRadians());
+            // The translation below was clamped and the rotation was not, in the same method. Not
+            // governed by the speed multiplier: this is an explicit "go to this pose" move with its
+            // own budget, and an auto should not change speed because a teleop flag was left set.
+            double rotSpeed = headingRate(current.getRotation().getRadians(),
+                    target.getRotation().getRadians(), false);
 
             // Clamp speeds
             double maxTranslation = maxSpeedMPS * 0.5;
-            xSpeed = MathUtil.clamp(xSpeed, -maxTranslation, maxTranslation);
-            ySpeed = MathUtil.clamp(ySpeed, -maxTranslation, maxTranslation);
+            xSpeed = Math.clamp(xSpeed, -maxTranslation, maxTranslation);
+            ySpeed = Math.clamp(ySpeed, -maxTranslation, maxTranslation);
 
-            driveFieldCentric(xSpeed, ySpeed, rotSpeed);
-        }).until(() -> {
+            // The speeds above are on the field (they come from the field pose error), so they go
+            // out on the field: see fieldAbsoluteRequest.
+            driveFieldAbsolute(xSpeed, ySpeed, rotSpeed);
+        }).untilTrue(() -> {
             Pose2d current = getPose();
             Pose2d target = targetPose.get();
-            return current.getTranslation().getDistance(target.getTranslation()) < toleranceMeters
+            return target != null
+                    && current.getTranslation().getDistance(target.getTranslation()) < toleranceMeters
                     && Math.abs(normalizeAngle(
                     current.getRotation().getDegrees() - target.getRotation().getDegrees())) < 3.0;
-        }).withName("Swerve.DriveToPose");
+        }).finallyDo(interrupted -> driveFieldAbsolute(0, 0, 0))
+          .withName("Swerve.DriveToPose");
     }
 
     /**
@@ -804,7 +1001,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * @param toleranceMeters position tolerance for "arrived"
      * @param constraints     pathfinding constraints (max vel / accel, etc.)
      */
-    public Command pathfindToPose(Supplier<Pose2d> targetPose, double translationKP,
+    public CatalystCommand pathfindToPose(Supplier<Pose2d> targetPose, double translationKP,
                                   double toleranceMeters, PathConstraints constraints) {
         // Defer so the pose is read when the command is scheduled, not when it is
         // constructed (usually once, at RobotContainer time). The Supplier
@@ -812,10 +1009,10 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
         // already live, so both legs now track a moving target.
         return Commands.defer(() -> {
             try {
-                return AutoBuilder.pathfindToPose(targetPose.get(), constraints)
-                        .andThen(driveToPose(targetPose, translationKP, toleranceMeters));
+                return LegacyCommands.fromV2(AutoBuilder.pathfindToPose(targetPose.get(), constraints))
+                        .then(driveToPose(targetPose, translationKP, toleranceMeters));
             } catch (Exception e) {
-                DriverStation.reportError(
+                DriverStationErrors.reportError(
                         "AutoBuilder not configured for pathfindToPose — falling back to PID align: "
                                 + e.getMessage(), true);
                 return driveToPose(targetPose, translationKP, toleranceMeters);
@@ -827,19 +1024,19 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * Pathfind to a pose with unlimited constraints (use only when you
      * trust your own velocity / accel limits elsewhere).
      */
-    public Command pathfindToPose(Supplier<Pose2d> targetPose, double translationKP,
+    public CatalystCommand pathfindToPose(Supplier<Pose2d> targetPose, double translationKP,
                                   double toleranceMeters) {
         return pathfindToPose(targetPose, translationKP, toleranceMeters,
                 PathConstraints.unlimitedConstraints(12.0));
     }
 
     /** Pathfind-and-align with sensible defaults (kP=4.0, tolerance=0.02 m). */
-    public Command pathfindToPose(Supplier<Pose2d> targetPose) {
+    public CatalystCommand pathfindToPose(Supplier<Pose2d> targetPose) {
         return pathfindToPose(targetPose, 4.0, 0.02);
     }
 
     /** Pathfind-and-align with sensible defaults plus custom constraints. */
-    public Command pathfindToPose(Supplier<Pose2d> targetPose, PathConstraints constraints) {
+    public CatalystCommand pathfindToPose(Supplier<Pose2d> targetPose, PathConstraints constraints) {
         return pathfindToPose(targetPose, 4.0, 0.02, constraints);
     }
 
@@ -855,12 +1052,12 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      *
      * @param trajectoryName file name without the {@code .traj} extension
      */
-    public Command followChoreoPath(String trajectoryName) {
+    public CatalystCommand followChoreoPath(String trajectoryName) {
         try {
             PathPlannerPath path = PathPlannerPath.fromChoreoTrajectory(trajectoryName);
-            return AutoBuilder.followPath(path).withName("Swerve.Choreo(" + trajectoryName + ")");
+            return LegacyCommands.fromV2(AutoBuilder.followPath(path)).withName("Swerve.Choreo(" + trajectoryName + ")");
         } catch (Exception e) {
-            DriverStation.reportError(
+            DriverStationErrors.reportError(
                     "Failed to load Choreo trajectory \"" + trajectoryName + "\": " + e.getMessage(), true);
             return runOnce(() -> {}).withName("Swerve.Choreo(missing:" + trajectoryName + ")");
         }
@@ -876,12 +1073,12 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * path's start, use {@link #pathfindThenFollowPath(String, PathConstraints)}
      * instead so it pathfinds back on first.
      */
-    public Command followPath(String pathName) {
+    public CatalystCommand followPath(String pathName) {
         try {
             PathPlannerPath path = PathPlannerPath.fromPathFile(pathName);
-            return AutoBuilder.followPath(path).withName("Swerve.FollowPath(" + pathName + ")");
+            return LegacyCommands.fromV2(AutoBuilder.followPath(path)).withName("Swerve.FollowPath(" + pathName + ")");
         } catch (Exception e) {
-            DriverStation.reportError("Failed to load path \"" + pathName + "\": " + e.getMessage(), true);
+            DriverStationErrors.reportError("Failed to load path \"" + pathName + "\": " + e.getMessage(), true);
             return runOnce(() -> {}).withName("Swerve.FollowPath(missing:" + pathName + ")");
         }
     }
@@ -896,20 +1093,20 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * @param pathName    PathPlanner path file (no extension)
      * @param constraints pathfinding constraints for the rejoin leg
      */
-    public Command pathfindThenFollowPath(String pathName, PathConstraints constraints) {
+    public CatalystCommand pathfindThenFollowPath(String pathName, PathConstraints constraints) {
         try {
             PathPlannerPath path = PathPlannerPath.fromPathFile(pathName);
-            return AutoBuilder.pathfindThenFollowPath(path, constraints)
+            return LegacyCommands.fromV2(AutoBuilder.pathfindThenFollowPath(path, constraints))
                     .withName("Swerve.PathfindThenFollow(" + pathName + ")");
         } catch (Exception e) {
-            DriverStation.reportError(
+            DriverStationErrors.reportError(
                     "Failed to load path \"" + pathName + "\": " + e.getMessage(), true);
             return runOnce(() -> {}).withName("Swerve.PathfindThenFollow(missing:" + pathName + ")");
         }
     }
 
     /** Pathfind-then-follow with unlimited constraints (use your own limits elsewhere). */
-    public Command pathfindThenFollowPath(String pathName) {
+    public CatalystCommand pathfindThenFollowPath(String pathName) {
         return pathfindThenFollowPath(pathName, PathConstraints.unlimitedConstraints(12.0));
     }
 
@@ -927,32 +1124,49 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * @param translationKP  proportional gain for the approach (try 2.0–5.0)
      * @param toleranceMeters arrival distance
      */
-    public Command driveToPiece(Supplier<java.util.Optional<Translation2d>> pieceFieldPose,
+    public CatalystCommand driveToPiece(Supplier<java.util.Optional<Translation2d>> pieceFieldPose,
                                 double translationKP, double toleranceMeters) {
         PIDController xCtl = new PIDController(translationKP, 0, 0);
         PIDController yCtl = new PIDController(translationKP, 0, 0);
-        final boolean[] arrived = { false };
+
+        // Two flags, both reset when the command starts rather than when it is built.
+        //
+        // A command bound with whileTrue is constructed once, at bind time, and reused on every
+        // press. Left set from the previous run, `done` makes untilTrue true on the first tick, so
+        // the second press of the button ends the command immediately and the robot does nothing at
+        // all - with nothing logged, because nothing went wrong.
+        final boolean[] done = { false };
         return run(() -> {
             var opt = pieceFieldPose.get();
             if (opt.isEmpty()) {
-                driveFieldCentric(0, 0, 0);
+                // The javadoc says the command ends when the piece disappears, and it has to: a
+                // command that sits here holds the drivetrain requirement, so the default drive
+                // command stays interrupted and the driver has no sticks until something else is
+                // scheduled.
+                driveFieldAbsolute(0, 0, 0);
+                done[0] = true;
                 return;
             }
             Translation2d target = opt.get();
             Pose2d cur = getPose();
             double dist = cur.getTranslation().getDistance(target);
-            arrived[0] = dist < toleranceMeters;
+            done[0] = dist < toleranceMeters;
             double maxApproach = maxSpeedMPS * 0.6;
-            double vx = MathUtil.clamp(xCtl.calculate(cur.getX(), target.getX()), -maxApproach, maxApproach);
-            double vy = MathUtil.clamp(yCtl.calculate(cur.getY(), target.getY()), -maxApproach, maxApproach);
-            driveFieldCentric(vx, vy, 0);
-        }).until(() -> arrived[0])
-          .finallyDo(interrupted -> driveFieldCentric(0, 0, 0))
+            double vx = Math.clamp(xCtl.calculate(cur.getX(), target.getX()), -maxApproach, maxApproach);
+            double vy = Math.clamp(yCtl.calculate(cur.getY(), target.getY()), -maxApproach, maxApproach);
+            // On the field, like driveToPose: the piece's position is a field position.
+            driveFieldAbsolute(vx, vy, 0);
+        }).beforeStarting(() -> {
+            done[0] = false;
+            xCtl.reset();
+            yCtl.reset();
+        }).untilTrue(() -> done[0])
+          .finallyDo(interrupted -> driveFieldAbsolute(0, 0, 0))
           .withName("Swerve.DriveToPiece");
     }
 
     /** Drive-to-piece with sensible defaults (kP = 3.0, tolerance = 0.2 m). */
-    public Command driveToPiece(Supplier<java.util.Optional<Translation2d>> pieceFieldPose) {
+    public CatalystCommand driveToPiece(Supplier<java.util.Optional<Translation2d>> pieceFieldPose) {
         return driveToPiece(pieceFieldPose, 3.0, 0.2);
     }
 
@@ -965,30 +1179,63 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
         var positions = drivetrain.getState().ModulePositions;
         double[] out = new double[positions.length];
         for (int i = 0; i < positions.length; i++) {
-            out[i] = positions[i].distanceMeters;
+            out[i] = positions[i].distance;
         }
         return out;
     }
 
     /** X-brake command (lock wheels). Holds the brake for as long as it runs. */
-    public Command xBrake() {
+    public CatalystCommand xBrake() {
         return run(this::setBrake).withName("Swerve.XBrake");
     }
 
     /**
-     * Reset heading (zero the gyro). A pure odometry op — requires no
-     * subsystem, so it won't interrupt the default drive command.
+     * "The way the robot is pointing now is forward." A pure odometry op — requires no subsystem, so
+     * it will not interrupt the default drive command.
+     *
+     * <h2>It seeds 180° on Red, and that is the fix</h2>
+     *
+     * <p>This used to seed {@code new Rotation2d()} — field 0° — whatever the alliance was, and that is
+     * wrong on Red in a way that shows up as the robot driving at the driver.
+     *
+     * <p>The drive requests use {@link SwerveRequest.ForwardPerspectiveValue#OperatorPerspective}, and
+     * {@code periodic()} sets that perspective to 180° on Red, because a Red driver stands at the other
+     * end of the field and their "away from me" is field −x. So on Red, driver-forward is field 180°.
+     *
+     * <p>A driver points the robot away from themselves and presses the button meaning "call this
+     * forward". Seeding 0° told the robot it was facing field +x while the driver's forward was field
+     * 180°, so the first push of the stick sent the robot back toward the wall they were standing at.
+     * It was correct on Blue and exactly reversed on Red, which is the worst way for it to be wrong:
+     * it tests fine in a shop, and the Driver Station defaults to Red 1.
+     *
+     * <p>So the seed is the operator's forward direction in field coordinates — 0° on Blue, 180° on
+     * Red — which is what "call this forward" has always meant.
+     *
+     * <p>With no alliance yet (no Driver Station, or before it reports), this seeds 0°: the Blue
+     * behaviour, and the same answer the old code always gave. There is nothing better to do, and a
+     * heading zeroed before the alliance is known is worth redoing once it is.
+     *
+     * <p>If you want the literal old behaviour — "make the current facing field 0° regardless" — call
+     * {@code resetPose(new Pose2d(getPose().getTranslation(), new Rotation2d()))} yourself. This method
+     * is for the driver's button.
      */
-    public Command resetHeading() {
-        return Commands.runOnce(() ->
-                resetPose(new Pose2d(getPose().getTranslation(), new Rotation2d())))
+    public CatalystCommand resetHeading() {
+        return Commands.runOnce(() -> {
+            Rotation2d operatorForward = MatchState.getAlliance()
+                    // Rotation2d.fromDegrees / new Rotation2d(), not the k-constants: alpha-6 spells zero
+                    // kZero and alpha-7 spells it ZERO, and one source for both lines is worth more than
+                    // the constant. Same reason the Field Lab sticks to the API both alphas share.
+                    .map(a -> a == Alliance.RED ? Rotation2d.fromDegrees(180) : new Rotation2d())
+                    .orElse(new Rotation2d());
+            resetPose(new Pose2d(getPose().getTranslation(), operatorForward));
+        })
                 .ignoringDisable(true)
                 .withName("Swerve.ResetHeading");
     }
     
     @Override
-    public Command idle() {
-        // WPILib's Subsystem.idle() contract is a command that runs forever to
+    public CatalystCommand idle() {
+        // WPILib's Mechanism.idle() contract is a command that runs forever to
         // hold the requirement, so use run(...) not runOnce(...).
         return run(() -> drivetrain.setControl(idleRequest)).withName("Idle");
     }
@@ -997,7 +1244,7 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
      * Reset the pose. A pure odometry op — requires no subsystem, so it won't
      * interrupt the default drive command.
      */
-    public Command resetPoseCommand(Supplier<Pose2d> poseSupplier) {
+    public CatalystCommand resetPoseCommand(Supplier<Pose2d> poseSupplier) {
         return Commands.runOnce(() -> resetPose(poseSupplier.get()))
                 .ignoringDisable(true)
                 .withName("Swerve.ResetPose");
@@ -1028,8 +1275,8 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
 
     /** Get current speed magnitude in m/s. */
     public double getCurrentSpeed() {
-        ChassisSpeeds speeds = getChassisSpeeds();
-        return Math.hypot(speeds.vxMetersPerSecond, speeds.vyMetersPerSecond);
+        ChassisVelocities speeds = getChassisSpeeds();
+        return Math.hypot(speeds.vx, speeds.vy);
     }
 
     @Override
@@ -1047,26 +1294,41 @@ public class SwerveSubsystem extends SubsystemBase implements RobotStateSource {
         if (!hasAppliedOperatorPerspective || RobotState.isDisabled()) {
             RobotState.allianceOpt()
             .ifPresent(AllianceColor -> {
-                drivetrain.setOperatorPerspectiveForward(AllianceColor == Alliance.Red ? Rotation2d.k180deg : Rotation2d.kZero);
+                // Phoenix 26.70 renamed this from setOperatorPerspectiveForward.
+                drivetrain.setOperatorForwardDirection(AllianceColor == Alliance.RED ? Rotation2d.k180deg : Rotation2d.ZERO);
                 hasAppliedOperatorPerspective = true;
             });
         }
         Pose2d pose = getPose();
         CatalystLog.log(SWERVE + "Pose", Pose2d.struct, pose);
-        CatalystLog.log(SWERVE + "ChassisSpeeds", ChassisSpeeds.struct, getChassisSpeeds());
+        CatalystLog.log(SWERVE + "ChassisVelocities", ChassisVelocities.struct, getChassisSpeeds());
+        // Deprecated alias for the same reason as ModuleStates below. Remove after 2027.
+        CatalystLog.log(SWERVE + "ChassisSpeeds", ChassisVelocities.struct, getChassisSpeeds());
+
         var state = drivetrain.getState();
-        if (state.ModuleStates != null) {
-            CatalystLog.log(SWERVE + "ModuleStates", SwerveModuleState.struct, state.ModuleStates);
+        if (state.ModuleVelocities != null) {
+            CatalystLog.log(SWERVE + "ModuleVelocities", SwerveModuleVelocity.struct, state.ModuleVelocities);
+
+            // Deprecated alias, published for one season.
+            //
+            // WPILib renamed SwerveModuleState to SwerveModuleVelocity, and this topic followed it
+            // so the name matches the type it carries. But a topic name is part of Catalyst's
+            // telemetry contract: teams have AdvantageScope layouts, Console panels and dashboard
+            // widgets pointed at the old path, and silently renaming it breaks every one of them
+            // with no error anywhere. One extra struct-array write per loop is a cheap price for
+            // not doing that. Remove after the 2027 season.
+            CatalystLog.log(SWERVE + "ModuleStates", SwerveModuleVelocity.struct, state.ModuleVelocities);
         }
         if (state.ModuleTargets != null) {
-            CatalystLog.log(SWERVE + "ModuleTargets", SwerveModuleState.struct, state.ModuleTargets);
+            CatalystLog.log(SWERVE + "ModuleTargets", SwerveModuleVelocity.struct, state.ModuleTargets);
         }
         CatalystLog.log(SWERVE + "HeadingDeg", pose.getRotation().getDegrees());
-        ChassisSpeeds speeds = getChassisSpeeds();
-        double speed = Math.hypot(speeds.vxMetersPerSecond, speeds.vyMetersPerSecond);
+        ChassisVelocities speeds = getChassisSpeeds();
+        double speed = Math.hypot(speeds.vx, speeds.vy);
         CatalystLog.log(SWERVE + "SpeedMPS", speed);
-        CatalystLog.log(SWERVE + "OmegaRadPerSec", speeds.omegaRadiansPerSecond);
+        CatalystLog.log(SWERVE + "OmegaRadPerSec", speeds.omega);
         CatalystLog.log(SWERVE + "SpeedMultiplier", speedMultiplier);
+        CatalystLog.log(SWERVE + "PhoenixClockOffsetMs", phoenixClockOffsetSeconds() * 1000.0);
     }
 
     // ===========================================

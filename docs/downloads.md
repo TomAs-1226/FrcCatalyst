@@ -16,11 +16,11 @@ telemetry or use saved tools.
 | Catalyst Console | [Latest release](https://github.com/TomAs-1226/CatalystConsole/releases/latest) | Robot telemetry, vision/field view, declared tunables and autonomous selection |
 | Catalyst Pit | [Latest release](https://github.com/TomAs-1226/CatalystPit/releases/latest) | Offline pit checklists, batteries, queue and issue tracking |
 | Catalyst Setup | [Latest release](https://github.com/TomAs-1226/CatalystSetup/releases/latest) | Suite installer and updater; use each package's declared platform support |
-| FrcCatalyst 1.12.0 | [Stable release](https://github.com/TomAs-1226/FrcCatalyst/releases/tag/v1.12.0) | roboRIO / WPILib 2026 library |
-| FrcCatalyst 2.0.0-rc.1 | [RC1 assets and notes](https://github.com/TomAs-1226/FrcCatalyst/releases/tag/v2.0.0-rc.1) | Systemcore / WPILib 2027 alpha-7 prerelease |
+| FrcCatalyst 1.12.0 | [1.x release](https://github.com/TomAs-1226/FrcCatalyst/releases/tag/v1.12.0) | roboRIO / WPILib 2026 library |
+| FrcCatalyst 2.0.0 | [Release assets and notes](https://github.com/TomAs-1226/FrcCatalyst/releases/tag/v2.0.0) | Systemcore / WPILib 2027 alpha-7; final library release on a prerelease platform |
 
-Choose the correct library line on [Versions and compatibility](versions.html). A prerelease
-library and a stable desktop app can have different version numbers without being out of sync.
+Choose the correct library line on [Versions and compatibility](versions.html). A library
+and a desktop app can have different version numbers without being out of sync.
 
 ## October 17 release set
 
@@ -37,7 +37,7 @@ contents and validation limits; version numbers differ because the products ship
 | Bezel web specimen | [0.1.0](https://github.com/TomAs-1226/Bezel/releases/tag/v0.1.0) | Complete static page source, separate from firmware |
 | Catalyst Tab / Link | [Tab preview 1](https://github.com/TomAs-1226/Bezel/releases/tag/v0.1.0-tab5-preview.1) | ESP32-P4 firmware, Link 1.0.0 Windows installer and Python wheel; hardware qualification pending |
 | Catalyst devtools | [2026.10.17](https://github.com/TomAs-1226/devtools/releases/tag/v2026.10.17) | Portable commands, shared hooks and setup guidance; private repository access required; toolchain binaries installed separately |
-| Systemcore agent | [2.0.3 package](https://github.com/TomAs-1226/FrcCatalyst/releases/tag/v2.0.0-rc.1) | IPK plus checksum under the existing library RC1 release |
+| Systemcore agent | [2.0.3 package](https://github.com/TomAs-1226/FrcCatalyst/releases/tag/v2.0.0-rc.1) | IPK plus checksum, attached to the library's v2.0.0-rc.1 release |
 
 The offline Setup bundle intentionally omits Sim and Link. Download Link separately from its
 preview release. Installer workflows, downloaded hashes and the suite ZIP's embedded versions

@@ -1,8 +1,9 @@
 package frc.lib.catalyst.statemachine.mech;
 
-import edu.wpi.first.math.MathUtil;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Subsystem;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.math.util.MathUtil;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Mechanism;
 import frc.lib.catalyst.mechanisms.LinearMechanism;
 import frc.lib.catalyst.mechanisms.MechanismView;
 import frc.lib.catalyst.statemachine.goals.LinearGoal;
@@ -21,7 +22,7 @@ import java.util.function.Consumer;
  *
  * <h2>Pursuing a position</h2>
  *
- * <p>The pursue command is {@code goTo(target).andThen(holdPosition())}. That composition looks
+ * <p>The pursue command is {@code goTo(target).then(holdPosition())}. That composition looks
  * suspicious at first glance, because {@link LinearMechanism#goTo(double)} is a {@code runOnce} that
  * ends after a single tick — so {@code andThen} runs before the mechanism has visibly moved. It is
  * nevertheless the correct thing to run here, for a reason specific to how
@@ -147,9 +148,9 @@ public final class LinearBinding implements Actuator<LinearGoal> {
         return "m";
     }
 
-    /** The mechanism itself, and nothing else — every Catalyst mechanism extends {@code SubsystemBase}. */
+    /** The mechanism itself, and nothing else — every Catalyst mechanism extends {@code Mechanism}. */
     @Override
-    public Set<Subsystem> requirements() {
+    public Set<Mechanism> requirements() {
         return Set.of(mechanism);
     }
 
@@ -158,7 +159,7 @@ public final class LinearBinding implements Actuator<LinearGoal> {
     // ------------------------------------------------------------------
 
     /**
-     * A fresh {@code goTo(target).andThen(holdPosition())} on every call.
+     * A fresh {@code goTo(target).then(holdPosition())} on every call.
      *
      * <p>Both halves are command factories that allocate a new instance per invocation, and
      * {@code andThen} wraps them in a new sequential group, so the fresh-instance contract is met
@@ -173,12 +174,12 @@ public final class LinearBinding implements Actuator<LinearGoal> {
      * @return a never-ending command that travels to the resolved position and then holds it
      */
     @Override
-    public Command pursueCommand(LinearGoal goal) {
+    public CatalystCommand pursueCommand(LinearGoal goal) {
         double target = targetMeters(goal);
         if (Double.isNaN(target)) {
             return mechanism.holdPosition();
         }
-        return mechanism.goTo(target).andThen(mechanism.holdPosition());
+        return mechanism.goTo(target).then(mechanism.holdPosition());
     }
 
     /**
@@ -189,7 +190,7 @@ public final class LinearBinding implements Actuator<LinearGoal> {
      * into a hard stop after arrival, which is the case {@code holdCommand} exists for.
      */
     @Override
-    public Command holdCommand(LinearGoal goal) {
+    public CatalystCommand holdCommand(LinearGoal goal) {
         return null;
     }
 
@@ -455,6 +456,6 @@ public final class LinearBinding implements Actuator<LinearGoal> {
      * unresolvable goal stays recognisably unresolvable rather than silently becoming a bound.
      */
     private double clamp(double meters) {
-        return Double.isNaN(meters) ? Double.NaN : MathUtil.clamp(meters, minMeters, maxMeters);
+        return Double.isNaN(meters) ? Double.NaN : Math.clamp(meters, minMeters, maxMeters);
     }
 }

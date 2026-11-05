@@ -1,6 +1,6 @@
 package frc.lib.catalyst.statemachine.robot;
 
-import edu.wpi.first.wpilibj2.command.Command;
+import org.wpilib.command3.Command;
 
 import java.util.List;
 

@@ -1,11 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 340" width="1200" height="340" role="img" aria-label="FrcCatalyst — the whole robot, already written. A swerve robot following an autonomous trajectory. WPILib 2026, roboRIO and Phoenix 6. Version 1.12.0, the season line.">
-  <title>FrcCatalyst</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 340" width="1200" height="340" role="img" aria-label="FrcCatalyst 2.0 — different computer, same library. A swerve robot following an autonomous trajectory. WPILib 2027, Limelight Systemcore and Commands v3. Version 2.0.0, the beta line.">
+  <title>FrcCatalyst 2.0</title>
 
   <!--
-    The 2.0 launch banner's drawing, told about this line instead. docs/design.md takes every token
-    in identity.css from that canvas, so the 1.x banner following it is not a family resemblance -
-    it is the same drawing with different facts on it. What changes is the version, the platform
-    line and the ghost numeral; the ground, the key light, the robot and the route do not.
+    A swerve chassis on an auto trajectory, because an FRC team reads that in half a second. An
+    earlier draft put a velocity profile here: true - the library does produce one - but nobody can
+    tell what an abstract curve is without being told, and a graphic that needs a caption has already
+    failed.
 
     The robot is built the way one actually looks from above: bumpers as a ring around the frame with
     the front face lighter, four module mounts at the corners, and the wheels turned off the chassis
@@ -65,7 +65,7 @@
   <!-- Kept subtle and oversized: it gives the right half depth without asking to be read. -->
   <text x="1168" y="318" text-anchor="end"
         font-family="Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="250" font-weight="700"
-        letter-spacing="-13" fill="#ffffff" fill-opacity="0.032">1.x</text>
+        letter-spacing="-13" fill="#ffffff" fill-opacity="0.032">2.0</text>
 
   <g clip-path="inset(0 round 18)">
     <!-- Two glow passes rather than one: a wide soft haze for the bloom and a tight one right on the
@@ -142,23 +142,24 @@
 
   <text x="138" y="124" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="62">
     <tspan font-weight="200" letter-spacing="-1.8" fill="#8d8f97">Frc</tspan><tspan
-           font-weight="700" letter-spacing="-2.6" fill="#ffffff">Catalyst</tspan>
+           font-weight="700" letter-spacing="-2.6" fill="#ffffff">Catalyst</tspan><tspan
+           font-weight="200" letter-spacing="-1.8" fill="#ff5d76" dx="18">2.0</tspan>
   </text>
 
   <rect x="140" y="146" width="300" height="1.5" fill="url(#hair)"/>
 
   <text x="139" y="184" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif"
-        font-size="25" font-weight="600" fill="#e6e7ea">The whole robot, already written.</text>
+        font-size="25" font-weight="600" fill="#e6e7ea">Different computer, same library.</text>
 
   <text x="140" y="212" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif"
-        font-size="15" font-weight="500" fill="#83858d">WPILib 2026 · roboRIO · Phoenix 6</text>
+        font-size="15" font-weight="500" fill="#83858d">WPILib 2027 alpha-7 · Systemcore image 14 · Commands v3</text>
 
-  <!-- Version, and what the line is for: this is the one a team competes on. -->
+  <!-- Version, and the alpha said out loud: one that looks like a release gets deployed like one. -->
   <g transform="translate(140 240)">
-    <rect width="104" height="30" rx="15" fill="#e94560" fill-opacity="0.14" stroke="#e94560" stroke-opacity="0.6"/>
+    <rect width="140" height="30" rx="15" fill="#e94560" fill-opacity="0.14" stroke="#e94560" stroke-opacity="0.6"/>
     <circle cx="19" cy="15" r="4" fill="#ff5d76"/>
-    <text x="33" y="20" font-family="Consolas, ui-monospace, monospace" font-size="13" font-weight="600" fill="#ff92a3">v1.12.0</text>
+    <text x="33" y="20" font-family="Consolas, ui-monospace, monospace" font-size="13" font-weight="600" fill="#ff92a3">2.0.0-rc.1</text>
   </g>
-  <text x="258" y="260" font-family="Consolas, ui-monospace, monospace" font-size="11" font-weight="700"
-        letter-spacing="1.6" fill="#6b6d75">SEASON 2026</text>
+  <text x="300" y="260" font-family="Consolas, ui-monospace, monospace" font-size="11" font-weight="700"
+        letter-spacing="1.6" fill="#6b6d75">BETA · ON JITPACK</text>
 </svg>

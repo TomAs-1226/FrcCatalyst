@@ -20,14 +20,14 @@ import java.util.function.Predicate;
  * The state machine engine: a real, guarded, logged finite state machine over an enum of states
  * and an arbitrary set of {@link Binding}s.
  *
- * <p>This class imports <b>nothing</b> from WPILib. It has no {@code Command}, no {@code Subsystem},
+ * <p>This class imports <b>nothing</b> from WPILib. It has no {@code Command}, no {@code Mechanism},
  * no {@code Trigger}, no {@code Timer}, no NetworkTables — it is driven by {@link #step()} and told
  * the time by a {@link DoubleSupplier}. That is what lets the whole of the machine's logic be
  * unit-tested on a laptop with no HAL, and it is also what will make the eventual port to the 2027
  * command framework a change to the thin robot-side adapter rather than to the engine.
  *
  * <p>For robot code, use {@link frc.lib.catalyst.statemachine.robot.Superstructure}, which wraps
- * this in a {@code SubsystemBase}, steps it once per loop, wires the logging, and exposes
+ * this in a {@code Mechanism}, steps it once per loop, wires the logging, and exposes
  * {@code Command} and {@code Trigger} factories.
  *
  * <h2>The invariant that matters</h2>
@@ -140,7 +140,14 @@ public final class StateMachineCore<S extends Enum<S>> {
     private String lastPubSummary;
     private String lastPubDetail;
     private double lastDetailPublishSeconds = Double.NEGATIVE_INFINITY;
-    private String lastPubLegal;
+    /**
+     * The legal-target set as last published, kept as a set rather than its toString().
+     *
+     * <p>Comparing the rendered string meant rendering it every loop to find out that nothing had
+     * changed - and rendering it means running every guard first. EnumSet equality is a word
+     * comparison on the same bit vector, so this is both cheaper and the thing actually being asked.
+     */
+    private EnumSet<S> lastPubLegal;
     private boolean lastPubFaulted;
     private String lastPubFaultReason;
     private long[] lastPubCounters = {-1, -1, -1, -1, -1};
@@ -1426,12 +1433,15 @@ public final class StateMachineCore<S extends Enum<S>> {
                     r.render(), activeTrigger);
         }
 
-        String legal = legalTargets().toString();
-        if (!Objects.equals(legal, lastPubLegal)) {
-            EnumSet<S> set = legalTargets();
-            String[] names = new String[set.size()];
+        // Evaluated once. This used to render legalTargets() to a String every loop purely to detect
+        // change, then call legalTargets() a second time to publish it - so every transition guard on
+        // every state ran twice a loop, and a String was allocated each time to be thrown away
+        // unchanged. On an eight-state machine that is the largest single cost in this method.
+        EnumSet<S> legal = legalTargets();
+        if (!legal.equals(lastPubLegal)) {
+            String[] names = new String[legal.size()];
             int i = 0;
-            for (S s : set) names[i++] = s.name();
+            for (S s : legal) names[i++] = s.name();
             telemetry.legalTargets(names);
             lastPubLegal = legal;
         }
@@ -1468,11 +1478,19 @@ public final class StateMachineCore<S extends Enum<S>> {
         double arrivalSeconds = Double.NaN;
         boolean owned = true;
 
-        private String lastGoalLabel = " ";
+        // Written "\0" rather than as a raw NUL byte, which is what these were. A single NUL
+        // anywhere in a file makes git and most review tools treat the whole thing as binary:
+        // `git grep` stops reporting matches, and a diff of this file - the largest in the
+        // library - renders as "binary files differ".
+        //
+        // The sentinel itself is deliberate and cannot be "". Below, a null goal produces an
+        // empty label and note, so initialising to "" would make the first sample compare equal
+        // and the first state of every binding would go unpublished.
+        private String lastGoalLabel = "\0";
         private boolean lastArrived;
         private boolean lastOwned = true;
         private boolean lastGating;
-        private String lastNote = " ";
+        private String lastNote = "\0";
 
         @SuppressWarnings("unchecked")
         Bound(Handle<?> handle, Binding<?> binding, boolean advisory) {

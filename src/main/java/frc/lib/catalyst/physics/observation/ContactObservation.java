@@ -1,6 +1,6 @@
 package frc.lib.catalyst.physics.observation;
 
-import edu.wpi.first.math.geometry.Rotation2d;
+import org.wpilib.math.geometry.Rotation2d;
 
 /**
  * The robot is touching something whose position is known — squared up against a wall, seated in a
@@ -19,7 +19,7 @@ import edu.wpi.first.math.geometry.Rotation2d;
  * <pre>{@code
  * // squared up against the driver-station wall at x = 0
  * physics.observe(new ContactObservation(
- *     0.0, Rotation2d.kZero, BUMPER_HALF_LENGTH, timestamp, 0.02, "wall-square"));
+ *     0.0, Rotation2d.ZERO, BUMPER_HALF_LENGTH, timestamp, 0.02, "wall-square"));
  * }</pre>
  *
  * @param constraintCoordinate the field coordinate of the contact surface along its normal, in metres
@@ -44,7 +44,9 @@ public record ContactObservation(
     /** Compact constructor: rejects a null normal, a negative standoff, and a non-positive uncertainty. */
     public ContactObservation {
         if (surfaceNormal == null) throw new IllegalArgumentException("surfaceNormal must not be null");
-        if (standoffMeters < 0) {
+        // !(x >= 0) rather than x < 0, so NaN is rejected rather than stored. The line below
+        // already had it right; this one did not, in the same constructor.
+        if (!(standoffMeters >= 0)) {
             throw new IllegalArgumentException("standoffMeters must be >= 0 (got " + standoffMeters + ")");
         }
         if (!(standardDeviation > 0)) {

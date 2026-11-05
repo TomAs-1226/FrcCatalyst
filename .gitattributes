@@ -1,0 +1,10 @@
+# The Systemcore agent package
+#
+# Every file here is read by Linux after being unpacked from an .ipk, so a CRLF checkout on Windows
+# does not stay a Windows problem - it ships. `catalyst_agent.py` is named directly by the unit's
+# ExecStart, so a carriage return on the shebang line makes systemd report `bad interpreter` for a
+# file that is plainly right there; the maintainer scripts fail the same way at install time.
+agent/overlay/** text eol=lf
+agent/control/** text eol=lf
+agent/build.sh text eol=lf
+agent/build.py text eol=lf

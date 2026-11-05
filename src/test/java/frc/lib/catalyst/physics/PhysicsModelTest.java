@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-import edu.wpi.first.math.geometry.Translation2d;
+import org.wpilib.math.geometry.Translation2d;
 
 import frc.lib.catalyst.physics.model.DrivetrainModel;
 import frc.lib.catalyst.physics.model.RobotModel;
@@ -86,7 +86,7 @@ class PhysicsModelTest {
         DrivetrainModel model = new DrivetrainModel(lowRobot());
         double limit = model.maxTractionAccelerationMpsSq();
 
-        assertEquals(0.0, model.tractionUsage(Translation2d.kZero), 1e-9);
+        assertEquals(0.0, model.tractionUsage(Translation2d.ZERO), 1e-9);
         assertEquals(1.0, model.tractionUsage(new Translation2d(limit, 0.0)), 1e-9);
         assertTrue(model.tractionUsage(new Translation2d(0.0, limit * 1.5)) > 1.0);
     }

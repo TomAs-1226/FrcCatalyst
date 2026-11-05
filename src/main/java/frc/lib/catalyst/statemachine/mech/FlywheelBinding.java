@@ -1,7 +1,8 @@
 package frc.lib.catalyst.statemachine.mech;
 
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.Subsystem;
+import frc.lib.catalyst.command.CatalystCommand;
+import org.wpilib.command3.Command;
+import org.wpilib.command3.Mechanism;
 import frc.lib.catalyst.mechanisms.FlywheelMechanism;
 import frc.lib.catalyst.statemachine.goals.FlywheelGoal;
 import frc.lib.catalyst.statemachine.robot.Actuator;
@@ -201,7 +202,7 @@ public final class FlywheelBinding implements Actuator<FlywheelGoal> {
      * @return a fresh command; never {@code null}
      */
     @Override
-    public Command pursueCommand(FlywheelGoal goal) {
+    public CatalystCommand pursueCommand(FlywheelGoal goal) {
         if (goal == null) {
             return mechanism.stopCommand();
         }
@@ -236,7 +237,7 @@ public final class FlywheelBinding implements Actuator<FlywheelGoal> {
      * @return {@code null}, meaning keep pursuing
      */
     @Override
-    public Command holdCommand(FlywheelGoal goal) {
+    public CatalystCommand holdCommand(FlywheelGoal goal) {
         return null;
     }
 
@@ -582,13 +583,13 @@ public final class FlywheelBinding implements Actuator<FlywheelGoal> {
     /**
      * {@inheritDoc}
      *
-     * <p>Exactly the one flywheel. Every Catalyst mechanism extends {@code SubsystemBase}, so the
+     * <p>Exactly the one flywheel. Every Catalyst mechanism extends {@code Mechanism}, so the
      * mechanism is its own requirement and the commands returned by {@link #pursueCommand} —
      * built through the mechanism's own {@code run} and {@code runOnce} factories — require
      * precisely this set and nothing else.
      */
     @Override
-    public Set<Subsystem> requirements() {
+    public Set<Mechanism> requirements() {
         return Set.of(mechanism);
     }
 

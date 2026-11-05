@@ -1,7 +1,6 @@
 package frc.lib.catalyst.subsystems.vision;
 
-import edu.wpi.first.apriltag.AprilTagFieldLayout;
-import edu.wpi.first.math.geometry.Transform3d;
+import org.wpilib.math.geometry.Transform3d;
 import frc.lib.catalyst.subsystems.swerve.SwerveSubsystem;
 
 import java.util.ArrayList;
@@ -36,10 +35,18 @@ public class VisionConfig {
 
     final List<CameraSource> cameras;
     final SwerveSubsystem driveSubsystem;
+    /** Where accepted poses go. The drive subsystem when one was given, else whatever poseSink() set. */
+    final VisionPoseSink poseSink;
+    // Health thresholds
+    final double cameraHotCelsius;
+    final double cameraMinFps;
+    final double staleFrameSeconds;
 
     // Filtering
     final double maxAmbiguity;
     final double maxAcceptableDistance;
+    final boolean seedFromVision;
+    final double reanchorAfterSeconds;
     final double maxLatencySeconds;
     final double rejectDuringSpinThreshold;
 
@@ -62,8 +69,14 @@ public class VisionConfig {
     private VisionConfig(Builder b) {
         this.cameras = List.copyOf(b.cameras);
         this.driveSubsystem = b.driveSubsystem;
+        this.poseSink = b.poseSink != null ? b.poseSink : b.driveSubsystem;
+        this.cameraHotCelsius = b.cameraHotCelsius;
+        this.cameraMinFps = b.cameraMinFps;
+        this.staleFrameSeconds = b.staleFrameSeconds;
         this.maxAmbiguity = b.maxAmbiguity;
         this.maxAcceptableDistance = b.maxAcceptableDistance;
+        this.seedFromVision = b.seedFromVision;
+        this.reanchorAfterSeconds = b.reanchorAfterSeconds;
         this.maxLatencySeconds = b.maxLatencySeconds;
         this.rejectDuringSpinThreshold = b.rejectDuringSpinThreshold;
         this.baseXYStdDev = b.baseXYStdDev;
@@ -83,12 +96,19 @@ public class VisionConfig {
     }
 
     public static class Builder {
+        private VisionPoseSink poseSink;
+        private double cameraHotCelsius = 80.0;
+        private double cameraMinFps = 10.0;
+        private double staleFrameSeconds = 1.0;
+
         private final List<CameraSource> cameras = new ArrayList<>();
         private SwerveSubsystem driveSubsystem;
 
         // Filtering defaults
         private double maxAmbiguity = 0.3;
         private double maxAcceptableDistance = 5.0;
+        private boolean seedFromVision = true;
+        private double reanchorAfterSeconds = 1.0;
         private double maxLatencySeconds = 0.5;
         private double rejectDuringSpinThreshold = 0; // 0 = disabled
 
@@ -103,9 +123,11 @@ public class VisionConfig {
         private double rejectDuringHighSpeedThreshold = 0; // 0 = disabled, m/s
         private double maxHeadingDivergenceDegrees = 0; // 0 = disabled
 
-        // Field dimensions
-        private double fieldLengthMeters = 16.54;
-        private double fieldWidthMeters = 8.21;
+        // Field dimensions: the 2026 REBUILT field, from WPILib's 2026-rebuilt-welded AprilTag layout,
+        // as AllianceFlipUtil and CatalystMath have it. Before 2.0.0-beta.2 the width was 8.21, 2024's,
+        // which put every field-bounds vision reject 14 cm off on one edge.
+        private double fieldLengthMeters = 16.541;
+        private double fieldWidthMeters = 8.069;
         private double fieldBoundsMargin = 0.5;
 
         /**
@@ -119,16 +141,23 @@ public class VisionConfig {
         }
 
         /**
-         * Add a PhotonVision camera.
-         * @param name PhotonVision camera name
-         * @param robotToCamera transform from robot center to camera
-         * @param fieldLayout AprilTag field layout
+         * Add a Limelight camera, choosing MegaTag2 (needs the robot yaw every loop, which
+         * {@code VisionSubsystem} supplies; steadier at range) or MegaTag1 (self-contained).
+         * Either way the camera is read with MegaTag1 until the pose has been seeded.
          */
-        public Builder addPhotonCamera(String name, Transform3d robotToCamera,
-                                       AprilTagFieldLayout fieldLayout) {
-            cameras.add(new PhotonSource(name, robotToCamera, fieldLayout));
+        public Builder addLimelight(String name, Transform3d robotToCamera, boolean useMegaTag2) {
+            cameras.add(new LimelightSource(name, robotToCamera, useMegaTag2));
             return this;
         }
+
+        // addPhotonCamera(...) was removed in 2.0.0.
+        //
+        // PhotonVision has no 2027 vendordep, so PhotonSource cannot be built on this branch, and
+        // the AprilTagFieldLayout it took no longer exists either - WPILib 2027 replaced it with
+        // org.wpilib.fields.Field. Catalyst is Limelight-first on Systemcore because the pipeline
+        // is built into the hardware; use addLimelight(...) or addCamera(...) with your own
+        // CameraSource. The PhotonSource file is kept out of the compile rather than deleted, so
+        // this can come back if PhotonVision ships for 2027.
 
         /** Add a custom camera source. */
         public Builder addCamera(CameraSource camera) {
@@ -142,6 +171,44 @@ public class VisionConfig {
             return this;
         }
 
+        /**
+         * Where accepted poses go, for a robot without a Catalyst drivetrain.
+         *
+         * <p>{@link #driveSubsystem(SwerveSubsystem)} is this with the swerve as the sink, and is
+         * still the normal call. This one is for everything else: a tank drive, a team's own swerve
+         * code, or a bench with four cameras and no drivetrain - give it a
+         * {@link StandaloneVisionPose} and the whole pipeline runs.
+         *
+         * <p>If both are set, this one wins.
+         */
+        public Builder poseSink(VisionPoseSink sink) {
+            this.poseSink = sink;
+            return this;
+        }
+
+        /**
+         * Camera temperature at which {@link VisionHealth} calls a camera hot (default 80 C).
+         *
+         * <p>A Limelight 4 throttles its pipeline when hot, which shows up as a slow camera and then
+         * as an absent one. The number is the camera's self-reported CPU temperature.
+         */
+        public Builder cameraHotCelsius(double celsius) {
+            this.cameraHotCelsius = celsius;
+            return this;
+        }
+
+        /** Reported frame rate below which a camera is called slow (default 10). */
+        public Builder cameraMinFps(double fps) {
+            this.cameraMinFps = fps;
+            return this;
+        }
+
+        /** How long a connected camera's frames may stop before it is called stale (default 1 s). */
+        public Builder staleFrameSeconds(double seconds) {
+            this.staleFrameSeconds = seconds;
+            return this;
+        }
+
         // --- Filtering ---
 
         /** Max pose ambiguity for single-tag estimates (default 0.3). */
@@ -150,9 +217,40 @@ public class VisionConfig {
             return this;
         }
 
-        /** Max acceptable distance from current Kalman filter estimate in meters (default 5.0). */
+        /**
+         * Max acceptable distance from current Kalman filter estimate in meters (default 5.0).
+         *
+         * <p>Measured against the pose only once it has been seeded (see {@link #seedFromVision})
+         * or the sink reports {@link VisionPoseSink#hasPose()}. Before that there is nothing real
+         * to measure from.
+         */
         public Builder maxAcceptableDistance(double meters) {
             this.maxAcceptableDistance = meters;
+            return this;
+        }
+
+        /**
+         * Whether the first good estimate replaces the pose outright instead of being fused into it
+         * (default true). A drivetrain boots believing it is at the origin; a robot carried onto the
+         * field is not, and every estimate would fail the distance gate against that origin
+         * forever. Seeding resets the pose to the first estimate with two or more tags, or a single
+         * tag within three metres, and gates against it from then on. Limelights are read with
+         * MegaTag1 until seeded, because MegaTag2 needs the very heading the seed provides.
+         */
+        public Builder seedFromVision(boolean enabled) {
+            this.seedFromVision = enabled;
+            return this;
+        }
+
+        /**
+         * How long every camera may disagree with the pose - all of them rejected as too far, none
+         * accepted, and their estimates agreeing with each other - before the pose is reset to what
+         * they see (default 1.0 s; 0 disables). This is the recovery from odometry that has gone
+         * wrong: a wheel that slipped over a defence, a gyro that drifted, a pose reset to the
+         * wrong auto start. It is counted and alerted, because it means something upstream was wrong.
+         */
+        public Builder reanchorAfterSeconds(double seconds) {
+            this.reanchorAfterSeconds = seconds;
             return this;
         }
 
@@ -246,7 +344,7 @@ public class VisionConfig {
 
         /**
          * Set field dimensions for off-field rejection.
-         * Defaults to 2025+ FRC field (16.54m x 8.21m).
+         * Defaults to the REBUILT 2026 field, 16.541 m x 8.069 m.
          * @param lengthMeters field length (X dimension)
          * @param widthMeters field width (Y dimension)
          */
@@ -269,9 +367,10 @@ public class VisionConfig {
             if (cameras.isEmpty()) {
                 throw new IllegalStateException("At least one camera must be added");
             }
-            if (driveSubsystem == null) {
-                throw new IllegalStateException("Drive subsystem must be set for vision to feed poses");
-            }
+            // No sink at all is allowed: the cameras are still watched, their health still published,
+            // and VisionSubsystem says at construction that nothing is being fused. A team on the
+            // bench with cameras and no drivetrain is exactly who needs that, and a thrown exception
+            // here was why the no-drivetrain path could never be reached.
             return new VisionConfig(this);
         }
     }

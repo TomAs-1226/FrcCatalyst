@@ -73,6 +73,13 @@ public final class CatalystLog {
      *
      * <p>Every {@code log(...)} overload goes through here rather than touching the field
      * directly, so the default sink is never built on a machine that only ever installs its own.
+     *
+     * <p>The default is {@code NetworkTablesSink} - the sink this library has always used, and the
+     * one its tests cover. It was going to become a sink over {@code org.wpilib.telemetry}, and this
+     * javadoc said so for a while, but that package is not in a WPILib release the Systemcore image
+     * accepts; {@code WpiTelemetrySink} is written and is excluded from the source set until it is
+     * (see {@code build.gradle}). Nothing about the published key paths depends on which is
+     * installed, and {@code setSink(...)} replaces it either way.
      */
     public static synchronized LogSink getSink() {
         if (sink == null) sink = new NetworkTablesSink();
@@ -98,16 +105,16 @@ public final class CatalystLog {
 
     /**
      * Record a WPILib struct-serializable {@code value} (e.g. a {@code Pose2d}
-     * or {@code SwerveModuleState}) under {@code key} using its {@link
-     * edu.wpi.first.util.struct.Struct} descriptor, so AdvantageScope renders it
+     * or {@code SwerveModuleVelocity}) under {@code key} using its {@link
+     * org.wpilib.util.struct.Struct} descriptor, so AdvantageScope renders it
      * as a real 2D/3D object instead of loose numbers.
      */
-    public static <T> void log(String key, edu.wpi.first.util.struct.Struct<T> struct, T value) {
+    public static <T> void log(String key, org.wpilib.util.struct.Struct<T> struct, T value) {
         getSink().log(key, struct, value);
     }
 
-    /** Record an array of struct-serializable values (e.g. {@code SwerveModuleState[]}) under {@code key}. */
-    public static <T> void log(String key, edu.wpi.first.util.struct.Struct<T> struct, T[] values) {
+    /** Record an array of struct-serializable values (e.g. {@code SwerveModuleVelocity[]}) under {@code key}. */
+    public static <T> void log(String key, org.wpilib.util.struct.Struct<T> struct, T[] values) {
         getSink().log(key, struct, values);
     }
 

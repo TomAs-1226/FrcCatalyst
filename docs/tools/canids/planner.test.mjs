@@ -1,0 +1,274 @@
+// The CAN ID planner's logic, checked outside a browser.
+//
+// Run with:  node --test docs/tools/
+//
+// The tool is a single self-contained HTML file, so this pulls its script out and runs it against a
+// DOM stub thin enough to be obviously not a browser. Only the pure parts are checked - the bus
+// model, the contention advice, and the two generators. Layout is not tested here and is not
+// claimed to be.
+//
+// What makes this worth having: the tool generates CANIds.java, which is compiled against the
+// library. If the generator and CANRegistry drift apart, the failure lands on a team at build time
+// with a message about a method signature, and nothing points back at the planner.
+
+import fs from "node:fs";
+import assert from "node:assert/strict";
+import vm from "node:vm";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const html = fs.readFileSync(path.join(here, "index.html"), "utf8");
+// The page's own code, which is every inline <script>. The `src=` one is the shared chrome
+// (../tool.js): it is empty here, it knows nothing about this tool, and taking the first <script>
+// blindly picked it up the day the chrome was linked and ran nothing at all.
+const script = [...html.matchAll(/<script(?![^>]*\ssrc=)[^>]*>([\s\S]*?)<\/script>/g)]
+    .map(m => m[1])
+    .join("\n");
+assert.match(script, /function detectConflicts/, "the tool's own script was not found in index.html");
+
+// --- the thinnest DOM that lets the file finish loading ---------------------
+const el = () => ({
+  value: "", textContent: "", innerHTML: "", className: "", style: {},
+  classList: { add() {}, remove() {}, toggle() {} },
+  appendChild() {}, addEventListener() {}, querySelectorAll: () => [],
+  set onclick(_) {}, set onchange(_) {}, dataset: {},
+});
+const store = new Map();
+const sandbox = {
+  console,
+  document: {
+    getElementById: () => el(),
+    querySelectorAll: () => [],
+    createElement: el,
+    addEventListener() {},
+    body: el(),
+  },
+  window: { addEventListener() {} },
+  localStorage: {
+    getItem: k => store.get(k) ?? null,
+    setItem: (k, v) => store.set(k, v),
+    removeItem: k => store.delete(k),
+  },
+  alert() {}, confirm: () => true, FileReader: class {}, Blob: class {},
+  URL: { createObjectURL: () => "", revokeObjectURL() {} },
+  navigator: { clipboard: { writeText: async () => {} } },
+};
+sandbox.globalThis = sandbox;
+vm.createContext(sandbox);
+vm.runInContext(script, sandbox);
+
+// The tool keeps its state in a module-level `devices`; reach it through the context.
+const ctx = sandbox;
+const run = expr => vm.runInContext(expr, ctx);
+// vm values carry the sandbox realm's prototypes, so deepEqual sees two identical arrays as
+// different types. Round-tripping through JSON brings them back into this realm.
+const runJson = expr => JSON.parse(JSON.stringify(run(expr)));
+
+// --- the bus model ----------------------------------------------------------
+
+test("the five Systemcore buses replace the roboRIO bus", () => {
+assert.deepEqual(
+  runJson("ALL_BUSES"),
+  ["can_s0", "can_s1", "can_s2", "can_s3", "can_s4", "canivore"],
+  "five Systemcore buses plus CANivore",
+);
+
+assert.equal(run('normaliseBus("rio")'), "can_s0", "the roboRIO bus maps onto Catalyst's default");
+assert.equal(run('normaliseBus("")'), "can_s0", "so does the empty-string bus");
+assert.equal(run('normaliseBus("can_s3")'), "can_s3", "a real bus is left alone");
+assert.equal(run('normaliseBus("Drivebase")'), "canivore", "an unknown name is a CANivore");
+});
+
+// --- contention advice ------------------------------------------------------
+const plan = devices => runJson(`devices = ${JSON.stringify(devices)}; contentionWarnings()`);
+const dev = (i, bus) => ({ name: `M${i}`, id: i, type: "Kraken X60", bus });
+
+test("advice is given only when it would change the wiring", () => {
+  assert.deepEqual(plan([]), [], "an empty plan has nothing to say");
+
+assert.deepEqual(
+  plan(Array.from({ length: 8 }, (_, i) => dev(i, "can_s0"))),
+  [],
+  "eight devices on one bus is ordinary and must not nag",
+);
+
+const piled = plan(Array.from({ length: 16 }, (_, i) => dev(i, "can_s0")));
+assert.equal(piled.length, 1, "sixteen on one bus is worth mentioning");
+assert.match(piled[0], /five buses/);
+
+const split = plan([
+  ...Array.from({ length: 8 }, (_, i) => dev(i, "can_s0")),
+  ...Array.from({ length: 8 }, (_, i) => dev(i + 20, "can_s1")),
+]);
+assert.equal(split.length, 1, "a split across a paired bus is the interesting case");
+assert.match(split[0], /share an SPI controller/);
+assert.match(split[0], /can_s2/, "and it should name a bus on a different controller");
+
+assert.deepEqual(
+  plan([
+    ...Array.from({ length: 8 }, (_, i) => dev(i, "can_s0")),
+    ...Array.from({ length: 8 }, (_, i) => dev(i + 20, "can_s3")),
+  ]),
+  [],
+  "the same split across unpaired buses is exactly right and must say nothing",
+);
+});
+
+// --- generated Java ---------------------------------------------------------
+const java = devs => {
+  run(`devices = ${JSON.stringify(devs)}`);
+  return run("buildJava(devices.map((d,i)=>({...d,_i:i})).sort((a,b)=>a.bus.localeCompare(b.bus)||a.id-b.id), detectConflicts())");
+};
+
+test("the generated Java matches what CANRegistry accepts", () => {
+  const generated = java([
+  { name: "FrontLeftDrive", id: 1, type: "Kraken X60", bus: "can_s0" },
+  { name: "ArmMaster", id: 20, type: "Kraken X60", bus: "can_s2" },
+]);
+
+assert.match(generated, /public static final String CAN_S0\s+= "can_s0";/, "a constant per bus used");
+assert.match(generated, /public static final String CAN_S2\s+= "can_s2";/);
+assert.doesNotMatch(generated, /CAN_S1|CAN_S3|CAN_S4|CANIVORE/, "and none for buses not used");
+assert.doesNotMatch(generated, /RIO/, "nothing should mention a roboRIO");
+
+// The registration calls are what CANRegistry actually receives.
+assert.match(generated, /CANRegistry\.register\("FrontLeftDrive", FRONT_LEFT_DRIVE, CAN_S0, "Kraken X60"\);/);
+assert.match(generated, /CANRegistry\.register\("ArmMaster", ARM_MASTER, CAN_S2, "Kraken X60"\);/);
+assert.match(generated, /shares a controller with can_s1/, "the pairing is recorded where it is read");
+});
+
+// --- generated text ---------------------------------------------------------
+const text = devs => {
+  run(`devices = ${JSON.stringify(devs)}`);
+  return run("buildText(devices.map((d,i)=>({...d,_i:i})).sort((a,b)=>a.bus.localeCompare(b.bus)||a.id-b.id), detectConflicts())");
+};
+
+test("the plain listing groups by bus, in order", () => {
+  const listing = text([
+  { name: "A", id: 1, type: "Kraken X60", bus: "can_s4" },
+  { name: "B", id: 2, type: "Kraken X60", bus: "can_s0" },
+]);
+assert.match(listing, /\[can_s0\]/);
+assert.match(listing, /\[can_s4\]/);
+assert.ok(listing.indexOf("[can_s0]") < listing.indexOf("[can_s4]"), "buses listed in order");
+});
+
+// --- conflicts are still per-bus -------------------------------------------
+test("a duplicate id is a conflict only on the same bus", () => {
+  const sameIdDifferentBuses = runJson(`devices = ${JSON.stringify([
+  { name: "A", id: 5, type: "Kraken X60", bus: "can_s0" },
+  { name: "B", id: 5, type: "Kraken X60", bus: "can_s1" },
+])}; [...detectConflicts()]`);
+assert.deepEqual(sameIdDifferentBuses, [], "the same id on two buses is legal and is the point of having five");
+
+const sameIdSameBus = run(`devices = ${JSON.stringify([
+  { name: "A", id: 5, type: "Kraken X60", bus: "can_s2" },
+  { name: "B", id: 5, type: "Kraken X60", bus: "can_s2" },
+])}; [...detectConflicts()].length`);
+assert.equal(sameIdSameBus, 2, "and on one bus it is still a conflict");
+});
+
+// --- Balance across buses ---------------------------------------------------
+//
+// This is a port of CANBusPlanner.suggest(), and a port that quietly disagrees with the library is
+// worse than no port: the tool would hand a team a plan the library's own validate() complains
+// about. The numbers asserted below are the library's, taken from CANBusPlannerSpreadTest.
+
+const identical = n =>
+  Array.from({ length: n }, (_, i) => ({ name: "M" + i, id: i + 1, type: "Kraken X60", bus: "can_s0" }));
+
+/** Devices per bus, after balancing whatever is handed in. */
+const balancedBuses = list => {
+  ctx.__in = list;
+  const out = runJson("balanceAcrossBuses(__in)");
+  const per = {};
+  for (const d of out) per[d.bus] = (per[d.bus] || 0) + 1;
+  return per;
+};
+
+/** Devices per SPI controller, which is the quantity the planner is actually levelling. */
+const balancedControllers = list => {
+  ctx.__in = list;
+  const out = runJson("balanceAcrossBuses(__in)");
+  const groups = [0, 0, 0];
+  for (const d of out) groups[runJson(`controllerGroup(${JSON.stringify(d.bus)})`)] += 1;
+  return groups;
+};
+
+test("balancing levels controllers, not buses", () => {
+  // The distinction is the whole reason the planner exists. can_s2 owns its controller, so an even
+  // plan gives it a full third while can_s0 and can_s1 split their third between them. The per-bus
+  // counts that produces look lopsided precisely because they are right.
+  const groups = balancedControllers(identical(20));
+  const spread = Math.max(...groups) - Math.min(...groups);
+
+  assert.ok(spread <= 2, `controller loads differ by ${spread}: ${groups.join("/")}`);
+});
+
+test("every bus is reachable, including the second of each pair", () => {
+  // The bug this guards: scoring by controller load alone made both buses in a pair always tie,
+  // and a strict comparison plus iteration order handed it to the first every time - so can_s1 and
+  // can_s4 were never chosen, in any plan, ever. Each bus is an independent 1 Mbit/s wire even
+  // when it shares a controller, so that was real headroom thrown away.
+  const per = balancedBuses(identical(30));
+
+  for (const bus of ["can_s0", "can_s1", "can_s2", "can_s3", "can_s4"]) {
+    assert.ok(per[bus] > 0, `${bus} was never used: ${JSON.stringify(per)}`);
+  }
+});
+
+test("balancing moves every device exactly once and invents none", () => {
+  const before = identical(17);
+  ctx.__in = before;
+  const after = runJson("balanceAcrossBuses(__in)");
+
+  assert.equal(after.length, before.length);
+  assert.deepEqual(
+    after.map(d => d.id).sort((a, b) => a - b),
+    before.map(d => d.id).sort((a, b) => a - b),
+    "ids must survive untouched - renumbering someone's plan is not the planner's call",
+  );
+  assert.deepEqual(after.map(d => d.name), before.map(d => d.name));
+});
+
+test("a CANivore device is left where it is", () => {
+  // A CANivore is a physical box with wires already in it. "Move this onto a different controller"
+  // is not a thing a planner gets to decide.
+  const list = [...identical(6), { name: "Arm", id: 99, type: "Kraken X60", bus: "canivore" }];
+  ctx.__in = list;
+  const out = runJson("balanceAcrossBuses(__in)");
+
+  assert.equal(out.find(d => d.id === 99).bus, "canivore");
+});
+
+test("the shipped presets do not pile onto one bus", () => {
+  // The reported bug: 13 of the 20 preset devices landed on can_s0 and the other 7 on can_s2, so
+  // can_s1, can_s3 and can_s4 appeared in no preset at all - and the tool taught the opposite of
+  // what the five-bus model is for.
+  //
+  // The key names are asserted rather than defaulted. An earlier version of this test read
+  // PRESETS["elevatorArm"] with a `?? []` fallback; the real key is "elevator-arm", so that branch
+  // checked nothing and passed.
+  const keys = runJson("Object.keys(PRESETS)");
+  assert.deepEqual(keys, ["swerve", "elevator-arm", "shooter"], "preset keys moved - update this test");
+
+  const all = keys.map(k => runJson(`PRESETS[${JSON.stringify(k)}]`)).flat();
+  const buses = [...new Set(all.map(d => d.bus))].sort();
+
+  assert.ok(all.length > 0, "presets are empty");
+  assert.ok(
+    buses.length > 2,
+    `a full robot's presets use only ${buses.join(", ")} - the point of five buses is to use them`,
+  );
+
+  // And no single bus may carry more than half of everything.
+  const per = {};
+  for (const d of all) per[d.bus] = (per[d.bus] || 0) + 1;
+  const worst = Math.max(...Object.values(per));
+  assert.ok(
+    worst <= all.length / 2,
+    `one bus carries ${worst} of ${all.length} preset devices: ${JSON.stringify(per)}`,
+  );
+});
