@@ -150,4 +150,17 @@ class PreflightTest {
         on(SystemCoreSim.healthy().withAvailable(false)).printToConsole();
         on(SystemCoreSim.healthy().withBattery(6.0).withEmmc(11, 11, 3)).printToConsole();
     }
+
+    @Test
+    void aCheckThatThrowsBecomesAWarningAndTheOthersStillRun() {
+        java.util.List<Preflight.Finding> out = new java.util.ArrayList<>();
+        Preflight.guarded(out, "Exploding", f -> { throw new IllegalStateException("no device"); });
+        Preflight.guarded(out, "Missing native", f -> { throw new UnsatisfiedLinkError("libfoo"); });
+        Preflight.guarded(out, "Fine", f -> f.add(new Preflight.Finding(Preflight.Level.INFO, "Fine", "ok")));
+        assertEquals(3, out.size());
+        assertEquals(Preflight.Level.WARN, out.get(0).level());
+        assertTrue(out.get(0).detail().contains("no device"));
+        assertEquals(Preflight.Level.WARN, out.get(1).level());
+        assertEquals(Preflight.Level.INFO, out.get(2).level());
+    }
 }

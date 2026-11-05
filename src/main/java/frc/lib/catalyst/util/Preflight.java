@@ -131,15 +131,20 @@ public final class Preflight {
      *
      * <p>Safe to call before anything else is constructed — each check reports what it can and says
      * so when it cannot see enough to judge.
+     *
+     * <p>Never throws. A check that fails with an exception or a missing native library becomes a
+     * {@link Level#WARN} finding naming it, and the other checks still run: preflight is advice, and
+     * advice must never be the reason a robot program does not start. Team 5805 wrapped every call in
+     * a try/catch of its own for exactly this until 2.0.0.
      */
     public static Report run() {
         List<Finding> findings = new ArrayList<>();
 
-        checkCommandRuntime(findings);
-        checkMachine(findings);
-        checkStorage(findings);
-        checkCanPlan(findings);
-        checkBattery(findings);
+        guarded(findings, "Commands v3 runtime", Preflight::checkCommandRuntime);
+        guarded(findings, "Systemcore", Preflight::checkMachine);
+        guarded(findings, "Storage", Preflight::checkStorage);
+        guarded(findings, "CAN plan", Preflight::checkCanPlan);
+        guarded(findings, "Battery", Preflight::checkBattery);
 
         // Worst first: someone reading three lines should read the three that matter.
         findings.sort((a, b) -> b.level().compareTo(a.level()));
@@ -152,6 +157,17 @@ public final class Preflight {
                 findings.stream().map(Finding::toString).toArray(String[]::new));
 
         return new Report(findings);
+    }
+
+    /** Run one check; anything it throws becomes a warning, not a crash. */
+    static void guarded(List<Finding> out, String check, java.util.function.Consumer<List<Finding>> body) {
+        try {
+            body.accept(out);
+        } catch (RuntimeException | LinkageError failure) {
+            out.add(new Finding(Level.WARN, check + " check could not run",
+                    failure.getClass().getSimpleName()
+                            + (failure.getMessage() == null ? "" : ": " + failure.getMessage())));
+        }
     }
 
     /**

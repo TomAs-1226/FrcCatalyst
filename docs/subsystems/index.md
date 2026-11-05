@@ -296,6 +296,57 @@ VisionSubsystem vision = new VisionSubsystem(
 > independently and added to the pose estimator in timestamp order with
 > quality/index tiebreaks, so the result is reproducible run-to-run.
 
+### Vision resets keep the gyro heading while enabled
+
+**New in 2.0.0, and a behaviour change from 2.0.0-rc.1.** `SwerveSubsystem.resetPose(Pose2d, double)`
+is what a vision seed or re-anchor calls. While the robot is enabled it now takes the position and keeps
+the gyro's heading, because a re-anchor that turned the heading under a driving robot would swing
+field-centric "forward" under the driver. Disabled (the seed before a match) the vision heading is taken
+whole. To get the old behaviour back:
+
+```java
+drive.setVisionResetsHeadingWhileEnabled(true);
+```
+
+{: .note }
+This rule ran on team 5805's robot through two events.
+
+### Target-tag priority
+
+**New in 2.0.0.** Two cameras that are each steady can still make the fused pose jump when they solve
+from different tags. `TargetTagPriority` picks one leader camera that solves from the target's own tags
+while the robot is scoring, and pauses the other cameras that may lead. `LimelightTagPriority` wires it
+to Limelights: it reads each camera's `rawfiducials` and writes its `fiducial_id_filters_set` (a paused
+camera gets the filter `[0]`). Nothing else in Catalyst writes that key, so a filter set in the
+Limelight's web interface is overridden while this runs.
+
+| Mode | Cameras |
+|---|---|
+| `ALL_TAGS` | Priority not asked for: every camera, every tag. |
+| `WAITING` | Asked for, but no camera has seen a target tag: still every tag. |
+| `TARGET_TAGS` | A camera has seen a target tag for `debounceSeconds` (default 0.1 s): the first such camera in the list leads on the target's tags; the other cameras that may lead are paused. A leader is replaced only once it has lost the target. |
+| `TARGET_SEARCH` | The leader has not seen a target tag for `holdSeconds` (default 0.3 s): every camera on target tags only, and the first to see one leads. After `searchSeconds` (default 1.0 s) more with nothing, back to every tag. |
+
+List the shooter's camera first and it wins ties. Cameras not in the `mayLead` set keep every tag
+throughout. A frame counts as a sighting only while it is at most 0.25 s old.
+
+```java
+// Shooter camera first: it leads whenever it can see the target.
+LimelightTagPriority priority = new LimelightTagPriority(
+        List.of("limelight-shooter", "limelight-left", "limelight-right"),
+        Set.of("limelight-shooter", "limelight-left", "limelight-right"),
+        fieldLayout.getTags().stream().mapToInt(t -> t.ID).toArray());
+
+// Every loop:
+priority.update(scoring, isRed ? RED_GOAL_TAGS : BLUE_GOAL_TAGS);
+```
+
+It publishes `/Catalyst/Vision/TagPriority/Mode`, `Leader` (index, or -1), `LeaderName` and
+`VisibleTagIds`. Pass a `TargetTagPriority.Config` as the last constructor argument to change the timings.
+
+{: .note }
+Ran on team 5805's robot at CAMIS 2026; the hold and search timings were set from that event's logs.
+
 ### LimelightTriggers (v0.4.0+)
 
 Wrap a Limelight's NetworkTables keys as WPILib `Trigger`s. Point at

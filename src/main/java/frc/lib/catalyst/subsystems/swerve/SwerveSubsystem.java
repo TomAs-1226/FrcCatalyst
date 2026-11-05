@@ -290,10 +290,34 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
      *
      * <p>A drivetrain resets outright. The frame's timestamp is not needed: odometry restarts from
      * the reset, and the few milliseconds of motion since the frame are inside the estimator's noise.
+     *
+     * <p>While the robot is enabled only the position is taken; the heading stays the gyro's. A
+     * re-anchor that turned the heading under a driving robot would swing field-centric "forward"
+     * under the driver's thumbs mid-match. Team 5805 ran this rule through two events. Disabled - the
+     * seed before a match - the vision heading is taken whole. See
+     * {@link #setVisionResetsHeadingWhileEnabled(boolean)}.
      */
     @Override
     public void resetPose(Pose2d pose, double timestampSeconds) {
-        resetPose(pose);
+        resetPose(visionReset(pose, getPose().getRotation(),
+                RobotState.isEnabled() && !visionResetsHeadingWhileEnabled));
+    }
+
+    private boolean visionResetsHeadingWhileEnabled = false;
+
+    /**
+     * Let a vision seed or re-anchor replace the heading while the robot is enabled, as it did before
+     * 2.0.0. Default false: enabled, a vision reset moves the position and keeps the gyro's heading.
+     *
+     * @since 2.0.0
+     */
+    public void setVisionResetsHeadingWhileEnabled(boolean replace) {
+        this.visionResetsHeadingWhileEnabled = replace;
+    }
+
+    /** The pose a vision reset leaves: the vision pose, with the current heading kept if asked. */
+    static Pose2d visionReset(Pose2d vision, Rotation2d currentHeading, boolean keepHeading) {
+        return keepHeading ? new Pose2d(vision.getTranslation(), currentHeading) : vision;
     }
 
     /**

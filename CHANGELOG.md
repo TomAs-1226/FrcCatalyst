@@ -5,6 +5,56 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+What proved itself on team 5805's robot "Numbers" through CAMIS 2026 and the event before it, on
+RC1, as Catalyst's own code. Every team constant stays in their repository: tag ids, speeds, field
+routes and start-zone rules are arguments here.
+
+### Added
+
+- **`VisionShotGate`: a shot only from camera evidence the wheels agree with.** The fused pose is
+  the one input a shot's readiness check never checked; after a hit or a spell without tags it can
+  be tens of centimetres off while the flywheel, hood and heading all read ready. The gate needs
+  three or more camera fixes over at least 0.2 s that land where the measured wheel velocity, paired
+  at each frame's capture time, says they should; then it may carry on the wheels alone for at most
+  1.5 s and 1.0 m of path length. Its limits are an aim error, not a length: 2 degrees of bearing,
+  10-20 cm with range. Held to a fixed 10 cm, Numbers refused every shot past 3.2 m in CAMIS Q63.
+  Two cameras that report the same capture time and disagree revoke the evidence. Pure, with every
+  reason it says no as a string. It gated every Numbers scoring shot at CAMIS; the range-scaled
+  limits came after the event and have run in simulation only.
+- **`TargetTagPriority` and `LimelightTagPriority`: one camera on the target's tags while scoring.**
+  The CAMIS logs had each camera steady to 1.5-3.5 cm on its own and the fused pose jumping 30 cm
+  (p90) whenever cameras on different tags were mixed. Once a camera has seen a target tag for 0.1 s,
+  the first such camera in the list leads and solves from the target's tags alone and the others are
+  paused through Limelight's `fiducial_id_filters_set`. A lost leader is held 0.3 s, then every
+  camera searches on target tags for 1.0 s before all tags return - with a 0.75 s hold and an
+  immediate return, none of 39 leader losses recovered and the pose stepped up to 108 cm. Raw frames
+  older than 0.25 s by their NetworkTables timestamp are not sightings. Catalyst had no tag filter.
+- **`AutoStartPose`: start an auto from the vision pose or from the mark.** A recent vision fix
+  stands when the gyro heading is within 20 degrees of the routine's start heading; otherwise, or
+  with no fix and no trusted pose, it resets to the mark. A fix made with a heading a quarter turn
+  out lands somewhere else on the field. Pure; the caller applies it.
+
+### Changed
+
+- **A vision seed or re-anchor keeps the gyro heading while the robot is enabled.**
+  `SwerveSubsystem.resetPose(pose, timestamp)`, the `VisionPoseSink` path, now takes only the
+  position when enabled: a heading that jumped under a driving robot swings field-centric forward
+  under the driver's thumbs. Disabled, the seed takes the vision pose whole, as before.
+  `setVisionResetsHeadingWhileEnabled(true)` restores RC1's behaviour. `resetPose(Pose2d)` is
+  unchanged.
+- **`Preflight.run()` never throws.** A check that throws, or whose native library is missing,
+  becomes a WARN finding naming it, and the others still run. Advice must never be the reason a
+  robot program does not start; Numbers had wrapped every call in its own try/catch.
+
+### Fixed
+
+- **The full build was red on a passing library.** `TunableGainsFanoutTest` read back motor configs
+  with a one-second timeout, which a simulated Phoenix device missed under the full suite (1 of 1109
+  tests on 2026-11-01; it passed alone three times out of three). It now retries the read until a
+  five-second deadline: it checks the values, not the latency.
+
 ## [2.0.0-rc.1] - 2026-10-16 - Alpha-7 release candidate 1
 
 This prerelease targets Java 25, WPILib `2027.0.0-alpha-7`, Phoenix

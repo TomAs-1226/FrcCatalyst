@@ -585,6 +585,34 @@ AutoStartCheck startCheck = autos.startCheck(drive::getPose);   // PathPlanner a
 startCheck.update();
 ```
 
+**New in 2.0.0: `AutoStartPose`** decides what an auto should start from, where `AutoStartCheck` only
+reports. A robot set down 20 cm off its mark should keep the pose its cameras gave it; a robot whose
+cameras saw nothing should not start from stale odometry. A camera fix only stands when the gyro
+heading is within 20 degrees (`DEFAULT_HEADING_TOLERANCE_DEGREES`) of the routine's start heading,
+since most single-camera solves use the gyro heading and a robot switched on sideways makes a fix that
+lands elsewhere on the field. The rule:
+
+- Recent fix and agreeing heading: keep the pose.
+- Recent fix, heading does not agree: reset to the mark.
+- No recent fix, but a trusted pose (placed earlier, not disturbed): keep it.
+- No recent fix and no trusted pose: reset to the mark.
+- Reset called for but the routine names no start, or resets are off: nothing changes.
+
+It is pure: you apply the result and log the detail.
+
+```java
+AutoStartPose.Decision d = AutoStartPose.decide(
+        drive.getPose(), Optional.of(startPose), visionFixRecent, poseTrusted, resetAllowed);
+if (d.source() == AutoStartPose.Source.START_POSE) drive.resetPose(d.pose().get());
+CatalystLog.log("Auto/StartDecision", d.detail());
+```
+
+An overload takes a sixth argument, the heading tolerance in degrees. Pass `poseTrusted = false` for a
+routine that should always start from its mark.
+
+{: .note }
+Ported from team 5805's auto start, which ran through two events.
+
 ### Autos on the Driver Station
 
 The 2027 Driver Station selects op modes directly, so the auto can be chosen on the screen the drive
@@ -662,6 +690,10 @@ One line in the robot constructor:
 ```java
 Preflight.run().printToConsole();
 ```
+
+`Preflight.run()` never throws (since 2.0.0). A check that fails with an exception or a missing native
+library becomes a `WARN` finding naming it, and the other checks still run, so it needs no try/catch of
+your own.
 
 Everything it checks is already checkable separately, and checking all of it separately is something
 nobody does. The failures share a shape: the robot boots, the dashboard connects, everything looks

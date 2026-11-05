@@ -369,6 +369,55 @@ whether the robot has actually slowed to the cap yet.
 
 ---
 
+## Is the pose good enough to shoot from
+
+**New in 2.0.0.** `VisionShotGate` (`util/`) answers whether the robot may shoot from where its cameras
+say it is. A shot aims from the fused pose, and after a hit, a wheel slip or a spell without tags that
+pose can be tens of centimetres off while the flywheel, hood and heading all look ready. The gate checks
+the one input nothing else checks, and returns a reason when it says no.
+
+A shot qualifies on:
+
+- **Camera motion the wheels agree with.** At least three camera fixes spanning at least 0.20 s, inside
+  a 0.40 s window, each landing where the measured wheel velocity, integrated from the first fix, says
+  it should. Each frame is paired with the wheel velocity interpolated to its capture time, not the
+  newest sample.
+- **Fresh data.** The newest fix no older than 0.12 s and the drive state no older than 0.035 s.
+- **Or a bounded carry.** Once a window has qualified, the shot may carry on the wheels alone for at
+  most `carrySeconds` (default 1.5 s) and `carryMeters` (default 1.0 m) of path length. Driving out and
+  back does not reset it, and repeated or weaker frames never extend either budget.
+
+The limits scale with range once `setTarget` has been called: the agreement limit is `aimBudgetRad`
+(default 0.035 rad) times the distance to the target, held between 10 and 20 cm; a frame modelled worse
+than 5 % of the range (10-20 cm) cannot refresh the evidence; a fix more than 5 % of the range (15-25 cm)
+from the estimator's pose is rejected. Without a target every limit stays at its floor. Two cameras
+reporting the same capture time that disagree by more than the agreement limit revoke the evidence.
+
+```java
+VisionShotGate gate = new VisionShotGate();   // or new VisionShotGate(config), see VisionShotGate.Config
+gate.setTarget(goal.getX(), goal.getY());
+
+// Every drive sample, on the robot clock, with the measured field-relative velocity:
+gate.recordMotion(state.timestamp, fieldVx, fieldVy);
+// Every accepted camera pose, at its capture time, with its disagreement from the estimator's pose
+// at that time and its modelled position sigma:
+gate.recordCamera(capture, pose.getX(), pose.getY(), disagreementMeters, sigmaMeters);
+
+// In the shot's gate, alongside the flywheel, hood and heading checks:
+String blocker = gate.scoreBlocker(now, driveStateAge, speed, yawRate, lastFaultTime);
+boolean poseReady = blocker.isEmpty();
+```
+
+Call `invalidateBefore(double)` at an impact, a slip or a pose reset to drop all evidence up to that
+instant, or `invalidateCarryBefore(double)` to forbid only the blind carry. The gate is pure: no
+NetworkTables, clock or hardware, and it never moves the robot or feeds the estimator.
+
+{: .note }
+Ported from team 5805's robot, where it gated every scoring shot at CAMIS 2026. The range-scaled limits
+were added after that event and have only run in simulation.
+
+---
+
 ## The /Catalyst/Aim contract
 
 This is what a robot publishes about its aiming so Catalyst Console can draw it, whatever does the
