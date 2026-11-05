@@ -81,7 +81,8 @@ jobs:
           path: v1-src
 
       - name: Point the 1.x site at /v1/
-        run: sed -i 's#^baseurl: .*#baseurl: "/FrcCatalyst/v1"#' v1-src/docs/_config.yml
+        run: |
+          sed -i 's#^baseurl: .*#baseurl: "/FrcCatalyst/v1"#' v1-src/docs/_config.yml
 
       - name: Build the 1.x site
         uses: actions/jekyll-build-pages@v1

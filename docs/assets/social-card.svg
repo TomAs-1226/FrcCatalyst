@@ -131,7 +131,7 @@
   <g transform="translate(180 358)">
     <rect width="176" height="36" rx="18" fill="#e94560" fill-opacity="0.14" stroke="#e94560" stroke-opacity="0.6" stroke-width="1.5"/>
     <circle cx="23" cy="18" r="5" fill="#ff5d76"/>
-    <text x="40" y="24" font-family="Consolas, ui-monospace, monospace" font-size="15" font-weight="600" fill="#ff92a3">2.0.0-rc.1</text>
+    <text x="40" y="24" font-family="Consolas, ui-monospace, monospace" font-size="15" font-weight="600" fill="#ff92a3">2.0.0</text>
   </g>
   <text x="372" y="382" font-family="Consolas, ui-monospace, monospace" font-size="13"
         font-weight="700" letter-spacing="1.8" fill="#6b6d75">PRE-SEASON</text>

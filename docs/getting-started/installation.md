@@ -50,10 +50,6 @@ Add FrcCatalyst to your WPILib robot project.
 
 ## Which version this installs
 
-**Source candidate:** `2.0.0`; **retained published vendordep:** `2.0.0-rc.1`.
-
-(Until JitPack has built `v2.0.0`; the vendordep moves the moment it has.)
-
 **Catalyst `2.0.0`** (tag `v2.0.0`) is the library's final 2.0.0 release, installed through JitPack as
 `com.github.TomAs-1226:FrcCatalyst:v2.0.0`. The platform under it (WPILib 2027 alpha-7, Systemcore OS
 beta 14, Phoenix 6 alpha) is still prerelease, and desktop tests are not on-robot qualification.
