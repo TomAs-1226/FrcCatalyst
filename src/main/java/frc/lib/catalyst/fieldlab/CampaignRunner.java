@@ -280,6 +280,10 @@ public final class CampaignRunner {
         }
 
         private void begin() {
+            // A runner kept across runs starts each one clean; a resumed session reloads below.
+            // Through 2.0.0 a second run skipped every Measure step as "already taken".
+            measured.clear();
+            notes.clear();
             Optional<String> loadProblem = checkpoint.load();
             boolean resuming = checkpoint.sessionId() != null
                     && !checkpoint.sessionId().isEmpty()

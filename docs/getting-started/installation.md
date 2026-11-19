@@ -29,7 +29,8 @@ Add FrcCatalyst to your WPILib robot project.
 - A **GradleRIO robot project** (created via the WPILib project generator).
 - Vendordeps: **CTRE Phoenix 6** `26.70.0-alpha-2` or later — the first Phoenix build for WPILib
   alpha-7, published 2026-09-18. The 2.0.0 source pins **PathPlanner** `2027.0.0-alpha-4.1` as an
-  optional compile-time dependency and LimelightLib `2.0.0-beta9-alpha7`.
+  optional compile-time dependency and LimelightLib `2.0.0-beta9-alpha7`, which the Catalyst
+  vendordep supplies from 2.0.1 (see Option 1).
 
   {: .warning }
   > **CTRE devices need 26.70.x firmware.** Phoenix 6 `26.70.0-alpha-2` is the first Phoenix build
@@ -75,9 +76,23 @@ https://tomas-1226.github.io/FrcCatalyst/beta/vendordep/FrcCatalyst.json
 That adds FrcCatalyst 2.0.0 to your project and lets WPILib check for updates. The `/beta/` in that
 address is kept on purpose: every 2.x robot installed before 2.0.0 already points there, so a robot
 on RC1 sees the update. Old `/beta/` documentation links also still work.
-Match Phoenix 6 and LimelightLib to the chosen Catalyst build; PathPlanner is optional.
-The 2.0.0 dependency uses the compatibility pins listed above. PhotonVision is **not** part
-of this build. Optional PathPlanner users must add its matching vendor dependency.
+A working 2.x project has these vendordeps in `vendordeps/`:
+
+1. **Catalyst**, the URL above.
+2. **CTRE Phoenix 6 `26.70.0-alpha-2`**, from the same **Manage Vendor Libraries** menu.
+3. **Commands v3**, the vendordep that ships with WPILib 2027 (it is in the offline list).
+4. **PathPlanner**, only if your robot uses it, at the `2027.0.0-alpha-4.1` build.
+
+**LimelightLib comes with Catalyst; do not install it separately.** From 2.0.1 the Catalyst vendordep
+carries `com.limelightvision:limelightlib-java:2.0.0-beta9-alpha7` itself. WPILib applies a
+vendordep's Maven URLs only to that vendordep's own artifacts, and Limelight publishes no 2027
+vendordep, so without this a fresh project failed with `Could not find
+com.limelightvision:limelightlib-java`. PhotonVision is **not** part of this build.
+
+{: .note }
+> A new project's `.wpilib/wpilib_preferences.json` must hold your team number, or the GradleRIO
+> build fails with `Could not find team number`. The WPILib project generator writes it; if you
+> copied a project by hand, set `"teamNumber"` in that file.
 
 ## Option 2: JitPack (build.gradle)
 

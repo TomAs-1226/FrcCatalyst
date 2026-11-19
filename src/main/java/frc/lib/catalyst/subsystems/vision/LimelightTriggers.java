@@ -1,7 +1,9 @@
 package frc.lib.catalyst.subsystems.vision;
 
+import org.wpilib.networktables.DoubleSubscriber;
 import org.wpilib.networktables.NetworkTable;
 import org.wpilib.networktables.NetworkTableInstance;
+import org.wpilib.networktables.NetworkTablesJNI;
 import org.wpilib.command3.Trigger;
 
 /**
@@ -22,29 +24,46 @@ import org.wpilib.command3.Trigger;
  * front.targetWithinArea(2.0).onTrue(rumbleDriver());
  * }</pre>
  *
- * <p>The Limelight must be on the same robot network and have its NT
- * publishing enabled (the default). Nothing else to configure on the
- * library side.
+ * <p>These read the classic per-key NetworkTables API: Limelight OS 2026, or OS 2027 with that API
+ * switched back on (2027 disables it by default, and then no trigger ever fires).
+ *
+ * <p>Every trigger is false while the camera's heartbeat ({@code hb}) has not advanced for
+ * {@value #ALIVE_SECONDS} s. A camera that drops off leaves its last values on the server, so through
+ * 2.0.0 {@code tagInView(7).whileTrue(drive...)} stayed true and kept driving after the camera was
+ * unplugged.
  */
 public final class LimelightTriggers {
 
+    /** A heartbeat older than this is a stopped camera, whatever its last values say. */
+    public static final double ALIVE_SECONDS = 0.5;
+
     private final NetworkTable table;
+    private final DoubleSubscriber heartbeat;
 
     /** @param limelightName the table name (e.g. {@code "limelight"} or {@code "limelight-front"}). */
     public LimelightTriggers(String limelightName) {
         this.table = NetworkTableInstance.getDefault().getTable(limelightName);
+        this.heartbeat = table.getDoubleTopic("hb").subscribe(0.0);
     }
 
-    /** True while the Limelight reports any valid target. */
+    /** Whether the camera's heartbeat advanced within {@link #ALIVE_SECONDS}. */
+    public boolean isAlive() {
+        long stamp = heartbeat.getAtomic().timestamp;
+        // WPILib 2027 NetworkTables time is in nanoseconds, as LegacyLimelightReader measured.
+        return stamp != 0 && (NetworkTablesJNI.now() - stamp) / LegacyLimelightReader.NT_TIME_PER_SECOND
+                < ALIVE_SECONDS;
+    }
+
+    /** True while the Limelight is alive and reports any valid target. */
     public Trigger hasTarget() {
-        return new Trigger(() -> table.getEntry("tv").getDouble(0) > 0.5);
+        return new Trigger(() -> isAlive() && table.getEntry("tv").getDouble(0) > 0.5);
     }
 
     /** True while the Limelight currently sees the given AprilTag id. */
     public Trigger tagInView(int fiducialId) {
-        return new Trigger(() ->
-                table.getEntry("tv").getDouble(0) > 0.5
-                        && (int) table.getEntry("tid").getDouble(-1) == fiducialId);
+        return new Trigger(() -> isAlive()
+                && table.getEntry("tv").getDouble(0) > 0.5
+                && (int) table.getEntry("tid").getDouble(-1) == fiducialId);
     }
 
     /**
@@ -53,9 +72,9 @@ public final class LimelightTriggers {
      * (e.g. {@code "note"}, {@code "cone"}, {@code "algae"}).
      */
     public Trigger detectorClass(String className) {
-        return new Trigger(() ->
-                table.getEntry("tv").getDouble(0) > 0.5
-                        && className.equalsIgnoreCase(table.getEntry("tclass").getString("")));
+        return new Trigger(() -> isAlive()
+                && table.getEntry("tv").getDouble(0) > 0.5
+                && className.equalsIgnoreCase(table.getEntry("tclass").getString("")));
     }
 
     /**
@@ -64,7 +83,7 @@ public final class LimelightTriggers {
      * needing real range.
      */
     public Trigger targetWithinArea(double minAreaPercent) {
-        return new Trigger(() -> table.getEntry("ta").getDouble(0) >= minAreaPercent);
+        return new Trigger(() -> isAlive() && table.getEntry("ta").getDouble(0) >= minAreaPercent);
     }
 
     /**
@@ -73,9 +92,9 @@ public final class LimelightTriggers {
      * enough to shoot".
      */
     public Trigger horizontalErrorBelow(double degrees) {
-        return new Trigger(() ->
-                table.getEntry("tv").getDouble(0) > 0.5
-                        && Math.abs(table.getEntry("tx").getDouble(99)) <= degrees);
+        return new Trigger(() -> isAlive()
+                && table.getEntry("tv").getDouble(0) > 0.5
+                && Math.abs(table.getEntry("tx").getDouble(99)) <= degrees);
     }
 
     // ----- Convenience readers (mostly for diagnostics) -----

@@ -109,6 +109,16 @@ public class AlertManager {
         publishAlerts();
     }
 
+    /**
+     * Clear a specific info alert by message. Info alerts never expire by themselves.
+     *
+     * @since 2.0.1
+     */
+    public void clearInfo(String subsystem, String message) {
+        infos.remove("[" + subsystem + "] " + message);
+        publishAlerts();
+    }
+
     /** Clear all alerts for a given subsystem. */
     public void clearSubsystem(String subsystem) {
         String prefix = "[" + subsystem + "]";
@@ -144,6 +154,15 @@ public class AlertManager {
     /** Get all active warning messages. */
     public List<String> getWarnings() {
         return List.copyOf(warnings);
+    }
+
+    /**
+     * Get all active info messages.
+     *
+     * @since 2.0.1
+     */
+    public List<String> getInfos() {
+        return List.copyOf(infos);
     }
 
     private void publishAlerts() {

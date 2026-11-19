@@ -107,6 +107,14 @@ public final class StateMachineCore<S extends Enum<S>> {
      * commanded back down through whatever it was stuck on.
      */
     private S holdGoalsFrom;
+    /**
+     * Handles a staged edge had not yet released when its transition timed out or was aborted. They
+     * stay parked at the state they never left, as they were during the transition. Through 2.0.0
+     * the hold handed them the abandoned target's goals too, so an aborted STOW-to-AIM edge staged
+     * "elevator first, then arm" swung the arm out while the elevator was still below clearance -
+     * the collision the staging existed to prevent.
+     */
+    private java.util.Set<Handle<?>> heldAtOrigin = java.util.Set.of();
     private double hopStartSeconds;
     private double settledSinceSeconds = -1.0;
     private int stageIndex = -1;
@@ -521,8 +529,10 @@ public final class StateMachineCore<S extends Enum<S>> {
                 // A handle in a later stage stays parked at the state we departed from.
                 if (stage > stageIndex) ref = current;
             }
+        } else if (holdGoalsFrom != null && !heldAtOrigin.contains(handle)) {
+            ref = holdGoalsFrom;
         } else {
-            ref = holdGoalsFrom != null ? holdGoalsFrom : current;
+            ref = current;
         }
         if (stateReleased.get(ref).contains(handle)) return null;
         return (G) stateGoals.get(ref).get(handle);
@@ -568,6 +578,7 @@ public final class StateMachineCore<S extends Enum<S>> {
 
         seq++;
         holdGoalsFrom = null;
+        heldAtOrigin = java.util.Set.of();
         transitionOrigin = current;
         transitionStartSeconds = clock.getAsDouble();
         requestedTarget = target;
@@ -605,6 +616,7 @@ public final class StateMachineCore<S extends Enum<S>> {
         }
         seq++;
         holdGoalsFrom = null;
+        heldAtOrigin = java.util.Set.of();
         transitionOrigin = current;
         transitionStartSeconds = clock.getAsDouble();
         requestedTarget = target;
@@ -650,6 +662,7 @@ public final class StateMachineCore<S extends Enum<S>> {
         current = assumedState;
         requestedTarget = assumedState;
         holdGoalsFrom = null;
+        heldAtOrigin = java.util.Set.of();
         stateConfirmed = true;
         everConfirmed = true;
         phase = Phase.HOLDING;
@@ -683,7 +696,9 @@ public final class StateMachineCore<S extends Enum<S>> {
             // isTransitioning() would be false, advanceTransition() would never run, and the
             // mechanisms would silently fall back to the origin state's goals. The next step()
             // re-derives SETTLING/HOLDING from the live sensors.
-            phase = !route.isEmpty() ? Phase.MOVING : (stateConfirmed ? Phase.HOLDING : Phase.IDLE);
+            // A fault latched before the disable is still latched; say so rather than HOLDING.
+            phase = faulted ? Phase.FAULTED
+                    : !route.isEmpty() ? Phase.MOVING : (stateConfirmed ? Phase.HOLDING : Phase.IDLE);
         }
     }
 
@@ -1148,6 +1163,10 @@ public final class StateMachineCore<S extends Enum<S>> {
                 transitionCount++;
                 finishTransition(TransitionRecord.Outcome.ARRIVED, "", false);
             } else {
+                // Leaving a waypoint is leaving a confirmed state: its exit action runs, as every
+                // other confirmed state's does. Through 2.0.0 a route ran the waypoint's onEnter and
+                // never its onExit, so whatever onEnter switched on stayed on.
+                if (spec != null) runAll(spec.onExit);
                 routeIndex++;
                 hopStartSeconds = now;
                 stageIndex = 0;
@@ -1220,6 +1239,10 @@ public final class StateMachineCore<S extends Enum<S>> {
         telemetry.history(history.serialized());
 
         S abandonedHop = nextHop();
+        java.util.Set<Handle<?>> parked = new java.util.HashSet<>();
+        for (int i = stageIndex + 1; i >= 1 && i < activeStages.size(); i++) {
+            parked.addAll(activeStages.get(i));
+        }
         route = List.of();
         routeIndex = 0;
         activeStages = List.of();
@@ -1227,6 +1250,7 @@ public final class StateMachineCore<S extends Enum<S>> {
         settledSinceSeconds = -1.0;
         if (outcome == TransitionRecord.Outcome.ARRIVED) {
             holdGoalsFrom = null;
+            heldAtOrigin = java.util.Set.of();
             phase = Phase.HOLDING;
             requestedTarget = current;
         } else if (outcome != TransitionRecord.Outcome.SUPERSEDED) {
@@ -1234,6 +1258,7 @@ public final class StateMachineCore<S extends Enum<S>> {
             // would mean a timed-out or aborted transition actively drives the robot backwards,
             // through whatever it just failed to get past.
             holdGoalsFrom = abandonedHop;
+            heldAtOrigin = java.util.Set.copyOf(parked);
             requestedTarget = current;
             if (fromAbort) phase = stateConfirmed ? Phase.HOLDING : Phase.IDLE;
         }

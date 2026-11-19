@@ -38,7 +38,27 @@ public class LEDSubsystem extends frc.lib.catalyst.command.CatalystSubsystem {
     private final int ledCount;
     private int rainbowOffset = 0;
 
+    /** Every strip's [start, end) in the controller's one shared pixel space, to catch overlaps. */
+    private static final java.util.List<int[]> claimedRanges = new java.util.ArrayList<>();
+
     public LEDSubsystem(LEDConfig config) {
+        // WPILib 2027 keeps one pixel buffer for every AddressableLED, whatever its pin, and each
+        // starts at 0 unless told otherwise. Two strips left at the default show the same pixels.
+        synchronized (claimedRanges) {
+            int start = config.startIndex;
+            int end = start + config.ledCount;
+            for (int[] r : claimedRanges) {
+                if (start < r[1] && r[0] < end) {
+                    org.wpilib.driverstation.DriverStationErrors.reportWarning(
+                            "LEDSubsystem: LEDs " + start + "-" + (end - 1) + " overlap another strip's "
+                                    + r[0] + "-" + (r[1] - 1) + ". All strips share one pixel buffer;"
+                                    + " give each its own LEDConfig.startIndex or they mirror each other.",
+                            false);
+                    break;
+                }
+            }
+            claimedRanges.add(new int[] {start, end});
+        }
         this.ledCount = config.ledCount;
         this.led = new AddressableLED(config.pwmPort);
         this.buffer = new AddressableLEDBuffer(config.ledCount);
@@ -135,6 +155,9 @@ public class LEDSubsystem extends frc.lib.catalyst.command.CatalystSubsystem {
 
     /** Command for a scrolling/chase pattern. */
     public CatalystCommand chase(Color color, int width) {
+        if (width < 1) {
+            throw new IllegalArgumentException("chase width must be at least 1, got " + width);
+        }
         return run(() -> {
             int offset = (int) ((Timer.getTimestamp() * 20) % ledCount);
             for (int i = 0; i < ledCount; i++) {

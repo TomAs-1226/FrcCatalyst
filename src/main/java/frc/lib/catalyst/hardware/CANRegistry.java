@@ -52,7 +52,25 @@ public final class CANRegistry {
         }
     }
 
-    private static final Map<String, Entry> byKey = new LinkedHashMap<>();   // "bus/id" → entry
+    private static final Map<String, Entry> byKey = new LinkedHashMap<>();   // "bus/id/class" → entry
+
+    /**
+     * The device class an id is unique within. CTRE numbers each device class separately, so a
+     * TalonFX, a CANcoder and a Pigeon 2 may all be id 20 on one bus - and a turret motor with its
+     * own CANcoder on the same id is common. Through 2.0.0 the registry keyed on bus and id alone and
+     * threw a conflict at robot init for that legal wiring. An unrecognised or "Unknown" type is
+     * {@code "*"}, which still conflicts with every class.
+     */
+    static String deviceClass(String type) {
+        String t = type == null ? "" : type.toLowerCase(java.util.Locale.ROOT);
+        if (t.isEmpty() || t.equals("unknown")) return "*";
+        if (t.contains("cancoder")) return "CANcoder";
+        if (t.contains("pigeon")) return "Pigeon2";
+        if (t.contains("candle")) return "CANdle";
+        if (t.contains("canrange")) return "CANrange";
+        if (t.contains("candi")) return "CANdi";
+        return "TalonFX";
+    }
 
     private CANRegistry() {}
 
@@ -79,9 +97,18 @@ public final class CANRegistry {
         // The same aliasing split byBus(), so contention warnings and utilisation each saw two
         // half-loaded buses where there was one overloaded one.
         String b = CatalystCANBus.of(bus).name();
-        String key = b + "/" + canId;
-        Entry existing = byKey.get(key);
         Entry candidate = new Entry(name, canId, b, type == null ? "" : type);
+        String cls = deviceClass(candidate.type);
+        String key = b + "/" + canId + "/" + cls;
+        Entry existing = null;
+        for (Entry e : byKey.values()) {
+            if (!e.bus.equals(b) || e.canId != canId) continue;
+            String other = deviceClass(e.type);
+            if (other.equals(cls) || other.equals("*") || cls.equals("*")) {
+                existing = e;
+                break;
+            }
+        }
         if (existing != null) {
             if (existing.name.equals(candidate.name)
                     && existing.type.equals(candidate.type)) {
@@ -131,7 +158,11 @@ public final class CANRegistry {
      */
     public static synchronized Optional<Entry> lookup(int canId, String bus) {
         String b = CatalystCANBus.of(bus).name();
-        return Optional.ofNullable(byKey.get(b + "/" + canId));
+        // Several device classes may share an id; the first registered (usually the motor) answers.
+        for (Entry e : byKey.values()) {
+            if (e.bus.equals(b) && e.canId == canId) return Optional.of(e);
+        }
+        return Optional.empty();
     }
 
     /** Snapshot of every registered device, ordered by bus then id. */

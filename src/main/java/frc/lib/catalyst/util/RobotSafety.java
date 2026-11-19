@@ -106,6 +106,10 @@ public final class RobotSafety {
         if (tripped) return;
         tripped = true;
         lastReason = reason == null ? "manual trip" : reason;
+        // Auto-reset counts healthy time from the trip, not from whenever the checks last went
+        // quiet. Through 2.0.0 that clock had usually been running for minutes, so a manual trip
+        // with autoReset configured was cleared by the very next HealthMonitor.update().
+        underThresholdSince = Timer.getTimestamp();
         CatalystLog.log("Safety/Tripped", true);
         CatalystLog.log("Safety/Reason", lastReason);
         if (config != null && config.onTrip != null) {

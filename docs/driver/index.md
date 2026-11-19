@@ -137,8 +137,8 @@ driver can practice against on the field view in AdvantageScope.
 GhostReplay ghost = new GhostReplay(swerve::getPose);
 
 // One-time bindings in RobotContainer:
-operator.start().onTrue(ghost.startRecording("lead-driver-a-side"));
-operator.back() .onTrue(ghost.stopRecording());
+operator.menu().onTrue(ghost.startRecording("lead-driver-a-side"));
+operator.view() .onTrue(ghost.stopRecording());
 operator.x()    .onTrue(ghost.startReplay("lead-driver-a-side"));
 operator.b()    .onTrue(ghost.stopReplay());
 

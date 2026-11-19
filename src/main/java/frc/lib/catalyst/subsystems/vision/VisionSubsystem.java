@@ -250,7 +250,9 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
                 accepted.remove(seed);
                 totalAccepted++;
                 cycleAccepted++;
-                currentPose = seed.pe().pose();
+                // What the sink took, not what was offered: a drivetrain keeps its gyro heading for
+                // an enabled seed, and the rest of this loop compares against the pose it really has.
+                currentPose = poseSink.getPose();
                 logCamera(seed.cameraName(), "Seeded", seed.pe());
                 CatalystLog.log("Vision/Seed/Camera", seed.cameraName());
                 CatalystLog.log("Vision/Seed/Pose", Pose2d.struct, seed.pe().pose());
@@ -273,7 +275,7 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
                 reanchors++;
                 disagreementSince = Double.NaN;
                 disagreementPose = null;
-                currentPose = disagreement.pe().pose();
+                currentPose = poseSink.getPose();
                 logCamera(disagreement.cameraName(), "Re-anchored", disagreement.pe());
                 CatalystLog.log("Vision/Reanchor/Count", (double) reanchors);
                 CatalystLog.log("Vision/Reanchor/Meters", off);
@@ -441,17 +443,6 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
             }
         }
 
-        // Reject if too far from current Kalman filter estimate (likely outlier). Only once the
-        // sink has a pose: before that the "current" pose is a default nobody is at, and this gate
-        // would reject every real estimate forever.
-        if (anchored) {
-            double distFromCurrent = currentPose.getTranslation()
-                    .getDistance(pe.pose().getTranslation());
-            if (distFromCurrent > config.maxAcceptableDistance) {
-                return "TooFar(" + String.format("%.1fm", distFromCurrent) + ")";
-            }
-        }
-
         if (!prefiltered) {
             // Reject if pose is off the field (configurable bounds with margin)
             double x = pe.pose().getX();
@@ -489,6 +480,21 @@ public class VisionSubsystem extends frc.lib.catalyst.command.CatalystSubsystem 
             if (headingDiff > 180) headingDiff = 360 - headingDiff;
             if (headingDiff > config.maxHeadingDivergenceDegrees) {
                 return "HeadingDivergence(" + String.format("%.0fdeg", headingDiff) + ")";
+            }
+        }
+
+        // Reject if too far from current Kalman filter estimate (likely outlier). Only once the
+        // sink has a pose: before that the "current" pose is a default nobody is at, and this gate
+        // would reject every real estimate forever.
+        //
+        // Last, deliberately: a TooFar rejection is what re-anchoring collects, so it must mean
+        // "passed every other check". Through 2.0.0 it ran first, and a consistent off-field or
+        // motion-blurred multi-tag pose became a re-anchor candidate and reset the drivetrain.
+        if (anchored) {
+            double distFromCurrent = currentPose.getTranslation()
+                    .getDistance(pe.pose().getTranslation());
+            if (distFromCurrent > config.maxAcceptableDistance) {
+                return "TooFar(" + String.format("%.1fm", distFromCurrent) + ")";
             }
         }
 

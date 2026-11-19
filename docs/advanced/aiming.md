@@ -217,11 +217,11 @@ AimingSolver solver = AimingSolver.builder()
     .build();
 
 // Operator dials — a D-pad is the classic binding:
-operator.povUp()   .onTrue(Commands.runOnce(() -> comp.nudgeHoodBias(+1)));
-operator.povDown() .onTrue(Commands.runOnce(() -> comp.nudgeHoodBias(-1)));
-operator.povRight().onTrue(Commands.runOnce(() -> comp.nudgeTurretBias(+0.5)));
-operator.povLeft() .onTrue(Commands.runOnce(() -> comp.nudgeTurretBias(-0.5)));
-operator.start()   .onTrue(Commands.runOnce(comp::reset));
+operator.dpadUp()   .onTrue(Commands.runOnce(() -> comp.nudgeHoodBias(+1)));
+operator.dpadDown() .onTrue(Commands.runOnce(() -> comp.nudgeHoodBias(-1)));
+operator.dpadRight().onTrue(Commands.runOnce(() -> comp.nudgeTurretBias(+0.5)));
+operator.dpadLeft() .onTrue(Commands.runOnce(() -> comp.nudgeTurretBias(-0.5)));
+operator.menu()    .onTrue(Commands.runOnce(comp::reset));
 
 // Getting shoved? Trust SOTF less while the bumper is held:
 operator.leftBumper().onTrue (Commands.runOnce(() -> comp.setVelocityScale(0.5)));

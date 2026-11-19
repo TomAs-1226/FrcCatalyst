@@ -1,0 +1,56 @@
+name: Bug report
+description: Something in Catalyst does the wrong thing, crashes, or will not build.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Versions matter more than anything else here: Catalyst 2.x runs on
+        prerelease WPILib, Phoenix and Systemcore builds, and most "it doesn't work" reports turn out
+        to be a version that does not match. The [installation guide](https://tomas-1226.github.io/FrcCatalyst/getting-started/installation.html)
+        lists the exact set.
+  - type: input
+    id: catalyst
+    attributes:
+      label: Catalyst version
+      description: From your vendordep (`vendordeps/FrcCatalyst.json`) or the `Catalyst version` line the robot prints at boot.
+      placeholder: 2.0.1
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Robot controller
+      options:
+        - Systemcore (WPILib 2027)
+        - roboRIO (WPILib 2026, Catalyst 1.x)
+        - Desktop simulation only
+    validations:
+      required: true
+  - type: input
+    id: stack
+    attributes:
+      label: WPILib, Phoenix 6 and Systemcore image versions
+      placeholder: WPILib 2027.0.0-alpha-7, Phoenix 26.70.0-alpha-2, Systemcore image 14
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+      description: The smallest code that shows it helps most. Paste it, don't attach a zip.
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Driver Station console or build output
+      description: The full error, including the stack trace. Pasted text, not a screenshot.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: My robot's JVM has both `--add-opens` flags the installation guide lists (without them Commands v3 fails on the first command).
+        - label: I searched the existing issues.

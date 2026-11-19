@@ -91,7 +91,7 @@ public class AutoSelector {
         pathPlannerAutos.add(autoName);
         autos.put(autoName, () -> {
             try {
-                return LegacyCommands.fromV2(AutoBuilder.buildAuto(autoName));
+                return LegacyCommands.fromPathPlanner(AutoBuilder.buildAuto(autoName));
             } catch (Throwable e) {
                 // Throwable: a missing commands-v2 jar surfaces here as a NoClassDefFoundError,
                 // and an auto that cannot be built must become "do nothing", not a dead robot.
@@ -245,8 +245,11 @@ public class AutoSelector {
     /**
      * Where the currently selected auto expects the robot to start, if it can say.
      *
-     * <p>PathPlanner autos carry their starting pose in the file, already on the alliance the
-     * Driver Station reports. A custom auto has no file, and an auto whose file cannot be loaded
+     * <p>PathPlanner autos carry their starting pose in the file, in Blue-alliance coordinates:
+     * {@code PathPlannerAuto.getStartingPose()} is read once from the file and never flipped. It is
+     * flipped here with {@link AllianceFlipUtil#apply}, so on Red it is the Red mark. (Through 2.0.0
+     * it was returned unflipped, and a Red robot standing exactly on its mark read about 10 m off.)
+     * A custom auto has no file, and an auto whose file cannot be loaded
      * answers empty rather than with a pose nobody chose. Meant for {@link AutoStartCheck}, which
      * compares it with where the robot actually is while the robot is still disabled.
      */
@@ -261,7 +264,7 @@ public class AutoSelector {
                 auto = new com.pathplanner.lib.commands.PathPlannerAuto(selected);
                 startPoseSources.put(selected, auto);
             }
-            return java.util.Optional.ofNullable(auto.getStartingPose());
+            return java.util.Optional.ofNullable(auto.getStartingPose()).map(AllianceFlipUtil::apply);
         } catch (Throwable e) {
             return java.util.Optional.empty();
         }

@@ -19,6 +19,11 @@
       "version": "v2.0.0"
     },
     {
+      "groupId": "com.limelightvision",
+      "artifactId": "limelightlib-java",
+      "version": "2.0.0-beta9-alpha7"
+    },
+    {
       "groupId": "org.wpilib.commandsv2",
       "artifactId": "commandsv2-java",
       "version": "wpilib"

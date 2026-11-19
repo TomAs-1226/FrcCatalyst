@@ -57,6 +57,10 @@ That's it. You now have a fully functional elevator with Motion Magic control, g
 ## Step 2: Set Up Commands
 
 ```java
+import org.wpilib.command3.button.CommandXboxController;
+
+private final CommandXboxController operatorController = new CommandXboxController(1);
+
 private void configureBindings() {
     // Default command: hold current position
     elevator.setDefaultCommand(elevator.holdPosition());
@@ -73,7 +77,7 @@ private void configureBindings() {
     );
 
     // Zero the elevator
-    operatorController.start().onTrue(elevator.zero());
+    operatorController.menu().onTrue(elevator.zero());
 }
 ```
 
@@ -98,6 +102,7 @@ Not sure what PID gains to use? FrcCatalyst can estimate them from your mechanis
 
 ```java
 var config = LinearMechanism.Config.builder()
+    .motor(13)                    // required: build() throws without a CAN ID
     .motorType(MotorType.KRAKEN_X60)
     .gearRatio(10.0)
     .drumRadius(0.0254)
@@ -121,12 +126,15 @@ CharacterizationHelper charHelper = new CharacterizationHelper(
     elevator.getMotor()  // CatalystMotor for voltage control
 );
 
-// Bind to SmartDashboard for SysId
-SmartDashboard.putData("Elevator QS Fwd", charHelper.quasistaticForward());
-SmartDashboard.putData("Elevator QS Rev", charHelper.quasistaticReverse());
-SmartDashboard.putData("Elevator Dyn Fwd", charHelper.dynamicForward());
-SmartDashboard.putData("Elevator Dyn Rev", charHelper.dynamicReverse());
+// Bind to buttons for SysId: hold one, and keep the mechanism clear of its end stops
+operatorController.dpadUp().whileTrue(charHelper.quasistaticForward());
+operatorController.dpadDown().whileTrue(charHelper.quasistaticReverse());
+operatorController.dpadRight().whileTrue(charHelper.dynamicForward());
+operatorController.dpadLeft().whileTrue(charHelper.dynamicReverse());
 ```
+
+The four routines are Commands v3 commands, so they bind to triggers like any other command.
+WPILib 2027 removed `SmartDashboard`, so there is no `putData` to publish them through.
 
 ## What's Next?
 

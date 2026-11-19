@@ -134,6 +134,57 @@ class StateMachineTransitionTest {
     }
 
     @Test
+    void anAbortedStagedEdgeKeepsLaterStagesParkedAtTheOrigin() {
+        // 2.0.1: the hold after an abort or timeout gave every handle the target's goal, so the arm
+        // swung out while the elevator was still below clearance.
+        Rig r = new Rig();
+        r.sm.request(St.HIGH, "test");
+        r.run(3);
+        assertEquals(0, r.sm.stageIndex(), "the elevator is still on its way");
+        r.sm.abort("driver let go");
+        r.run(1);
+        assertEquals(1.0, r.sm.activeGoalOf(r.hElevator), 1e-9, "stage 0 keeps the goal it had");
+        assertEquals(0.0, r.sm.activeGoalOf(r.hArm), 1e-9, "stage 1 stays where it never left");
+        // A fresh request clears the hold.
+        r.sm.request(St.STOW, "test");
+        r.runUntilSettled(St.STOW, 4000);
+        assertTrue(r.sm.isSettledAt(St.STOW));
+    }
+
+    @Test
+    void aRouteRunsAWaypointsExitActionWhenItLeavesIt() {
+        FakeClock clock = new FakeClock();
+        FakeBinding fake = new FakeBinding("elevator");
+        fake.rate = 100.0;
+        int[] enters = {0};
+        int[] exits = {0};
+        StateMachineCore.Builder<St> b = StateMachineCore.builder(St.class, "Waypoint").clock(clock);
+        Handle<Double> h = b.bind("elevator", fake);
+        StateMachineCore<St> sm = b.initialState(St.STOW)
+                .routing(Routing.SHORTEST_PATH)
+                .state(St.STOW, s -> s.set(h, 0.0))
+                .state(St.MID, s -> s.set(h, 0.5).onEnter(() -> enters[0]++).onExit(() -> exits[0]++))
+                .state(St.HIGH, s -> s.set(h, 1.0))
+                .state(St.INTAKE, s -> s.set(h, 0.1))
+                .state(St.CLIMB, s -> s.set(h, 0.0))
+                .allowBoth(St.STOW, St.MID)
+                .allowBoth(St.MID, St.HIGH)
+                .allowBoth(St.STOW, St.INTAKE)
+                .allowBoth(St.STOW, St.CLIMB)
+                .build();
+        sm.seed(St.STOW);
+        assertTrue(sm.request(St.HIGH, "test").accepted(), "routes STOW -> MID -> HIGH");
+        for (int i = 0; i < 500 && !sm.isSettledAt(St.HIGH); i++) {
+            clock.advance(0.02);
+            sm.step();
+            fake.drive(sm.activeGoalOf(h));
+        }
+        assertTrue(sm.isSettledAt(St.HIGH));
+        assertEquals(1, enters[0]);
+        assertEquals(1, exits[0], "leaving the waypoint runs its exit action");
+    }
+
+    @Test
     void anAdvisoryBindingDoesNotGateArrival() {
         Rig r = new Rig();
         r.leds.jam();                    // the advisory binding can never arrive

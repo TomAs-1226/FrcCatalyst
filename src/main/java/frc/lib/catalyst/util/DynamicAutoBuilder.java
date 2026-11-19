@@ -1,8 +1,6 @@
 package frc.lib.catalyst.util;
 
-import org.wpilib.driverstation.Alliance;
 import frc.lib.catalyst.command.LegacyCommands;
-import org.wpilib.driverstation.MatchState;
 import org.wpilib.driverstation.DriverStationErrors;
 import com.pathplanner.lib.auto.AutoBuilder;
 import com.pathplanner.lib.path.GoalEndState;
@@ -98,7 +96,7 @@ public final class DynamicAutoBuilder {
      */
     public static Command pathfindToPose(Pose2d targetPose, PathConstraints constraints) {
         try {
-            return LegacyCommands.fromV2(AutoBuilder.pathfindToPose(targetPose, constraints));
+            return LegacyCommands.fromPathPlanner(AutoBuilder.pathfindToPose(targetPose, constraints));
         } catch (Exception e) {
             DriverStationErrors.reportError("DynamicAutoBuilder: Failed to pathfind - " + e.getMessage(), false);
             return Commands.none();
@@ -116,7 +114,7 @@ public final class DynamicAutoBuilder {
     public static Command pathfindToPose(Pose2d targetPose, PathConstraints constraints,
                                           double endVelocityMPS) {
         try {
-            return LegacyCommands.fromV2(AutoBuilder.pathfindToPose(targetPose, constraints, endVelocityMPS));
+            return LegacyCommands.fromPathPlanner(AutoBuilder.pathfindToPose(targetPose, constraints, endVelocityMPS));
         } catch (Exception e) {
             DriverStationErrors.reportError("DynamicAutoBuilder: Failed to pathfind - " + e.getMessage(), false);
             return Commands.none();
@@ -135,7 +133,7 @@ public final class DynamicAutoBuilder {
     public static Command pathfindThenFollowPath(String pathName, PathConstraints constraints) {
         try {
             PathPlannerPath path = PathPlannerPath.fromPathFile(pathName);
-            return LegacyCommands.fromV2(AutoBuilder.pathfindThenFollowPath(path, constraints));
+            return LegacyCommands.fromPathPlanner(AutoBuilder.pathfindThenFollowPath(path, constraints));
         } catch (Exception e) {
             DriverStationErrors.reportError("DynamicAutoBuilder: Failed to load path '" + pathName
                     + "' - " + e.getMessage(), false);
@@ -152,7 +150,7 @@ public final class DynamicAutoBuilder {
     public static Command followPath(String pathName) {
         try {
             PathPlannerPath path = PathPlannerPath.fromPathFile(pathName);
-            return LegacyCommands.fromV2(AutoBuilder.followPath(path));
+            return LegacyCommands.fromPathPlanner(AutoBuilder.followPath(path));
         } catch (Exception e) {
             DriverStationErrors.reportError("DynamicAutoBuilder: Failed to load path '" + pathName
                     + "' - " + e.getMessage(), false);
@@ -195,7 +193,7 @@ public final class DynamicAutoBuilder {
                         null, // ideal starting state (auto-computed)
                         new GoalEndState(endVelocityMPS, endHeading));
 
-                return LegacyCommands.fromV2(AutoBuilder.followPath(path));
+                return LegacyCommands.fromPathPlanner(AutoBuilder.followPath(path));
             } catch (Exception e) {
                 DriverStationErrors.reportError(
                         "DynamicAutoBuilder: Failed to generate path - " + e.getMessage(), false);
@@ -226,17 +224,15 @@ public final class DynamicAutoBuilder {
     }
 
     /**
-     * Get a pose that is alliance-correct.
-     * Returns the blue pose for blue alliance, mirrored for red.
+     * Get a pose that is alliance-correct: the blue pose on Blue, flipped for Red by the field's
+     * symmetry as {@link AllianceFlipUtil} is configured (rotational for the 2026 field). Through
+     * 2.0.0 this always mirrored, which on a rotational field put a Red pose on the wrong side of the
+     * field with the wrong heading. {@link #mirrorForRed} still mirrors, as its name says.
      *
      * @param bluePose the pose in blue alliance coordinates
      * @return alliance-correct pose
      */
     public static Pose2d alliancePose(Pose2d bluePose) {
-        var alliance = MatchState.getAlliance();
-        if (alliance.isPresent() && alliance.get() == Alliance.RED) {
-            return mirrorForRed(bluePose);
-        }
-        return bluePose;
+        return AllianceFlipUtil.apply(bluePose);
     }
 }

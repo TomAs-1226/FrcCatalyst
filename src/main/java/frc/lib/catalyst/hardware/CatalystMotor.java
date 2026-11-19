@@ -103,6 +103,12 @@ public class CatalystMotor {
                 this.name, builder.canBus, canId, this::isConnected);
 
         this.motor = new TalonFX(canId, CatalystCANBus.of(builder.canBus).phoenix());
+        // The simulated rotor runs in the same frame the inverted motor reports. Without this the
+        // physics sim of an inverted mechanism ran mirrored: an inverted elevator clamped at its
+        // bottom and never rose, an inverted arm fell up. Ignored on a real robot.
+        motor.getSimState().Orientation = builder.inverted
+                ? com.ctre.phoenix6.sim.ChassisReference.Clockwise_Positive
+                : com.ctre.phoenix6.sim.ChassisReference.CounterClockwise_Positive;
         this.gearRatio = builder.gearRatio;
         this.gravityType = builder.gravityType;
         this.supplyCurrentLimit = builder.currentLimit;
@@ -122,6 +128,10 @@ public class CatalystMotor {
         // Current limits
         config.CurrentLimits.SupplyCurrentLimitEnable = true;
         config.CurrentLimits.SupplyCurrentLimit = builder.currentLimit;
+        // Phoenix's default lower limit is 40 A after 1 s at the limit, so through 2.0.0 any limit
+        // above 40 A - a winch's 80 A - quietly became 40 A one second into a climb. What the builder
+        // asks for is what the motor gets.
+        config.CurrentLimits.SupplyCurrentLowerLimit = builder.currentLimit;
         config.CurrentLimits.StatorCurrentLimitEnable = true;
         config.CurrentLimits.StatorCurrentLimit = builder.statorCurrentLimit;
 
@@ -246,14 +256,25 @@ public class CatalystMotor {
                     : NeutralModeValue.Coast;
             followerConfig.CurrentLimits.SupplyCurrentLimitEnable = true;
             followerConfig.CurrentLimits.SupplyCurrentLimit = builder.currentLimit;
+            followerConfig.CurrentLimits.SupplyCurrentLowerLimit = builder.currentLimit;
             followerConfig.CurrentLimits.StatorCurrentLimitEnable = true;
             followerConfig.CurrentLimits.StatorCurrentLimit = builder.statorCurrentLimit;
             followerConfig.TorqueCurrent.PeakForwardTorqueCurrent = builder.peakForwardTorqueCurrent;
             followerConfig.TorqueCurrent.PeakReverseTorqueCurrent = builder.peakReverseTorqueCurrent;
 
+            StatusCode followerStatus = StatusCode.OK;
             for (int i = 0; i < 5; i++) {
-                var status = follower.getConfigurator().apply(followerConfig);
-                if (status.isOK()) break;
+                followerStatus = follower.getConfigurator().apply(followerConfig);
+                if (followerStatus.isOK()) break;
+            }
+            // Reported like the leader's: a follower that missed its config keeps its flash -
+            // coast mode on an arm, an old current limit - and nothing else would say so.
+            if (!followerStatus.isOK()) {
+                DriverStationErrors.reportError(
+                        "CatalystMotor " + builder.canId + " follower " + spec.canId() + " on "
+                                + builder.canBus + ": configuration failed after 5 attempts ("
+                                + followerStatus + "). It is running on whatever was left in its flash.",
+                        false);
             }
             follower.setControl(new Follower(canId,
                     spec.oppose()
@@ -299,7 +320,18 @@ public class CatalystMotor {
 
     /** Set motor output voltage [-12, 12]. */
     public void setVoltage(double volts) {
-        motor.setControl(voltageRequest.withOutput(volts));
+        motor.setControl(voltageRequest.withOutput(volts).withIgnoreSoftwareLimits(false));
+    }
+
+    /**
+     * Set output voltage past the soft limits. For homing against a hard stop only: a mechanism
+     * that boots away from its zero reads 0 where it stands, and the reverse soft limit at 0 would
+     * otherwise stop it before it reached the stop.
+     *
+     * @since 2.0.1
+     */
+    public void setVoltageIgnoringSoftLimits(double volts) {
+        motor.setControl(voltageRequest.withOutput(volts).withIgnoreSoftwareLimits(true));
     }
 
     /** Set closed-loop position target in mechanism units. */
@@ -531,6 +563,7 @@ public class CatalystMotor {
         CurrentLimitsConfigs limits = new CurrentLimitsConfigs();
         limits.SupplyCurrentLimitEnable = true;
         limits.SupplyCurrentLimit = supplyCurrentLimit;
+        limits.SupplyCurrentLowerLimit = supplyCurrentLimit;
         limits.StatorCurrentLimitEnable = true;
         limits.StatorCurrentLimit = statorCurrentLimit;
         applyOrReport(motor.getConfigurator().apply(limits), "current limits");

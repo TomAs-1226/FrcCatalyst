@@ -69,6 +69,14 @@ public final class MotorHistory {
     public static final class Config {
         /** Where the file lives. Relative paths are under the program's working directory. */
         public String path = "catalyst/motor-history.json";
+        /**
+         * Keep a history in simulation too. Off by default: through 2.0.0 every simulation run and
+         * every team unit test tracked simulated motors and wrote {@link #path} into the project
+         * directory, where it was committed and read as real motor hours.
+         *
+         * @since 2.0.1
+         */
+        public boolean inSimulation = false;
         /** A motor at or above this counts hot seconds. Falcons throttle in the 90s; 70 is "working hard". */
         public double hotCelsius = 70.0;
         /** How often usage is sampled. Currents and temperature update at 4 Hz on the bus. */
@@ -425,6 +433,9 @@ public final class MotorHistory {
      * @param now monotonic seconds
      */
     public static synchronized void update(double now) {
+        if (!config.inSimulation && org.wpilib.framework.RobotBase.isSimulation()) {
+            return;
+        }
         try {
             if (!loaded) {
                 load();
@@ -573,6 +584,9 @@ public final class MotorHistory {
         }
         List<BaseStatusSignal> all = new ArrayList<>(TRACKED.size() * 6);
         for (Tracked t : TRACKED.values()) {
+            if (!t.motor.isConnected()) {
+                continue;
+            }
             all.add(t.velocity);
             all.add(t.stator);
             all.add(t.supply);
@@ -580,7 +594,12 @@ public final class MotorHistory {
             all.add(t.temp);
             all.add(t.sticky);
         }
-        BaseStatusSignal.refreshAll(all);
+        // Quietly: this is bookkeeping. With errors reported, a motor that dropped off the bus - or
+        // one whose signals CatalystMotor.optimizeCanBus switched off - printed several errors every
+        // 100 ms for the rest of the boot, on top of whatever the team's own code reported.
+        if (!all.isEmpty()) {
+            BaseStatusSignal.refreshAll(false, all);
+        }
         for (Tracked t : TRACKED.values()) {
             if (!t.motor.isConnected()) {
                 continue;

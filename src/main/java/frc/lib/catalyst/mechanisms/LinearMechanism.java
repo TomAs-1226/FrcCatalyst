@@ -169,7 +169,9 @@ public class LinearMechanism extends CatalystMechanism {
                     motorModel,
                     config.gearRatio,
                     config.mass,
-                    config.drumRadius,
+                    // The carriage moves `stages` times the cable: through 2.0.0 the sim used the bare
+                    // drum, so a two-stage cascade ran at half speed and twice the force in sim.
+                    config.drumRadius * config.stages,
                     config.minPosition,
                     config.maxPosition,
                     true,
@@ -347,11 +349,14 @@ public class LinearMechanism extends CatalystMechanism {
      * Command to move to a position and wait until it arrives (within tolerance).
      */
     public CatalystCommand goToAndWait(double meters, double toleranceMeters) {
+        // Waits for the clamped target, the one the motor is sent to. Through 2.0.0 it waited for
+        // the raw one, and a target outside the range never arrived.
+        double target = Math.clamp(meters, config.minPosition, config.maxPosition);
         return run(() -> {
-            setpointMeters = Math.clamp(meters, config.minPosition, config.maxPosition);
+            setpointMeters = target;
             motor.setMotionMagicPosition(metersToRotations(setpointMeters));
             setState("GoTo " + String.format("%.2f", setpointMeters) + "m");
-        }).untilTrue(() -> atPosition(meters, toleranceMeters))
+        }).untilTrue(() -> atPosition(target, toleranceMeters))
                 .withName(name + ".GoToAndWait(" + String.format("%.2f", meters) + ")");
     }
 
@@ -502,7 +507,9 @@ public class LinearMechanism extends CatalystMechanism {
      */
     public CatalystCommand homeOnCurrent(double volts, double currentThresholdAmps, double seedMeters) {
         return run(() -> {
-            motor.setVoltage(volts);
+            // Past the soft limits: through 2.0.0 a mechanism that booted away from its stop read 0,
+            // sat on the reverse limit at 0, never spiked, and ran until its timeout.
+            motor.setVoltageIgnoringSoftLimits(volts);
             setState("Homing");
         }).untilTrue(() -> getCurrent() >= currentThresholdAmps)
           .finallyDo(interrupted -> {

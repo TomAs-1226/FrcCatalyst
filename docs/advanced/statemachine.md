@@ -878,7 +878,7 @@ subsystem. That one choice does everything:
 
 ```java
 // This is all you write. Nothing about the state machine appears here.
-driver.povUp().whileTrue(elevatorMech.jogUp(2.0));
+driver.dpadUp().whileTrue(elevatorMech.jogUp(2.0));
 ```
 
 Hold the button: WPILib interrupts the `GoalRunner` on the elevator alone, the runner's

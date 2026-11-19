@@ -5,6 +5,72 @@ All notable changes to FrcCatalyst are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+A vetting pass before teams arrive in numbers: a fresh install from the published vendordep, the
+quickstart compiled as written, and a read of every package for bugs a team would hit in its first
+week. Each fix below has a regression test.
+
+### Fixed
+
+- **A fresh robot project could not build.** The vendordep listed LimelightLib's Maven repository
+  but not LimelightLib, and WPILib applies a vendordep's repositories only to that vendordep's own
+  artifacts, so `com.limelightvision:limelightlib-java` resolved nowhere. Limelight publishes no 2027
+  vendordep to install instead. The Catalyst vendordep now carries it.
+- **PathPlanner paths fought the default drive command.** Catalyst wrapped PathPlanner's commands
+  with no requirements, so a path never displaced the drivetrain's default command and both drove
+  every loop: an auto stood still or stuttered. `SwerveSubsystem` now registers itself
+  (`LegacyCommands.setPathPlannerDrivetrain`) and every path helper, `AutoSelector` and
+  `DynamicAutoBuilder` wrap with the new `LegacyCommands.fromPathPlanner`.
+- **Red-alliance start poses.** `AutoSelector.selectedStartingPose()` returned PathPlanner's
+  Blue-frame pose unflipped, so `AutoStartCheck` put a Red robot standing on its mark about 10 m off.
+  `DynamicAutoBuilder.alliancePose` mirrored on the rotational 2026 field, putting Red poses on the
+  wrong side with the wrong heading; it now follows `AllianceFlipUtil`'s symmetry.
+- **An aborted staged transition swung later stages anyway.** After a timeout or abort the hold gave
+  every mechanism the target's goal, so an edge staged "elevator, then arm" swung the arm out below
+  clearance. Handles a stage had not released stay where they were.
+- **`Superstructure.goTo` never ended after an abort or a non-strict timeout,** so
+  `goTo(A).then(next)` waited forever holding the requirement.
+- **A route skipped a waypoint's exit action;** a latched fault read HOLDING after a re-enable.
+- **Supply current limits above 40 A became 40 A after a second.** Phoenix's default lower limit
+  applied; the limit you ask for is now the limit the motor keeps.
+- **`homeOnCurrent` could not pass the mechanism's own soft limit,** so a mechanism that booted away
+  from its stop read 0, sat on the limit and never homed. Homing now ignores soft limits
+  (`CatalystMotor.setVoltageIgnoringSoftLimits`).
+- **`goToAndWait` to a target outside the range never ended;** it now waits for the clamped target.
+- **A TalonFX, CANcoder and Pigeon on the same id threw a CAN conflict at boot.** CTRE numbers each
+  class separately; the registry now does too. An unknown device type still conflicts with all.
+- **A dual winch's second motor had no soft limits.**
+- **Simulation:** inverted mechanisms ran mirrored (the sim rotor now follows the motor's inversion),
+  and a multi-stage elevator ran at half speed.
+- **Follower configuration failures were silent;** they are reported like the leader's.
+- **Vision:** an off-field or motion-blurred multi-tag pose could re-anchor the drivetrain, because
+  the too-far check ran before the off-field and spin checks; it now runs last. A camera that only
+  lost sight of its tags was reported STALE, a fault. After an enabled seed the loop compared
+  against the heading the drivetrain did not take.
+- **`LimelightTriggers` stayed true after a camera dropped off,** so
+  `tagInView(7).whileTrue(drive...)` kept driving; every trigger now needs a live heartbeat.
+- **Two LED strips mirrored each other** at the default offset; WPILib 2027 shares one pixel buffer
+  across pins. `LEDSubsystem` warns on overlapping ranges; `chase` rejects a width below 1.
+- **`RobotSafety`:** a manual trip with `autoReset` cleared on the next loop.
+- **INFO health alerts never cleared** (`AlertManager.clearInfo`, `getInfos`).
+- **`PoseHistory`** reported metres per second from its first sample; **`MovingAverage`** stayed NaN
+  forever after one NaN; **`ChaseCore`** chased a target with a NaN value; **`TaskArbiter`** threw on
+  a candidate with null requirements.
+- **`MotorHistory`** printed several errors every 100 ms for a motor that left the bus, or whose
+  signals `optimizeCanBus` switched off, and wrote `catalyst/motor-history.json` into the project on
+  every simulation run and unit test (now opt-in: `Config.inSimulation`).
+- **`SimDashboard`** killed the simulation when port 5805 was still held by the last run.
+- **`CampaignRunner`** reused a previous run's measurements.
+
+### Changed
+
+- The quickstart, examples and driver docs used 2026 controller names that do not compile on 2027
+  (`org.wpilib2...`, `start()`/`back()` for `menu()`/`view()`, `pov*` for `dpad*`,
+  `SmartDashboard.putData`). The quickstart was compiled against the published jar.
+- The example project's vendordeps were 2026's; they are the 2027 set now.
+- Issue forms, a pull-request template and a 2.x `CONTRIBUTING.md`.
+
 ## [2.0.0] — 2026-11-05 — The 2027 line, final
 
 Catalyst 2.0.0 is the final release of the 2.x line, and from today it is what `main` carries. It

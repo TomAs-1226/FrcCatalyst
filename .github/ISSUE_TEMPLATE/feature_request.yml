@@ -1,0 +1,20 @@
+name: Feature request
+description: Something Catalyst should do that it does not.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do on your robot?
+      description: The problem first, then the API you have in mind if you have one.
+    validations:
+      required: true
+  - type: textarea
+    id: workaround
+    attributes:
+      label: What do you do today instead?
+  - type: input
+    id: catalyst
+    attributes:
+      label: Catalyst version
+      placeholder: 2.0.1

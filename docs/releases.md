@@ -218,7 +218,7 @@ Three more, each forced by something being removed from WPILib or the hardware:
   behaviour could not be confirmed against the alpha jars, and guessing at what runs while disabled
   is not something to do quietly.
 
-PathPlanner works, bridged onto the v3 scheduler by `LegacyCommands.fromV2(...)` until PathPlanner
+PathPlanner works, bridged onto the v3 scheduler by `LegacyCommands.fromPathPlanner(...)` (`fromV2` before 2.0.1) until PathPlanner
 itself ships for v3.
 
 ### Verified, and not

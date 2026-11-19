@@ -65,9 +65,11 @@ public class WinchMechanism extends CatalystMechanism {
                 .gearRatio(config.gearRatio);
 
         // Soft limits in mechanism rotations
+        double minRot = Double.NaN;
+        double maxRot = Double.NaN;
         if (config.spoolRadius > 0) {
-            double minRot = config.minPosition / (2.0 * Math.PI * config.spoolRadius);
-            double maxRot = config.maxPosition / (2.0 * Math.PI * config.spoolRadius);
+            minRot = config.minPosition / (2.0 * Math.PI * config.spoolRadius);
+            maxRot = config.maxPosition / (2.0 * Math.PI * config.spoolRadius);
             motorBuilder.softLimits(minRot, maxRot);
         }
 
@@ -75,15 +77,20 @@ public class WinchMechanism extends CatalystMechanism {
 
         // Second motor (for dual climber arms)
         if (config.secondMotorCanId >= 0) {
-            this.secondMotor = CatalystMotor.builder(config.secondMotorCanId)
+            var secondBuilder = CatalystMotor.builder(config.secondMotorCanId)
                     .name(config.name + "Motor2")
                     .canBus(config.canBus)
                     .inverted(config.secondInverted)
                     .brakeMode(true)
                     .currentLimit(config.currentLimit)
                     .statorCurrentLimit(config.statorCurrentLimit)
-                    .gearRatio(config.gearRatio)
-                    .build();
+                    .gearRatio(config.gearRatio);
+            // The second arm stops where the first does. Through 2.0.0 it had no limits at all and
+            // kept winching after the primary stopped at its maximum.
+            if (config.spoolRadius > 0) {
+                secondBuilder.softLimits(minRot, maxRot);
+            }
+            this.secondMotor = secondBuilder.build();
         } else {
             this.secondMotor = null;
         }

@@ -57,10 +57,10 @@ that the driver only uses in characterization sessions:
 import frc.lib.catalyst.sysid.SysIdRoutine.Direction;
 
 // Elevator
-driver.povUp()    .whileTrue(elevator.sysIdQuasistatic(Direction.FORWARD));
-driver.povDown()  .whileTrue(elevator.sysIdQuasistatic(Direction.REVERSE));
-driver.povRight() .whileTrue(elevator.sysIdDynamic(Direction.FORWARD));
-driver.povLeft()  .whileTrue(elevator.sysIdDynamic(Direction.REVERSE));
+driver.dpadUp()    .whileTrue(elevator.sysIdQuasistatic(Direction.FORWARD));
+driver.dpadDown()  .whileTrue(elevator.sysIdQuasistatic(Direction.REVERSE));
+driver.dpadRight() .whileTrue(elevator.sysIdDynamic(Direction.FORWARD));
+driver.dpadLeft()  .whileTrue(elevator.sysIdDynamic(Direction.REVERSE));
 ```
 
 Run each routine until the mechanism reaches its soft limit (or you
@@ -117,7 +117,7 @@ SysIdRoutine.Config slowRoutine = new SysIdRoutine.Config(
 
 SysIdRoutine routine = elevator.getMotor().sysIdRoutine(elevator, slowRoutine);
 
-driver.povUp().whileTrue(routine.quasistatic(Direction.FORWARD));
+driver.dpadUp().whileTrue(routine.quasistatic(Direction.FORWARD));
 ```
 
 Useful when the default 4 V step would slam the mechanism into a hard

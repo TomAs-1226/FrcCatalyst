@@ -81,4 +81,17 @@ class CANRegistryAliasTest {
 
         assertEquals(2, CANRegistry.byBus().size());
     }
+
+    @Test
+    void aMotorAndItsCANcoderMayShareAnIdButTwoMotorsMayNot() {
+        // CTRE numbers each device class separately; 2.0.0 threw for this legal wiring.
+        CANRegistry.register("Turret", 20, "", "TalonFX");
+        CANRegistry.register("TurretCANcoder", 20, "", "CANcoder (fused)");
+        CANRegistry.register("Gyro", 20, "", "Pigeon2");
+        assertThrows(CANRegistry.CANConflictException.class,
+                () -> CANRegistry.register("Hood", 20, "can_s0", "TalonFX (follower)"));
+        assertThrows(CANRegistry.CANConflictException.class,
+                () -> CANRegistry.register("Mystery", 20, "", "Unknown"),
+                "an unknown device type still conflicts with everything");
+    }
 }

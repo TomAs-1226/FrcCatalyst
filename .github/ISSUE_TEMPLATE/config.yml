@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://tomas-1226.github.io/FrcCatalyst/
+    about: Installation, quickstart and every mechanism, for Catalyst 2.x on Systemcore.
+  - name: Catalyst 1.x docs (roboRIO / WPILib 2026)
+    url: https://tomas-1226.github.io/FrcCatalyst/v1/
+    about: For the roboRIO line. Fixes for 1.x go to the `1.x` branch.

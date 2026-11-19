@@ -120,8 +120,8 @@ After `disableTuning()`:
 You can also flip the switch from a button binding for testing:
 
 ```java
-controller.back().onTrue(Commands.runOnce(TunableNumber::disableTuning));
-controller.start().onTrue(Commands.runOnce(TunableNumber::enableTuning));
+controller.view().onTrue(Commands.runOnce(TunableNumber::disableTuning));
+controller.menu().onTrue(Commands.runOnce(TunableNumber::enableTuning));
 ```
 
 ## How it works under the hood

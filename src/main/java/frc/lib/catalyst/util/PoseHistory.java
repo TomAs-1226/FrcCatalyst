@@ -73,7 +73,10 @@ public class PoseHistory {
         oldTimestamp = previousTimestamp;
         previousPose = latestPose;
         previousTimestamp = latestTimestamp;
-        hasPrevious = true;
+        // A velocity needs two real samples. Through 2.0.0 the first sample was paired with the
+        // origin at t = 0, so the first reading (and the first after clear()) was pose / timestamp:
+        // metres per second out of nothing, fed straight into motion-compensated aiming.
+        hasPrevious = sampleCount >= 1;
         sampleCount++;
 
         latestPose = pose;
@@ -183,5 +186,9 @@ public class PoseHistory {
         buffer.clear();
         hasPrevious = false;
         sampleCount = 0;
+        latestPose = new Pose2d();
+        previousPose = new Pose2d();
+        oldPose = new Pose2d();
+        latestTimestamp = previousTimestamp = oldTimestamp = 0;
     }
 }

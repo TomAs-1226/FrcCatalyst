@@ -318,11 +318,14 @@ public class RotationalMechanism extends CatalystMechanism {
 
     /** Command to move to an angle and wait until it arrives. */
     public CatalystCommand goToAndWait(double degrees, double toleranceDegrees) {
+        // Waits for the clamped target, the one the motor is sent to. Through 2.0.0 it waited for
+        // the raw one, and a target outside the range never arrived.
+        double target = Math.clamp(degrees, config.minAngle, config.maxAngle);
         return run(() -> {
-            setpointDegrees = Math.clamp(degrees, config.minAngle, config.maxAngle);
+            setpointDegrees = target;
             motor.setMotionMagicPosition(degreesToRotations(setpointDegrees));
             setState("GoTo " + String.format("%.1f", setpointDegrees) + "deg");
-        }).untilTrue(() -> atAngle(degrees, toleranceDegrees))
+        }).untilTrue(() -> atAngle(target, toleranceDegrees))
                 .withName(name + ".GoToAndWait(" + String.format("%.1f", degrees) + ")");
     }
 
@@ -480,7 +483,9 @@ public class RotationalMechanism extends CatalystMechanism {
      */
     public CatalystCommand homeOnCurrent(double volts, double currentThresholdAmps, double seedDegrees) {
         return run(() -> {
-            motor.setVoltage(volts);
+            // Past the soft limits: through 2.0.0 a mechanism that booted away from its stop read 0,
+            // sat on the reverse limit at 0, never spiked, and ran until its timeout.
+            motor.setVoltageIgnoringSoftLimits(volts);
             setState("Homing");
         }).untilTrue(() -> getCurrent() >= currentThresholdAmps)
           .finallyDo(interrupted -> {

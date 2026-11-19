@@ -35,6 +35,10 @@ import java.util.TreeSet;
  * changes; the value stays on the NetworkTables server, so a camera that reboots picks it up again.
  * A paused camera gets the filter {@code [0]}, which no FRC field tag matches.
  *
+ * <p>Both keys belong to Limelight's classic per-key NetworkTables API: Limelight OS 2026, or OS 2027
+ * with that API switched back on. On a 2027 camera with it off nothing is read or written, and
+ * priority simply stays {@code WAITING} - every camera keeps every tag. Team 5805 ran it on OS 2026.
+ *
  * <p>Nothing else in Catalyst writes {@code fiducial_id_filters_set}. A filter configured in the
  * Limelight's own web interface is overridden while this runs.
  *

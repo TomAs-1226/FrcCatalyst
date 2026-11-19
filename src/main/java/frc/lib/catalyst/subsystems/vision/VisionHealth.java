@@ -303,7 +303,11 @@ public final class VisionHealth {
             temp = OptionalDouble.empty();
             sinceFrame = OptionalDouble.empty();
         }
-        // A probe that cannot date its frames is dated by what this class saw of it.
+        // A probe that cannot date its frames is dated by what this class saw of it - for the report
+        // only. That age is "since the last pose estimate", and a camera that simply has no tag in
+        // view stops producing estimates while its frames keep coming. Through 2.0.0 that read as
+        // STALE, a fault, a second after the robot turned away from the tags.
+        boolean probeDated = sinceFrame.isPresent();
         if (sinceFrame.isEmpty() && !Double.isNaN(t.lastSeenTs)) {
             sinceFrame = OptionalDouble.of(now - t.lastSeenTs);
         }
@@ -316,7 +320,7 @@ public final class VisionHealth {
         if (!connected) {
             state = State.DISCONNECTED;
             detail = "no data from the camera";
-        } else if (sinceFrame.isPresent() && sinceFrame.getAsDouble() > thresholds.staleFrameSeconds()
+        } else if (probeDated && sinceFrame.getAsDouble() > thresholds.staleFrameSeconds()
                 && !Double.isNaN(t.lastSeenTs)) {
             state = State.STALE;
             detail = String.format("frames stopped %.1f s ago", sinceFrame.getAsDouble());

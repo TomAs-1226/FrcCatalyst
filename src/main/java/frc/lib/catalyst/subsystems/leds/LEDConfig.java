@@ -58,10 +58,11 @@ public class LEDConfig {
         /**
          * Index of this strip's first LED within the controller's shared space.
          *
-         * <p>Systemcore lets several strips share one controller by giving each an offset and a
-         * length — the OS calls these {@code ledoffset} and {@code ledcount}. Two strips on one pin
-         * therefore need the second one's start set past the end of the first, or they will write
-         * over each other and the symptom is one strip mirroring the other.
+         * <p>Systemcore drives every strip from one shared pixel buffer, whatever pin each is on,
+         * giving each an offset and a length — the OS calls these {@code ledoffset} and
+         * {@code ledcount}. Any second strip, on the same pin or another, therefore needs its start
+         * set past the end of the first, or they write over each other and the symptom is one strip
+         * mirroring the other. {@code LEDSubsystem} warns when two ranges overlap.
          *
          * <p>Defaults to 0, which is right for the single-strip case.
          */

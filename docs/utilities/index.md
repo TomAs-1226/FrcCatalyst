@@ -89,11 +89,12 @@ CharacterizationHelper charHelper = new CharacterizationHelper(
     elevator.getMotor()  // CatalystMotor for voltage control
 );
 
-// Four commands for the SysId routine:
-SmartDashboard.putData("QS Fwd", charHelper.quasistaticForward());
-SmartDashboard.putData("QS Rev", charHelper.quasistaticReverse());
-SmartDashboard.putData("Dyn Fwd", charHelper.dynamicForward());
-SmartDashboard.putData("Dyn Rev", charHelper.dynamicReverse());
+// Four commands for the SysId routine, bound to buttons
+// (WPILib 2027 removed SmartDashboard.putData):
+operator.dpadUp().whileTrue(charHelper.quasistaticForward());
+operator.dpadDown().whileTrue(charHelper.quasistaticReverse());
+operator.dpadRight().whileTrue(charHelper.dynamicForward());
+operator.dpadLeft().whileTrue(charHelper.dynamicReverse());
 ```
 
 ## MechanismVisualizer

@@ -116,10 +116,17 @@ pass a `PathPlannerConfig` (as above). It wires:
 Once configured, named autos load with one call:
 
 ```java
-autonomousCommand = AutoBuilder.buildAuto("MyAuto");
-// or follow a single path:
-new PathPlannerAuto("MyAuto").schedule();
+import frc.lib.catalyst.command.LegacyCommands;
+
+autonomousCommand = LegacyCommands.fromPathPlanner(AutoBuilder.buildAuto("MyAuto"));
+// or a PathPlannerAuto:
+autonomousCommand = LegacyCommands.fromPathPlanner(new PathPlannerAuto("MyAuto"));
 ```
+
+PathPlanner's commands are Commands v2, so wrap them with `LegacyCommands.fromPathPlanner(...)`, not
+`fromV2(...)` (2.0.1 and later). It needs the drivetrain that `SwerveSubsystem` registers when it
+configures `AutoBuilder`: a wrapped path with no requirement never displaces the default drive
+command, so both drive at once.
 
 Both `pathfindToPose(...)` (below) and the [behavior framework](../advanced/behavior.html)
 autos build on this. If `AutoBuilder` isn't configured (you didn't pass a
@@ -373,6 +380,16 @@ front.targetWithinArea(2.0).onTrue(climber.armCommand());
 Plus diagnostic readers: `tx()`, `ty()`, `ta()`, `tid()`,
 `latencyMs()` for direct polling when you don't want a trigger.
 
+{: .warning }
+> **Limelight OS version.** `LimelightTriggers` and the target-tag priority above both read
+> Limelight's classic per-key NetworkTables API (`tv`, `tid`, `rawfiducials`, ...). That is what
+> Limelight OS 2026 publishes; OS 2027 disables it by default, and until you switch it back on the
+> triggers never fire and tag priority stays in `WAITING`.
+>
+> **From 2.0.1, every `LimelightTriggers` trigger is false while the camera heartbeat (`hb`) is
+> older than 0.5 s**, whatever the last `tv` or `tx` values were, so a frozen or unplugged camera
+> stops reading as a target.
+
 ## LEDSubsystem
 
 Addressable LED pattern controller with 14 pre-built effects.
@@ -386,6 +403,7 @@ LEDSubsystem leds = new LEDSubsystem(
     LEDConfig.builder()
         .pwmPort(0)          // PWM port the strip is on
         .ledCount(60)        // LEDs in the strip
+        .startIndex(0)       // first pixel in the shared buffer (default 0)
         .build()
 );
 
@@ -407,6 +425,13 @@ aligning.whileTrue(leds.alignmentIndicator(Color.GREEN, () -> alignProgress));
 // Progress bar for elevator height
 leds.dynamicProgress(Color.GREEN, () -> elevator.getPosition() / 1.2);
 ```
+
+{: .warning }
+> **Several strips share one pixel buffer, whatever pin each is on.** `LEDConfig.startIndex` is the
+> strip's first pixel in that buffer (default 0). Every strip after the first needs a `startIndex`
+> past the end of the previous one (`startIndex + ledCount`), or the strips write over each other and
+> one mirrors the other. `startIndex + ledCount` may not exceed `LEDConfig.MAX_LEDS`, and
+> `LEDSubsystem` warns on the Driver Station when two ranges overlap.
 
 {: .tip }
 See the [Advanced Features](../advanced/) section for details on all new LED patterns.

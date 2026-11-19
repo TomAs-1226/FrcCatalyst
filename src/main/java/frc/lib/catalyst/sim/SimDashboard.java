@@ -147,7 +147,11 @@ public final class SimDashboard {
         try {
             server = HttpServer.create(new InetSocketAddress(port), 0);
         } catch (IOException e) {
-            throw new RuntimeException("SimDashboard failed to bind port " + port, e);
+            // A dashboard is not worth the simulation. Port 5805 is usually still held by the last
+            // sim run; through 2.0.0 this threw from the robot constructor and the sim never started.
+            System.err.println("Catalyst SimDashboard: port " + port + " is in use (" + e.getMessage()
+                    + "); running the simulation without the dashboard.");
+            return;
         }
         server.createContext("/layout", ex -> respond(ex, 200, "application/json", layoutJson));
         server.createContext("/state", ex -> respond(ex, 200, "application/json", stateJson));
@@ -484,7 +488,13 @@ public final class SimDashboard {
                     sb.append(',');
                 }
                 BooleanSupplier st = e.toggles.get(j).state;
-                sb.append(st != null && st.getAsBoolean() ? "true" : "false");
+                boolean on;
+                try {
+                    on = st != null && st.getAsBoolean();
+                } catch (RuntimeException ex) {
+                    on = false;     // as safePanelLines does: a broken supplier never reaches the loop
+                }
+                sb.append(on ? "true" : "false");
             }
             sb.append("]}");
         }

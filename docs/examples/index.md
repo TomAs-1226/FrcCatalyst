@@ -28,9 +28,9 @@ A simple competition robot with an elevator for scoring and a roller intake for 
 ```java
 package frc.robot;
 
-import org.wpilib2.command.Command;
+import org.wpilib.command3.Command;
 import frc.lib.catalyst.command.Commands;
-import org.wpilib2.command.button.CommandXboxController;
+import org.wpilib.command3.button.CommandXboxController;
 import frc.lib.catalyst.mechanisms.LinearMechanism;
 import frc.lib.catalyst.mechanisms.RollerMechanism;
 import frc.lib.catalyst.hardware.MotorType;
@@ -102,7 +102,7 @@ public class RobotContainer {
         );
 
         // ── Zero elevator at current position ──
-        operator.start().onTrue(elevator.zero());
+        operator.menu().onTrue(elevator.zero());
 
         // ── Intake controls ──
         operator.rightTrigger(0.3).whileTrue(intake.intake());

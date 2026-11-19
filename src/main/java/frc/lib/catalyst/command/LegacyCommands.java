@@ -43,6 +43,34 @@ public final class LegacyCommands {
 
     private LegacyCommands() {}
 
+    /** The drivetrain PathPlanner's AutoBuilder drives; set by {@code SwerveSubsystem}. */
+    private static volatile Mechanism pathPlannerDrivetrain;
+
+    /**
+     * Name the drivetrain PathPlanner commands drive. {@code SwerveSubsystem} calls this when it
+     * configures AutoBuilder; a team configuring AutoBuilder itself should call it too.
+     *
+     * @since 2.0.1
+     */
+    public static void setPathPlannerDrivetrain(Mechanism drivetrain) {
+        pathPlannerDrivetrain = drivetrain;
+    }
+
+    /**
+     * Wrap a PathPlanner command, requiring the drivetrain AutoBuilder drives.
+     *
+     * <p>Through 2.0.0 Catalyst's path helpers wrapped PathPlanner's commands with no requirements,
+     * so a path never displaced the drivetrain's default command: both wrote the drivetrain every
+     * loop, the driver's centred stick and the path taking turns, and an auto stood still or
+     * stuttered.
+     *
+     * @since 2.0.1
+     */
+    public static CatalystCommand fromPathPlanner(org.wpilib.command2.Command legacy) {
+        Mechanism drivetrain = pathPlannerDrivetrain;
+        return drivetrain == null ? fromV2(legacy) : fromV2(legacy, drivetrain);
+    }
+
     /**
      * Wrap a commands v2 command so the v3 scheduler can run it.
      *

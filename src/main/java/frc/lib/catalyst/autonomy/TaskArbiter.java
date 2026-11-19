@@ -125,7 +125,7 @@ public final class TaskArbiter {
                 continue;
             }
             winners.add(c);
-            claimed.addAll(c.requirements());
+            if (c.requirements() != null) claimed.addAll(c.requirements());
         }
         return new Selection<>(List.copyOf(winners), List.copyOf(skipped));
     }

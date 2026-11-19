@@ -323,12 +323,13 @@ public final class HealthMonitor {
                 case INFO  -> alerts.info(c.subsystem(), msg);
             }
         } else {
-            // AlertManager doesn't have a generic clear by id, but we can
-            // remove via the exact same text we used to add.
+            // Removed by the exact text that added it. Info is cleared too: nothing expires it, so
+            // through 2.0.0 an INFO check such as "has not been zeroed since boot" stayed on the
+            // dashboard all session after it had cleared.
             switch (c.severity()) {
                 case ERROR -> alerts.clearError(c.subsystem(), msg);
                 case WARN  -> alerts.clearWarning(c.subsystem(), msg);
-                case INFO  -> { /* AlertManager has no clearInfo — info auto-stale */ }
+                case INFO  -> alerts.clearInfo(c.subsystem(), msg);
             }
         }
     }

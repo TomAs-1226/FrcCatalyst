@@ -251,6 +251,16 @@ operatorController.a().onTrue(elevator.goTo("HIGH"));
 operatorController.b().onTrue(elevator.goTo("STOW"));
 ```
 
+## Getting help
+
+- **A bug**: open a [GitHub Issue](https://github.com/TomAs-1226/FrcCatalyst/issues) and fill in the
+  form if the repository offers one.
+- **A question**: ask in [GitHub Discussions](https://github.com/TomAs-1226/FrcCatalyst/discussions)
+  if it is enabled for the repository, otherwise open an Issue.
+
+Say which versions you are on: **Catalyst, WPILib, Phoenix 6 and the Systemcore image**. Paste the
+**Driver Station console output** too; most install and startup failures name the cause there.
+
 ---
 
 ## v2.0.0-beta.2: WPILib 2027 and Limelight Systemcore

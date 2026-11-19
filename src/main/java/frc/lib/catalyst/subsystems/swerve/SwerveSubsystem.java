@@ -232,6 +232,9 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
                         var alliance = MatchState.getAlliance();
                         return alliance.isPresent() && alliance.get() == Alliance.RED;
                     });
+            // Every PathPlanner command Catalyst wraps now requires this drivetrain, so a path
+            // displaces the default drive command instead of fighting it.
+            frc.lib.catalyst.command.LegacyCommands.setPathPlannerDrivetrain(this);
         } catch (Throwable e) {
             // Throwable, not Exception, and that is the whole fix: PathPlannerLib is built against
             // commands v2, so on a v3-only robot AutoBuilder.configure() dies with a
@@ -1009,7 +1012,7 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
         // already live, so both legs now track a moving target.
         return Commands.defer(() -> {
             try {
-                return LegacyCommands.fromV2(AutoBuilder.pathfindToPose(targetPose.get(), constraints))
+                return LegacyCommands.fromPathPlanner(AutoBuilder.pathfindToPose(targetPose.get(), constraints))
                         .then(driveToPose(targetPose, translationKP, toleranceMeters));
             } catch (Exception e) {
                 DriverStationErrors.reportError(
@@ -1055,7 +1058,7 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
     public CatalystCommand followChoreoPath(String trajectoryName) {
         try {
             PathPlannerPath path = PathPlannerPath.fromChoreoTrajectory(trajectoryName);
-            return LegacyCommands.fromV2(AutoBuilder.followPath(path)).withName("Swerve.Choreo(" + trajectoryName + ")");
+            return LegacyCommands.fromPathPlanner(AutoBuilder.followPath(path)).withName("Swerve.Choreo(" + trajectoryName + ")");
         } catch (Exception e) {
             DriverStationErrors.reportError(
                     "Failed to load Choreo trajectory \"" + trajectoryName + "\": " + e.getMessage(), true);
@@ -1076,7 +1079,7 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
     public CatalystCommand followPath(String pathName) {
         try {
             PathPlannerPath path = PathPlannerPath.fromPathFile(pathName);
-            return LegacyCommands.fromV2(AutoBuilder.followPath(path)).withName("Swerve.FollowPath(" + pathName + ")");
+            return LegacyCommands.fromPathPlanner(AutoBuilder.followPath(path)).withName("Swerve.FollowPath(" + pathName + ")");
         } catch (Exception e) {
             DriverStationErrors.reportError("Failed to load path \"" + pathName + "\": " + e.getMessage(), true);
             return runOnce(() -> {}).withName("Swerve.FollowPath(missing:" + pathName + ")");
@@ -1096,7 +1099,7 @@ public class SwerveSubsystem extends frc.lib.catalyst.command.CatalystSubsystem
     public CatalystCommand pathfindThenFollowPath(String pathName, PathConstraints constraints) {
         try {
             PathPlannerPath path = PathPlannerPath.fromPathFile(pathName);
-            return LegacyCommands.fromV2(AutoBuilder.pathfindThenFollowPath(path, constraints))
+            return LegacyCommands.fromPathPlanner(AutoBuilder.pathfindThenFollowPath(path, constraints))
                     .withName("Swerve.PathfindThenFollow(" + pathName + ")");
         } catch (Exception e) {
             DriverStationErrors.reportError(

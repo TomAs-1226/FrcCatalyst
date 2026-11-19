@@ -235,9 +235,13 @@ public final class Superstructure<S extends Enum<S>> extends frc.lib.catalyst.co
             if (result.rejected()) return Commands.none();
             final long seq = result.seq();
             return Commands.idle(this)
+                    // Also ends when its own transition is no longer the active one for any other
+                    // reason - an abort, or a timeout with strict(false). Through 2.0.0 neither
+                    // matched, and goTo(A).then(next) waited forever holding the requirement.
                     .untilTrue(() -> engine.isSettledAt(target)
                             || engine.isFaulted()
-                            || engine.lastAcceptedSeq() != seq)
+                            || engine.lastAcceptedSeq() != seq
+                            || engine.activeSeq() != seq)
                     .finallyDo(interrupted -> {
                         if (interrupted && engine.activeSeq() == seq) {
                             engine.abort("driving command interrupted");

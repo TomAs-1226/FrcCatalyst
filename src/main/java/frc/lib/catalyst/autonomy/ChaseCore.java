@@ -85,7 +85,9 @@ public final class ChaseCore {
                 rejected.add(t);
                 continue;
             }
-            if (t.value() < minValue) {
+            // NaN sorts first after reversed(), and NaN < minValue is false: a target with no value
+            // (a bad confidence) would otherwise be chased over every real one.
+            if (!Double.isFinite(t.value()) || t.value() < minValue) {
                 rejected.add(t);
                 continue;
             }

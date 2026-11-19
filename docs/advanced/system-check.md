@@ -59,7 +59,7 @@ SystemCheck check = SystemCheck.builder("PreMatch")
            () -> intake.stop())
     .build();
 
-pit.start().onTrue(check.run());
+pit.menu().onTrue(check.run());
 ```
 
 Run it when nothing else is commanding the mechanisms — `SystemCheck`

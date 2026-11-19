@@ -324,11 +324,11 @@ CharacterizationHelper charHelper = new CharacterizationHelper(
     elevator.getMotor()
 );
 
-// Bind to dashboard buttons
-SmartDashboard.putData("QS Fwd", charHelper.quasistaticForward());
-SmartDashboard.putData("QS Rev", charHelper.quasistaticReverse());
-SmartDashboard.putData("Dyn Fwd", charHelper.dynamicForward());
-SmartDashboard.putData("Dyn Rev", charHelper.dynamicReverse());
+// Bind to controller buttons (WPILib 2027 removed SmartDashboard.putData)
+operator.dpadUp().whileTrue(charHelper.quasistaticForward());
+operator.dpadDown().whileTrue(charHelper.quasistaticReverse());
+operator.dpadRight().whileTrue(charHelper.dynamicForward());
+operator.dpadLeft().whileTrue(charHelper.dynamicReverse());
 ```
 
 ### Running Characterization

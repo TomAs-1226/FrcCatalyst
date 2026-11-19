@@ -680,7 +680,7 @@ Stated so nobody assumes otherwise:
 - **PhotonVision has no 2027 build.** `PhotonSource` is excluded from the compile rather than
   deleted. ChoreoLib has none either, but that costs nothing: `followChoreoPath()` reads Choreo
   `.traj` files through PathPlanner's `fromChoreoTrajectory`, so it never depended on ChoreoLib.
-- **PathPlanner is still commands v2.** Catalyst bridges it with `LegacyCommands.fromV2(...)`; the
+- **PathPlanner is still commands v2.** Catalyst bridges it with `LegacyCommands.fromPathPlanner(...)` (from 2.0.1; it adds the drivetrain requirement `fromV2` lacks); the
   bridge and the v2 dependency both go away when PathPlanner ships for v3.
 
 ## Is this robot fit to enable?

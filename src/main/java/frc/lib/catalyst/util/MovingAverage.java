@@ -33,6 +33,11 @@ public class MovingAverage {
      * @return the moving average
      */
     public double calculate(double value) {
+        // A non-finite sample is dropped. The sum is a running total, so one NaN added to it would
+        // make every later average NaN until reset(), long after the sample left the window.
+        if (!Double.isFinite(value)) {
+            return get();
+        }
         if (count >= buffer.length) {
             sum -= buffer[index];
         } else {
